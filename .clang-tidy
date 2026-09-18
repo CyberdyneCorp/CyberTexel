@@ -1,0 +1,11 @@
+Checks: >
+  bugprone-*,
+  performance-*,
+  modernize-*,
+  readability-*,
+  -modernize-use-trailing-return-type,
+  -readability-identifier-length,
+  -readability-magic-numbers,
+  -bugprone-easily-swappable-parameters
+WarningsAsErrors: 'bugprone-*,performance-*'
+HeaderFilterRegex: '(src|apps|tests)/.*'

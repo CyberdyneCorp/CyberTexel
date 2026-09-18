@@ -1,0 +1,33 @@
+name: OpenSpec
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+    - main
+  pull_request:
+    branches:
+    - main
+
+jobs:
+  validate:
+    name: validate
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    - uses: actions/setup-node@v4
+      with:
+        node-version: 22
+    - name: Install OpenSpec
+      run: npm install -g @fission-ai/openspec@latest
+    - name: Validate specs and changes
+      run: openspec validate --all --strict
+
+  references:
+    name: spec references resolve
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    - uses: extractions/setup-just@v2
+    - name: Every capability named in the proposal has a spec
+      run: just gate-capability-index

@@ -35,6 +35,7 @@ just gate-layering gate-licence gate-parity gate-determinism gate-budgets
 - [ ] 1.5 `image` module: tiled pixel buffers, formats, 8/16/32-bit channels, tile dirty tracking
 - [ ] 1.6 Colour transforms and the working space; headless transform tests against reference values
 - [ ] 1.7 Test harness, sanitizer job, determinism gate scaffolding
+- [ ] 1.8 `color-management` scenarios as tests
 
 ## 2. Image input and output
 
