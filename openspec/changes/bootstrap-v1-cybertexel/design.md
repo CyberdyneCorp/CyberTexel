@@ -1,0 +1,218 @@
+# Design: bootstrap-v1-cybertexel
+
+## Context
+
+Three reference points define the problem space.
+
+- **Substance Painter** (Adobe, closed, subscription, desktop-only). The
+  standard the work is measured against. Its durable ideas are not the brushes:
+  they are *texture sets* (one material per UV space per mesh partition),
+  *mesh maps* (a baked map set every generator reads), *smart materials and
+  smart masks* (a material that re-derives itself on a new model because it is
+  parameterised by mesh maps rather than by pixels), *anchor points* (one layer
+  referencing another's output as a mask source) and *channel-packing export
+  presets*. Behavioural reference only, from public documentation — no code, no
+  assets, no format.
+- **ArmorPaint** (zlib, C, `armory3d/armorpaint`, specified in full at
+  `/Users/leonardoaraujo/work/armorpaint/openspec/`). A working, permissively
+  licensed, GPU-resident implementation of the hard half: texture-space paint
+  rasterization, a node graph that compiles to shader source, an 18-mode blend
+  set that exists identically in generated shader text and in a merge shader,
+  and a GPU undo ring. We may read it, cite it and vendor from it.
+- **The sibling engines.** ClayCore (`clay_*`, C++20, SDF/voxel/mesh sculpting)
+  and CyberRemesherAndUV (`cyber_*`, C++20, retopo/UV/bake). Both have already
+  declared texturing out of scope and named this library's inputs.
+
+`openspec/specs/` is empty. This change is the founding spec for v1.
+
+## Goals / Non-Goals
+
+**Goals**
+
+- One engine, one document, four consumption paths: Rust/`wgpu` desktop,
+  Swift/Metal iPad, Python scripting, headless CLI.
+- Pure C++20 with no UI toolkit and — in the host-executed path — **no owned GPU
+  device**.
+- Feature parity with ArmorPaint's paint pipeline and with Substance Painter's
+  layer, mesh-map and smart-material model.
+- Deterministic and testable headless: the CPU reference executor defines
+  correct results and runs in CI on a machine with no GPU.
+- The seams to the sibling engines stay a *format and an interface*, never a
+  build dependency.
+
+**Non-Goals** — see the proposal's Non-Goals section. The one worth restating
+here because it shapes every other decision: **CyberTexel does not own a
+renderer.**
+
+## Decision 1 — The library does not own the host's GPU
+
+This is the decision everything else follows from, and ClayCore already
+established the pattern in `docs/06-host-gpu-previews.md`: when a host has its
+own device, hand it data and let it draw. ClayCore offers a tape (route 1) or a
+brick atlas (route 2) and notes its own dialect "does not target WGSL".
+
+ClaySpaceDesktop renders with `wgpu 24`. A paint library that owned a
+Metal/Vulkan device would be fighting the app's renderer for the same textures
+across two APIs, and the interop cost would be paid on every stroke.
+
+So CyberTexel offers **three execution routes**, and only one of them is
+mandatory:
+
+| Route | Who owns the device | Used by |
+|---|---|---|
+| **Host-executed** (primary) | The host | ClaySpaceDesktop (`wgpu`), a Swift/Metal shell |
+| **CPU reference** (mandatory) | Nobody — plain memory | CI, tests, Python, headless CLI |
+| **Owned GPU** (optional) | CyberTexel | A CLI that wants speed without a host renderer |
+
+In the host-executed route the library produces, per operation, a **pass plan**:
+shader source in the host's language, the render targets and their formats, the
+uniform and texture bindings in declared order, the draw call and its vertex
+layout. The host runs it. The library never sees a device handle.
+
+This is exactly what ArmorPaint's `parser_material.c` already does — it emits
+shader *text* and a resource list; the device work is the caller's. We are
+keeping that architecture and removing the part where the caller happens to be
+in the same binary.
+
+## Decision 2 — The CPU reference defines correctness, with a stated tolerance
+
+Both sibling engines hold this rule (`compute-acceleration`,
+`evaluation-backends`) and both are right to. CyberTexel adopts it with one
+honest amendment.
+
+ArmorPaint's paint pass reads the *live viewport's* depth and UV g-buffers.
+A CPU reference therefore cannot be "the same code without a GPU" — it must
+rasterize its own depth and UV buffers from the mesh and camera. That is
+tractable (UV-space triangle raster plus a per-texel capsule test) and it is
+what makes headless testing possible at all, but it means the CPU path is a
+*reimplementation*, not a fallback, and reimplementations drift.
+
+The mitigation is a **parity fixture** rather than a promise: a committed corpus
+of documents, strokes and cameras, rendered by every executor, compared per
+texel against the CPU result within a declared tolerance, gated in CI. A backend
+that cannot meet the tolerance is reported, not silently accepted.
+
+Tolerance is per channel and stated in `execution-backends` rather than left to
+the reader, because texture filtering, rasterization fill rules and float
+contraction all differ legitimately between devices.
+
+## Decision 3 — Shader emission, not shader interpretation
+
+A material node graph can be evaluated two ways: interpret the graph per texel,
+or compile it to a shader once. ArmorPaint compiles, and it is right — a graph
+of thirty nodes evaluated per texel at 4K is 500 million interpreter steps per
+channel.
+
+We take ArmorPaint's architecture wholesale, including its three non-obvious
+properties:
+
+1. **One memo list does three jobs.** The record of already-emitted result
+   variables is a common-subexpression cache for fan-out, a soft cycle guard
+   (the name is recorded *before* the node's expression is generated, so a cycle
+   terminates against a forward reference instead of recursing forever), and a
+   per-node dedup hook.
+2. **Group-qualified variable names.** Mangled with the name and id of every
+   enclosing group plus the node's own id, so identically named nodes in
+   different groups cannot collide.
+3. **Coercion at codegen, not at edit time.** The editor allows any output into
+   any input; a scalar broadcasts to a vector, a vector reduces by luminance or
+   by `.x`. This is what keeps the graph UI simple and the rules in one place.
+
+**Kong is the shader backend.** It is zlib-licensed, ~17k lines, depends on libc
+plus a vendored `stb_ds`, and already emits HLSL, SPIR-V, MSL **and WGSL**. It
+is vendored under `thirdparty/kong` and attributed. Writing a fifth emitter
+backend for a shading language it does not target is the extension point, not a
+rewrite.
+
+We do **not** inherit ArmorPaint's global compiler state: Kong was a one-shot
+CLI tool and ArmorPaint works around that with a snapshot/restore around every
+call. We wrap it in a context object at the vendoring seam instead, so
+concurrent emission from two threads is a supported operation rather than a
+hazard.
+
+## Decision 4 — The undo model, and its cost stated up front
+
+ArmorPaint's undo is a ring of full-resolution GPU texture snapshots with an
+O(1) pointer swap to restore. It is elegant and it is expensive: at 16K the
+budget collapses to a single step, and ArmorPaint compensates by silently
+clamping `undo_steps` to 1.
+
+We keep the pointer-swap restore — it makes undo and redo the same operation and
+needs no second snapshot — and change two things:
+
+- **Tiles, not whole textures.** A stroke touches a bounded region; the snapshot
+  is the set of tiles it touched. This is the single biggest deviation from
+  ArmorPaint and it is what makes a 16K document usable with a real history.
+- **A declared budget rather than a silent clamp.** The host sets a memory
+  ceiling; the library reports how many steps that buys and refuses to exceed
+  it, naming the ceiling. A budget that silently becomes one step is a bug
+  report waiting to happen.
+
+Non-pixel edits (rename, opacity, blend mode, reorder, graph edits) stay cheap
+command records, as in ArmorPaint.
+
+## Decision 5 — Texture sets, and what a "document" is bound to
+
+Substance Painter's texture set is the right unit and ArmorPaint's per-object
+layer masking is the weaker version of it. A texture set is *(mesh partition, UV
+set)* and owns its own resolution, its own layer stack and its own mesh maps.
+UDIM tiles are a partition of one texture set's UV space, not separate sets.
+
+This resolves an ambiguity ArmorPaint leaves open: there, a layer has both an
+`object_mask` and a `uv_map` index, and the interaction between them is
+implicit. Here, the binding is the texture set's, and a layer within a set needs
+no mesh binding at all.
+
+## Decision 6 — Mesh maps are consumed, never baked
+
+`mesh-maps` defines the map set (world/tangent normal, ambient occlusion,
+curvature, thickness, position, world-space direction, material ID, object ID,
+UV density) and a `ctex_bake_provider` interface of C callbacks. CyberTexel ships
+**no baker**.
+
+CyberRemesherAndUV already bakes normal, AO, height, colour, curvature and
+cavity through an editable cage with a texel ceiling. Six issues filed against
+it cover the gap (bent normal, thickness, position, ID maps, and the provider
+binding itself). Until a provider is attached, generators that need a missing
+map report it by name rather than producing a plausible-looking flat result —
+the failure mode that makes a smart material look subtly wrong on a new model
+instead of loudly broken.
+
+## Decision 7 — Symbol prefix `ctex_`, not `cyber_texel_`
+
+CyberRemesherAndUV's `capi/cyber_capi.symbols` exports the wildcard `_cyber_*`.
+ClaySpaceDesktop links both libraries. A second library exporting into the
+`cyber_` namespace would make that export map ambiguous, so CyberTexel takes a
+distinct prefix: `ctex_*`, matching ClayCore's `clay_*` in spirit and length.
+
+## Risks
+
+| Risk | Mitigation |
+|---|---|
+| The CPU reference executor drifts from the GPU path | Parity fixture in CI with a declared per-channel tolerance; a failing backend is reported, not skipped |
+| Host-executed route pushes too much work onto the host | The pass plan is complete and ordered — resources, bindings, draw, vertex layout; a reference `wgpu` host lives in `examples/` and is CI-built |
+| Kong's global state under concurrent emission | Wrapped in a context object at the vendoring seam; a concurrency test is a release gate |
+| Tiled undo is materially harder than whole-texture undo | The tile grid is one dimension of the document; restore is still a swap, per tile. Budget accounting is a spec requirement with a test |
+| Smart materials are the largest unproven surface | They sit on mesh maps and the node graph, both of which land first; `smart-materials` is the last group in the task plan |
+| No baker means v1 demos poorly | The Python binding ships a fixture map set so examples run with no CyberRemesher present |
+
+## Module layering
+
+Enforced by a build gate, following ClayCore's `build-packaging` precedent:
+
+```
+image   -> (nothing)                 pixel buffers, formats, colour spaces
+graph   -> image                     node documents, no shading language
+emit    -> graph, image              shader text + pass plans; no device
+doc     -> image, graph              texture sets, layers, history
+paint   -> doc, emit                 tools and stroke application
+maps    -> image, doc                mesh maps and the provider interface
+io      -> doc, image                container format and texture export
+exec    -> emit, image               executors; the only module that may
+                                     touch a device, and it may not be
+                                     depended on by any of the above
+capi    -> everything
+```
+
+No module may depend on `exec`, and no module below `capi` may depend on a
+backend. A cycle is a build failure, not a review comment.
