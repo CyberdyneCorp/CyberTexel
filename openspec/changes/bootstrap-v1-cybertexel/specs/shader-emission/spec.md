@@ -88,6 +88,21 @@ Emission SHALL be able to produce a preview shader that composites the document'
 - **WHEN** a roughness inspection shader is requested
 - **THEN** it SHALL present the roughness channel without lighting
 
+### Requirement: Declared lighting inputs
+The preview shader SHALL declare its lighting inputs in the pass plan: an environment radiance map with its mip convention, a diffuse irradiance representation with its encoding, a specular BRDF lookup, an environment rotation and intensity, and any analytic lights with their parameters. The shading model — the BRDF, its parameterization and its energy conventions — SHALL be documented so a host can match it in its own passes.
+
+#### Scenario: A host binds the environment
+- **WHEN** a host receives the preview pass plan
+- **THEN** every lighting resource it must supply SHALL be named with its expected format, encoding and binding index
+
+#### Scenario: No environment supplied
+- **WHEN** a host supplies no environment resources
+- **THEN** the preview SHALL render with the documented fallback lighting rather than producing an undefined result
+
+#### Scenario: Host matches the shading model
+- **WHEN** a host renders the same material in its own pass
+- **THEN** the documented BRDF and conventions SHALL be sufficient to match the preview within the parity tolerance
+
 ### Requirement: Emitted source is inspectable
 The emitted source SHALL be retrievable by a host and by a test, and SHALL carry comments identifying which node produced which block.
 

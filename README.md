@@ -18,7 +18,7 @@ headless CLI all drive the same engine without interop.
 **Status.** Pre-implementation. The specification lives in [`openspec/`](openspec/);
 the founding change is
 [`openspec/changes/bootstrap-v1-cybertexel/`](openspec/changes/bootstrap-v1-cybertexel/)
-— proposal, design, sixteen capability specs and the task plan. Nothing is built
+— proposal, design, twenty-two capability specs and the task plan. Nothing is built
 yet; `openspec/specs/` fills as the change is delivered and archived.
 
 ## Where it sits
@@ -37,25 +37,31 @@ a provider interface; CyberRemesherAndUV implements the baking behind it.
 
 ## Capabilities
 
-Sixteen, specified before any code exists:
+Twenty-two, specified before any code exists:
 
 | | |
 |---|---|
-| `texture-document` | Layers, groups, masks, filters, channels, blend modes, tile-scoped undo with a declared budget |
+| `texture-document` | Layers, groups, masks, filters, instances, channels, blend modes, tile-scoped undo with a declared budget |
 | `stroke-model` | Spacing, pressure and tilt, deterministic jitter, taper, stabilizer, constraints, symmetry |
 | `paint-engine` | Texture-space rasterization, swept coverage, rejection tests, coverage accumulation, seam dilation |
 | `paint-tools` | Brush, Eraser, Fill, Clone, Blur, Smear, Decal, Stencil, Projection, Text, Particle, Picker, Colour ID, Selection |
+| `picking` | Ray construction, the hit record every tool reads, UV-space picking, snapping, region queries |
 | `material-graph` | Node document, catalogue, groups, typing and coercion, validation |
-| `shader-emission` | Graph and stack to WGSL/MSL/SPIR-V/HLSL plus an ordered pass plan |
+| `shader-emission` | Graph and stack to WGSL/MSL/SPIR-V/HLSL plus an ordered pass plan and declared lighting inputs |
 | `execution-backends` | Host-executed, CPU reference and owned-GPU routes, with a parity gate |
-| `mesh-and-texture-sets` | Mesh and UV ingest, UV sets, UDIM, atlases, mesh replacement |
+| `host-transport` | Per-tile revisions, delta queries and tile readback, so a host uploads what changed |
+| `mesh-and-texture-sets` | Mesh and UV ingest, UV sets, UDIM, atlases, mesh revision and replacement |
 | `mesh-maps` | The map set, the bake provider interface, generators |
 | `smart-materials` | Smart materials and masks, anchor points, shelves, versioned presets |
+| `image-io` | Decoding and encoding, colour space on read, layered sources, hostile-input bounds |
 | `color-management` | Working space, per-channel semantics, LUTs, bit-depth policy |
 | `texture-export` | Channel-packing presets, formats, scopes, padding, reports |
 | `project-io` | Container format, versioning, packing, autosave and recovery |
-| `c-abi` | `ctex_*`, opaque handles, versioned descriptors, result codes |
+| `c-abi` | `ctex_*`, opaque handles, versioned descriptors, result codes, log sink |
 | `language-bindings` | Python, Swift and Rust, held at parity with the C ABI |
+| `cli-headless` | Batch binary: export, bake-request, apply, run, info, validate |
+| `examples` | Python scripts that are the gallery *and* the end-to-end check |
+| `device-gate` | What a performance number may claim: named devices, budgets, the scaling rule |
 | `build-packaging` | Layering, licence, test, determinism and ABI gates |
 
 ## Prior art

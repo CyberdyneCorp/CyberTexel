@@ -89,6 +89,15 @@ Neither is available as an embeddable library. CyberTexel is that library.
 - `mesh-and-texture-sets`: Mesh and UV ingest — UV sets, UDIM tiles, texture
   sets, atlases, per-object masks, and the rules for a mesh that is replaced
   under a document that has already been painted.
+- `picking`: Turning a pointer into a place on the model — ray construction, the
+  hit record every tool reads, UV-space picking, surface snapping, region
+  queries and the acceleration behind them.
+- `image-io`: Decoding and encoding pixels — the formats, bit depths, colour
+  space on read, layered sources, and the bounds that make the largest untrusted
+  input surface in the library safe.
+- `host-transport`: Telling a host what changed — per-tile revisions, delta
+  queries, tile readback and the declared memory layout that let a host upload
+  what changed rather than what exists.
 - `mesh-maps`: Consuming baked maps rather than baking them — the map set, the
   interface a baker implements, the CyberRemesherAndUV binding, and the
   behaviour when a required map is absent.
@@ -105,6 +114,15 @@ Neither is available as an embeddable library. CyberTexel is that library.
 - `c-abi`: The boundary every host crosses and the rules that keep it crossable.
 - `language-bindings`: Python, Swift and Rust surfaces, and the parity rule that
   keeps them from becoming convenience subsets.
+- `cli-headless`: The batch face of the engine — a binary that runs the full
+  pipeline with no window, no GPU and no interaction, with validated arguments,
+  distinguishing exit codes and machine-readable reports.
+- `examples`: Python scripts that are simultaneously the gallery and the
+  project's end-to-end check — every capability covered, every output committed
+  and compared, nothing beyond the wheel and numpy required.
+- `device-gate`: What a performance number is allowed to claim — named reference
+  devices, budgets in milliseconds and bytes, the scaling rule, and the
+  discipline that keeps a gate able to fail.
 - `build-packaging`: How the library is built, layered, gated, versioned and
   shipped.
 
@@ -141,6 +159,12 @@ capability here:
 - Owning a window, an event loop, a UI toolkit or an application shell.
 - Adobe `.sbsar` ingestion — a proprietary format behind a licence we cannot
   meet.
+- **Live link** — a network protocol pushing textures into a running Unreal,
+  Unity, Blender or Maya session. Substance Painter has it and CyberRemesherAndUV
+  has `network-bridge`, so its absence here is a decision rather than an
+  oversight: it is a host feature. `texture-export`'s in-memory delivery gives a
+  host everything it needs to implement one, and the library should not own a
+  socket.
 
 **Deferred to a later version** — v1 must not preclude them:
 
@@ -149,4 +173,11 @@ capability here:
   add them without reshaping.
 - A path-traced preview. Hosts render; if one wants a reference path tracer it
   is a separate library, not a capability here.
+- **Brush node graphs.** ArmorPaint drives brush parameters per dab from a node
+  graph with Random, Time and Input nodes; `stroke-model` here offers jitter,
+  taper and pressure response as fixed features instead. That is a real
+  expressiveness difference and it is deferred, not dismissed — `material-graph`
+  is the infrastructure a brush graph would need, and v1 must keep
+  `stroke-model`'s stamp resolution separable enough that a graph can be put in
+  front of it later without reshaping.
 - Sharing one document between two hosts concurrently.

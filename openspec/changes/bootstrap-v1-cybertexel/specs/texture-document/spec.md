@@ -35,6 +35,25 @@ The stack SHALL support paint layers, fill layers, groups, masks, filters and in
 - **WHEN** a fill layer's material graph changes
 - **THEN** the layer's content SHALL be re-derived rather than retaining previously rasterized pixels
 
+### Requirement: Instances
+An instance SHALL reference another entry's content rather than copying it. Editing the referenced entry SHALL update every instance of it. An instance SHALL carry its own opacity, blend mode, channel enablement and masks, and SHALL NOT be directly paintable. An instance SHALL reference only an entry that precedes it in evaluation order, and a reference that would form a cycle SHALL be refused.
+
+#### Scenario: Editing the source
+- **WHEN** a layer referenced by two instances is painted
+- **THEN** both instances SHALL reflect the change
+
+#### Scenario: Instances carry their own modulation
+- **WHEN** an instance's opacity is changed
+- **THEN** only that instance SHALL change, and the referenced entry SHALL be unaffected
+
+#### Scenario: Painting an instance is refused
+- **WHEN** a paint operation targets an instance
+- **THEN** it SHALL be refused with a diagnostic naming the referenced entry
+
+#### Scenario: Deleting a referenced entry
+- **WHEN** an entry with live instances is deleted
+- **THEN** the deletion SHALL be refused naming the instances, or SHALL convert them to independent copies, and which of the two SHALL be the caller's choice
+
 ### Requirement: Nesting rules
 Groups SHALL nest to a documented maximum depth of at least 8. A mask SHALL attach to exactly one layer or group. A filter SHALL attach to exactly one layer or group and SHALL read that target's composited output. An operation that would violate a nesting rule SHALL be rejected with a diagnostic naming the rule, and SHALL leave the stack unchanged.
 

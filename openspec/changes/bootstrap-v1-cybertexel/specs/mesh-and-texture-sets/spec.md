@@ -91,12 +91,12 @@ A texture set SHALL carry a stable identifier derived from its partition source 
 - **WHEN** a replacement mesh presents the same partitions in a different order
 - **THEN** texture sets SHALL still match by identity
 
-### Requirement: Spatial acceleration
-The system SHALL build a spatial acceleration structure over the mesh for picking and for surface queries, SHALL reuse it across operations, and SHALL rebuild it when the mesh changes.
+### Requirement: Mesh revision
+The mesh SHALL carry a revision that advances whenever geometry, UVs or partitioning change, and every derived structure — the spatial acceleration structure of `picking`, the cached UV-space maps of `paint-engine`, and the bound maps of `mesh-maps` — SHALL be keyed by it.
 
-#### Scenario: Picking is not linear in triangle count
-- **WHEN** a pick is performed on a mesh of several million triangles
-- **THEN** it SHALL complete without scanning every triangle
+#### Scenario: Derived state is invalidated once
+- **WHEN** the mesh is replaced
+- **THEN** the revision SHALL advance and every consumer SHALL detect the change from that revision alone, rather than each maintaining its own notion of freshness
 
 ### Requirement: Mesh limits are declared
 The specification SHALL state the maximum supported vertex and triangle counts and the behaviour when they are exceeded, which SHALL be a named refusal rather than undefined behaviour.

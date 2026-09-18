@@ -105,6 +105,24 @@ Every capability SHALL be reachable through the C ABI. A capability reachable on
 - **WHEN** the coverage gate runs
 - **THEN** every capability's operations SHALL be shown to have a C entry point
 
+### Requirement: Host log sink
+A host SHALL be able to install a log callback receiving a severity, a category, a message and its opaque user data, and SHALL be able to set a minimum severity. With no sink installed the library SHALL emit nothing to any stream of its own.
+
+#### Scenario: Routing library logs
+- **WHEN** a host installs a log sink
+- **THEN** the library's diagnostics SHALL be delivered to it rather than written anywhere else
+
+#### Scenario: Silent by default
+- **WHEN** no sink is installed
+- **THEN** the library SHALL write nothing to the standard output or error streams
+
+### Requirement: Diagnostics are English with machine-readable codes
+Diagnostic messages SHALL be English. Every condition a host may wish to present in another language SHALL also be identified by a stable machine-readable code, so that localization is the host's to perform and does not depend on parsing prose.
+
+#### Scenario: A host localizes a failure
+- **WHEN** a host presents a failure in another language
+- **THEN** it SHALL key its translation on the stable code rather than on the message text
+
 ### Requirement: Allocation control
 A host SHALL be able to supply allocation and deallocation callbacks used for the library's own long-lived allocations.
 

@@ -185,6 +185,45 @@ ClaySpaceDesktop links both libraries. A second library exporting into the
 `cyber_` namespace would make that export map ambiguous, so CyberTexel takes a
 distinct prefix: `ctex_*`, matching ClayCore's `clay_*` in spirit and length.
 
+## Decision 8 — Per-tile revisions are what make Decision 1 affordable
+
+Deciding that the host owns the device (Decision 1) creates an obligation that is
+easy to miss: the host now holds its own copy of every channel, and after each
+stroke it has to know what to re-upload. If the answer is "the channel", a 4K
+document re-uploads 64 MB per dab and the architecture is slower than the one it
+replaced.
+
+So `host-transport` is not a convenience capability. Every channel and every tile
+carries a monotonically increasing revision; a host asks for the delta since the
+revision it last synchronized and reads back only those tiles, in a declared
+layout it can upload without repacking. ClayCore reached the same conclusion for
+the same reason in `sculpt-runtime` — *"chunk revisions so a host uploads what
+changed rather than what exists."*
+
+Two properties are worth stating because they are the ones that break quietly:
+
+- **A delta query costs what changed, not what exists.** An unchanged large
+  document must answer in time independent of its tile count, or the
+  synchronization loop itself becomes the cost.
+- **A query and its readback observe one snapshot.** An edit landing between them
+  must appear in the *next* delta rather than tearing this one.
+
+## Decision 9 — Examples are the test suite, not a demonstration tier
+
+ClayCore's `examples` capability makes the gallery a CI gate. We take the same
+approach and go one step further: the examples are Python, they drive the same
+binding the integration suite uses, and they are the project's end-to-end check.
+There is no separate tier of scripts that merely illustrate.
+
+That has a cost worth accepting deliberately — an example must assert, not print,
+and its committed output must be updated in the same commit as any change that
+alters it. In exchange, a capability without an example fails a gate, and a
+change that breaks a picture fails CI rather than being found when somebody next
+looks.
+
+`cli-headless`'s `run` subcommand executes the same Python, so an operation
+reachable from an example is reachable from a pipeline without a new flag.
+
 ## Risks
 
 | Risk | Mitigation |
@@ -194,19 +233,27 @@ distinct prefix: `ctex_*`, matching ClayCore's `clay_*` in spirit and length.
 | Kong's global state under concurrent emission | Wrapped in a context object at the vendoring seam; a concurrency test is a release gate |
 | Tiled undo is materially harder than whole-texture undo | The tile grid is one dimension of the document; restore is still a swap, per tile. Budget accounting is a spec requirement with a test |
 | Smart materials are the largest unproven surface | They sit on mesh maps and the node graph, both of which land first; `smart-materials` is the last group in the task plan |
-| No baker means v1 demos poorly | The Python binding ships a fixture map set so examples run with no CyberRemesher present |
+| No baker means v1 demos poorly | The repository carries a fixture map set so examples run with no CyberRemesher present |
+| Image decoders are the largest hostile-input surface | Every decoder is fuzzed in CI, allocations are bounded by a configurable ceiling, and declared dimensions are validated before allocation |
+| Per-tile revision bookkeeping costs more than it saves on small documents | The delta query's cost is a budgeted operation in `device-gate`; if the bookkeeping dominates on small documents the budget shows it |
+| Examples doubling as the test suite makes them brittle | Tolerances are stated per comparison, seeds are explicit, and outputs are updated in the same commit as the change that alters them |
 
 ## Module layering
 
 Enforced by a build gate, following ClayCore's `build-packaging` precedent:
 
 ```
-image   -> (nothing)                 pixel buffers, formats, colour spaces
+image   -> (nothing)                 pixel buffers, formats, colour spaces,
+                                     decoders and encoders
+mesh    -> (nothing)                 mesh views, UV sets, partitions, revisions
+pick    -> mesh                      rays, hit records, snapping, region queries
 graph   -> image                     node documents, no shading language
 emit    -> graph, image              shader text + pass plans; no device
-doc     -> image, graph              texture sets, layers, history
-paint   -> doc, emit                 tools and stroke application
+doc     -> image, mesh, graph        texture sets, layers, history, tile
+                                     revisions
+paint   -> doc, emit, pick           tools and stroke application
 maps    -> image, doc                mesh maps and the provider interface
+xport   -> doc                       revisions, delta queries, tile readback
 io      -> doc, image                container format and texture export
 exec    -> emit, image               executors; the only module that may
                                      touch a device, and it may not be
