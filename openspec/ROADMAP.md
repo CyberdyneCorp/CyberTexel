@@ -6,7 +6,7 @@ decisions taken and questions still open.
 
 ## Status
 
-Pre-implementation. 22 capabilities, 300 requirements, 361 scenarios, 202 tasks,
+Pre-implementation. 22 capabilities, 304 requirements, 368 scenarios, 204 tasks,
 0 done. No source tree exists yet; task 1.1 creates it.
 
 ## Milestones

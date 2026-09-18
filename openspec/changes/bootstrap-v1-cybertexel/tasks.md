@@ -15,20 +15,29 @@ interruption:
    scope is hardware-blocked, and mark them so.
 4. Implement, build, test, commit (`feat(<module>): <task>`), push, tick the box.
 
-Verify block:
+Verify block. Every routine action goes through `just`; a recipe is the single
+definition of its command, and CI invokes the same recipes rather than repeating
+them.
 
 ```
-cmake --preset headless && cmake --build --preset headless
-ctest --preset headless
-python -m pytest python/tests
-python examples/run_all.py --check
-cargo test --manifest-path rust/Cargo.toml
-just gate-layering gate-licence gate-parity gate-determinism gate-budgets
+just build
+just test
+just examples
+just check
 ```
+
+`just check` runs everything that needs no device: the spec validation, the
+capability index, layering, licence, determinism, binding parity, example
+coverage, version consistency and the ABI diff. Gates whose implementing task is
+not yet done fail and name that task, so the block cannot pass vacuously.
+Device-dependent gates — parity and budgets — are `just gate-parity` and
+`just gate-budgets`, run where the hardware exists.
 
 ## 1. Foundation
 
 - [ ] 1.1 CMake project, C++20, warnings as errors, presets for headless, macOS, Linux, Windows, iOS, Android
+- [ ] 1.1a `justfile` as the single task-runner entry point: build, test, format, examples, bench, clean, check, and one recipe per gate; unimplemented gates fail naming their task; prerequisites reported by name
+- [ ] 1.1b CI invokes the recipes rather than repeating their commands
 - [ ] 1.2 Module skeleton (`image`, `mesh`, `pick`, `graph`, `emit`, `doc`, `paint`, `maps`, `xport`, `io`, `exec`, `capi`) with the layering gate enforcing the dependency rule
 - [ ] 1.3 Single source of truth for the version; consumed by build, ABI query and all three binding manifests; version consistency gate
 - [ ] 1.4 Licence policy, attribution file, dependency audit gate covering vendored trees

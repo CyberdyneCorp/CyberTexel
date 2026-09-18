@@ -64,6 +64,22 @@ Twenty-two, specified before any code exists:
 | `device-gate` | What a performance number may claim: named devices, budgets, the scaling rule |
 | `build-packaging` | Layering, licence, test, determinism and ABI gates |
 
+## Working on it
+
+Everything goes through [`just`](https://github.com/casey/just) — a recipe is the
+single definition of its command, and CI invokes the same recipes a contributor
+runs.
+
+```
+just              # list every recipe
+just check-spec   # specification checks; needs no build
+just check        # everything that needs no device
+just build test examples
+```
+
+Gates whose implementing task is not yet done exit non-zero and name that task,
+so `just check` cannot pass vacuously. See [CONTRIBUTING.md](CONTRIBUTING.md).
+
 ## Prior art
 
 Two products define the problem, and one of them we may read.

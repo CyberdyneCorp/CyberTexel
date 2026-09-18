@@ -16,6 +16,48 @@ The core library SHALL compile and pass its tests with no GUI toolkit, no graphi
 - **WHEN** the headless preset is built on a machine with no GPU SDK installed
 - **THEN** the build SHALL succeed and the test suite SHALL pass
 
+### Requirement: One task runner is the entry point
+The repository SHALL provide a `justfile` as the single documented entry point for building, testing, formatting and running every gate. A contributor SHALL NOT need to know the underlying CMake, pytest, cargo or npm invocation to perform any routine task.
+
+The recipe set SHALL cover, at minimum: `build`, `test`, `format`, `format-check`, `examples`, `bench`, `clean`, a `check` recipe that runs everything possible without a device, and one recipe per gate — layering, licence, parity, determinism, budgets, binding parity, example coverage, capability index, version consistency and ABI diff.
+
+#### Scenario: A contributor builds from a clean clone
+- **WHEN** a contributor clones the repository and runs the build recipe with the documented toolchain installed
+- **THEN** it SHALL succeed without further instructions
+
+#### Scenario: Every gate is reachable by name
+- **WHEN** the recipe list is displayed
+- **THEN** each gate named in this specification SHALL appear as a recipe whose name identifies it
+
+### Requirement: An unimplemented gate fails
+A gate recipe whose implementation does not exist yet SHALL exit non-zero and name the task that delivers it. It SHALL NOT succeed, and it SHALL NOT be absent from the recipe list.
+
+#### Scenario: Gate invoked before it is built
+- **WHEN** a gate recipe is run before the task implementing it is done
+- **THEN** it SHALL fail, and its output SHALL name the task in the plan that delivers it
+
+#### Scenario: A vacuous pass is impossible
+- **WHEN** the full check recipe runs on a tree where a gate is unimplemented
+- **THEN** the run SHALL fail rather than report success for a gate that checked nothing
+
+### Requirement: CI runs the same recipes
+Continuous integration SHALL invoke the task runner's recipes rather than reimplementing their commands, so that a check cannot pass locally and differ in CI or the reverse.
+
+#### Scenario: A gate's command changes
+- **WHEN** a gate's implementation changes
+- **THEN** the change SHALL take effect in CI without editing a workflow file
+
+#### Scenario: Drift is detectable
+- **WHEN** a CI workflow step runs a command that is not a recipe
+- **THEN** it SHALL be treated as a defect in the workflow, because the same command is then defined in two places
+
+### Requirement: The task runner is a documented prerequisite
+The task runner and every other tool a contributor needs SHALL be listed with a minimum version in the contributor documentation, and a recipe SHALL report a missing prerequisite by name rather than failing with the underlying tool's error.
+
+#### Scenario: Missing toolchain
+- **WHEN** a recipe runs on a machine lacking one of its prerequisites
+- **THEN** it SHALL name the missing tool and the version required
+
 ### Requirement: Module layering is enforced
 The module dependency rule SHALL be enforced by a build gate rather than by convention. No module shall depend on the executor module, and no module below the C ABI shall depend on a graphics backend.
 
