@@ -85,3 +85,24 @@ The budgets, the reference devices and the current measurements SHALL live in a 
 #### Scenario: Reading current performance
 - **WHEN** the budget document is read
 - **THEN** it SHALL show every budgeted operation with its budget, its latest measurement, its device, its date and whether it is measured, unmeasured or unreachable
+
+### Requirement: End-to-end interaction latency
+The first desktop and mobile painting slice SHALL declare numeric median, 95th-percentile and 99th-percentile budgets from timestamped input receipt to presentation of the corresponding preview, including input resolution, queueing, uploads, execution and host presentation. CPU submission time and isolated stamp time SHALL NOT substitute for this metric. Benchmarks SHALL state input rate, refresh rate, mesh size, layer/channel configuration and residency state.
+
+#### Scenario: Fast submission but delayed presentation
+- **WHEN** CPU stamp submission meets its budget but queued GPU work makes visible feedback exceed the declared latency ceiling
+- **THEN** the interactive gate SHALL fail and identify the delayed stage
+
+### Requirement: Sustained mobile workload
+Named mobile devices SHALL run a reproducible painting workload for at least twenty minutes, recording latency distributions, peak physical memory, thermal state where exposed, and initial versus final performance. Memory-pressure, suspend/resume and device-loss fixtures SHALL accompany it. The declared sustained budgets SHALL be enforced in the final five minutes, not only on a cold device.
+
+#### Scenario: Thermal slowdown
+- **WHEN** a cold-device benchmark passes but the final five minutes exceed the declared interaction budget
+- **THEN** the sustained mobile gate SHALL fail and retain both measurements
+
+### Requirement: Residency traffic is measured
+Reference hosts SHALL record upload and readback bytes, synchronous GPU waits and peak pinned snapshot bytes during painting, undo, save and export. Ordinary resident painting and undo SHALL show zero synchronous pixel readbacks. Save/export readback SHALL be attributed separately.
+
+#### Scenario: Hidden round trip
+- **WHEN** a painting implementation synchronously reads GPU results into CPU memory after each stroke
+- **THEN** the residency gate SHALL fail even if an isolated stamp timing passes

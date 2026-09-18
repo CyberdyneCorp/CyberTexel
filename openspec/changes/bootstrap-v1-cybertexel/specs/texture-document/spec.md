@@ -14,7 +14,7 @@ A document SHALL own one or more texture sets, where a texture set is the pair o
 - **THEN** it SHALL apply to every face of that set's partition without the caller supplying an object binding
 
 ### Requirement: Channel set
-A texture set SHALL carry the channels base colour, opacity, roughness, metallic, normal, height, occlusion, emission and subsurface. A host SHALL be able to enable a subset, and a disabled channel SHALL allocate no storage.
+A texture set SHALL support registered channel descriptors. The built-in metallic/roughness preset SHALL declare base colour, opacity, roughness, metallic, normal, height, occlusion, emission and subsurface channels. A host SHALL be able to enable a subset, and a disabled channel SHALL allocate no storage.
 
 #### Scenario: Non-PBR project
 - **WHEN** a host enables only base colour and opacity
@@ -25,7 +25,7 @@ A texture set SHALL carry the channels base colour, opacity, roughness, metallic
 - **THEN** it SHALL be allocated at the set's resolution and initialised to the channel's documented default without disturbing existing channels
 
 ### Requirement: Entry kinds
-The stack SHALL support paint layers, fill layers, groups, masks, filters and instances. A kind SHALL be an explicit field on the entry rather than inferred from which storage happens to be allocated.
+The stack SHALL support paint layers, fill layers, groups, masks, filters, instances and editable decal, text and surface-path entries as defined by editable-authoring. A kind SHALL be an explicit field on the entry rather than inferred from which storage happens to be allocated.
 
 #### Scenario: Kind is explicit
 - **WHEN** an entry is queried
@@ -161,3 +161,10 @@ A host SHALL be able to open a transaction so that many operations collapse into
 #### Scenario: Cancel is exact
 - **WHEN** a transaction is cancelled
 - **THEN** the document SHALL be byte-identical to its state when the transaction opened
+
+### Requirement: Extensible channel descriptors
+A channel descriptor SHALL carry a stable semantic identifier, component count, scalar representation and bit depth, default value, colour/data classification, blending policy and export mapping. Per-set bit depth SHALL be a default overridable per channel. The built-in preset SHALL NOT restrict the document or ABI to nine channel slots. Unsupported channel semantics SHALL be preserved on load and reported as unevaluable rather than discarded or approximated.
+
+#### Scenario: Mixed precision and an added channel
+- **WHEN** a host registers a scalar coat-weight channel and selects 8-bit base colour with 16-bit height
+- **THEN** the document SHALL paint, save and export those descriptors without changing the C ABI or promoting every channel to 16 bits

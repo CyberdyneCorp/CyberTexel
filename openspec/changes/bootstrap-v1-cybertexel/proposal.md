@@ -40,7 +40,7 @@ Neither is available as an embeddable library. CyberTexel is that library.
 - Implement **texture-space paint rasterization** as ArmorPaint does it — the
   mesh rendered with UVs as clip-space position so one fragment is one texel,
   each texel tested against a screen-space swept capsule reconstructed from a
-  depth buffer. No dab spacing, no gaps on a fast stroke, and correct results
+  depth buffer. Continuous brushes sweep without gaps; discrete alpha brushes retain their tip spacing. Both produce correct results
   for texels the camera cannot see.
 - Implement the **tool set** both reference products share: brush, eraser, fill
   (object / face / angle / UV island), clone, blur, smear, decal, stencil,
@@ -61,9 +61,37 @@ Neither is available as an embeddable library. CyberTexel is that library.
 - Establish **build and packaging**: CMake + presets, permissive-only
   dependencies, CI gates, platform packages, one source of truth for the version.
 
+## Product priorities and delivery
+
+The primary outcome is an embeddable painting engine with responsive desktop and
+mobile interaction, bounded resource use, portable editable projects and reliable
+headless automation. Breadth alone is not the acceptance criterion.
+
+The first slice SHALL paint and erase on a real UV-mapped model through a minimal
+C ABI in a desktop host and a mobile host, with a few material channels, tiled
+undo, save/reopen and PNG export. It SHALL exercise GPU-resident results and
+measure input-to-visible latency and memory on named devices. The host owns the
+device; ordinary resident painting does not require a CPU pixel round trip.
+
+Subsequent slices add resource/lifecycle hardening, useful material authoring,
+and professional editing workflows. The full tool catalogue, layered PSD import,
+particle simulation and all four shader targets remain v1 completion goals, but
+SHALL NOT block the first painting slice. WGSL and MSL serve the first hosts;
+SPIR-V and HLSL follow. See `tasks.md` for the delivery order and stable task IDs.
+
+The material model uses extensible semantic channel descriptors. The initial
+metallic/roughness preset is the first profile, not a fixed ABI channel ceiling.
+A later OpenPBR profile requires explicit parameter, shading and export mappings
+and conformance fixtures; this proposal does not claim that profile is complete.
+
 ## Capabilities
 
 ### New Capabilities
+
+- `resource-residency`: Sparse CPU/GPU resources, complete memory accounting,
+  budgeted admission, backing storage, eviction and mobile lifecycle recovery.
+- `editable-authoring`: Versioned replay records, raster checkpoints, persistent
+  decals/text/surface paths, resolution policies and inspectable reprojection.
 
 - `texture-document`: The layer stack — layers, groups, masks, filters, fill
   layers, PBR channels, blend modes, per-object and per-UV-set binding, and the

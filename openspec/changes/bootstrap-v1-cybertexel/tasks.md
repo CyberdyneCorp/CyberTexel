@@ -1,8 +1,9 @@
 # Tasks: bootstrap-v1-cybertexel
 
-Ordered by dependency. Groups 1–5 unlock everything else. Each group ends with
-its capability's spec scenarios turned into tests; a group is not done until
-those tests run in CI.
+Task IDs are stable capability work packages, not a strict numerical execution
+order. The delivery slices below govern scheduling. Each capability's scenarios
+become tests alongside its implementation; a task is checked only when its full
+scope is complete. First-slice subsets do not complete an entire work package.
 
 ## Resume protocol
 
@@ -10,9 +11,13 @@ Durable state is these checkboxes plus one commit per task. To resume after an
 interruption:
 
 1. `git pull`, read this file top to bottom.
-2. Run the verify block below; it must be green before new work starts.
-3. Take the first unchecked task in group order. Skip only tasks whose entire
-   scope is hardware-blocked, and mark them so.
+2. Run `just check-spec` and the recipes for implemented work. Run the full
+   verify block as well and record named unimplemented gates separately; those
+   gates remain failures and are not a reason to skip checks that can run.
+3. Take the next dependency-ready task in the earliest incomplete delivery
+   slice. Record partial scope in the slice progress notes without checking an
+   unfinished task. Mark hardware-blocked work explicitly; a slice needing that
+   measurement cannot be declared complete.
 4. Implement, build, test, commit (`feat(<module>): <task>`), push, tick the box.
 
 Verify block. Every routine action goes through `just`; a recipe is the single
@@ -32,6 +37,26 @@ coverage, version consistency and the ABI diff. Gates whose implementing task is
 not yet done fail and name that task, so the block cannot pass vacuously.
 Device-dependent gates — parity and budgets — are `just gate-parity` and
 `just gate-budgets`, run where the hardware exists.
+
+## Delivery order
+
+| Slice | Scheduled work | Acceptance |
+|---|---|---|
+| A — Paint on desktop and mobile | Foundation 1; minimal PNG IO from 2; channels/layers/history from 3; single-set mesh and picking from 4–5; minimal constant/image graph and WGSL/MSL plans from 6; CPU and host execution from 7–8; brush/eraser from 9–10; save/reopen and PNG export from 12; minimal C/Python/Rust/Swift boundaries from 14; fixture runner from 16; devices and numeric budgets from 17; real hosts 18.2; accounting/admission/recovery from 19; recovery records from 20.1–20.2 | Real desktop and mobile hosts paint, erase, undo, save/reopen and export the same fixture. Resident painting has no synchronous pixel readback. Latency, peak memory and CPU/GPU parity are measured on both devices. |
+| B — Sustain reliable interaction | Complete 7–9, 17 and 19 for the slice workload; seam/tangent fixtures 9.17 and 11.12; snapshot and device-loss recovery; twenty-minute mobile workload | Sustained latency and memory meet declared ceilings; cancellation, pressure, suspend/resume and device-loss fixtures pass. |
+| C — Author useful materials | Complete layer semantics 3, graph core 6, fill/mask tools 10, maps 11, packed export 12 and smart materials 13 | Layered material with generators and anchors adapts to another fixture model and exports correctly. |
+| D — Professional workflows and v1 completion | Editable authoring 20; UDIM/atlases 4; remaining tools 10; complete formats 2, all graph nodes and targets 6; full bindings 14, CLI 15, examples 16 and release 18 | Every remaining requirement and task is complete, all applicable gates pass, and device coverage is reported. |
+
+Layered PSD, particles, the full node catalogue, SPIR-V/HLSL and the optional
+owned-GPU executor do not block slices A–C. Dependencies within each slice still
+apply. Bindings, fixtures and tests grow with each implemented capability; they
+are not deferred wholesale to groups 14–16. Unknown reference hardware or numeric
+budgets block claiming slice A complete, not building its fixtures.
+
+### Slice progress notes
+
+No implementation has started. Record completed subsets and next dependencies
+here until each corresponding full task can be checked.
 
 ## 1. Foundation
 
@@ -65,7 +90,7 @@ Device-dependent gates — parity and budgets — are `just gate-parity` and
 ## 3. Document
 
 - [ ] 3.1 Texture sets: partitioning, per-set resolution and bit depth, stable identity
-- [ ] 3.2 Channel set with per-set enablement and no storage for disabled channels
+- [ ] 3.2 Semantic channel descriptors, built-in preset, per-channel precision and enablement, and no storage for disabled channels
 - [ ] 3.3 Layer stack: entry kinds, nesting rules and their refusals, ordering
 - [ ] 3.4 Instances: reference semantics, own modulation, paint refusal, deletion policy, cycle refusal
 - [ ] 3.5 Blend modes, with the formula table and a test per mode
@@ -111,10 +136,10 @@ Device-dependent gates — parity and budgets — are `just gate-parity` and
 - [ ] 6.4 Node catalogue: input, texture, colour and filter, vector and math
 - [ ] 6.5 Node groups, socket propagation, recursion refusal
 - [ ] 6.6 Graph validation independent of emission
-- [ ] 6.7 Host-registered node types; opaque preservation of unknown types
+- [ ] 6.7 Host-registered node types with CPU and emission semantics, replay eligibility and parity fixtures; opaque preservation of unknown types
 - [ ] 6.8 Vendor Kong under `thirdparty/`, wrap its global state in a context object, attribute it
 - [ ] 6.9 Emission: result naming, group qualification, single-emission fan-out
-- [ ] 6.10 Pass plan: resources, bindings, layouts, draw, state — complete and ordered
+- [ ] 6.10 Pass plan: logical resource generations, subresource access, dependencies, lifetimes, bindings, layouts, draw/dispatch and state
 - [ ] 6.11 Target languages WGSL, MSL, SPIR-V, HLSL; unsupported-target refusal
 - [ ] 6.12 Feature-gated emission and layer-stack pass splitting at the binding budget
 - [ ] 6.13 Emission cache keyed by graph, target and feature set
@@ -126,7 +151,7 @@ Device-dependent gates — parity and budgets — are `just gate-parity` and
 
 - [ ] 7.1 Executor interface, enumeration, selection, environment pin, fallback reporting
 - [ ] 7.2 CPU reference executor: UV-space rasterization, its own depth and UV buffers, every operation
-- [ ] 7.3 Host-executed route: the contract, ownership declarations, result validation
+- [ ] 7.3 Host-executed route: GPU-resident authority, completion tokens, atomic revision publication, stale-result rejection and recovery before fallback
 - [ ] 7.4 Device capability reporting feeding emission
 - [ ] 7.5 Declared parity tolerances per bit depth and for filtered values
 - [ ] 7.6 Parity fixture corpus and the CI gate, with unmeasured executors reported
@@ -139,10 +164,10 @@ Device-dependent gates — parity and budgets — are `just gate-parity` and
 - [ ] 8.1 Channel and per-tile revisions, advancing on change
 - [ ] 8.2 Delta query since a caller-held revision; completeness and coalescing
 - [ ] 8.3 Stale-revision detection and the full-resynchronization signal
-- [ ] 8.4 Tile readback into caller-owned buffers
+- [ ] 8.4 Explicit asynchronous tile readback into caller-owned buffers; no implicit readback on delta queries
 - [ ] 8.5 Declared, stable memory layout; direct-upload test
 - [ ] 8.6 Format negotiation and the host-owned conversion decision
-- [ ] 8.7 Snapshot consistency between query and readback
+- [ ] 8.7 Releasable, budgeted snapshot tokens pin resource versions between query and readback
 - [ ] 8.8 Delta query cost independent of document tile count
 - [ ] 8.9 Preview transport through the same mechanism
 - [ ] 8.10 Stable identities for host-cached resources
@@ -150,7 +175,7 @@ Device-dependent gates — parity and budgets — are `just gate-parity` and
 
 ## 9. Painting
 
-- [ ] 9.1 Stroke model: samples to stamps, spacing, swept segments
+- [ ] 9.1 Versioned canonical sample reconstruction, timestamp-based stabilization, spacing, continuous sweeps and discrete alpha tips
 - [ ] 9.2 Pressure and tilt mapping with response curves; no-pressure devices at full pressure
 - [ ] 9.3 Deterministic jitter, taper, stabilizer, constraints
 - [ ] 9.4 Symmetry planes and radial symmetry, emitted within one stroke
@@ -158,7 +183,7 @@ Device-dependent gates — parity and budgets — are `just gate-parity` and
 - [ ] 9.6 Versioned stroke presets and their refusals
 - [ ] 9.7 Paint engine: swept coverage, falloff, coordinate modes
 - [ ] 9.8 Depth, angle and backface rejection; alpha discard
-- [ ] 9.9 Per-stroke coverage accumulation; flow separate from opacity
+- [ ] 9.9 Separate non-building coverage and build-up deposition formulas; batching and frame-rate fixtures
 - [ ] 9.10 Blending against the stroke-start snapshot, all modes
 - [ ] 9.11 Masking inputs and their intersection
 - [ ] 9.12 Cached coverage, triangle identity and UV island maps, keyed by mesh revision
@@ -166,6 +191,7 @@ Device-dependent gates — parity and budgets — are `just gate-parity` and
 - [ ] 9.14 Preview without commit, and the preview-equals-commit test
 - [ ] 9.15 Bounded work reporting
 - [ ] 9.16 `stroke-model` and `paint-engine` scenarios as tests
+- [ ] 9.17 Seam adjacency, tangent-aware filters and derivatives, mip/gutter limits, mirrored-UV and minification fixtures
 
 ## 10. Tools
 
@@ -173,7 +199,7 @@ Device-dependent gates — parity and budgets — are `just gate-parity` and
 - [ ] 10.2 Fill: all six scopes
 - [ ] 10.3 Clone, aligned and fixed, with the cross-set refusal
 - [ ] 10.4 Blur and Smear over a stroke-start snapshot
-- [ ] 10.5 Decal and Stencil, editable until commit
+- [ ] 10.5 Decal and Stencil; persistent editable decals through editable-authoring
 - [ ] 10.6 Projection, planar and triplanar
 - [ ] 10.7 Text with UTF-8 and supplied fonts
 - [ ] 10.8 Particle with deterministic seeding
@@ -196,6 +222,8 @@ Device-dependent gates — parity and budgets — are `just gate-parity` and
 - [ ] 11.9 Map memory accounting and host-driven release
 - [ ] 11.10 CyberRemesherAndUV provider binding, as an example rather than a dependency
 - [ ] 11.11 `mesh-maps` scenarios as tests
+- [ ] 11.12 Tangent-frame descriptors, supplied/generated tangent policy, normal-map basis validation and mirrored handedness tests
+- [ ] 11.13 Asynchronous bake revision tokens, stale-result rejection and coordinated settings/map undo tests
 
 ## 12. Input and output
 
@@ -282,11 +310,32 @@ Device-dependent gates — parity and budgets — are `just gate-parity` and
 - [ ] 17.9 Unmeasured cases reported, never substituted
 - [ ] 17.10 Regression detection against the recorded baseline
 - [ ] 17.11 `device-gate` scenarios as tests
+- [ ] 17.12 End-to-end input-to-visible median/p95/p99 budgets and pipeline-stage measurements on both reference hosts
+- [ ] 17.13 Twenty-minute mobile benchmark, final-five-minute budgets and pressure/suspend/device-loss fixtures
+- [ ] 17.14 Transfer-byte and synchronous-wait instrumentation; ordinary resident paint/undo has zero synchronous pixel readbacks
 
 ## 18. Release
 
 - [ ] 18.1 Platform packages with header, library, licence, attribution; smoke test each
-- [ ] 18.2 Reference host exercising the host-executed route and host transport on a real device API, built in CI
+- [ ] 18.2 Desktop WGSL and mobile MSL reference hosts in slice A, built in CI, run on named devices with residency-traffic and input-to-visible instrumentation
 - [ ] 18.3 Reproducible build verification and documentation of any unavoidable variance
 - [ ] 18.4 `build-packaging` scenarios as tests
-- [ ] 18.5 Archive this change; fold its requirements into `openspec/specs/`
+- [ ] 18.5 After all delivery slices and groups 1–20 pass, archive this change and fold its requirements into `openspec/specs/`
+
+## 19. Resource residency
+
+- [ ] 19.1 Complete allocation accounting with shared physical allocation identity, host device descriptors and pinned/in-flight resource reporting
+- [ ] 19.2 CPU/GPU/backing/temporary ceilings, bounded admission and tiled work scheduling
+- [ ] 19.3 Sparse constant tiles, derived-cache eviction, lossless authored-tile backing storage and reload
+- [ ] 19.4 Host preview-quality policy with unchanged authored precision and export results
+- [ ] 19.5 Quiesce, durable checkpoint notification, suspension deadlines and recovery revision reporting
+- [ ] 19.6 `resource-residency` scenarios as tests
+
+## 20. Editable authoring
+
+- [ ] 20.1 Versioned operation records, pinned input assets and checkpoint storage; expose through C ABI and bindings and round-trip in project-io
+- [ ] 20.2 Same-resolution recovery versus resolution-independent replay eligibility; clone/blur/smear source snapshots and checkpoint-only policy
+- [ ] 20.3 Atomic undoable resize with explicit replay/resample/cancel policy and mixed-layer fixtures
+- [ ] 20.4 Persistent editable decals, text and surface paths; parameter editing, invalidation, save/reopen and undo
+- [ ] 20.5 Reprojection preflight, distance/angle/visibility limits, ambiguity and hole policy, tangent conversion and cancellation
+- [ ] 20.6 `editable-authoring` scenarios as tests

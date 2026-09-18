@@ -7,7 +7,7 @@ The system SHALL provide three routes for running a pass plan: a host-executed r
 
 #### Scenario: Host owns the device
 - **WHEN** a host requests the host-executed route
-- **THEN** the library SHALL return source and a pass plan, SHALL accept the resulting pixels back, and SHALL make no graphics API call itself
+- **THEN** the library SHALL return source and a pass plan, SHALL accept completion records for host-resident results and SHALL accept pixels only when explicitly requested for CPU access, and SHALL make no graphics API call itself
 
 #### Scenario: Build with no GPU backend
 - **WHEN** the library is built with every GPU backend disabled
@@ -46,7 +46,7 @@ A committed fixture of documents, strokes, cameras and materials SHALL be render
 - **THEN** the gate SHALL report the executor as unmeasured rather than counting it as passed
 
 ### Requirement: Executor selection and fallback
-A host SHALL be able to enumerate the available executors with their device names and capabilities, select one, and pin a default. When a selected executor fails at run time the system SHALL fall back to the CPU reference, complete the operation, and report the fallback rather than producing a partial result.
+A host SHALL be able to enumerate the available executors with their device names and capabilities, select one, and pin a default. When a selected executor fails at run time the system SHALL restore the last committed revision from its recovery checkpoint and operation records before attempting CPU fallback. A recoverable operation SHALL complete on the CPU reference and report the fallback. An unrecoverable operation SHALL report recovery-required and SHALL NOT expose partial output as committed.
 
 #### Scenario: Device lost mid-operation
 - **WHEN** an owned-GPU executor loses its device during an operation
@@ -97,3 +97,21 @@ No module other than the executor module itself SHALL depend on a backend or a g
 #### Scenario: Layering violation
 - **WHEN** a source file outside the executor module includes a graphics API header
 - **THEN** the layering gate SHALL fail the build naming the file
+
+### Requirement: Host-resident authority and completion
+In the host-executed route, committed tile versions SHALL be logical resources whose authoritative pixels may reside on the host device. A submitted operation SHALL name its base revision, output resource generations and completion token. Only successful completion against the expected base revision SHALL publish a new document revision. Duplicate, stale or cancelled completions SHALL NOT publish changes. Device handles SHALL remain outside the core library.
+
+#### Scenario: Late completion after cancellation
+- **WHEN** a cancelled GPU operation subsequently completes
+- **THEN** its result SHALL be discarded, its resources SHALL be retired only after completion, and no document revision or history entry SHALL advance
+
+#### Scenario: Ordinary painting stays on the device
+- **WHEN** a host paints, composites, previews, undoes and redoes strokes within its resident working set
+- **THEN** the path SHALL require no synchronous GPU-to-CPU pixel readback and no upload of the resulting pixels back to the same device
+
+### Requirement: Recovery is established before publication
+Before publishing an operation as committed, the system SHALL retain either a recoverable CPU or backing-store checkpoint of its result, or a checkpoint plus versioned deterministic operation records and pinned inputs sufficient to reconstruct it. Operations without deterministic replay semantics SHALL require a completed asynchronous checkpoint before commit. Retained recovery data SHALL count against resource budgets.
+
+#### Scenario: Device loss after a committed stroke
+- **WHEN** the host reports device loss after a stroke was committed and before its pixels were read back
+- **THEN** the last committed revision SHALL be reconstructed from its checkpoint and records, and any uncommitted operation SHALL be cancelled without losing the committed stroke

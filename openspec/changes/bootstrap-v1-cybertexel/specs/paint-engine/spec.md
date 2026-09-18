@@ -14,18 +14,18 @@ Paint SHALL be applied by rasterizing the mesh with its UV coordinates emitted a
 - **THEN** its texels SHALL be written
 
 ### Requirement: Swept coverage
-For each candidate texel the system SHALL compute the distance from the texel's surface position to the swept segment between consecutive stamps, and SHALL reject the texel when that distance exceeds the stamp radius. Coverage SHALL NOT be computed by stamping discrete discs.
+For each candidate texel the system SHALL compute the distance from the texel's surface position to the swept segment between consecutive stamps, and SHALL reject the texel when that distance exceeds the stamp radius. This rule SHALL apply to continuous brushes. Discrete-alpha brushes SHALL rasterize individual transformed tips at resolved stamps without filling the gaps between tips.
 
 #### Scenario: No gaps at speed
 - **WHEN** consecutive stamps are further apart than one radius
 - **THEN** the region between them SHALL be covered
 
 ### Requirement: Falloff
-Strength SHALL fall off from the swept axis as `t2 = clamp((t - hardness) / (1 - hardness), 0, 1)` followed by `1 - t2 * t2 * (3 - 2 * t2)`, multiplied by the stamp opacity, where `t` is the distance from the axis normalized by the radius. A hardness of 1 SHALL produce a hard edge at the radius.
+Strength SHALL fall off from the swept axis as `t2 = clamp((t - hardness) / (1 - hardness), 0, 1)` followed by `1 - t2 * t2 * (3 - 2 * t2)`, yielding geometric coverage before opacity and flow are applied by the deposition rules, where `t` is the distance from the axis normalized by the radius. A hardness of 1 SHALL produce a hard edge at the radius.
 
 #### Scenario: Hard brush
 - **WHEN** hardness is 1.0
-- **THEN** strength SHALL be the full opacity inside the radius and zero outside it
+- **THEN** geometric coverage SHALL be one inside the radius and zero outside it before masking and deposition
 
 ### Requirement: Coordinate modes
 Material sampling SHALL support UV, triplanar and planar projection modes. Triplanar SHALL blend three world-axis projections weighted by the squared surface normal. Planar SHALL project through a caller-supplied frame.
@@ -60,17 +60,17 @@ The system SHALL support discarding texels whose surface faces away from the vie
 - **THEN** texels belonging to away-facing triangles SHALL not be written
 
 ### Requirement: Alpha discard
-Texels whose resulting strength falls below a configurable threshold, defaulting to 0.1 for 8-bit channels and 0.004 for 16-bit and floating-point channels, SHALL be discarded.
+After deposition accumulation, texels whose effective blend strength falls below a configurable threshold, defaulting to 0.1 for 8-bit channels and 0.004 for 16-bit and floating-point channels, SHALL skip the output write, but their accumulated deposition SHALL be retained for subsequent stamps.
 
 #### Scenario: Faint edge
 - **WHEN** a soft brush produces strength below the threshold at its outer edge
 - **THEN** those texels SHALL not be written
 
 ### Requirement: Per-stroke coverage accumulation
-Within one stroke the system SHALL accumulate a coverage value per texel and SHALL blend using the maximum of the current strength and the accumulated coverage, so that self-overlap within a single stroke does not accumulate opacity. Coverage SHALL reset at stroke start.
+Each brush SHALL declare non-building or build-up deposition. For non-building brushes, per-texel coverage SHALL be C = max(C, c_i), where c_i is geometric falloff times tip alpha and active masks; effective blend strength SHALL be S = max(S, opacity_i * flow_i * c_i), using each stamp's resolved values. Both C and S SHALL start at zero. Coverage SHALL start at zero for each stroke. Build-up brushes SHALL use the separate deposition rule below instead of the maximum rule.
 
 #### Scenario: Scribbling in place
-- **WHEN** a semi-transparent brush is scribbled back and forth without lifting
+- **WHEN** a semi-transparent non-building brush is scribbled back and forth without lifting
 - **THEN** the overlapped region SHALL not be darker than a single pass
 
 #### Scenario: A second stroke accumulates
@@ -78,10 +78,10 @@ Within one stroke the system SHALL accumulate a coverage value per texel and SHA
 - **THEN** opacity SHALL accumulate
 
 ### Requirement: Flow separate from opacity
-Flow SHALL control the per-stamp deposition rate and opacity SHALL control the stroke's maximum accumulation, and the two SHALL be independently settable.
+For build-up brushes, deposition SHALL start at D = 0 and update once per resolved stamp as D = 1 - (1 - D) * (1 - flow * c_i); effective blend strength SHALL be S = max(S, opacity_i * D), starting at S = 0. Here opacity_i and flow denote the resolved values of the current stamp. Lowering pressure SHALL NOT erase previously deposited paint. Opacity SHALL cap accumulation and SHALL NOT be multiplied into c_i. Deposition events SHALL follow the canonical resolved stamps, not render frames or GPU batches. A repeated continuous segment's rasterization SHALL NOT introduce additional deposition events. Non-building SHALL be the default mode; selecting build-up SHALL be explicit.
 
 #### Scenario: Low flow build-up
-- **WHEN** flow is 0.1 and opacity is 1.0
+- **WHEN** build-up mode is selected, flow is 0.1 and opacity is 1.0
 - **THEN** repeated overlapping stamps within one stroke SHALL build toward full opacity rather than reaching it immediately
 
 ### Requirement: Blending against a stroke-start snapshot
@@ -102,7 +102,7 @@ Paint SHALL be restricted by, in combination: the active layer's masks, a colour
 After a paint operation the system SHALL dilate written texels outward across UV borders by a configurable radius, defaulting to 2 texels, by searching outward for the nearest covered texel and extrapolating along the found direction rather than copying it. A radius of 0 SHALL disable dilation.
 
 #### Scenario: Seam does not show under mipmapping
-- **WHEN** a painted island is exported and mipmapped
+- **WHEN** a painted island with sufficient gutter space is exported and mipmapped within its declared supported mip range
 - **THEN** the dilated border SHALL prevent background bleed at the seam
 
 #### Scenario: Gradient preserved
@@ -110,7 +110,7 @@ After a paint operation the system SHALL dilate written texels outward across UV
 - **THEN** the dilated texels SHALL continue the gradient rather than repeat the edge value
 
 ### Requirement: Dilation is deferred within a stroke
-Dilation SHALL be performed once per stroke rather than per stamp, and SHALL cover every tile the stroke dirtied.
+Committed dilation SHALL be performed once per stroke rather than per stamp, and SHALL cover every tile the stroke dirtied. Final preview SHALL include that dilation before preview-to-commit equality is compared; an earlier interactive preview SHALL be identified as provisional.
 
 #### Scenario: Long stroke
 - **WHEN** a stroke spans many frames
@@ -139,4 +139,15 @@ The system SHALL be able to produce the visual result of an in-flight stroke wit
 
 #### Scenario: Preview matches commit
 - **WHEN** a stroke is previewed and then committed
-- **THEN** the committed pixels SHALL match the final preview within tolerance
+- **THEN** the committed pixels SHALL match the final preview including dilation within tolerance
+
+### Requirement: Seam-aware filtering and padding
+Blur, smear, derivative operations and mip generation SHALL declare their sampling footprint and use surface adjacency across UV seams where the operation is surface-continuous. Tangent-space vectors SHALL be transformed between the adjacent frames before filtering and renormalized afterward. Padding SHALL respect island ownership, avoid overwriting valid neighboring islands, and report insufficient gutter space for the requested mip range. A fixed two-texel border SHALL NOT imply seam-free output at every mip.
+
+#### Scenario: Mirrored island under minification
+- **WHEN** a normal-painted surface crosses a mirrored UV seam and is rendered at the declared supported mip levels
+- **THEN** the result SHALL agree with the seam fixture within the channel tolerance without background bleed or a flipped tangent-space normal
+
+#### Scenario: Insufficient gutter
+- **WHEN** two islands leave insufficient space for the requested filter footprint
+- **THEN** padding SHALL preserve both islands' valid texels and report the affected islands and unsupported mip levels

@@ -3,23 +3,30 @@
 Portable, headless **C++20 3D texture-painting and PBR material-authoring
 engine** — the stage that begins where `sculpt -> retopo -> UV -> bake` ends.
 
-Paint onto a model's UV space with a stroke engine that sweeps rather than
-stamps; stack layers, groups, masks and filters across nine PBR channels with
-twenty blend modes; author materials as a node graph that compiles to **shader
-source** rather than to an interpreter; re-derive smart materials on a new model
-from its mesh maps; and export channel-packed texture sets for any engine from a
-preset that is pure data.
+Paint onto a model's UV space using continuous sweeps or discrete alpha tips.
+Stack layers, groups, masks and filters with twenty blend modes across extensible
+channels, starting with a nine-channel PBR preset. Author materials as a node
+graph that compiles to shaders, re-derive smart materials on a new model from its
+mesh maps, and export channel-packed texture sets using data-driven presets.
 
-The library **does not own a GPU device** in its primary path. It emits shader
-source and an ordered pass plan, and the host runs them on the device it already
-has — so a Rust/`wgpu` desktop app, a Swift/Metal iPad app, a Python script and a
-headless CLI all drive the same engine without interop.
+The library **does not own a GPU device** in its primary path. It emits shaders
+and an ordered pass plan, and the host runs them on its existing device. Painted
+tiles stay on that device; completion records publish revisions, and explicit
+asynchronous readback serves save, export and CPU access. Rust/`wgpu` desktop
+apps, Swift/Metal iPad apps, Python scripts and the headless CLI all drive the
+same engine through its public contract. These are specified behaviors; the
+engine is not implemented yet.
 
 **Status.** Pre-implementation. The specification lives in [`openspec/`](openspec/);
 the founding change is
 [`openspec/changes/bootstrap-v1-cybertexel/`](openspec/changes/bootstrap-v1-cybertexel/)
-— proposal, design, twenty-two capability specs and the task plan. Nothing is built
+— proposal, design, twenty-four capability specs and the task plan. Nothing is built
 yet; `openspec/specs/` fills as the change is delivered and archived.
+
+The first delivery slice is a working desktop and mobile painting workflow:
+brush/eraser, tiled undo, save/reopen and PNG export on a real model. Resource
+use and input-to-visible latency are measured before expanding the tool and
+material catalogue. See [the roadmap](openspec/ROADMAP.md).
 
 ## Where it sits
 
@@ -37,10 +44,12 @@ a provider interface; CyberRemesherAndUV implements the baking behind it.
 
 ## Capabilities
 
-Twenty-two, specified before any code exists:
+Twenty-four, specified before any code exists:
 
 | | |
 |---|---|
+| `resource-residency` | CPU/GPU budgets, sparse residency, backing storage, eviction and mobile lifecycle recovery |
+| `editable-authoring` | Replay records, checkpoints, editable paths/text/decals, resolution policies and reprojection |
 | `texture-document` | Layers, groups, masks, filters, instances, channels, blend modes, tile-scoped undo with a declared budget |
 | `stroke-model` | Spacing, pressure and tilt, deterministic jitter, taper, stabilizer, constraints, symmetry |
 | `paint-engine` | Texture-space rasterization, swept coverage, rejection tests, coverage accumulation, seam dilation |

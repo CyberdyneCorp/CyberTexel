@@ -100,3 +100,21 @@ Bound maps SHALL be included in the document's memory report and SHALL be releas
 #### Scenario: Releasing maps under pressure
 - **WHEN** a host releases bound maps to reclaim memory
 - **THEN** the document SHALL remain usable and consumers SHALL report the maps as absent rather than crash
+
+### Requirement: Tangent frame contract
+Mesh and normal-map descriptors SHALL declare the tangent basis algorithm and version, normal orientation, handedness, UV set and coordinate conventions. Supplied per-corner tangents SHALL be accepted; generation when absent SHALL use a documented pinned algorithm. Incompatible normal-map and mesh tangent bases SHALL require explicit conversion or refusal, not merely a green-channel flip. Height derivatives and normal blending SHALL use the same declared frame.
+
+#### Scenario: Mirrored UV handedness
+- **WHEN** two mirrored islands use a shared tangent-space normal texture
+- **THEN** preview and export validation SHALL account for each island's tangent handedness and agree with the reference surface fixture
+
+### Requirement: Versioned asynchronous bake requests
+Each bake request SHALL identify the mesh, UV layout, texture set, map, bake-setting revision and request generation. Completion SHALL bind results only while all identities remain current. Superseded or cancelled results SHALL be discarded. The host SHALL be able to group a bake-setting edit and its accepted map replacements into a document transaction; undo SHALL restore the prior settings and map bindings and invalidate pending requests.
+
+#### Scenario: Old bake completes after settings change
+- **WHEN** a previous bake completes after a newer settings revision was requested
+- **THEN** it SHALL NOT overwrite the current map and the host SHALL receive a stale-result report
+
+#### Scenario: Undo while rebaking
+- **WHEN** a bake-setting transaction is undone before its provider completes
+- **THEN** the previous settings and map bindings SHALL be restored and the late result SHALL NOT publish

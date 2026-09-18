@@ -42,7 +42,7 @@ The system SHALL support loading a 3D lookup table in the `.cube` format for dis
 - **THEN** the exported textures SHALL be unaffected by the LUT
 
 ### Requirement: Bit depth policy
-The system SHALL state, per channel, the minimum bit depth required to avoid visible artefacts, and SHALL warn when a texture set's bit depth falls below it for an enabled channel. Normal and height SHALL require at least 16 bits.
+The system SHALL state, per channel, the minimum bit depth required to avoid visible artefacts, and SHALL warn when a channel's selected storage bit depth falls below it for an enabled channel. Normal and height SHALL require at least 16 bits.
 
 #### Scenario: 8-bit normal map warning
 - **WHEN** a texture set with an enabled normal channel is set to 8 bits per channel

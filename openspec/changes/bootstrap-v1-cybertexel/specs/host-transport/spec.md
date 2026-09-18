@@ -10,7 +10,7 @@ Every channel of every texture set SHALL carry a monotonically increasing revisi
 - **THEN** it SHALL learn whether anything changed without transferring any pixel data
 
 ### Requirement: Per-tile revisions
-Each tile of each channel SHALL carry its own revision, so that a host can determine exactly which tiles to re-upload rather than which channels.
+Each tile of each channel SHALL carry its own revision, so that a host can determine which logical tile versions changed. CPU-authored changes SHALL support incremental upload; host-executed changes already resident on the same device SHALL require no pixel round trip.
 
 #### Scenario: A small stroke on a large canvas
 - **WHEN** a stroke dirties twelve tiles of a 16384 texture set
@@ -21,7 +21,7 @@ A host SHALL be able to ask, given a revision it last synchronized, for the set 
 
 #### Scenario: Incremental upload
 - **WHEN** a host queries the delta since its last synchronization
-- **THEN** it SHALL receive every tile it must re-upload and no tile it need not
+- **THEN** it SHALL receive every changed tile version, including its residency and generation, so it can reuse resident resources and upload only nonresident CPU-authored changes
 
 #### Scenario: Synchronizing after many operations
 - **WHEN** a host has not synchronized for twenty operations
@@ -56,7 +56,7 @@ A host SHALL declare the texture formats it can accept, and readback SHALL deliv
 - **THEN** either a declared conversion SHALL be applied and reported, or the mismatch SHALL be reported, and the choice SHALL be the host's
 
 ### Requirement: Synchronization is a snapshot
-A delta query and the readback that follows it SHALL observe a consistent state: an edit made between them SHALL NOT produce a torn result, and SHALL instead appear in the next delta.
+A delta query SHALL return an explicitly releasable snapshot token pinning the returned resource versions within the declared snapshot budget. The query and readback using that token SHALL observe a consistent state: an edit made between them SHALL NOT produce a torn result, and SHALL instead appear in the next delta.
 
 #### Scenario: Editing during synchronization
 - **WHEN** a stroke completes between a delta query and its readback
@@ -74,7 +74,7 @@ The in-flight preview of an operation SHALL be transportable by the same mechani
 
 #### Scenario: Previewing a stroke
 - **WHEN** a stroke is in progress
-- **THEN** the host SHALL obtain the affected tiles' preview content through the same delta and readback calls
+- **THEN** the host SHALL obtain preview resource versions through the delta API and MAY request their pixels through explicit asynchronous readback
 
 ### Requirement: Host-owned resources are tracked by identity
 Where a host holds its own copy of a resource the library produced, the library SHALL provide a stable identity for it, so the host can key its cache without relying on pointer values or ordinal positions.
@@ -84,7 +84,7 @@ Where a host holds its own copy of a resource the library produced, the library 
 - **THEN** it SHALL be able to key that cache by a stable identity the library provides
 
 ### Requirement: Transport is reachable from every binding
-Revision reads, delta queries and tile readback SHALL be reachable from Python, Swift and Rust, with the layout declaration expressed in each language's terms.
+Revision reads, delta queries, residency/completion records, snapshot release and asynchronous tile readback SHALL be reachable from Python, Swift and Rust, with the layout declaration expressed in each language's terms.
 
 #### Scenario: A Rust host synchronizes
 - **WHEN** a Rust host runs the synchronization loop
@@ -96,3 +96,17 @@ The cost of a delta query and of tile readback SHALL carry declared budgets on t
 #### Scenario: Synchronization budget
 - **WHEN** the synchronization benchmark runs on the reference device
 - **THEN** its figures SHALL be compared against the declared budgets and a miss SHALL fail the gate
+
+### Requirement: Explicit asynchronous readback
+A host SHALL be able to request CPU pixels for a pinned committed or preview snapshot. The request SHALL expose pending, complete, cancelled and failed states, accept a completion notification from the host, and make caller-owned output buffers readable only after successful completion. Save and export SHALL use this path when their snapshot is device-resident. Merely querying a revision or delta SHALL NOT trigger readback.
+
+#### Scenario: Saving during painting
+- **WHEN** save requests pixels for revision R while the host paints revision R+1
+- **THEN** readback SHALL return only R, painting SHALL not wait synchronously for it, and the snapshot SHALL be released after save completes or fails
+
+### Requirement: Snapshot pressure is bounded
+The system SHALL account for pinned resource versions and SHALL refuse or defer a new snapshot if retaining it would exceed the declared budget. Releasing a snapshot SHALL allow unreferenced versions to be reclaimed after GPU completion.
+
+#### Scenario: Slow reader retains old tiles
+- **WHEN** repeated edits occur while a reader retains a snapshot
+- **THEN** its pinned bytes SHALL remain visible in the memory report and additional snapshots SHALL NOT exceed the configured ceiling

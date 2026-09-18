@@ -59,7 +59,7 @@ The task runner and every other tool a contributor needs SHALL be listed with a 
 - **THEN** it SHALL name the missing tool and the version required
 
 ### Requirement: Module layering is enforced
-The module dependency rule SHALL be enforced by a build gate rather than by convention. No module shall depend on the executor module, and no module below the C ABI shall depend on a graphics backend.
+The module dependency rule SHALL be enforced by a build gate rather than by convention. No core module except the C ABI composition boundary SHALL depend on the executor module, and no module below the C ABI shall depend on a graphics backend.
 
 #### Scenario: Cycle introduced
 - **WHEN** a source file creates a dependency cycle between modules
@@ -126,7 +126,7 @@ The project SHALL produce packages for macOS, Linux, Windows, iOS and Android, e
 - **THEN** the release gate SHALL fail rather than publish an unexercised binary
 
 ### Requirement: Reference host example
-The repository SHALL contain a reference host that exercises the host-executed route end to end on a real device API, and it SHALL be built in CI.
+The repository SHALL contain desktop and mobile reference hosts that exercise the host-executed route end to end on real device APIs in the first painting slice, and they SHALL be built in CI. Actual-device runtime checks SHALL be release gates; unavailable devices SHALL be reported as unmeasured. These integration hosts SHALL be distinct from the display-free Python examples.
 
 #### Scenario: Host-executed route stays honest
 - **WHEN** the pass plan's contents change

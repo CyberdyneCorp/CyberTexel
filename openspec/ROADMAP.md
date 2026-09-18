@@ -6,25 +6,25 @@ decisions taken and questions still open.
 
 ## Status
 
-Pre-implementation. 22 capabilities, 304 requirements, 368 scenarios, 204 tasks,
+Pre-implementation. 24 capabilities, 332 requirements, 400 scenarios, 222 tasks,
 0 done. No source tree exists yet; task 1.1 creates it.
 
 ## Milestones
 
-| # | Milestone | Task groups | Done when |
-|---|---|---|---|
-| 1 | **It builds and it checks itself** | 1, 2 | Headless CMake build, module layering gate, colour transforms, every image decoder fuzzed |
-| 2 | **A document exists** | 3, 4, 5 | Texture sets, the layer stack with all blend modes, tile-scoped undo, mesh ingest, picking |
-| 3 | **Materials compile** | 6, 7 | Node graph to WGSL/MSL/SPIR-V/HLSL, pass plans, the CPU reference executor, the parity gate |
-| 4 | **A host can draw it** | 8 | Per-tile revisions, delta queries, tile readback; a `wgpu` reference host renders a document |
-| 5 | **Painting works** | 9, 10 | Strokes, the full tool set, masking, seam dilation, preview equals commit |
-| 6 | **It is usable end to end** | 11, 12 | Mesh maps and generators, the container format, export presets, padding |
-| 7 | **It is reusable** | 13, 14, 15 | Smart materials, the three bindings at parity, the CLI |
-| 8 | **It is honest about itself** | 16, 17, 18 | Examples as the end-to-end check, budgets on named devices, platform packages |
+Task IDs remain stable; `tasks.md` schedules their subsets in delivery order.
+A full work package stays unchecked until all its requirements are met.
 
-Milestone 4 is the one that validates the founding architecture. Until a real
-host renders a real document through a pass plan and a delta query, "the library
-owns no GPU device" is a claim rather than a result.
+| # | Milestone | Delivery slice | Done when |
+|---|---|---|---|
+| 1 | **Paint on desktop and mobile** | A | Real WGSL desktop and MSL mobile hosts paint/erase a model, undo, save/reopen and export PNG through the public boundary; residency, parity, memory and visible latency are measured |
+| 2 | **Sustain reliable interaction** | B | Resource ceilings, seam correctness, snapshot consistency, cancellation, recovery and a twenty-minute mobile workload pass |
+| 3 | **Author useful materials** | C | Layers, masks, generators, anchors and packed export produce a reusable material on a second fixture model |
+| 4 | **Complete professional workflows** | D | Editable paths/text/decals, replay/resampling, reprojection, UDIM, remaining tools/formats/targets, bindings and release gates pass |
+
+The first milestone validates the founding architecture. The reference hosts,
+minimal C ABI and bindings, numeric budgets and fixtures arrive with painting.
+No claim about mobile responsiveness or memory efficiency is satisfied by a
+headless CPU test or a build-only mobile package.
 
 ## Decisions taken
 
@@ -40,10 +40,11 @@ textures across two APIs. CyberTexel emits shader source and a pass plan
 instead. ClayCore's `docs/06-host-gpu-previews.md` set the precedent. Design
 decision 1.
 
-**2026-09-18 — Per-tile revisions are mandatory, not an optimization.** The
-consequence of the previous decision: without them a host re-uploads whole
-channels per dab and the architecture is slower than one that owned a device.
-Design decision 8, capability `host-transport`.
+**2026-09-18 — Per-tile revisions are mandatory, not an optimization.**
+Revisions identify logical resource versions. CPU-authored edits upload only
+changed tiles; host-executed edits remain resident on the same device. Explicit
+asynchronous snapshots serve CPU access, save and export. Design decision 8,
+capability `host-transport`.
 
 **2026-09-18 — Undo is tile-scoped with a declared budget.** ArmorPaint's ring
 of whole-texture snapshots is elegant and collapses to a single step at 16K,
@@ -64,6 +65,12 @@ per dab from a node graph; `stroke-model` offers jitter, taper and pressure
 response as fixed features instead. The constraint v1 carries is that stamp
 resolution stays separable enough to put a graph in front of it later.
 
+**2026-09-18 — Validate desktop and mobile painting before catalogue breadth.**
+The review moved real hosts and numeric interaction budgets into slice A,
+added resource residency and editable authoring, and clarified GPU completion,
+recovery, brush deposition, tangent frames and extensible channels. No code or
+performance result is implied by these requirements. Design decisions 8, 10–13.
+
 ## Open questions
 
 These are unresolved and should be answered by the task that first depends on
@@ -71,14 +78,14 @@ them rather than drifting.
 
 1. **Tile size.** `texture-document` requires a documented tile size and does not
    pick one. It trades undo granularity against per-tile bookkeeping and against
-   a host's upload efficiency. Decide with a measurement in task 3.9, not by
-   taste.
+   a host's upload efficiency. Decide with a slice-A measurement in tasks 1.5 and 3.9, before
+   freezing storage and transport layouts.
 2. **Parity tolerances.** `execution-backends` requires them stated per bit depth
-   and for filtered values. The numbers do not exist yet; task 7.5 sets them, and
+   and for filtered values. The numbers do not exist yet; slice-A task 7.5 sets them, and
    setting them too loose makes the gate decorative.
 3. **Reference devices.** `device-gate` requires at least one desktop and one
    tablet, named with full configuration. Which machines, and who owns them for
-   CI, is not settled. Task 17.1.
+   CI, is not settled. Resolve in slice A through task 17.1 before recording any performance claim.
 4. **Kong's concurrency wrapper.** Design decision 3 says wrap its global state in
    a context object rather than snapshot and restore around every call as
    ArmorPaint does. Whether the vendored source tolerates that cleanly is
@@ -91,6 +98,17 @@ them rather than drifting.
 6. **UV density normalization.** Absolute texels-per-unit or relative to the
    set's mean — CyberRemesherAndUV issue #89 raises the same question on the bake
    side. The two repositories should answer it identically.
+7. **Recovery and backing storage.** Choose checkpoint cadence, compression,
+   backing-store quotas and the maximum recovery replay time in slice A. Measure
+   them alongside painting latency; asynchronous work still consumes bandwidth.
+8. **Tangent basis and seam tolerance.** Pin the generation algorithm and version
+   with the bake provider and fixture assets before accepting normal-map parity.
+9. **Initial mobile matrix.** Select the first physical tablet for slice A and
+   the Android device/API coverage required before v1 release. An iPad result
+   cannot stand in for Android runtime validation.
+10. **Material profiles.** The extensible channel contract is in v1. A complete
+    OpenPBR profile is follow-up scope requiring explicit shading/export mappings
+    and conformance tests; it is not claimed by adding a coat-weight descriptor.
 
 ## Dependencies on CyberRemesherAndUV
 

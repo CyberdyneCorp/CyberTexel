@@ -3,7 +3,7 @@
 ## ADDED Requirements
 
 ### Requirement: One lossless container
-The system SHALL define a single container format that round-trips a document losslessly: texture sets, layers, masks, groups, filters, material graphs, node groups, stroke and export presets, mesh map bindings, resource references and document settings.
+The system SHALL define a single container format that round-trips a document losslessly: texture sets, layers, masks, groups, filters, material graphs, node groups, stroke and export presets, mesh map bindings, resource references, channel descriptors, editable entries, replay records and required checkpoints, and document settings.
 
 #### Scenario: Round trip
 - **WHEN** a document is saved and reopened
@@ -104,3 +104,10 @@ Saving an unchanged document twice SHALL produce byte-identical files.
 #### Scenario: Reproducible save
 - **WHEN** a document is saved twice without edits
 - **THEN** the two files SHALL be byte-identical
+
+### Requirement: Snapshot save and recovery records
+Save SHALL capture one committed revision, request asynchronous pixels only where the container needs them, and preserve pinned replay inputs and checkpoint versions. Incremental recovery writes SHALL become discoverable only after atomic publication. A file with unsupported replay algorithms SHALL retain usable raster checkpoints and report which edits cannot be replayed.
+
+#### Scenario: Older reader lacks a replay algorithm
+- **WHEN** a project contains a stroke algorithm unknown to the reader but a supported raster checkpoint
+- **THEN** the raster content SHALL remain available and the reader SHALL report replay unavailable without substituting a different algorithm

@@ -2,12 +2,12 @@
 
 ## ADDED Requirements
 
-### Requirement: Emission produces source, never a device object
-Emission SHALL produce shader source text and a description of the work, and SHALL NOT create, bind or reference any GPU device object. The emission module SHALL be usable in a build with no graphics backend compiled in.
+### Requirement: Emission produces shader artifacts, never a device object
+Emission SHALL produce WGSL/MSL/HLSL source text or a SPIR-V binary module, as requested, and a description of the work, and SHALL NOT create, bind or reference any GPU device object. The emission module SHALL be usable in a build with no graphics backend compiled in.
 
 #### Scenario: Headless emission
 - **WHEN** the library is built with every GPU backend disabled
-- **THEN** emission SHALL still compile a graph to source text for every supported target language
+- **THEN** emission SHALL still compile a graph to the requested artifact for every supported target
 
 ### Requirement: Target languages
 Emission SHALL target WGSL, MSL, SPIR-V and HLSL. WGSL SHALL be supported on every platform because it is the language `wgpu` hosts consume.
@@ -104,7 +104,7 @@ The preview shader SHALL declare its lighting inputs in the pass plan: an enviro
 - **THEN** the documented BRDF and conventions SHALL be sufficient to match the preview within the parity tolerance
 
 ### Requirement: Emitted source is inspectable
-The emitted source SHALL be retrievable by a host and by a test, and SHALL carry comments identifying which node produced which block.
+Textual emitted source SHALL be retrievable by a host and by a test, and SHALL carry comments identifying which node produced which block. SPIR-V SHALL expose node attribution through companion debug metadata and SHALL NOT be represented as source text.
 
 #### Scenario: Debugging a material
 - **WHEN** a host retrieves the emitted WGSL
@@ -123,3 +123,10 @@ Where a third-party compiler is vendored to produce a target language, it SHALL 
 #### Scenario: Audit covers the vendored compiler
 - **WHEN** the licence audit runs
 - **THEN** the vendored shader compiler SHALL appear with its own licence text and pinned revision
+
+### Requirement: Resource lifetimes and synchronization in pass plans
+Each pass plan SHALL declare logical resource IDs and generations, tile or mip subresource ranges, read/write access, initialization or load/store behavior, dependencies, and the render draw or compute dispatch dimensions. Hosts SHALL translate these declarations into their own API barriers and queue synchronization. A resource SHALL NOT be recycled until every submitted reader and writer has completed. Backend-specific device handles SHALL NOT appear in the plan.
+
+#### Scenario: Undo resource remains in use
+- **WHEN** a tile replaced by undo is still read by an in-flight preview
+- **THEN** the plan and completion protocol SHALL retain that generation until the preview completes and SHALL prevent reuse of its storage in the meantime

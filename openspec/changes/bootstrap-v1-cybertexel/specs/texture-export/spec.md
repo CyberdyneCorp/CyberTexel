@@ -103,3 +103,10 @@ Export SHALL be able to deliver results as buffers to the caller instead of writ
 #### Scenario: Host wants pixels
 - **WHEN** a host requests in-memory export
 - **THEN** it SHALL receive the pixel buffers with their declared formats and no file SHALL be written
+
+### Requirement: Registered channel export
+Presets SHALL be able to address registered channel semantic identifiers and component indices in addition to built-in tokens. Unsupported target material semantics SHALL produce an explicit unsupported or lossy-mapping report, and lossy mapping SHALL require host selection. Supporting an additional channel SHALL NOT require a new fixed C ABI field.
+
+#### Scenario: Exporting coat weight
+- **WHEN** a preset names a registered coat-weight scalar
+- **THEN** it SHALL export that value using the descriptor's data semantics without applying a colour transfer function

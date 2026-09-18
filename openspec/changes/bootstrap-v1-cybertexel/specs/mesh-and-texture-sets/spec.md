@@ -31,7 +31,7 @@ Texture sets SHALL be derivable from material assignment, from object or submesh
 - **THEN** every face SHALL appear in exactly one set, and a face appearing in none SHALL be reported as an error
 
 ### Requirement: Per-set resolution and bit depth
-Each texture set SHALL carry its own resolution and bit depth, selectable independently. Supported resolutions SHALL include 512, 1024, 2048, 4096, 8192 and 16384, and non-square sizes SHALL be supported. Supported bit depths SHALL be 8, 16 and 32 bits per channel.
+Each texture set SHALL carry its own resolution and default bit depth, selectable independently, with per-channel format overrides as defined in texture-document. Supported resolutions SHALL include 512, 1024, 2048, 4096, 8192 and 16384, and non-square sizes SHALL be supported. Supported bit depths SHALL be 8, 16 and 32 bits per channel.
 
 #### Scenario: Mixed resolutions
 - **WHEN** one texture set is 4096 and another 1024 in the same document
@@ -39,7 +39,7 @@ Each texture set SHALL carry its own resolution and bit depth, selectable indepe
 
 #### Scenario: Resolution change preserves content
 - **WHEN** a texture set is resized
-- **THEN** existing layer content SHALL be resampled, and the resampling filter SHALL be documented
+- **THEN** existing content SHALL follow the explicit replay or resampling policy in `editable-authoring`, and any resampling filter SHALL be documented
 
 ### Requirement: UDIM tiles
 A texture set SHALL support UDIM tiling, where a tile is a unit square of the set's UV space addressed by the standard `1001 + u + 10 * v` numbering. Tiles SHALL be allocated on demand.

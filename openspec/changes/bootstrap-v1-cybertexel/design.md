@@ -55,8 +55,8 @@ ClaySpaceDesktop renders with `wgpu 24`. A paint library that owned a
 Metal/Vulkan device would be fighting the app's renderer for the same textures
 across two APIs, and the interop cost would be paid on every stroke.
 
-So CyberTexel offers **three execution routes**, and only one of them is
-mandatory:
+So CyberTexel offers **three execution routes**; the host-executed contract and
+CPU reference are mandatory:
 
 | Route | Who owns the device | Used by |
 |---|---|---|
@@ -187,26 +187,27 @@ distinct prefix: `ctex_*`, matching ClayCore's `clay_*` in spirit and length.
 
 ## Decision 8 — Per-tile revisions are what make Decision 1 affordable
 
-Deciding that the host owns the device (Decision 1) creates an obligation that is
-easy to miss: the host now holds its own copy of every channel, and after each
-stroke it has to know what to re-upload. If the answer is "the channel", a 4K
-document re-uploads 64 MB per dab and the architecture is slower than the one it
-replaced.
+A committed tile is a logical resource version, not necessarily a CPU buffer.
+In the host-executed route its authoritative pixels remain on the host's GPU;
+CPU-authored tiles can be uploaded through the same revision protocol. The core
+tracks resource identities, generations and access requirements without device
+handles. Hosts translate plans into API synchronization and report completion.
 
-So `host-transport` is not a convenience capability. Every channel and every tile
-carries a monotonically increasing revision; a host asks for the delta since the
-revision it last synchronized and reads back only those tiles, in a declared
-layout it can upload without repacking. ClayCore reached the same conclusion for
-the same reason in `sculpt-runtime` — *"chunk revisions so a host uploads what
-changed rather than what exists."*
+A successful completion against the expected base revision publishes the new
+tile versions atomically. Stale and cancelled completions cannot publish. Old
+versions remain pinned while history, snapshots or in-flight passes reference
+them. Undo exchanges logical versions and requires no synchronous readback.
 
-Two properties are worth stating because they are the ones that break quietly:
+Delta queries identify changed versions and residency. They do not implicitly
+fetch pixels. CPU access, save and export use explicit asynchronous readback of
+an immutable, releasable snapshot. The snapshot's retained versions count toward
+the resource budget. An unchanged delta query is independent of canvas size.
 
-- **A delta query costs what changed, not what exists.** An unchanged large
-  document must answer in time independent of its tile count, or the
-  synchronization loop itself becomes the cost.
-- **A query and its readback observe one snapshot.** An edit landing between them
-  must appear in the *next* delta rather than tearing this one.
+Before commit, recovery must be possible from a checkpoint plus deterministic
+operation records with pinned inputs, or from an asynchronously completed pixel
+checkpoint. Device loss restores the last committed revision before CPU fallback.
+A durable save is a separate milestone: mobile suspension reports whether the
+newest checkpoint reached backing storage before the host's deadline.
 
 ## Decision 9 — Examples are the test suite, not a demonstration tier
 
@@ -223,6 +224,54 @@ looks.
 
 `cli-headless`'s `run` subcommand executes the same Python, so an operation
 reachable from an example is reachable from a pipeline without a new flag.
+
+## Decision 10 — Resource budgets cover the whole engine
+
+`resource-residency` accounts for document tiles, composites, maps, history,
+recovery, pinned snapshots and temporaries. Shared CPU/GPU allocations count once
+in physical totals. Sparse tiles, reconstructible cache eviction and lossless
+backing storage bound residency; tiled undo alone cannot do that. Hosts provide
+storage and lifecycle signals, and choose preview degradation policies. Authored
+resolution and precision never silently change to fit a device. Residency metadata
+and operation records belong to `doc`, tile storage to `image`, lifecycle and
+completion transport to `xport`, and durable checkpoints to `io`. These are
+capabilities within the existing module graph, not new backend dependencies.
+
+## Decision 11 — Separate coverage, deposition and input reconstruction
+
+Non-building brushes take maximum geometric coverage; build-up brushes accumulate
+deposition using the formula in `paint-engine`. Opacity caps the result. Continuous
+and discrete-alpha tips are independent choices. Versioned canonical sampling
+makes deposition independent of render frames and batching. Stabilization uses
+timestamps rather than input callback counts; omitted path detail cannot be
+reconstructed by a sampling-invariance promise.
+
+Surface-continuous filters use seam adjacency and tangent-frame conversion.
+Padding has a declared mip range and insufficient gutters are diagnosed rather
+than hidden by a universal two-texel promise.
+
+## Decision 12 — Editable content has explicit replay limits
+
+`editable-authoring` retains eligible operation records and checkpoints. Decals,
+text and surface paths remain editable after committing a gesture. Resizing
+chooses replay or resampling explicitly. Snapshot-dependent operations pin their
+inputs or remain checkpoint-only. Reprojection keeps the source until an atomic
+commit and reports ambiguous or unmapped regions. Recovery records and editable
+history share versioned operation semantics but have independent retention needs.
+
+Channel descriptors carry semantic IDs, precision, defaults and blending/export
+policies. The nine built-in channels form a preset. Custom nodes require CPU
+semantics as well as emission so extensibility does not bypass parity or recovery.
+The C ABI exposes these descriptors before being frozen; a convenience C++20
+RAII surface may wrap the same handles without promising a stable C++ binary ABI.
+
+## Decision 13 — Validate the product with a thin real-device slice
+
+Task groups are capability inventories, not a demand to complete every decoder
+and graph node before painting. The delivery slices in `tasks.md` govern order.
+Desktop WGSL and mobile MSL hosts, minimal bindings, numeric device budgets and
+recovery fixtures land with the first painting workflow. Full catalogue breadth
+follows. No task is marked complete merely because its first-slice subset works.
 
 ## Risks
 
@@ -261,5 +310,5 @@ exec    -> emit, image               executors; the only module that may
 capi    -> everything
 ```
 
-No module may depend on `exec`, and no module below `capi` may depend on a
-backend. A cycle is a build failure, not a review comment.
+No core module other than the `capi` composition boundary may depend on `exec`,
+and no module below `capi` may depend on a backend. A cycle is a build failure, not a review comment.

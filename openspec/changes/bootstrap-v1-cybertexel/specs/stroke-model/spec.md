@@ -3,7 +3,7 @@
 ## ADDED Requirements
 
 ### Requirement: A stroke resolves to ordered stamps
-A stroke SHALL be a path of input samples that resolves, once, into an ordered sequence of stamps. A stamp SHALL carry a position, a radius, an opacity, a hardness, a rotation, a flow value and an ordinal index. Everything downstream SHALL consume stamps, never raw input samples.
+A stroke SHALL be a path of input samples that resolves, once, into an ordered sequence of stamps. A stamp SHALL carry a position and coordinate frame, a radius, an opacity, a hardness, a rotation, an elongation, a flow value, a tip resource identity and an ordinal index. Everything downstream SHALL consume stamps, never raw input samples.
 
 #### Scenario: One resolution, many consumers
 - **WHEN** a stroke is resolved
@@ -13,7 +13,7 @@ A stroke SHALL be a path of input samples that resolves, once, into an ordered s
 Stamp spacing SHALL be expressed as a fraction of the stamp radius, SHALL default to 0.1, and SHALL accept values from 0.01 to 4.0. Spacing SHALL be measured along the resolved path so that a fast pointer produces the same stamps as a slow one over the same path.
 
 #### Scenario: Frame rate does not change the result
-- **WHEN** the same path is delivered as 10 samples and as 200 samples
+- **WHEN** two sample streams describe the same piecewise-linear position and attribute path, with equivalent timestamps when stabilization is enabled, differing only by redundant samples
 - **THEN** the resolved stamp sequence SHALL be identical within the positional tolerance
 
 ### Requirement: Continuous coverage between stamps
@@ -49,11 +49,11 @@ A stroke SHALL support entry and exit taper over a distance or a stamp count, ap
 - **THEN** the first stamp's tapered property SHALL be at the taper floor and the tenth at full value
 
 ### Requirement: Stabilizer
-The system SHALL provide a stabilizer with a radius and a pull factor, where the resolved cursor trails the raw pointer and moves by the pull factor of the excess distance per sample.
+The system SHALL provide a stabilizer with a radius and a time constant. Timestamped samples SHALL be reconstructed on a documented fixed time grid before stabilization; the resolved cursor SHALL move toward the boundary of the radius by the factor 1 - exp(-delta_time / time_constant), with zero time constant applying the full correction. Non-monotonic timestamps SHALL be rejected. Batching identical samples SHALL NOT change the result.
 
 #### Scenario: Smoothed stroke
 - **WHEN** the stabilizer radius is non-zero and the pointer moves erratically
-- **THEN** the resolved path SHALL be smoother than the raw path and SHALL remain within the stabilizer radius of it
+- **THEN** the resolved path SHALL be smoother than the raw path and SHALL follow the documented recurrence; the radius SHALL define a dead zone rather than a maximum lag guarantee
 
 ### Requirement: Constraints
 The system SHALL support a straight-line constraint between the stroke origin and the current sample, an axis constraint locking to the dominant axis, and a grid constraint snapping positions to a configurable step.
@@ -97,3 +97,17 @@ An in-flight stroke SHALL be cancellable, and cancelling SHALL leave the documen
 #### Scenario: Cancelled stroke
 - **WHEN** a stroke in progress is cancelled
 - **THEN** the affected tiles SHALL be byte-identical to their pre-stroke content and no history step SHALL be recorded
+
+### Requirement: Continuous and discrete tip modes
+A stroke preset SHALL declare continuous-sweep or discrete-alpha tip mode independently from its deposition mode. Continuous mode SHALL fill swept segments; discrete mode SHALL apply the alpha at each resolved stamp using its rotation, scale and elongation. Spacing SHALL define deposition events in both modes and SHALL define visible tip separation in discrete mode.
+
+#### Scenario: Separated textured tips
+- **WHEN** a discrete-alpha brush uses spacing larger than its tip diameter
+- **THEN** the tips SHALL remain separated and the engine SHALL NOT fill the gap with swept coverage
+
+### Requirement: Input reconstruction limits
+The sample interpolation rule, positional tolerance, fixed stabilization time step and timestamp units SHALL be documented and versioned with the stroke preset. Sampling invariance SHALL apply only to equivalent reconstructed paths and attributes; omitted corners or pressure changes SHALL NOT be claimed recoverable.
+
+#### Scenario: Batched input
+- **WHEN** the same timestamped samples arrive individually or in coalesced batches
+- **THEN** committed stamps and deposition SHALL be identical

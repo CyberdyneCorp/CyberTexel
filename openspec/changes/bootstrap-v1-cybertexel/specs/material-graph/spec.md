@@ -10,7 +10,7 @@ A material SHALL be a directed graph of nodes connected by links, with exactly o
 - **THEN** it SHALL compare equal to the original, including node positions and unconnected socket values
 
 ### Requirement: Output node
-The output node SHALL expose one input per document channel: base colour, opacity, roughness, metallic, normal, height, occlusion, emission and subsurface, with documented defaults. An input left unconnected SHALL contribute its stored constant.
+The output node SHALL expose one input per registered document channel, with defaults taken from its channel descriptor; the built-in preset SHALL expose its nine named channels. An input left unconnected SHALL contribute its stored constant.
 
 #### Scenario: Partially authored material
 - **WHEN** only base colour is connected
@@ -98,7 +98,7 @@ A graph SHALL be saveable as a named material preset with a thumbnail, and a set
 - **THEN** it SHALL resolve to the same graph
 
 ### Requirement: Extensibility for host node types
-A host SHALL be able to register a node type by supplying its socket declaration and an emission callback, and such a node SHALL participate in validation, serialization and grouping like a built-in node.
+A host SHALL be able to register a node type by supplying its versioned socket declaration, an emission callback and a CPU evaluation callback or portable representation supported by both executors, and such a node SHALL participate in validation, serialization and grouping like a built-in node.
 
 #### Scenario: Host-provided node
 - **WHEN** a host registers a node type and uses it in a graph
@@ -107,3 +107,10 @@ A host SHALL be able to register a node type by supplying its socket declaration
 #### Scenario: Unknown node on load
 - **WHEN** a graph referencing an unregistered node type is loaded
 - **THEN** the node SHALL be preserved as opaque, the graph SHALL be marked non-emittable, and the missing type SHALL be named
+
+### Requirement: Custom nodes satisfy the reference contract
+Node registration SHALL reject an emission-only node without a CPU implementation. The registration SHALL declare determinism, input resource dependencies and supported targets; recoverable replay SHALL require deterministic evaluation and pinned inputs. Custom nodes SHALL be exercised by parity fixtures like built-in nodes.
+
+#### Scenario: GPU-only callback
+- **WHEN** a host registers a node with emission but no CPU evaluation implementation
+- **THEN** registration SHALL fail naming the missing implementation before any graph can use the node

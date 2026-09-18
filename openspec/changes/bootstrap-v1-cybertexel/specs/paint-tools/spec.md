@@ -53,7 +53,7 @@ Blur SHALL apply a separable blur of configurable radius over a snapshot taken a
 - **THEN** the result SHALL be computed from the stroke-start snapshot rather than from the already-blurred result
 
 ### Requirement: Decal
-Decal SHALL project the active material onto the surface through a frame built from the surface normal at the placement point, with position, rotation, uniform and per-axis scale. A placed decal SHALL remain editable until committed.
+Decal SHALL project the active material onto the surface through a frame built from the surface normal at the placement point, with position, rotation, uniform and per-axis scale. A placed decal SHALL remain editable after gesture commit when retained as an editable entry; rasterization SHALL be explicit as defined by `editable-authoring`.
 
 #### Scenario: Placing a sticker
 - **WHEN** a decal is placed and then rotated before commit
@@ -125,3 +125,10 @@ Every documented tool parameter SHALL be able to change the output. A parameter 
 #### Scenario: Parameter audit
 - **WHEN** the parameter audit test runs
 - **THEN** each documented parameter SHALL be shown to alter the result of at least one operation
+
+### Requirement: Editable surface paths
+The system SHALL support a path of control points attached to the mesh surface, evaluated through stroke-model and retained as an editable-authoring entry. Position, width and material edits SHALL be undoable; mesh replacement SHALL use the reprojection policy and report invalid attachments.
+
+#### Scenario: Editing a painted seam line
+- **WHEN** a control point of a committed surface path is moved
+- **THEN** the path SHALL be re-evaluated without leaving its previous rasterized trace and undo SHALL restore the original path

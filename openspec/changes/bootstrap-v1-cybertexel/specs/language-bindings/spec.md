@@ -73,11 +73,11 @@ The safe crate SHALL present ownership through Rust types, errors through `Resul
 - **THEN** the compiler SHALL reject it unless the C ABI declares it safe
 
 ### Requirement: Host-executed route is reachable from every binding
-The host-executed execution route — receiving source and a pass plan, returning results — SHALL be usable from Python, Swift and Rust.
+The host-executed execution route — receiving source and a pass plan, reporting resource residency and completion, and explicitly requesting asynchronous pixel readback — SHALL be usable from Python, Swift and Rust.
 
 #### Scenario: A wgpu host in Rust
 - **WHEN** a Rust host requests a pass plan and executes it on its own device
-- **THEN** it SHALL be able to return the results through the safe crate
+- **THEN** it SHALL be able to report completion and retain host-resident results through the safe crate without a pixel round trip
 
 ### Requirement: Versions move together
 The bindings SHALL carry the same version as the library, derived from the single source of truth, and a binding SHALL refuse to load a native library whose ABI major version it was not built against.
