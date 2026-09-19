@@ -152,6 +152,9 @@ must be implemented before task 14.8 can close.
 Four simultaneous named mesh UV sets are now exercised, and the C boundary can
 derive partitioned document texture sets from a selected UV parameterization;
 this completes task 4.2.
+The next 14.8 slice exposes content-detected in-memory PNG decoding, exact
+caller-buffer sizing, native 8/16-bit pixels, colour-source metadata and hostile
+input ceilings. The gate now names 219 runtime requirements without C evidence.
 
 ## Milestones
 

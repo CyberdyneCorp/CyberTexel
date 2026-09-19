@@ -681,6 +681,11 @@ points exist.
 The mesh follow-up proves four simultaneous named UV sets and lets C hosts derive
 partitioned document texture sets from any selected mesh UV set. Missing names
 are refused before document mutation. This completes task 4.2.
+The next 14.8 slice exposes content-detected in-memory PNG decoding with
+caller-owned output, native 8/16-bit preservation, colour-source and extension
+metadata, configurable pre-allocation ceilings, and named malformed,
+unsupported-format and over-limit refusals. The exact remaining C ABI gap is
+219 runtime requirements.
 
 ## 1. Foundation
 

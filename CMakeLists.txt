@@ -345,6 +345,10 @@ if(BUILD_TESTING)
         ctex_configure_c_target(ctex_capi_mesh_test)
         target_link_libraries(ctex_capi_mesh_test PRIVATE cybertexel_c)
         add_test(NAME c-abi-mesh-ingest COMMAND ctex_capi_mesh_test)
+        add_executable(ctex_capi_image_io_test tests/capi/image_io_test.c)
+        ctex_configure_c_target(ctex_capi_image_io_test)
+        target_link_libraries(ctex_capi_image_io_test PRIVATE cybertexel_c)
+        add_test(NAME c-abi-image-io COMMAND ctex_capi_image_io_test)
         if(UNIX AND NOT APPLE)
             add_test(
                 NAME c-abi-export-surface

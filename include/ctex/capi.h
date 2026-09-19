@@ -63,7 +63,10 @@ typedef enum ctex_diagnostic_code {
     CTEX_DIAGNOSTIC_INVALID_CUBE_LUT = 27,
     CTEX_DIAGNOSTIC_MESH_LIMIT_EXCEEDED = 28,
     CTEX_DIAGNOSTIC_INVALID_MESH = 29,
-    CTEX_DIAGNOSTIC_MISSING_UV_SET = 30
+    CTEX_DIAGNOSTIC_MISSING_UV_SET = 30,
+    CTEX_DIAGNOSTIC_UNSUPPORTED_IMAGE_FORMAT = 31,
+    CTEX_DIAGNOSTIC_INVALID_IMAGE_DATA = 32,
+    CTEX_DIAGNOSTIC_IMAGE_LIMIT_EXCEEDED = 33
 } ctex_diagnostic_code;
 
 typedef enum ctex_log_severity {
@@ -211,6 +214,52 @@ typedef enum ctex_scalar_representation {
     CTEX_SCALAR_REPRESENTATION_UNSIGNED_NORMALIZED = 0,
     CTEX_SCALAR_REPRESENTATION_FLOATING_POINT = 1
 } ctex_scalar_representation;
+
+typedef enum ctex_image_file_format {
+    CTEX_IMAGE_FILE_FORMAT_UNKNOWN = 0,
+    CTEX_IMAGE_FILE_FORMAT_PNG = 1,
+    CTEX_IMAGE_FILE_FORMAT_JPEG = 2,
+    CTEX_IMAGE_FILE_FORMAT_BMP = 3,
+    CTEX_IMAGE_FILE_FORMAT_TIFF = 4,
+    CTEX_IMAGE_FILE_FORMAT_OPENEXR = 5,
+    CTEX_IMAGE_FILE_FORMAT_RADIANCE_HDR = 6,
+    CTEX_IMAGE_FILE_FORMAT_PSD = 7
+} ctex_image_file_format;
+
+typedef enum ctex_color_space_source {
+    CTEX_COLOR_SPACE_SOURCE_CALLER = 0,
+    CTEX_COLOR_SPACE_SOURCE_EMBEDDED_SRGB = 1,
+    CTEX_COLOR_SPACE_SOURCE_AUTOMATIC_RULE = 2
+} ctex_color_space_source;
+
+typedef struct ctex_image_decode_limits_descriptor {
+    uint32_t size;
+    uint32_t maximum_width;
+    uint32_t maximum_height;
+    size_t maximum_decoded_bytes;
+} ctex_image_decode_limits_descriptor;
+
+#define CTEX_IMAGE_DECODE_LIMITS_DESCRIPTOR_V1_SIZE \
+    ((uint32_t)sizeof(ctex_image_decode_limits_descriptor))
+#define CTEX_IMAGE_DECODE_LIMITS_DESCRIPTOR_CURRENT_SIZE \
+    ((uint32_t)sizeof(ctex_image_decode_limits_descriptor))
+
+typedef struct ctex_decoded_image_info {
+    uint32_t size;
+    uint32_t width;
+    uint32_t height;
+    uint32_t channel_count;
+    uint32_t scalar_representation;
+    uint32_t bit_depth;
+    uint32_t color_space;
+    uint32_t detected_format;
+    uint32_t extension_mismatch;
+    uint32_t color_space_source;
+    uint32_t uninterpretable_profile;
+} ctex_decoded_image_info;
+
+#define CTEX_DECODED_IMAGE_INFO_V1_SIZE ((uint32_t)sizeof(ctex_decoded_image_info))
+#define CTEX_DECODED_IMAGE_INFO_CURRENT_SIZE ((uint32_t)sizeof(ctex_decoded_image_info))
 
 typedef enum ctex_channel_classification {
     CTEX_CHANNEL_CLASSIFICATION_COLOR = 0,
@@ -364,6 +413,18 @@ CTEX_API void ctex_cube_lut_destroy(ctex_cube_lut* lut);
 CTEX_API ctex_result ctex_cube_lut_apply_preview(const ctex_cube_lut* lut,
                                                  const ctex_rgb_color* input,
                                                  ctex_rgb_color* out_color);
+
+/*
+ * Decodes content-detected image bytes into tightly packed, row-major,
+ * interleaved component bytes. Sixteen-bit components use native byte order.
+ * Pass a NULL pixel_buffer with size zero to query out_required_size.
+ */
+CTEX_API ctex_result ctex_image_decode_memory(const void* encoded, size_t encoded_size,
+                                              const char* source_name, uint32_t intended_channel,
+                                              uint32_t input_color_space,
+                                              const ctex_image_decode_limits_descriptor* limits,
+                                              ctex_decoded_image_info* out_info, void* pixel_buffer,
+                                              size_t pixel_buffer_size, size_t* out_required_size);
 
 /*
  * Installs one process-wide sink. Pass NULL to uninstall it. The callback can

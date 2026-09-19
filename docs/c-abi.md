@@ -106,6 +106,26 @@ opaque handle. `ctex_cube_lut_apply_preview` first converts its explicitly typed
 input to the working space and applies that LUT only through a preview-named
 operation; authored and exported texture data are not mutated.
 
+## In-memory image decode
+
+`ctex_image_decode_memory` accepts encoded bytes directly and detects their
+format from content. The current decoder slice accepts PNG and refuses detected
+JPEG, BMP, TIFF, OpenEXR, Radiance HDR and PSD by name until their scheduled
+decoders land. A mismatched filename extension is reported without changing the
+content-selected format.
+
+The output uses the standard two-call caller-buffer contract and is tightly
+packed, row-major and interleaved; 16-bit components use native byte order.
+`ctex_decoded_image_info` reports dimensions, channel count, scalar type, native
+bit depth, colour space and its source, detected format, extension mismatch and
+an uninterpretable-profile flag. Explicit caller colour declarations and the
+automatic per-channel rule use the same enums as the colour-management API.
+
+Optional `ctex_image_decode_limits_descriptor` values cap width, height and
+decoded bytes before pixel allocation. Malformed or truncated data is refused
+without returning partial pixels; limit, unsupported-format and invalid-data
+failures have distinct stable diagnostic codes.
+
 ## ABI version and compatibility
 
 `ctex_get_abi_version` is safe before any handle exists and returns the major,
@@ -143,6 +163,7 @@ The contract is stated per entry-point family:
 | --- | --- |
 | `ctex_get_version`, `ctex_get_abi_version` | Process-safe and callable concurrently from any thread |
 | `ctex_get_working_color_space`, `ctex_color_space_get_name`, `ctex_channel_get_color_policy`, `ctex_channel_get_bit_depth_warning`, `ctex_resolve_input_color_space`, `ctex_color_convert`, `ctex_color_input_to_working`, `ctex_accumulate_height`, `ctex_quantize_unorm8` | Stateless, process-safe and callable concurrently from any thread |
+| `ctex_image_decode_memory` | Stateless and safe to call concurrently; encoded input is borrowed only for the call and decoded output is caller-owned |
 | `ctex_cube_lut_create` | Process-safe; each successful call creates independent immutable state and captures the active allocator |
 | `ctex_cube_lut_apply_preview` | Safe to call concurrently, including against the same immutable LUT handle |
 | `ctex_cube_lut_destroy` | The caller ensures no application call is using that handle; distinct handles may be destroyed concurrently |

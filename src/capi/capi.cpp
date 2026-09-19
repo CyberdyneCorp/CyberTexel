@@ -6,6 +6,7 @@
 #include <cstdio>
 #include <cstring>
 #include <ctex/image/color_policy.hpp>
+#include <ctex/io/image_io.hpp>
 #include <exception>
 #include <iterator>
 #include <limits>
@@ -503,6 +504,100 @@ void validate_color_bit_depth(std::uint32_t value) {
     if (!valid_channel_bit_depth(value)) {
         throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_INVALID_COLOR_BIT_DEPTH,
                        "storage_bit_depth=" + std::to_string(value));
+    }
+}
+
+ctex::io::DecodeLimits image_decode_limits(const ctex_image_decode_limits_descriptor* descriptor) {
+    if (descriptor == nullptr) {
+        return {};
+    }
+    validate_structure_size(descriptor->size, CTEX_IMAGE_DECODE_LIMITS_DESCRIPTOR_V1_SIZE,
+                            CTEX_IMAGE_DECODE_LIMITS_DESCRIPTOR_CURRENT_SIZE, "limits.size");
+    return {
+        .maximum_width = descriptor->maximum_width,
+        .maximum_height = descriptor->maximum_height,
+        .maximum_decoded_bytes = descriptor->maximum_decoded_bytes,
+    };
+}
+
+std::uint32_t image_file_format(ctex::io::ImageFileFormat format) noexcept {
+    switch (format) {
+        case ctex::io::ImageFileFormat::unknown:
+            return CTEX_IMAGE_FILE_FORMAT_UNKNOWN;
+        case ctex::io::ImageFileFormat::png:
+            return CTEX_IMAGE_FILE_FORMAT_PNG;
+        case ctex::io::ImageFileFormat::jpeg:
+            return CTEX_IMAGE_FILE_FORMAT_JPEG;
+        case ctex::io::ImageFileFormat::bmp:
+            return CTEX_IMAGE_FILE_FORMAT_BMP;
+        case ctex::io::ImageFileFormat::tiff:
+            return CTEX_IMAGE_FILE_FORMAT_TIFF;
+        case ctex::io::ImageFileFormat::openexr:
+            return CTEX_IMAGE_FILE_FORMAT_OPENEXR;
+        case ctex::io::ImageFileFormat::radiance_hdr:
+            return CTEX_IMAGE_FILE_FORMAT_RADIANCE_HDR;
+        case ctex::io::ImageFileFormat::psd:
+            return CTEX_IMAGE_FILE_FORMAT_PSD;
+    }
+    return CTEX_IMAGE_FILE_FORMAT_UNKNOWN;
+}
+
+std::uint32_t color_space_source(ctex::io::ColorSpaceSource source) noexcept {
+    switch (source) {
+        case ctex::io::ColorSpaceSource::caller:
+            return CTEX_COLOR_SPACE_SOURCE_CALLER;
+        case ctex::io::ColorSpaceSource::embedded_srgb:
+            return CTEX_COLOR_SPACE_SOURCE_EMBEDDED_SRGB;
+        case ctex::io::ColorSpaceSource::automatic_rule:
+            return CTEX_COLOR_SPACE_SOURCE_AUTOMATIC_RULE;
+    }
+    return CTEX_COLOR_SPACE_SOURCE_AUTOMATIC_RULE;
+}
+
+[[noreturn]] void throw_image_io_error(const ctex::io::ImageIoError& error) {
+    switch (error.code()) {
+        case ctex::io::ImageIoErrorCode::unsupported_format:
+        case ctex::io::ImageIoErrorCode::unsupported_pixel_format:
+            throw_boundary(CTEX_RESULT_UNSUPPORTED_OPERATION,
+                           CTEX_DIAGNOSTIC_UNSUPPORTED_IMAGE_FORMAT, error.what());
+        case ctex::io::ImageIoErrorCode::over_limit:
+            throw_boundary(CTEX_RESULT_OVER_BUDGET, CTEX_DIAGNOSTIC_IMAGE_LIMIT_EXCEEDED,
+                           error.what());
+        case ctex::io::ImageIoErrorCode::malformed_input:
+        case ctex::io::ImageIoErrorCode::decode_failed:
+        case ctex::io::ImageIoErrorCode::encode_failed:
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_INVALID_IMAGE_DATA,
+                           error.what());
+    }
+    throw_boundary(CTEX_RESULT_INTERNAL_ERROR, CTEX_DIAGNOSTIC_UNEXPECTED_EXCEPTION,
+                   "unknown image I/O failure");
+}
+
+bool has_uninterpretable_profile(const ctex::io::DecodeReport& report) {
+    return std::ranges::any_of(report.diagnostics, [](const std::string& diagnostic) {
+        return diagnostic.find("profile is not interpreted") != std::string::npos;
+    });
+}
+
+std::size_t decoded_image_size(const ctex::image::TiledImage& pixels) {
+    const std::size_t row_bytes =
+        static_cast<std::size_t>(pixels.width()) * pixels.format().bytes_per_pixel();
+    if (pixels.height() != 0 &&
+        row_bytes > std::numeric_limits<std::size_t>::max() / pixels.height()) {
+        throw std::overflow_error("decoded image byte count overflow");
+    }
+    return row_bytes * pixels.height();
+}
+
+void copy_decoded_pixels(const ctex::image::TiledImage& pixels, void* buffer) {
+    auto* destination = static_cast<std::byte*>(buffer);
+    std::size_t offset = 0;
+    for (std::uint32_t y = 0; y < pixels.height(); ++y) {
+        for (std::uint32_t x = 0; x < pixels.width(); ++x) {
+            const std::span<const std::byte> pixel = pixels.read_pixel(x, y);
+            std::memcpy(destination + offset, pixel.data(), pixel.size());
+            offset += pixel.size();
+        }
     }
 }
 
@@ -1127,6 +1222,64 @@ extern "C" ctex_result ctex_cube_lut_apply_preview(const ctex_cube_lut* lut,
             .blue = preview.blue,
             .color_space = CTEX_COLOR_SPACE_LINEAR_REC709,
         };
+    });
+}
+
+extern "C" ctex_result ctex_image_decode_memory(
+    const void* encoded, std::size_t encoded_size, const char* source_name,
+    std::uint32_t intended_channel, std::uint32_t input_color_space_value,
+    const ctex_image_decode_limits_descriptor* limits, ctex_decoded_image_info* out_info,
+    void* pixel_buffer, std::size_t pixel_buffer_size, std::size_t* out_required_size) {
+    return call_boundary("ctex_image_decode_memory", [&] {
+        if (encoded == nullptr && encoded_size != 0) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                           "encoded=null with nonzero encoded_size");
+        }
+        if (source_name == nullptr || out_info == nullptr || out_required_size == nullptr) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                           "source_name, out_info and out_required_size are required");
+        }
+        validate_structure_size(out_info->size, CTEX_DECODED_IMAGE_INFO_V1_SIZE,
+                                CTEX_DECODED_IMAGE_INFO_CURRENT_SIZE, "out_info.size");
+        const std::span<const std::byte> bytes =
+            encoded_size == 0
+                ? std::span<const std::byte>{}
+                : std::span<const std::byte>(static_cast<const std::byte*>(encoded), encoded_size);
+        ctex::io::DecodedImage decoded = [&] {
+            try {
+                return ctex::io::decode_image_memory({
+                    .bytes = bytes,
+                    .source_name = source_name,
+                    .intended_channel = channel_semantic(intended_channel),
+                    .color_space = input_color_space(input_color_space_value),
+                    .limits = image_decode_limits(limits),
+                });
+            } catch (const ctex::io::ImageIoError& error) {
+                throw_image_io_error(error);
+            }
+        }();
+        const ctex::image::PixelFormat format = decoded.pixels.format();
+        const std::size_t required_size = decoded_image_size(decoded.pixels);
+        *out_required_size = required_size;
+        *out_info = {
+            .size = CTEX_DECODED_IMAGE_INFO_CURRENT_SIZE,
+            .width = decoded.pixels.width(),
+            .height = decoded.pixels.height(),
+            .channel_count = format.channel_count,
+            .scalar_representation = format.channel_type == ctex::image::ChannelType::float32
+                                         ? CTEX_SCALAR_REPRESENTATION_FLOATING_POINT
+                                         : CTEX_SCALAR_REPRESENTATION_UNSIGNED_NORMALIZED,
+            .bit_depth = static_cast<std::uint32_t>(format.bytes_per_channel() * 8),
+            .color_space = static_cast<std::uint32_t>(decoded.source_color_space),
+            .detected_format = image_file_format(decoded.report.detected_format),
+            .extension_mismatch = decoded.report.extension_mismatch ? 1U : 0U,
+            .color_space_source = color_space_source(decoded.report.color_space_source),
+            .uninterpretable_profile = has_uninterpretable_profile(decoded.report) ? 1U : 0U,
+        };
+        validate_string_buffer(static_cast<char*>(pixel_buffer), pixel_buffer_size, required_size);
+        if (pixel_buffer != nullptr) {
+            copy_decoded_pixels(decoded.pixels, pixel_buffer);
+        }
     });
 }
 
