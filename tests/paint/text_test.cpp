@@ -2,6 +2,7 @@
 #include <cmath>
 #include <ctex/paint/text.hpp>
 #include <iostream>
+#include <limits>
 #include <stdexcept>
 #include <string>
 #include <string_view>
@@ -69,6 +70,17 @@ bool utf8_tracking_and_all_alignments_are_rasterized() {
                   "left, centre or right line alignment did not affect glyph placement");
 }
 
+bool tracking_is_bounded_reported_and_used() {
+    const TextRaster raster =
+        rasterize_text(font(), "AA", {.tracking_em = 20.0, .alignment = TextAlignment::left});
+    return expect(raster.tracking_em == 10.0 && near(raster.width_em, 11.5),
+                  "resolved tracking did not drive text layout") &&
+           expect(raster.parameter_report.clamp_for("text.tracking_em") ==
+                      ToolParameterClamp{
+                          .name = "text.tracking_em", .supplied = 20.0, .resolved = 10.0},
+                  "text tracking clamp was not reported");
+}
+
 PaintToolChannelRaster channel(std::string semantic_id, float red) {
     return {.semantic_id = std::move(semantic_id),
             .component_count = 3,
@@ -125,7 +137,7 @@ bool requested_size_is_applied_through_the_decal_frame() {
                   "rasterized text did not inherit decal masks, rejection and shading");
 }
 
-bool invalid_utf8_missing_glyph_and_size_are_refused() {
+bool invalid_utf8_missing_glyph_and_non_finite_size_are_refused() {
     bool utf8_refused = false;
     try {
         static_cast<void>(rasterize_text(font(), "\xc0\x80"));
@@ -138,28 +150,43 @@ bool invalid_utf8_missing_glyph_and_size_are_refused() {
     } catch (const std::invalid_argument&) {
         glyph_refused = true;
     }
+    const std::array layer{channel("pbr.base_color", 0.0F)};
+    const std::array material{TextMaterialValue{
+        .semantic_id = "pbr.base_color", .component_count = 3, .value = {1.0F, 0.0F, 0.0F, 1.0F}}};
+    const TextDecalResult clamped = apply_text_decal(
+        surface(), layer, material, font(), "AA",
+        {.layout = {.tracking_em = 20.0}, .size = 0.0, .placement = {}, .decal = {}});
     bool size_refused = false;
     try {
-        const std::array layer{channel("pbr.base_color", 0.0F)};
-        const std::array material{TextMaterialValue{.semantic_id = "pbr.base_color",
-                                                    .component_count = 3,
-                                                    .value = {1.0F, 0.0F, 0.0F, 1.0F}}};
-        static_cast<void>(
-            apply_text_decal(surface(), layer, material, font(), "A",
-                             {.layout = {}, .size = 0.0, .placement = {}, .decal = {}}));
+        static_cast<void>(apply_text_decal(surface(), layer, material, font(), "A",
+                                           {.layout = {},
+                                            .size = std::numeric_limits<double>::infinity(),
+                                            .placement = {},
+                                            .decal = {}}));
     } catch (const std::invalid_argument&) {
         size_refused = true;
     }
-    return expect(utf8_refused && glyph_refused && size_refused,
-                  "invalid UTF-8, a missing glyph or invalid text size was not refused");
+    return expect(clamped.size == stroke_position_tolerance &&
+                      near(clamped.decal.frame.scale.x, 11.5 * stroke_position_tolerance) &&
+                      near(clamped.decal.frame.scale.y, stroke_position_tolerance) &&
+                      clamped.parameter_report.clamps.size() == 2 &&
+                      clamped.parameter_report.clamp_for("text.tracking_em") &&
+                      clamped.parameter_report.clamp_for("text.size") ==
+                          ToolParameterClamp{.name = "text.size",
+                                             .supplied = 0.0,
+                                             .resolved = stroke_position_tolerance},
+                  "text size was not bounded and reported") &&
+           expect(utf8_refused && glyph_refused && size_refused,
+                  "invalid UTF-8, a missing glyph or non-finite text size was not refused");
 }
 
 }  // namespace
 
 int main() {
     return utf8_tracking_and_all_alignments_are_rasterized() &&
+                   tracking_is_bounded_reported_and_used() &&
                    requested_size_is_applied_through_the_decal_frame() &&
-                   invalid_utf8_missing_glyph_and_size_are_refused()
+                   invalid_utf8_missing_glyph_and_non_finite_size_are_refused()
                ? 0
                : 1;
 }

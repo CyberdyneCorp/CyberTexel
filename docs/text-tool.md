@@ -15,6 +15,10 @@ left-, centre- or right-aligned within the widest line. Glyph coverage is
 combined by maximum coverage, so overlapping glyphs and negative tracking do
 not depend on draw order.
 
+Tracking defaults to zero and is clamped to `[-10, 10]` em. The resolved value
+is returned in `TextRaster::tracking_em`, with any clamp in its
+`parameter_report`; non-finite tracking is refused.
+
 The supplied glyph bitmaps establish raster resolution. `apply_text_decal`
 interprets `TextDecalSettings::size` as surface units per em, scales the decal's
 two frame axes from the laid-out width and height, and preserves the placement's
@@ -22,6 +26,11 @@ rotation, uniform scale and per-axis scale. It expands each requested material
 channel over the text raster and uses glyph coverage as material opacity before
 calling the ordinary decal rasterizer. Consequently text inherits canonical
 paint masks, optional rejection, blend modes and stroke-start layer snapshots.
+
+Text size defaults to 1 and is clamped to `[0.000001, 1,000,000]` surface units
+per em. `TextDecalResult::size` exposes the resolved value, and its
+`parameter_report` combines both layout-tracking and size clamps. Non-finite
+size is refused.
 
 The immediate operation has editable revision zero. Persistent text identity,
 font-resource round-trip, tile invalidation and undo are part of roadmap item

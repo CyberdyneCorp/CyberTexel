@@ -12,6 +12,11 @@
 
 namespace ctex::paint {
 
+inline constexpr ToolParameterDescriptor text_tracking_parameter{"text.tracking_em", 0.0, -10.0,
+                                                                 10.0};
+inline constexpr ToolParameterDescriptor text_size_parameter{
+    "text.size", 1.0, stroke_position_tolerance, maximum_stroke_radius};
+
 struct SuppliedFontGlyph {
     char32_t codepoint{};
     std::uint32_t width{};
@@ -34,7 +39,7 @@ struct SuppliedFont {
 enum class TextAlignment : std::uint8_t { left, centre, right };
 
 struct TextLayoutSettings {
-    double tracking_em{};
+    double tracking_em{text_tracking_parameter.default_value};
     TextAlignment alignment{TextAlignment::left};
 };
 
@@ -44,6 +49,8 @@ struct TextRaster {
     std::size_t line_count{};
     double width_em{};
     double height_em{};
+    double tracking_em{};
+    ToolParameterReport parameter_report;
     std::vector<char32_t> codepoints;
     std::vector<double> opacity;
 };
@@ -59,12 +66,14 @@ struct TextMaterialValue {
 
 struct TextDecalSettings {
     TextLayoutSettings layout;
-    double size{1.0};
+    double size{text_size_parameter.default_value};
     DecalPlacement placement;
     DecalRasterSettings decal;
 };
 
 struct TextDecalResult {
+    double size{};
+    ToolParameterReport parameter_report;
     TextRaster text;
     DecalRasterResult decal;
 };

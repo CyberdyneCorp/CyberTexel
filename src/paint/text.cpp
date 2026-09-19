@@ -282,12 +282,11 @@ TextRaster rasterize_text(const SuppliedFont& font, std::string_view utf8,
                           const TextLayoutSettings& settings) {
     const FontIndex indexed = index_font(font);
     std::vector<char32_t> codepoints = decode_utf8(utf8);
-    if (!std::isfinite(settings.tracking_em)) {
-        throw std::invalid_argument("text tracking must be finite");
-    }
+    ToolParameterReport parameter_report;
+    const double tracking_em =
+        validate_tool_parameter(text_tracking_parameter, settings.tracking_em, parameter_report);
     const auto logical_lines = split_lines(codepoints);
-    const auto lines =
-        layout_lines(logical_lines, indexed, settings.tracking_em * font.pixels_per_em);
+    const auto lines = layout_lines(logical_lines, indexed, tracking_em * font.pixels_per_em);
     double canvas_width = 0.0;
     for (const LineLayout& line : lines) {
         canvas_width = std::max(canvas_width, line.width);
@@ -302,6 +301,8 @@ TextRaster rasterize_text(const SuppliedFont& font, std::string_view utf8,
             .line_count = lines.size(),
             .width_em = canvas_width / font.pixels_per_em,
             .height_em = canvas_height / font.pixels_per_em,
+            .tracking_em = tracking_em,
+            .parameter_report = std::move(parameter_report),
             .codepoints = std::move(codepoints),
             .opacity = render(font, lines, settings.alignment, width, height, canvas_width)};
 }
@@ -311,17 +312,20 @@ TextDecalResult apply_text_decal(const CachedSurfaceMaps& surface,
                                  std::span<const TextMaterialValue> material,
                                  const SuppliedFont& font, std::string_view utf8,
                                  const TextDecalSettings& settings) {
-    if (!std::isfinite(settings.size) || settings.size <= 0.0) {
-        throw std::invalid_argument("text size must be finite and positive");
-    }
     TextRaster text = rasterize_text(font, utf8, settings.layout);
+    ToolParameterReport parameter_report = text.parameter_report;
+    const double size =
+        validate_tool_parameter(text_size_parameter, settings.size, parameter_report);
     DecalPlacement placement = settings.placement;
-    placement.transform.axis_scale.x *= text.width_em * settings.size;
-    placement.transform.axis_scale.y *= text.height_em * settings.size;
+    placement.transform.axis_scale.x *= text.width_em * size;
+    placement.transform.axis_scale.y *= text.height_em * size;
     DecalMaterial projected = text_material(text, material);
     DecalRasterResult decal =
         rasterize_decal(surface, enabled_layer_snapshot, placement, projected, settings.decal);
-    return {.text = std::move(text), .decal = std::move(decal)};
+    return {.size = size,
+            .parameter_report = std::move(parameter_report),
+            .text = std::move(text),
+            .decal = std::move(decal)};
 }
 
 }  // namespace ctex::paint
