@@ -102,6 +102,7 @@ enum class ProjectContainerErrorCode : std::uint8_t {
     malformed_section,
     invalid_tile,
     invalid_resource,
+    invalid_snapshot,
     compression_failed,
     over_limit,
     filesystem_failure,

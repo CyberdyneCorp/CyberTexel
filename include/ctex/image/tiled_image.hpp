@@ -68,6 +68,7 @@ public:
     [[nodiscard]] Generation tile_generation(TileCoordinate tile) const;
     [[nodiscard]] bool is_tile_allocated(TileCoordinate tile) const;
     [[nodiscard]] TileStorageHandle pin_tile_storage(TileCoordinate tile) const;
+    [[nodiscard]] std::vector<TileCoordinate> allocated_tiles() const;
     [[nodiscard]] TileChangeSet changed_tiles_after(Revision revision) const;
     [[nodiscard]] bool is_tile_dirty(TileCoordinate tile) const;
     [[nodiscard]] std::vector<TileCoordinate> dirty_tiles() const;
@@ -93,6 +94,7 @@ private:
     std::size_t tile_bytes_;
     std::vector<std::byte> clear_pixel_;
     std::vector<std::shared_ptr<std::vector<std::byte>>> tiles_;
+    std::vector<TileCoordinate> allocated_tiles_;
     std::vector<bool> dirty_;
     RevisionEpoch revision_epoch_{1};
     Revision revision_{};

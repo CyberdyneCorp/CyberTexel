@@ -85,6 +85,9 @@ or iteration over unordered collections. Saving the same in-memory container
 twice therefore publishes byte-identical files; the project-save determinism
 gate exercises the atomic filesystem API rather than only the memory encoder.
 
+Periodic background publication and restart discovery build on this format and
+are described in [Project snapshots, autosave, and recovery](project-autosave.md).
+
 The current in-memory `ProjectContainer` is the extensible framing, tiled pixel,
-and portable resource foundation. Autosave, standalone assets and the complete
-document object schema are added by subsequent project-I/O roadmap tasks.
+and portable resource foundation. Standalone assets and the complete document
+object schema are added by subsequent project-I/O roadmap tasks.

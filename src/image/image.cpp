@@ -115,6 +115,12 @@ TileStorageHandle TiledImage::pin_tile_storage(TileCoordinate tile) const {
     return tiles_[tile_index(tile)];
 }
 
+std::vector<TileCoordinate> TiledImage::allocated_tiles() const {
+    std::vector<TileCoordinate> result = allocated_tiles_;
+    radix_sort_row_major(result);
+    return result;
+}
+
 TileChangeSet TiledImage::changed_tiles_after(Revision revision) const {
     if (revision > revision_) {
         throw std::out_of_range("tile change query revision is newer than the image");
@@ -237,10 +243,13 @@ std::vector<std::byte>& TiledImage::allocate_tile(std::size_t index) {
         tile = std::make_shared<std::vector<std::byte>>(*tile);
         return *tile;
     }
-    tile = std::make_shared<std::vector<std::byte>>(tile_bytes_);
+    auto allocation = std::make_shared<std::vector<std::byte>>(tile_bytes_);
     for (std::size_t offset = 0; offset < tile_bytes_; offset += pixel_bytes_) {
-        std::copy(clear_pixel_.begin(), clear_pixel_.end(), tile->begin() + offset);
+        std::copy(clear_pixel_.begin(), clear_pixel_.end(), allocation->begin() + offset);
     }
+    allocated_tiles_.push_back({.x = static_cast<std::uint32_t>(index % tile_columns_),
+                                .y = static_cast<std::uint32_t>(index / tile_columns_)});
+    tile = std::move(allocation);
     return *tile;
 }
 

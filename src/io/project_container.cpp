@@ -827,29 +827,23 @@ StoredTiledImage snapshot_tiled_image(std::string resource_id, const image::Tile
         throw ProjectContainerError(ProjectContainerErrorCode::invalid_tile,
                                     "stored tiled image requires a resource identity");
     }
-    for (std::uint32_t y = 0; y < image.tile_rows(); ++y) {
-        for (std::uint32_t x = 0; x < image.tile_columns(); ++x) {
-            const image::TileCoordinate coordinate{x, y};
-            if (!image.is_tile_allocated(coordinate)) {
-                continue;
-            }
-            const image::TileExtent extent = image.tile_extent(coordinate);
-            const image::TileStorageHandle storage = image.pin_tile_storage(coordinate);
-            StoredTile tile{.coordinate = coordinate,
-                            .extent = extent,
-                            .compression = TileCompression::zlib_deflate,
-                            .pixels = {}};
-            const std::size_t row_bytes = extent.width * image.pixel_bytes();
-            tile.pixels.reserve(row_bytes * extent.height);
-            for (std::uint32_t row = 0; row < extent.height; ++row) {
-                const auto begin = storage->begin() + static_cast<std::ptrdiff_t>(
-                                                          static_cast<std::size_t>(row) *
-                                                          image.tile_size() * image.pixel_bytes());
-                tile.pixels.insert(tile.pixels.end(), begin,
-                                   begin + static_cast<std::ptrdiff_t>(row_bytes));
-            }
-            stored.occupied_tiles.push_back(std::move(tile));
+    for (const image::TileCoordinate coordinate : image.allocated_tiles()) {
+        const image::TileExtent extent = image.tile_extent(coordinate);
+        const image::TileStorageHandle storage = image.pin_tile_storage(coordinate);
+        StoredTile tile{.coordinate = coordinate,
+                        .extent = extent,
+                        .compression = TileCompression::zlib_deflate,
+                        .pixels = {}};
+        const std::size_t row_bytes = extent.width * image.pixel_bytes();
+        tile.pixels.reserve(row_bytes * extent.height);
+        for (std::uint32_t row = 0; row < extent.height; ++row) {
+            const auto begin = storage->begin() +
+                               static_cast<std::ptrdiff_t>(static_cast<std::size_t>(row) *
+                                                           image.tile_size() * image.pixel_bytes());
+            tile.pixels.insert(tile.pixels.end(), begin,
+                               begin + static_cast<std::ptrdiff_t>(row_bytes));
         }
+        stored.occupied_tiles.push_back(std::move(tile));
     }
     return stored;
 }
