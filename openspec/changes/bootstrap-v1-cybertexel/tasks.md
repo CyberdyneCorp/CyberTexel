@@ -476,9 +476,10 @@ operations preserve traversal accounting and refuse stale surface caches.
 Task 10.12 is in progress. Its shared parameter-validation seam owns documented
 defaults and ranges for base stroke spacing, radius, opacity, hardness,
 rotation, elongation, flow and stabilization; it clamps finite out-of-range
-values and records supplied and resolved values for downstream consumers. The
-nested stroke controls, remaining tool families and complete behavioural
-no-inert audit still keep 10.12 open.
+values and records supplied and resolved values for downstream consumers.
+Jitter amounts, taper floor, grid step and bounded radial symmetry use the same
+contract. Response mappings, conditional taper spans, remaining tool families
+and the complete behavioural no-inert audit still keep 10.12 open.
 
 ## 1. Foundation
 

@@ -40,6 +40,23 @@ inline constexpr ToolParameterDescriptor stroke_stabilizer_radius_parameter{
     "stroke.stabilizer.radius", 0.0, 0.0, maximum_stroke_radius};
 inline constexpr ToolParameterDescriptor stroke_stabilizer_time_parameter{
     "stroke.stabilizer.time_constant_seconds", 0.0, 0.0, 60.0};
+inline constexpr ToolParameterDescriptor stroke_jitter_position_parameter{
+    "stroke.jitter.position_fraction", 0.0, 0.0, 4.0};
+inline constexpr ToolParameterDescriptor stroke_jitter_radius_parameter{
+    "stroke.jitter.radius_fraction", 0.0, 0.0, 0.99};
+inline constexpr ToolParameterDescriptor stroke_jitter_rotation_parameter{
+    "stroke.jitter.rotation_radians", 0.0, 0.0, maximum_stroke_rotation_radians};
+inline constexpr ToolParameterDescriptor stroke_jitter_opacity_parameter{"stroke.jitter.opacity",
+                                                                         0.0, 0.0, 1.0};
+inline constexpr ToolParameterDescriptor stroke_jitter_flow_parameter{"stroke.jitter.flow", 0.0,
+                                                                      0.0, 1.0};
+inline constexpr ToolParameterDescriptor stroke_taper_floor_parameter{"stroke.taper.floor", 0.0,
+                                                                      0.0, 1.0};
+inline constexpr ToolParameterDescriptor stroke_grid_step_parameter{
+    "stroke.constraint.grid_step", 1.0, stroke_position_tolerance, maximum_stroke_radius};
+inline constexpr std::uint32_t maximum_radial_symmetry_count = 4'096;
+inline constexpr ToolParameterDescriptor stroke_radial_count_parameter{
+    "stroke.symmetry.radial_count", 1.0, 1.0, maximum_radial_symmetry_count};
 
 struct Vec3d {
     double x{};
@@ -113,11 +130,11 @@ struct StrokeInputMapping {
 
 struct JitterSettings {
     std::uint64_t seed{};
-    double position_fraction{};
-    double radius_fraction{};
-    double rotation_radians{};
-    double opacity{};
-    double flow{};
+    double position_fraction{stroke_jitter_position_parameter.default_value};
+    double radius_fraction{stroke_jitter_radius_parameter.default_value};
+    double rotation_radians{stroke_jitter_rotation_parameter.default_value};
+    double opacity{stroke_jitter_opacity_parameter.default_value};
+    double flow{stroke_jitter_flow_parameter.default_value};
     friend constexpr bool operator==(JitterSettings, JitterSettings) noexcept = default;
 };
 
@@ -132,7 +149,7 @@ struct TaperSpan {
 struct TaperSettings {
     TaperSpan entry;
     TaperSpan exit;
-    double floor{};
+    double floor{stroke_taper_floor_parameter.default_value};
     bool affect_radius{true};
     bool affect_opacity{true};
     friend constexpr bool operator==(TaperSettings, TaperSettings) noexcept = default;
@@ -142,7 +159,7 @@ enum class ConstraintMode : std::uint8_t { none, straight_line, dominant_axis, g
 
 struct ConstraintSettings {
     ConstraintMode mode{ConstraintMode::none};
-    double grid_step{1.0};
+    double grid_step{stroke_grid_step_parameter.default_value};
     friend constexpr bool operator==(ConstraintSettings, ConstraintSettings) noexcept = default;
 };
 
@@ -152,7 +169,8 @@ struct SymmetrySettings {
     bool mirror_x{};
     bool mirror_y{};
     bool mirror_z{};
-    std::uint32_t radial_count{1};
+    std::uint32_t radial_count{
+        static_cast<std::uint32_t>(stroke_radial_count_parameter.default_value)};
     SymmetryAxis radial_axis{SymmetryAxis::z};
     friend constexpr bool operator==(SymmetrySettings, SymmetrySettings) noexcept = default;
 };

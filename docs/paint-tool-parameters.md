@@ -21,10 +21,18 @@ The routed base stroke parameters are:
 | `stroke.flow` | 1 | 0 | 1 | normalized |
 | `stroke.stabilizer.radius` | 0 | 0 | 1,000,000 | caller-defined surface unit |
 | `stroke.stabilizer.time_constant_seconds` | 0 | 0 | 60 | seconds |
+| `stroke.jitter.position_fraction` | 0 | 0 | 4 | radius fraction |
+| `stroke.jitter.radius_fraction` | 0 | 0 | 0.99 | radius fraction |
+| `stroke.jitter.rotation_radians` | 0 | 0 | 2π | radians |
+| `stroke.jitter.opacity` | 0 | 0 | 1 | normalized |
+| `stroke.jitter.flow` | 0 | 0 | 1 | normalized |
+| `stroke.taper.floor` | 0 | 0 | 1 | normalized |
+| `stroke.constraint.grid_step` | 1 | 0.000001 | 1,000,000 | caller-defined surface unit |
+| `stroke.symmetry.radial_count` | 1 | 1 | 4,096 | instances |
 
 `StrokeResolver::settings()` exposes the resolved settings and
 `parameter_report()` exposes their clamps. Brush and Eraser consume the
 resolved stroke, so they cannot bypass or reinterpret the parameter decision.
-The remaining nested stroke controls, tool descriptors and entry points are
-tracked by roadmap task 10.12; that task remains incomplete until the
-behavioral no-inert audit also covers every documented parameter.
+The remaining response mappings, conditional taper spans, tool descriptors and
+entry points are tracked by roadmap task 10.12; that task remains incomplete
+until the behavioral no-inert audit also covers every documented parameter.

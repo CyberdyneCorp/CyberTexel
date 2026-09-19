@@ -163,16 +163,6 @@ void validate_input_mapping(const StrokeInputMapping& mapping) {
     }
 }
 
-void validate_jitter(const JitterSettings& jitter) {
-    if (!finite(jitter.position_fraction) || jitter.position_fraction < 0.0 ||
-        !finite(jitter.radius_fraction) || jitter.radius_fraction < 0.0 ||
-        jitter.radius_fraction >= 1.0 || !finite(jitter.rotation_radians) ||
-        jitter.rotation_radians < 0.0 || !finite(jitter.opacity) || jitter.opacity < 0.0 ||
-        jitter.opacity > 1.0 || !finite(jitter.flow) || jitter.flow < 0.0 || jitter.flow > 1.0) {
-        throw StrokeResolutionError("stroke jitter settings are invalid");
-    }
-}
-
 void validate_taper_span(TaperSpan span) {
     if (!finite(span.extent)) {
         throw StrokeResolutionError("taper extent must be finite");
@@ -193,9 +183,6 @@ void validate_taper_span(TaperSpan span) {
 void validate_taper(const TaperSettings& taper) {
     validate_taper_span(taper.entry);
     validate_taper_span(taper.exit);
-    if (!finite(taper.floor) || taper.floor < 0.0 || taper.floor > 1.0) {
-        throw StrokeResolutionError("taper floor must be normalized");
-    }
     if ((taper.entry.unit != TaperUnit::none || taper.exit.unit != TaperUnit::none) &&
         !taper.affect_radius && !taper.affect_opacity) {
         throw StrokeResolutionError("an active taper must affect radius or opacity");
@@ -209,15 +196,9 @@ void validate_constraint(const ConstraintSettings& constraint) {
         constraint.mode != ConstraintMode::grid) {
         throw StrokeResolutionError("stroke constraint mode is invalid");
     }
-    if (!finite(constraint.grid_step) || constraint.grid_step <= 0.0) {
-        throw StrokeResolutionError("constraint grid step must be finite and positive");
-    }
 }
 
 void validate_symmetry(const SymmetrySettings& symmetry) {
-    if (symmetry.radial_count == 0) {
-        throw StrokeResolutionError("radial symmetry count must be at least one");
-    }
     if (symmetry.radial_axis != SymmetryAxis::x && symmetry.radial_axis != SymmetryAxis::y &&
         symmetry.radial_axis != SymmetryAxis::z) {
         throw StrokeResolutionError("radial symmetry axis is invalid");
@@ -237,7 +218,6 @@ void validate_settings(const StrokeSettings& settings) {
         throw StrokeResolutionError("stroke properties are invalid");
     }
     validate_input_mapping(settings.input_mapping);
-    validate_jitter(settings.jitter);
     validate_taper(settings.taper);
     validate_constraint(settings.constraint);
     validate_symmetry(settings.symmetry);
@@ -259,6 +239,25 @@ void resolve_base_parameters(StrokeSettings& settings, ToolParameterReport& repo
                                                          settings.stabilizer.radius, report);
     settings.stabilizer.time_constant_seconds = validate_tool_parameter(
         stroke_stabilizer_time_parameter, settings.stabilizer.time_constant_seconds, report);
+}
+
+void resolve_modifier_parameters(StrokeSettings& settings, ToolParameterReport& report) {
+    settings.jitter.position_fraction = validate_tool_parameter(
+        stroke_jitter_position_parameter, settings.jitter.position_fraction, report);
+    settings.jitter.radius_fraction = validate_tool_parameter(
+        stroke_jitter_radius_parameter, settings.jitter.radius_fraction, report);
+    settings.jitter.rotation_radians = validate_tool_parameter(
+        stroke_jitter_rotation_parameter, settings.jitter.rotation_radians, report);
+    settings.jitter.opacity =
+        validate_tool_parameter(stroke_jitter_opacity_parameter, settings.jitter.opacity, report);
+    settings.jitter.flow =
+        validate_tool_parameter(stroke_jitter_flow_parameter, settings.jitter.flow, report);
+    settings.taper.floor =
+        validate_tool_parameter(stroke_taper_floor_parameter, settings.taper.floor, report);
+    settings.constraint.grid_step =
+        validate_tool_parameter(stroke_grid_step_parameter, settings.constraint.grid_step, report);
+    settings.symmetry.radial_count = static_cast<std::uint32_t>(validate_tool_parameter(
+        stroke_radial_count_parameter, settings.symmetry.radial_count, report));
 }
 
 void validate_sample(const StrokeInputSample& sample) {
@@ -819,6 +818,7 @@ ResolvedStroke ingest_resolved_stroke(const ResolvedStroke& stroke) {
 StrokeResolver::StrokeResolver(StrokeSettings settings) : settings_(std::move(settings)) {
     try {
         resolve_base_parameters(settings_, parameter_report_);
+        resolve_modifier_parameters(settings_, parameter_report_);
     } catch (const std::invalid_argument& error) {
         throw StrokeResolutionError(error.what());
     }

@@ -650,6 +650,40 @@ bool base_parameters_share_bounds_and_reach_stamps() {
                   "base-parameter clamp report is incomplete");
 }
 
+bool modifier_parameters_share_bounds_and_reports() {
+    StrokeSettings settings;
+    settings.jitter = {.seed = 17,
+                       .position_fraction = 5.0,
+                       .radius_fraction = 2.0,
+                       .rotation_radians = 10.0,
+                       .opacity = 2.0,
+                       .flow = 2.0};
+    settings.taper.floor = 2.0;
+    settings.constraint.grid_step = 0.0;
+    settings.symmetry.radial_count = 0;
+    const StrokeResolver resolver(settings);
+    const StrokeSettings& resolved = resolver.settings();
+    const ToolParameterReport& report = resolver.parameter_report();
+    return expect(resolved.jitter.position_fraction == 4.0 &&
+                      resolved.jitter.radius_fraction == 0.99 &&
+                      resolved.jitter.rotation_radians == maximum_stroke_rotation_radians &&
+                      resolved.jitter.opacity == 1.0 && resolved.jitter.flow == 1.0 &&
+                      resolved.taper.floor == 1.0 &&
+                      resolved.constraint.grid_step == stroke_position_tolerance &&
+                      resolved.symmetry.radial_count == 1,
+                  "stroke modifiers did not use their shared bounds") &&
+           expect(report.clamps.size() == 8 &&
+                      report.clamp_for("stroke.jitter.position_fraction").has_value() &&
+                      report.clamp_for("stroke.jitter.radius_fraction").has_value() &&
+                      report.clamp_for("stroke.jitter.rotation_radians").has_value() &&
+                      report.clamp_for("stroke.jitter.opacity").has_value() &&
+                      report.clamp_for("stroke.jitter.flow").has_value() &&
+                      report.clamp_for("stroke.taper.floor").has_value() &&
+                      report.clamp_for("stroke.constraint.grid_step").has_value() &&
+                      report.clamp_for("stroke.symmetry.radial_count").has_value(),
+                  "stroke-modifier clamp report is incomplete");
+}
+
 bool invalid_input_is_rejected_without_partial_resolution() {
     StrokeSettings future;
     future.reconstruction_version = canonical_stroke_reconstruction_version + 1;
@@ -679,7 +713,7 @@ bool invalid_input_is_rejected_without_partial_resolution() {
     }
 
     StrokeSettings invalid_jitter;
-    invalid_jitter.jitter.radius_fraction = 1.0;
+    invalid_jitter.jitter.radius_fraction = std::numeric_limits<double>::infinity();
     bool invalid_jitter_refused = false;
     try {
         static_cast<void>(StrokeResolver(invalid_jitter));
@@ -697,21 +731,12 @@ bool invalid_input_is_rejected_without_partial_resolution() {
     }
 
     StrokeSettings invalid_constraint;
-    invalid_constraint.constraint.grid_step = 0.0;
+    invalid_constraint.constraint.grid_step = std::numeric_limits<double>::quiet_NaN();
     bool invalid_constraint_refused = false;
     try {
         static_cast<void>(StrokeResolver(invalid_constraint));
     } catch (const StrokeResolutionError&) {
         invalid_constraint_refused = true;
-    }
-
-    StrokeSettings invalid_symmetry_count;
-    invalid_symmetry_count.symmetry.radial_count = 0;
-    bool invalid_symmetry_count_refused = false;
-    try {
-        static_cast<void>(StrokeResolver(invalid_symmetry_count));
-    } catch (const StrokeResolutionError&) {
-        invalid_symmetry_count_refused = true;
     }
 
     StrokeSettings invalid_symmetry_axis;
@@ -760,7 +785,6 @@ bool invalid_input_is_rejected_without_partial_resolution() {
            expect(invalid_jitter_refused, "invalid jitter was accepted") &&
            expect(invalid_taper_refused, "invalid taper was accepted") &&
            expect(invalid_constraint_refused, "invalid constraint settings were accepted") &&
-           expect(invalid_symmetry_count_refused, "zero radial symmetry count was accepted") &&
            expect(invalid_symmetry_axis_refused, "an invalid radial symmetry axis was accepted") &&
            expect(pressure_refused, "an out-of-range pressure value was accepted") &&
            expect(tilt_refused, "an out-of-range tilt vector was accepted") &&
@@ -798,6 +822,7 @@ int main() {
                    spacing_contract_has_versioned_defaults_and_bounds() &&
                    radius_uses_shared_bounds_and_reports_clamps() &&
                    base_parameters_share_bounds_and_reach_stamps() &&
+                   modifier_parameters_share_bounds_and_reports() &&
                    invalid_input_is_rejected_without_partial_resolution()
                ? 0
                : 1;
