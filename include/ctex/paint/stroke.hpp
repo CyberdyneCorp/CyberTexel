@@ -57,6 +57,36 @@ inline constexpr ToolParameterDescriptor stroke_grid_step_parameter{
 inline constexpr std::uint32_t maximum_radial_symmetry_count = 4'096;
 inline constexpr ToolParameterDescriptor stroke_radial_count_parameter{
     "stroke.symmetry.radial_count", 1.0, 1.0, maximum_radial_symmetry_count};
+inline constexpr ToolParameterDescriptor stroke_pressure_radius_minimum_parameter{
+    "stroke.input.pressure_radius.minimum_output", 0.01, 0.01, 100.0};
+inline constexpr ToolParameterDescriptor stroke_pressure_radius_maximum_parameter{
+    "stroke.input.pressure_radius.maximum_output", 1.0, 0.01, 100.0};
+inline constexpr ToolParameterDescriptor stroke_pressure_opacity_minimum_parameter{
+    "stroke.input.pressure_opacity.minimum_output", 0.0, 0.0, 1.0};
+inline constexpr ToolParameterDescriptor stroke_pressure_opacity_maximum_parameter{
+    "stroke.input.pressure_opacity.maximum_output", 1.0, 0.0, 1.0};
+inline constexpr ToolParameterDescriptor stroke_pressure_hardness_minimum_parameter{
+    "stroke.input.pressure_hardness.minimum_output", 0.0, 0.0, 1.0};
+inline constexpr ToolParameterDescriptor stroke_pressure_hardness_maximum_parameter{
+    "stroke.input.pressure_hardness.maximum_output", 1.0, 0.0, 1.0};
+inline constexpr ToolParameterDescriptor stroke_pressure_flow_minimum_parameter{
+    "stroke.input.pressure_flow.minimum_output", 0.0, 0.0, 1.0};
+inline constexpr ToolParameterDescriptor stroke_pressure_flow_maximum_parameter{
+    "stroke.input.pressure_flow.maximum_output", 1.0, 0.0, 1.0};
+inline constexpr ToolParameterDescriptor stroke_pressure_rotation_minimum_parameter{
+    "stroke.input.pressure_rotation.minimum_output", 0.0, -maximum_stroke_rotation_radians,
+    maximum_stroke_rotation_radians};
+inline constexpr ToolParameterDescriptor stroke_pressure_rotation_maximum_parameter{
+    "stroke.input.pressure_rotation.maximum_output", 1.0, -maximum_stroke_rotation_radians,
+    maximum_stroke_rotation_radians};
+inline constexpr ToolParameterDescriptor stroke_tilt_rotation_minimum_parameter{
+    "stroke.input.tilt_rotation.minimum_output", 0.0, 0.0, 1.0};
+inline constexpr ToolParameterDescriptor stroke_tilt_rotation_maximum_parameter{
+    "stroke.input.tilt_rotation.maximum_output", 1.0, 0.0, 1.0};
+inline constexpr ToolParameterDescriptor stroke_tilt_elongation_minimum_parameter{
+    "stroke.input.tilt_elongation.minimum_output", 1.0, 0.01, 100.0};
+inline constexpr ToolParameterDescriptor stroke_tilt_elongation_maximum_parameter{
+    "stroke.input.tilt_elongation.maximum_output", 2.0, 0.01, 100.0};
 
 struct Vec3d {
     double x{};
@@ -117,14 +147,40 @@ struct ResponseMapping {
 
 struct StrokeInputMapping {
     ResponseMapping pressure_radius{
-        .enabled = true, .curve = {}, .minimum_output = 0.01, .maximum_output = 1.0};
-    ResponseMapping pressure_opacity;
-    ResponseMapping pressure_hardness;
-    ResponseMapping pressure_flow;
-    ResponseMapping pressure_rotation;
-    ResponseMapping tilt_rotation;
+        .enabled = true,
+        .curve = {},
+        .minimum_output = stroke_pressure_radius_minimum_parameter.default_value,
+        .maximum_output = stroke_pressure_radius_maximum_parameter.default_value};
+    ResponseMapping pressure_opacity{
+        .enabled = false,
+        .curve = {},
+        .minimum_output = stroke_pressure_opacity_minimum_parameter.default_value,
+        .maximum_output = stroke_pressure_opacity_maximum_parameter.default_value};
+    ResponseMapping pressure_hardness{
+        .enabled = false,
+        .curve = {},
+        .minimum_output = stroke_pressure_hardness_minimum_parameter.default_value,
+        .maximum_output = stroke_pressure_hardness_maximum_parameter.default_value};
+    ResponseMapping pressure_flow{
+        .enabled = false,
+        .curve = {},
+        .minimum_output = stroke_pressure_flow_minimum_parameter.default_value,
+        .maximum_output = stroke_pressure_flow_maximum_parameter.default_value};
+    ResponseMapping pressure_rotation{
+        .enabled = false,
+        .curve = {},
+        .minimum_output = stroke_pressure_rotation_minimum_parameter.default_value,
+        .maximum_output = stroke_pressure_rotation_maximum_parameter.default_value};
+    ResponseMapping tilt_rotation{
+        .enabled = false,
+        .curve = {},
+        .minimum_output = stroke_tilt_rotation_minimum_parameter.default_value,
+        .maximum_output = stroke_tilt_rotation_maximum_parameter.default_value};
     ResponseMapping tilt_elongation{
-        .enabled = false, .curve = {}, .minimum_output = 1.0, .maximum_output = 2.0};
+        .enabled = false,
+        .curve = {},
+        .minimum_output = stroke_tilt_elongation_minimum_parameter.default_value,
+        .maximum_output = stroke_tilt_elongation_maximum_parameter.default_value};
     friend bool operator==(const StrokeInputMapping&, const StrokeInputMapping&) = default;
 };
 

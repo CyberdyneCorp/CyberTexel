@@ -684,6 +684,52 @@ bool modifier_parameters_share_bounds_and_reports() {
                   "stroke-modifier clamp report is incomplete");
 }
 
+bool response_mapping_parameters_share_bounds_and_reports() {
+    StrokeSettings settings;
+    settings.input_mapping.pressure_radius = {true, {}, 0.0, 200.0};
+    settings.input_mapping.pressure_opacity = {true, {}, -1.0, 2.0};
+    settings.input_mapping.pressure_hardness = {true, {}, -1.0, 2.0};
+    settings.input_mapping.pressure_flow = {true, {}, -1.0, 2.0};
+    settings.input_mapping.pressure_rotation = {true, {}, -10.0, 10.0};
+    settings.input_mapping.tilt_rotation = {true, {}, -1.0, 2.0};
+    settings.input_mapping.tilt_elongation = {true, {}, 0.0, 200.0};
+    const StrokeResolver resolver(settings);
+    const StrokeInputMapping& resolved = resolver.settings().input_mapping;
+    const ToolParameterReport& report = resolver.parameter_report();
+    return expect(
+               resolved.pressure_radius.minimum_output == 0.01 &&
+                   resolved.pressure_radius.maximum_output == 100.0 &&
+                   resolved.pressure_opacity.minimum_output == 0.0 &&
+                   resolved.pressure_opacity.maximum_output == 1.0 &&
+                   resolved.pressure_hardness.minimum_output == 0.0 &&
+                   resolved.pressure_hardness.maximum_output == 1.0 &&
+                   resolved.pressure_flow.minimum_output == 0.0 &&
+                   resolved.pressure_flow.maximum_output == 1.0 &&
+                   resolved.pressure_rotation.minimum_output == -maximum_stroke_rotation_radians &&
+                   resolved.pressure_rotation.maximum_output == maximum_stroke_rotation_radians &&
+                   resolved.tilt_rotation.minimum_output == 0.0 &&
+                   resolved.tilt_rotation.maximum_output == 1.0 &&
+                   resolved.tilt_elongation.minimum_output == 0.01 &&
+                   resolved.tilt_elongation.maximum_output == 100.0,
+               "response mapping endpoints did not use their shared bounds") &&
+           expect(report.clamps.size() == 14 &&
+                      report.clamp_for("stroke.input.pressure_radius.minimum_output") &&
+                      report.clamp_for("stroke.input.pressure_radius.maximum_output") &&
+                      report.clamp_for("stroke.input.pressure_opacity.minimum_output") &&
+                      report.clamp_for("stroke.input.pressure_opacity.maximum_output") &&
+                      report.clamp_for("stroke.input.pressure_hardness.minimum_output") &&
+                      report.clamp_for("stroke.input.pressure_hardness.maximum_output") &&
+                      report.clamp_for("stroke.input.pressure_flow.minimum_output") &&
+                      report.clamp_for("stroke.input.pressure_flow.maximum_output") &&
+                      report.clamp_for("stroke.input.pressure_rotation.minimum_output") &&
+                      report.clamp_for("stroke.input.pressure_rotation.maximum_output") &&
+                      report.clamp_for("stroke.input.tilt_rotation.minimum_output") &&
+                      report.clamp_for("stroke.input.tilt_rotation.maximum_output") &&
+                      report.clamp_for("stroke.input.tilt_elongation.minimum_output") &&
+                      report.clamp_for("stroke.input.tilt_elongation.maximum_output"),
+                  "response mapping clamp report is incomplete");
+}
+
 bool invalid_input_is_rejected_without_partial_resolution() {
     StrokeSettings future;
     future.reconstruction_version = canonical_stroke_reconstruction_version + 1;
@@ -710,6 +756,26 @@ bool invalid_input_is_rejected_without_partial_resolution() {
         static_cast<void>(StrokeResolver(invalid_curve));
     } catch (const StrokeResolutionError&) {
         invalid_curve_refused = true;
+    }
+
+    StrokeSettings reversed_mapping;
+    reversed_mapping.input_mapping.pressure_opacity.minimum_output = 0.8;
+    reversed_mapping.input_mapping.pressure_opacity.maximum_output = 0.2;
+    bool reversed_mapping_refused = false;
+    try {
+        static_cast<void>(StrokeResolver(reversed_mapping));
+    } catch (const StrokeResolutionError&) {
+        reversed_mapping_refused = true;
+    }
+
+    StrokeSettings non_finite_mapping;
+    non_finite_mapping.input_mapping.pressure_flow.maximum_output =
+        std::numeric_limits<double>::infinity();
+    bool non_finite_mapping_refused = false;
+    try {
+        static_cast<void>(StrokeResolver(non_finite_mapping));
+    } catch (const StrokeResolutionError&) {
+        non_finite_mapping_refused = true;
     }
 
     StrokeSettings invalid_jitter;
@@ -782,6 +848,8 @@ bool invalid_input_is_rejected_without_partial_resolution() {
     return expect(future_refused, "an unknown reconstruction version was accepted") &&
            expect(invalid_mode_refused, "an unknown tip mode was accepted") &&
            expect(invalid_curve_refused, "an invalid response curve was accepted") &&
+           expect(reversed_mapping_refused, "a reversed response mapping was accepted") &&
+           expect(non_finite_mapping_refused, "a non-finite response mapping was accepted") &&
            expect(invalid_jitter_refused, "invalid jitter was accepted") &&
            expect(invalid_taper_refused, "invalid taper was accepted") &&
            expect(invalid_constraint_refused, "invalid constraint settings were accepted") &&
@@ -823,6 +891,7 @@ int main() {
                    radius_uses_shared_bounds_and_reports_clamps() &&
                    base_parameters_share_bounds_and_reach_stamps() &&
                    modifier_parameters_share_bounds_and_reports() &&
+                   response_mapping_parameters_share_bounds_and_reports() &&
                    invalid_input_is_rejected_without_partial_resolution()
                ? 0
                : 1;

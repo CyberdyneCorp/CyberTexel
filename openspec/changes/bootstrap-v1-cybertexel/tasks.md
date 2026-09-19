@@ -478,8 +478,10 @@ defaults and ranges for base stroke spacing, radius, opacity, hardness,
 rotation, elongation, flow and stabilization; it clamps finite out-of-range
 values and records supplied and resolved values for downstream consumers.
 Jitter amounts, taper floor, grid step and bounded radial symmetry use the same
-contract. Response mappings, conditional taper spans, remaining tool families
-and the complete behavioural no-inert audit still keep 10.12 open.
+contract. All pressure and tilt response-range endpoints are likewise bounded,
+reported and then checked for valid ordering. Conditional taper spans,
+remaining tool families and the complete behavioural no-inert audit still keep
+10.12 open.
 
 ## 1. Foundation
 

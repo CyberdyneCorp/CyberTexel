@@ -29,10 +29,24 @@ The routed base stroke parameters are:
 | `stroke.taper.floor` | 0 | 0 | 1 | normalized |
 | `stroke.constraint.grid_step` | 1 | 0.000001 | 1,000,000 | caller-defined surface unit |
 | `stroke.symmetry.radial_count` | 1 | 1 | 4,096 | instances |
+| `stroke.input.pressure_radius.minimum_output` | 0.01 | 0.01 | 100 | radius multiplier |
+| `stroke.input.pressure_radius.maximum_output` | 1 | 0.01 | 100 | radius multiplier |
+| `stroke.input.pressure_opacity.minimum_output` | 0 | 0 | 1 | normalized multiplier |
+| `stroke.input.pressure_opacity.maximum_output` | 1 | 0 | 1 | normalized multiplier |
+| `stroke.input.pressure_hardness.minimum_output` | 0 | 0 | 1 | normalized multiplier |
+| `stroke.input.pressure_hardness.maximum_output` | 1 | 0 | 1 | normalized multiplier |
+| `stroke.input.pressure_flow.minimum_output` | 0 | 0 | 1 | normalized multiplier |
+| `stroke.input.pressure_flow.maximum_output` | 1 | 0 | 1 | normalized multiplier |
+| `stroke.input.pressure_rotation.minimum_output` | 0 | -2π | 2π | additive radians |
+| `stroke.input.pressure_rotation.maximum_output` | 1 | -2π | 2π | additive radians |
+| `stroke.input.tilt_rotation.minimum_output` | 0 | 0 | 1 | azimuth multiplier |
+| `stroke.input.tilt_rotation.maximum_output` | 1 | 0 | 1 | azimuth multiplier |
+| `stroke.input.tilt_elongation.minimum_output` | 1 | 0.01 | 100 | elongation multiplier |
+| `stroke.input.tilt_elongation.maximum_output` | 2 | 0.01 | 100 | elongation multiplier |
 
 `StrokeResolver::settings()` exposes the resolved settings and
 `parameter_report()` exposes their clamps. Brush and Eraser consume the
 resolved stroke, so they cannot bypass or reinterpret the parameter decision.
-The remaining response mappings, conditional taper spans, tool descriptors and
-entry points are tracked by roadmap task 10.12; that task remains incomplete
+Conditional taper spans, the remaining tool descriptors and entry points are
+tracked by roadmap task 10.12; that task remains incomplete
 until the behavioral no-inert audit also covers every documented parameter.

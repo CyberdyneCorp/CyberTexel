@@ -137,8 +137,7 @@ void validate_curve(const ResponseCurve& curve) {
 
 void validate_mapping(const ResponseMapping& mapping) {
     validate_curve(mapping.curve);
-    if (!finite(mapping.minimum_output) || !finite(mapping.maximum_output) ||
-        mapping.minimum_output > mapping.maximum_output) {
+    if (mapping.minimum_output > mapping.maximum_output) {
         throw StrokeResolutionError("response mapping output range is invalid");
     }
 }
@@ -151,16 +150,35 @@ void validate_input_mapping(const StrokeInputMapping& mapping) {
     validate_mapping(mapping.pressure_rotation);
     validate_mapping(mapping.tilt_rotation);
     validate_mapping(mapping.tilt_elongation);
-    if (mapping.pressure_radius.minimum_output <= 0.0 ||
-        mapping.pressure_opacity.minimum_output < 0.0 ||
-        mapping.pressure_opacity.maximum_output > 1.0 ||
-        mapping.pressure_hardness.minimum_output < 0.0 ||
-        mapping.pressure_hardness.maximum_output > 1.0 ||
-        mapping.pressure_flow.minimum_output < 0.0 || mapping.pressure_flow.maximum_output > 1.0 ||
-        mapping.tilt_rotation.minimum_output < 0.0 || mapping.tilt_rotation.maximum_output > 1.0 ||
-        mapping.tilt_elongation.minimum_output <= 0.0) {
-        throw StrokeResolutionError("response mapping range is invalid for its property");
-    }
+}
+
+void resolve_mapping_parameters(ResponseMapping& mapping,
+                                const ToolParameterDescriptor& minimum_descriptor,
+                                const ToolParameterDescriptor& maximum_descriptor,
+                                ToolParameterReport& report) {
+    mapping.minimum_output =
+        validate_tool_parameter(minimum_descriptor, mapping.minimum_output, report);
+    mapping.maximum_output =
+        validate_tool_parameter(maximum_descriptor, mapping.maximum_output, report);
+}
+
+void resolve_input_mapping_parameters(StrokeInputMapping& mapping, ToolParameterReport& report) {
+    resolve_mapping_parameters(mapping.pressure_radius, stroke_pressure_radius_minimum_parameter,
+                               stroke_pressure_radius_maximum_parameter, report);
+    resolve_mapping_parameters(mapping.pressure_opacity, stroke_pressure_opacity_minimum_parameter,
+                               stroke_pressure_opacity_maximum_parameter, report);
+    resolve_mapping_parameters(mapping.pressure_hardness,
+                               stroke_pressure_hardness_minimum_parameter,
+                               stroke_pressure_hardness_maximum_parameter, report);
+    resolve_mapping_parameters(mapping.pressure_flow, stroke_pressure_flow_minimum_parameter,
+                               stroke_pressure_flow_maximum_parameter, report);
+    resolve_mapping_parameters(mapping.pressure_rotation,
+                               stroke_pressure_rotation_minimum_parameter,
+                               stroke_pressure_rotation_maximum_parameter, report);
+    resolve_mapping_parameters(mapping.tilt_rotation, stroke_tilt_rotation_minimum_parameter,
+                               stroke_tilt_rotation_maximum_parameter, report);
+    resolve_mapping_parameters(mapping.tilt_elongation, stroke_tilt_elongation_minimum_parameter,
+                               stroke_tilt_elongation_maximum_parameter, report);
 }
 
 void validate_taper_span(TaperSpan span) {
@@ -819,6 +837,7 @@ StrokeResolver::StrokeResolver(StrokeSettings settings) : settings_(std::move(se
     try {
         resolve_base_parameters(settings_, parameter_report_);
         resolve_modifier_parameters(settings_, parameter_report_);
+        resolve_input_mapping_parameters(settings_.input_mapping, parameter_report_);
     } catch (const std::invalid_argument& error) {
         throw StrokeResolutionError(error.what());
     }
