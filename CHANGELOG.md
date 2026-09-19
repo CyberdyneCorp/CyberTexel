@@ -30,6 +30,9 @@ Foundation implementation is in progress.
 - Complete metadata-only channel delta queries from a caller-held revision,
   coalescing repeated tile changes while retaining latest revision, generation
   and residency records.
+- Epoch-qualified revision cursors with explicit full-resynchronization results
+  after reset, preserving pixels and per-tile generations without returning a
+  misleading partial delta.
 - Linear Rec. 709 working-space and sRGB transfer functions with unclamped HDR
   conversion.
 - Native and sanitizer test presets plus a registry-driven determinism gate that

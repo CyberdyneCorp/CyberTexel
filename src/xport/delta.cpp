@@ -4,21 +4,30 @@
 namespace ctex::xport {
 
 ChannelDelta query_channel_delta(const doc::TextureChannels& channels, std::string_view semantic_id,
-                                 doc::ChannelRevision synchronized_revision) {
+                                 doc::ChannelRevisionCursor synchronized_cursor) {
     const image::TiledImage& image = channels.pixels(semantic_id);
-    const doc::ChannelRevision current_revision = image.revision();
-    if (synchronized_revision > current_revision) {
-        throw DeltaQueryError("synchronized revision " + std::to_string(synchronized_revision) +
-                              " is newer than current revision " +
-                              std::to_string(current_revision));
+    const doc::ChannelRevisionCursor current_cursor = image.revision_cursor();
+    if (synchronized_cursor.epoch != current_cursor.epoch) {
+        return {
+            .disposition = DeltaQueryDisposition::full_resynchronization_required,
+            .synchronized_cursor = synchronized_cursor,
+            .current_cursor = current_cursor,
+            .changed_tiles = {},
+        };
+    }
+    if (synchronized_cursor.revision > current_cursor.revision) {
+        throw DeltaQueryError(
+            "synchronized revision " + std::to_string(synchronized_cursor.revision) +
+            " is newer than current revision " + std::to_string(current_cursor.revision));
     }
 
     ChannelDelta result{
-        .synchronized_revision = synchronized_revision,
-        .current_revision = current_revision,
+        .disposition = DeltaQueryDisposition::complete,
+        .synchronized_cursor = synchronized_cursor,
+        .current_cursor = current_cursor,
         .changed_tiles = {},
     };
-    if (synchronized_revision == current_revision) {
+    if (synchronized_cursor == current_cursor) {
         return result;
     }
 
@@ -26,7 +35,7 @@ ChannelDelta query_channel_delta(const doc::TextureChannels& channels, std::stri
         for (std::uint32_t x = 0; x < image.tile_columns(); ++x) {
             const image::TileCoordinate coordinate{x, y};
             const doc::TileRevision revision = image.tile_revision(coordinate);
-            if (revision <= synchronized_revision) {
+            if (revision <= synchronized_cursor.revision) {
                 continue;
             }
             result.changed_tiles.push_back({

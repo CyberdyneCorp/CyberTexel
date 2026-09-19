@@ -121,20 +121,32 @@ void TiledImage::write_pixel(std::uint32_t x, std::uint32_t y, std::span<const s
     if (std::equal(pixel.begin(), pixel.end(), existing.begin(), existing.end())) {
         return;
     }
-    if (revision_ == std::numeric_limits<Revision>::max()) {
-        throw std::overflow_error("image revision space is exhausted");
-    }
     const TileCoordinate coordinate{x / tile_size_, y / tile_size_};
     const std::size_t index = tile_index(coordinate);
     if (tile_generations_[index] == std::numeric_limits<Generation>::max()) {
         throw std::overflow_error("tile generation space is exhausted");
     }
+    const bool revision_exhausted = revision_ == std::numeric_limits<Revision>::max();
+    if (revision_exhausted && revision_epoch_ == std::numeric_limits<RevisionEpoch>::max()) {
+        throw std::overflow_error("image revision epoch space is exhausted");
+    }
     auto& tile = allocate_tile(index);
+    if (revision_exhausted) {
+        begin_new_revision_epoch();
+    }
     std::copy(pixel.begin(), pixel.end(), tile.begin() + pixel_offset(x, y));
     ++revision_;
     ++tile_generations_[index];
     tile_revisions_[index] = revision_;
     dirty_[index] = true;
+}
+
+RevisionCursor TiledImage::reset_revision_history() {
+    if (revision_epoch_ == std::numeric_limits<RevisionEpoch>::max()) {
+        throw std::overflow_error("image revision epoch space is exhausted");
+    }
+    begin_new_revision_epoch();
+    return revision_cursor();
 }
 
 void TiledImage::clear_dirty() noexcept { std::fill(dirty_.begin(), dirty_.end(), false); }
@@ -162,6 +174,12 @@ std::vector<std::byte>& TiledImage::allocate_tile(std::size_t index) {
         std::copy(clear_pixel_.begin(), clear_pixel_.end(), tile.begin() + offset);
     }
     return tile;
+}
+
+void TiledImage::begin_new_revision_epoch() noexcept {
+    ++revision_epoch_;
+    revision_ = 0;
+    std::fill(tile_revisions_.begin(), tile_revisions_.end(), 0);
 }
 
 }  // namespace ctex::image

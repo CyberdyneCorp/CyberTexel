@@ -10,6 +10,7 @@
 namespace ctex::xport {
 
 enum class TileResidency : std::uint8_t { cpu, host_device };
+enum class DeltaQueryDisposition : std::uint8_t { complete, full_resynchronization_required };
 
 struct TileVersion {
     image::TileCoordinate coordinate;
@@ -20,8 +21,9 @@ struct TileVersion {
 };
 
 struct ChannelDelta {
-    doc::ChannelRevision synchronized_revision{};
-    doc::ChannelRevision current_revision{};
+    DeltaQueryDisposition disposition{};
+    doc::ChannelRevisionCursor synchronized_cursor;
+    doc::ChannelRevisionCursor current_cursor;
     std::vector<TileVersion> changed_tiles;
 };
 
@@ -32,7 +34,7 @@ public:
 
 [[nodiscard]] ChannelDelta query_channel_delta(const doc::TextureChannels& channels,
                                                std::string_view semantic_id,
-                                               doc::ChannelRevision synchronized_revision);
+                                               doc::ChannelRevisionCursor synchronized_cursor);
 
 }  // namespace ctex::xport
 

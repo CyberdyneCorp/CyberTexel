@@ -264,8 +264,11 @@ only, sparse clear tiles remain allocation-free, and byte-identical writes do
 not advance either value. Task 8.2 queries from a caller-held revision and
 returns the complete row-major union of newer tile versions, coalesced to each
 tile's latest revision and generation with explicit CPU residency. It moves no
-pixels; stale/reset signaling (8.3) is next, while the change-proportional index
-remains task 8.8.
+pixels. Task 8.3 qualifies caller revisions with an epoch; controlled reset or
+revision exhaustion advances that epoch while preserving pixels and tile
+generations. Unknown or mismatched epochs return a full-resynchronization result
+with no partial delta. Explicit asynchronous tile readback (8.4) is next, while
+the change-proportional index remains task 8.8.
 
 ## 1. Foundation
 
@@ -372,7 +375,7 @@ remains task 8.8.
 
 - [x] 8.1 Channel and per-tile revisions, advancing on change
 - [x] 8.2 Delta query since a caller-held revision; completeness and coalescing
-- [ ] 8.3 Stale-revision detection and the full-resynchronization signal
+- [x] 8.3 Stale-revision detection and the full-resynchronization signal
 - [ ] 8.4 Explicit asynchronous tile readback into caller-owned buffers; no implicit readback on delta queries
 - [ ] 8.5 Declared, stable memory layout; direct-upload test
 - [ ] 8.6 Format negotiation and the host-owned conversion decision

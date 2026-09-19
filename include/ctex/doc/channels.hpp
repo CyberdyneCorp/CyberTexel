@@ -15,6 +15,7 @@
 namespace ctex::doc {
 
 using ChannelRevision = image::Revision;
+using ChannelRevisionCursor = image::RevisionCursor;
 using TileRevision = image::Revision;
 
 enum class ScalarRepresentation { unsigned_normalized, floating_point };
@@ -51,8 +52,10 @@ public:
     [[nodiscard]] image::TiledImage& pixels(std::string_view semantic_id);
     [[nodiscard]] const image::TiledImage& pixels(std::string_view semantic_id) const;
     [[nodiscard]] ChannelRevision channel_revision(std::string_view semantic_id) const;
+    [[nodiscard]] ChannelRevisionCursor channel_revision_cursor(std::string_view semantic_id) const;
     [[nodiscard]] TileRevision tile_revision(std::string_view semantic_id,
                                              image::TileCoordinate tile) const;
+    [[nodiscard]] ChannelRevisionCursor reset_revision_history(std::string_view semantic_id);
 
     [[nodiscard]] std::size_t enabled_channel_count() const noexcept;
     [[nodiscard]] std::size_t resident_pixel_bytes() const noexcept;

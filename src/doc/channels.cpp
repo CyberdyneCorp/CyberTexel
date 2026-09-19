@@ -204,9 +204,17 @@ ChannelRevision TextureChannels::channel_revision(std::string_view semantic_id) 
     return pixels(semantic_id).revision();
 }
 
+ChannelRevisionCursor TextureChannels::channel_revision_cursor(std::string_view semantic_id) const {
+    return pixels(semantic_id).revision_cursor();
+}
+
 TileRevision TextureChannels::tile_revision(std::string_view semantic_id,
                                             image::TileCoordinate tile) const {
     return pixels(semantic_id).tile_revision(tile);
+}
+
+ChannelRevisionCursor TextureChannels::reset_revision_history(std::string_view semantic_id) {
+    return pixels(semantic_id).reset_revision_history();
 }
 
 std::size_t TextureChannels::enabled_channel_count() const noexcept {
