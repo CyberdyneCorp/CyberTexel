@@ -15,6 +15,7 @@ inline constexpr std::string_view smart_mask = "smart-mask";
 inline constexpr std::string_view brush = "brush";
 inline constexpr std::string_view stroke_preset = "stroke-preset";
 inline constexpr std::string_view export_preset = "export-preset";
+inline constexpr std::string_view generator = "generator";
 inline constexpr std::string_view node_group = "node-group";
 }  // namespace asset_kind
 

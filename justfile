@@ -95,6 +95,9 @@ test-smart-mask-instances: build
 test-smart-material-resources: build
     ctest --test-dir build/headless --output-on-failure -R '^smart-material-resources$'
 
+test-preset-shelf-library: build
+    ctest --test-dir build/headless --output-on-failure -R '^preset-shelf-library$'
+
 test-host-transport-revisions: build
     ctest --test-dir build/headless --output-on-failure -R '^host-transport-revisions$'
 

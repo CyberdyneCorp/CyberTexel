@@ -95,8 +95,8 @@ ProjectContainer make_library() {
 bool every_supported_asset_kind_round_trips() {
     const std::array kinds{asset_kind::material,      asset_kind::smart_material,
                            asset_kind::smart_mask,    asset_kind::brush,
-                           asset_kind::stroke_preset, asset_kind::export_preset,
-                           asset_kind::node_group};
+                           asset_kind::stroke_preset, asset_kind::generator,
+                           asset_kind::export_preset, asset_kind::node_group};
     ProjectContainer container;
     for (std::size_t index = 0; index < kinds.size(); ++index) {
         container.assets.push_back({.identifier = "asset/" + std::to_string(index),

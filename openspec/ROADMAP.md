@@ -105,7 +105,10 @@ produce a dependency-ordered plan containing only affected consumers. Smart
 material images, fonts and other resources now use validated stable identities,
 ordered shelf search paths and per-input missing status without substitution.
 Canonical manifests can embed every dependency for shelf-independent sharing.
-Shelf and library enumeration with metadata and thumbnails (13.7) is next.
+A unified library now validates named shelves and enumerates all seven preset
+kinds with stable identity, kind, version, display name, sorted tags and an
+embedded tiled thumbnail. Global identities resolve unambiguously to standalone
+packages. Versioned preset migrations and refusals (13.8) are next.
 
 ## Milestones
 

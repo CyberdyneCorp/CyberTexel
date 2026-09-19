@@ -204,6 +204,7 @@ ctex_add_module(
         src/io/project_autosave.cpp
         src/io/standalone_asset.cpp
         src/io/smart_material_package.cpp
+        src/io/preset_library.cpp
 )
 target_include_directories(ctex_io SYSTEM PRIVATE "${stb_SOURCE_DIR}")
 target_link_libraries(ctex_io PRIVATE ctex_lodepng Threads::Threads)
@@ -335,6 +336,10 @@ if(BUILD_TESTING)
     ctex_configure_cpp_target(ctex_smart_material_package_test)
     target_link_libraries(ctex_smart_material_package_test PRIVATE cybertexel)
     add_test(NAME smart-material-resources COMMAND ctex_smart_material_package_test)
+    add_executable(ctex_preset_library_test tests/io/preset_library_test.cpp)
+    ctex_configure_cpp_target(ctex_preset_library_test)
+    target_link_libraries(ctex_preset_library_test PRIVATE cybertexel)
+    add_test(NAME preset-shelf-library COMMAND ctex_preset_library_test)
     add_executable(ctex_export_preset_test tests/io/export_preset_test.cpp)
     ctex_configure_cpp_target(ctex_export_preset_test)
     target_link_libraries(ctex_export_preset_test PRIVATE cybertexel)

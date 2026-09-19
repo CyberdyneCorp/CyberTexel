@@ -10,6 +10,9 @@ domain serializer before entering this container.
 [Smart-mask payloads](smart-masks.md) follow the same rule while retaining their
 distinct asset kind and schema.
 
+Installed packages can be organised and enumerated through the unified
+[preset shelf library](preset-library.md).
+
 `package_standalone_asset` selects exactly one asset and only its declared
 dependencies from a source container. Unknown opaque sections are retained so
 an older build does not discard future package data. The default export keeps
