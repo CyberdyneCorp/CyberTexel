@@ -254,7 +254,11 @@ select a physical device deterministically, and own a headless instance, logical
 device and graphics-plus-compute queue. Live limits and format support feed the
 common executor descriptor. Missing loaders or devices remain compiled but
 `device-unavailable`; an enabled CI build requires a Mesa software device. The
-full `execution-backends` scenario suite (7.9) is next.
+task 7.9 labeled suite maps all eighteen `execution-backends` scenarios to the
+registry, CPU, host, bounded-work, Vulkan, capability, parity and layering
+tests. Its 16K staged fill exercises the execution contract ahead of the paint
+tool, and the enabled Vulkan recipe remains the real-device lifecycle check.
+Host transport (8.1) is next.
 
 ## 1. Foundation
 
@@ -355,7 +359,7 @@ full `execution-backends` scenario suite (7.9) is next.
 - [x] 7.6 Parity fixture corpus and the CI gate, with unmeasured executors reported
 - [x] 7.7 Cancellation, progress, worker bound, memory ceiling and its refusals
 - [x] 7.8 Optional owned-GPU executor (first backend), behind a build flag
-- [ ] 7.9 `execution-backends` scenarios as tests
+- [x] 7.9 `execution-backends` scenarios as tests
 
 ## 8. Host transport
 

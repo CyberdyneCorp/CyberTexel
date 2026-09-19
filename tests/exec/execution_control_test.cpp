@@ -113,21 +113,23 @@ bool worker_bounds_are_real_and_results_are_reproducible() {
                   "bounded CPU progress was incomplete or non-monotonic");
 }
 
-bool cancellation_discards_all_staged_output() {
-    std::vector<std::byte> document(4096, std::byte{0x7f});
+bool cancelling_a_16k_fill_discards_all_staged_output() {
+    constexpr std::size_t texture_extent = 16384;
+    std::vector<std::byte> document(texture_extent, std::byte{0x7f});
     const std::vector<std::byte> before = document;
-    StagedByteOperation operation(document, {4096, 4096, 16});
-    ProgressState progress{.latest = {}, .cancel_after = 32, .reports = {}};
+    StagedByteOperation operation(document, {texture_extent, texture_extent, 16});
+    ProgressState progress{.latest = {}, .cancel_after = texture_extent / 2, .reports = {}};
     const ExecutionOutcome result =
         CpuReferenceExecutor{}.execute_bounded(operation, {.maximum_workers = 4,
-                                                           .memory_ceiling_bytes = 4160,
-                                                           .progress_interval = 8,
+                                                           .memory_ceiling_bytes = 16448,
+                                                           .progress_interval = 256,
                                                            .user_data = &progress,
                                                            .is_cancelled = cancel_at_threshold,
                                                            .report_progress = record_progress});
     return expect(result.status == ExecutionStatus::cancelled,
                   "cancelled CPU work reported completion") &&
-           expect(result.completed_work_items >= 32 && result.completed_work_items < 4096 &&
+           expect(result.completed_work_items >= texture_extent / 2 &&
+                      result.completed_work_items < texture_extent &&
                       operation.executed() == result.completed_work_items,
                   "CPU cancellation was not observed at a work-item boundary") &&
            expect(operation.commits() == 0 && document == before,
@@ -213,7 +215,7 @@ bool zero_storage_work_is_supported() {
 
 int main() {
     return worker_bounds_are_real_and_results_are_reproducible() &&
-                   cancellation_discards_all_staged_output() &&
+                   cancelling_a_16k_fill_discards_all_staged_output() &&
                    existing_cancellation_starts_no_workers() &&
                    memory_is_refused_before_work_and_names_both_limits() &&
                    invalid_and_overflowing_limits_are_refused() && zero_storage_work_is_supported()

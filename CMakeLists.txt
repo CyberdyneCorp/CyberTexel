@@ -549,6 +549,14 @@ if(BUILD_TESTING)
     add_test(NAME executor-parity-corpus COMMAND ctex_executor_parity_gate)
 
     add_test(
+        NAME execution-backends-layering
+        COMMAND "${CTEX_PYTHON3_EXECUTABLE}" tests/tools/test_check_layering.py
+    )
+    set_tests_properties(
+        execution-backends-layering PROPERTIES WORKING_DIRECTORY "${PROJECT_SOURCE_DIR}"
+    )
+
+    add_test(
         NAME shader-emission-determinism
         COMMAND "${CTEX_PYTHON3_EXECUTABLE}" tools/check_determinism.py shader-emission
     )
@@ -611,5 +619,23 @@ if(BUILD_TESTING)
     endif()
     set_tests_properties(
         ${CTEX_SHADER_SCENARIO_TESTS} PROPERTIES LABELS shader-emission-scenario
+    )
+    set(
+        CTEX_EXECUTION_BACKEND_SCENARIO_TESTS
+        executor-registry
+        executor-environment-pin
+        executor-cpu-reference
+        executor-bounded-execution
+        executor-vulkan
+        executor-host-execution
+        executor-emission-features
+        executor-parity-tolerances
+        executor-parity-gate
+        executor-parity-corpus
+        execution-backends-layering
+    )
+    set_tests_properties(
+        ${CTEX_EXECUTION_BACKEND_SCENARIO_TESTS}
+        PROPERTIES LABELS execution-backends-scenario
     )
 endif()

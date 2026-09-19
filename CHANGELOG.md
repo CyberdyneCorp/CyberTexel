@@ -52,6 +52,9 @@ Foundation implementation is in progress.
 - An optional owned Vulkan executor behind `CTEX_ENABLE_VULKAN_EXECUTOR`, using
   pinned Vulkan-Headers and Volk, with deterministic device selection, private
   instance/device/queue ownership, and physical-device capability reporting.
+- A labeled execution-backend scenario suite mapping every OpenSpec scenario to
+  default-build coverage, including 16K staged cancellation and the backend
+  isolation regression.
 - Semantic input-colour defaults, preview-only 3D LUTs, structured precision
   warnings, promoted height accumulation and deterministic ordered dithering.
 - Slice-A memory-buffer PNG decoding and encoding with 8/16-bit preservation,

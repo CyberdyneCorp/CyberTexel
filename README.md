@@ -118,7 +118,8 @@ The current implementation provides:
 - Strict C++20 builds, sanitizer coverage, OpenSpec validation, dependency
   layering checks, licence auditing, deterministic-output gates, and labeled
   [material-graph](docs/material-graph-scenarios.md) and
-  [shader-emission](docs/shader-emission-scenarios.md) scenario suites.
+  [shader-emission](docs/shader-emission-scenarios.md), and
+  [execution-backend](docs/execution-backend-scenarios.md) scenario suites.
 
 The editable layer document, painting engine, remaining executor work, host
 transport, project IO, language bindings, and complete export workflow remain

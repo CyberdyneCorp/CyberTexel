@@ -165,6 +165,9 @@ test-material-emission: (_require "spirv-val" "SPIRV-Tools") build
 test-executor-registry: build
     ctest --test-dir build/headless --output-on-failure -R '^executor-(registry|environment-pin|cpu-reference|bounded-execution|vulkan|host-execution|emission-features|parity-tolerances)$'
 
+test-execution-backend-scenarios: build
+    ctest --test-dir build/headless --output-on-failure -L '^execution-backends-scenario$'
+
 test-shader-emission-scenarios: (_require "spirv-val" "SPIRV-Tools") build
     ctest --test-dir build/headless --output-on-failure -L '^shader-emission-scenario$'
 

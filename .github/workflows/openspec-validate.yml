@@ -80,6 +80,8 @@ jobs:
       run: just gate-parity
     - name: Optional owned Vulkan executor
       run: just test-vulkan
+    - name: Execution backend scenarios
+      run: just test-execution-backend-scenarios
     - name: Test suite
       run: just test
 
