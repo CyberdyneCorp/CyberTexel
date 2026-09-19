@@ -109,10 +109,10 @@ operation; authored and exported texture data are not mutated.
 ## In-memory image decode
 
 `ctex_image_decode_memory` accepts encoded bytes directly and detects their
-format from content. The current decoder slice accepts PNG and refuses detected
-JPEG, BMP, TIFF, OpenEXR, Radiance HDR and PSD by name until their scheduled
-decoders land. A mismatched filename extension is reported without changing the
-content-selected format.
+format from content. The current decoder slice accepts PNG, flat OpenEXR and
+Radiance HDR, and refuses detected JPEG, BMP, TIFF and PSD by name until their
+scheduled decoders land. A mismatched filename extension is reported without
+changing the content-selected format.
 
 The output uses the standard two-call caller-buffer contract and is tightly
 packed, row-major and interleaved; 16-bit components use native byte order.
@@ -120,6 +120,8 @@ packed, row-major and interleaved; 16-bit components use native byte order.
 bit depth, colour space and its source, detected format, extension mismatch and
 an uninterpretable-profile flag. Explicit caller colour declarations and the
 automatic per-channel rule use the same enums as the colour-management API.
+OpenEXR expands to RGBA float32 and Radiance HDR retains RGB float32; both use
+linear Rec. 709 in automatic mode and preserve finite values outside `[0, 1]`.
 
 Optional `ctex_image_decode_limits_descriptor` values cap width, height and
 decoded bytes before pixel allocation. Malformed or truncated data is refused

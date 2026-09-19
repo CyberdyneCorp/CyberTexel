@@ -56,6 +56,17 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(stb)
 
+set(TINYEXR_BUILD_SAMPLE OFF CACHE BOOL "" FORCE)
+set(TINYEXR_USE_MINIZ ON CACHE BOOL "" FORCE)
+FetchContent_Declare(
+    TinyEXR
+    GIT_REPOSITORY https://github.com/syoyo/tinyexr.git
+    GIT_TAG 644148d0fd6b1b204a68a902dc963a70c749b417
+    GIT_SHALLOW FALSE
+)
+FetchContent_MakeAvailable(TinyEXR)
+set_target_properties(tinyexr miniz PROPERTIES POSITION_INDEPENDENT_CODE ON)
+
 include(cmake/CyberTexelModules.cmake)
 
 add_library(
@@ -207,8 +218,8 @@ ctex_add_module(
         src/io/smart_material_package.cpp
         src/io/preset_library.cpp
 )
-target_include_directories(ctex_io SYSTEM PRIVATE "${stb_SOURCE_DIR}")
-target_link_libraries(ctex_io PRIVATE ctex_lodepng Threads::Threads)
+target_include_directories(ctex_io SYSTEM PRIVATE "${stb_SOURCE_DIR}" "${tinyexr_SOURCE_DIR}")
+target_link_libraries(ctex_io PRIVATE ctex_lodepng tinyexr Threads::Threads)
 set(
     CTEX_EXEC_SOURCES
     src/exec/exec.cpp
@@ -250,9 +261,9 @@ endif()
 ctex_add_module(capi DEPENDS image mesh pick graph emit doc paint maps xport io exec)
 
 ctex_add_library()
-target_link_libraries(cybertexel PUBLIC ctex_lodepng ctex_kong Threads::Threads)
+target_link_libraries(cybertexel PUBLIC ctex_lodepng ctex_kong tinyexr Threads::Threads)
 if(TARGET cybertexel_c)
-    target_link_libraries(cybertexel_c PRIVATE ctex_lodepng ctex_kong Threads::Threads)
+    target_link_libraries(cybertexel_c PRIVATE ctex_lodepng ctex_kong tinyexr Threads::Threads)
 endif()
 if(CTEX_ENABLE_VULKAN_EXECUTOR)
     target_link_libraries(cybertexel PUBLIC volk::volk)

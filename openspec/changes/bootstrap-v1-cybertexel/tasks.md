@@ -691,6 +691,12 @@ versioned raw-pixel descriptor and caller-owned byte buffer. It validates input
 row strides and scalar precision, honours JPEG quality, and names both format
 and bit depth when a combination is impossible. Together with the existing
 export-report evidence, this completes 2.7 and leaves 218 runtime C ABI gaps.
+The HDR decoder follow-up accepts flat OpenEXR and Radiance HDR from memory,
+checks declared dimensions and RGBA/RGB float storage against the caller's
+limits before allocation, and preserves values above one through the C ABI.
+Automatic HDR interpretation is linear Rec. 709, multipart/deep EXR remains a
+named layered-source refusal, and task 2.5 is complete. The exact C ABI gap is
+217 runtime requirements.
 
 ## 1. Foundation
 
@@ -711,7 +717,7 @@ export-report evidence, this completes 2.7 and leaves 218 runtime C ABI gaps.
 - [ ] 2.2 Content-based format detection and extension-mismatch reporting
 - [ ] 2.3 Bit depth and channel preservation; documented expansion rules
 - [ ] 2.4 Colour space on read: embedded profiles, caller declaration, the automatic rule
-- [ ] 2.5 High dynamic range decoding without clamping
+- [x] 2.5 High dynamic range decoding without clamping
 - [ ] 2.6 Layered sources: PSD layers and multi-part EXR, composited or per-layer
 - [x] 2.7 Encoders with per-format options and the impossible-combination refusal
 - [ ] 2.8 Decoding from memory buffers

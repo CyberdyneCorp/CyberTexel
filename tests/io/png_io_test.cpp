@@ -4,6 +4,7 @@
 #include <cstdint>
 #include <cstring>
 #include <ctex/io/image_io.hpp>
+#include <ctex/io/texture_encode.hpp>
 #include <exception>
 #include <iostream>
 #include <span>
@@ -33,11 +34,14 @@ bool expect(bool condition, std::string_view message) {
 }
 
 template <typename Callable>
-bool expect_error(Callable&& callable, ImageIoErrorCode code, std::string_view message_part) {
+bool expect_error(Callable&& callable, ImageIoErrorCode code, std::string_view message_part,
+                  ImageFileFormat format = ImageFileFormat::unknown) {
     try {
         callable();
     } catch (const ImageIoError& error) {
         return expect(error.code() == code, "wrong image IO error code") &&
+               expect(format == ImageFileFormat::unknown || error.format() == format,
+                      "wrong image IO error format") &&
                expect(std::string_view(error.what()).find(message_part) != std::string_view::npos,
                       "image IO diagnostic did not name the failure");
     } catch (...) {
@@ -55,6 +59,26 @@ std::uint16_t uint16_from(std::span<const std::byte> bytes) {
     std::uint16_t value = 0;
     std::memcpy(&value, bytes.data(), sizeof(value));
     return value;
+}
+
+float float_from(std::span<const std::byte> bytes, std::size_t component) {
+    float value = 0.0F;
+    std::memcpy(&value, bytes.data() + component * sizeof(value), sizeof(value));
+    return value;
+}
+
+std::vector<std::byte> make_radiance_hdr() {
+    constexpr std::string_view header = "#?RADIANCE\nFORMAT=32-bit_rle_rgbe\n\n-Y 1 +X 2\n";
+    std::vector<std::byte> result;
+    result.reserve(header.size() + 8);
+    std::transform(header.begin(), header.end(), std::back_inserter(result),
+                   [](char value) { return static_cast<std::byte>(value); });
+    constexpr std::array pixels{
+        std::byte{128}, std::byte{64}, std::byte{32},  std::byte{130},
+        std::byte{32},  std::byte{64}, std::byte{128}, std::byte{129},
+    };
+    result.insert(result.end(), pixels.begin(), pixels.end());
+    return result;
 }
 
 std::vector<std::byte> make_gray8_png(ColorSpace color_space = ColorSpace::linear_rec709) {
@@ -175,12 +199,103 @@ bool float_png_is_refused() {
                         ImageIoErrorCode::unsupported_pixel_format, "32-bit floating-point");
 }
 
+bool radiance_hdr_preserves_unclamped_float_values() {
+    const std::vector<std::byte> encoded = make_radiance_hdr();
+    const auto decoded = ctex::io::decode_image_memory({
+        .bytes = encoded,
+        .source_name = "environment.png",
+        .intended_channel = ChannelSemantic::base_color,
+    });
+    const auto first = decoded.pixels.read_pixel(0, 0);
+    const auto second = decoded.pixels.read_pixel(1, 0);
+    return expect(decoded.report.detected_format == ImageFileFormat::radiance_hdr,
+                  "Radiance HDR was not detected by content") &&
+           expect(decoded.report.extension_mismatch,
+                  "Radiance HDR extension mismatch was not reported") &&
+           expect(decoded.pixels.format() == PixelFormat{ChannelType::float32, 3},
+                  "Radiance HDR did not decode to RGB float32") &&
+           expect(float_from(first, 0) == 2.0F && float_from(first, 1) == 1.0F &&
+                      float_from(first, 2) == 0.5F,
+                  "Radiance HDR values above one were changed") &&
+           expect(float_from(second, 0) == 0.25F && float_from(second, 1) == 0.5F &&
+                      float_from(second, 2) == 1.0F,
+                  "Radiance HDR values were not decoded exactly") &&
+           expect(decoded.source_color_space == ColorSpace::linear_rec709 &&
+                      decoded.report.color_space_source == ColorSpaceSource::automatic_rule,
+                  "Radiance HDR automatic linear colour space was not reported");
+}
+
+bool openexr_preserves_unclamped_float_values() {
+    TiledImage source(1, 1, PixelFormat{ChannelType::float32, 4});
+    constexpr std::array values{4.0F, 2.0F, 0.5F, 1.0F};
+    std::array<std::byte, sizeof(values)> pixel{};
+    std::memcpy(pixel.data(), values.data(), pixel.size());
+    source.write_pixel(0, 0, pixel);
+    const std::vector<std::byte> encoded =
+        ctex::io::encode_texture_memory(source, {.format = ctex::io::ExportImageFormat::openexr,
+                                                 .bit_depth = ctex::io::ExportBitDepth::bits_32,
+                                                 .color_space = ColorSpace::linear_rec709});
+    const auto decoded = ctex::io::decode_image_memory({
+        .bytes = encoded,
+        .source_name = "environment.exr",
+        .intended_channel = ChannelSemantic::base_color,
+    });
+    const auto decoded_pixel = decoded.pixels.read_pixel(0, 0);
+    const bool bounded = expect_error(
+        [&] {
+            static_cast<void>(ctex::io::decode_image_memory({
+                .bytes = encoded,
+                .source_name = "limited.exr",
+                .limits =
+                    DecodeLimits{
+                        .maximum_width = 1, .maximum_height = 1, .maximum_decoded_bytes = 15},
+            }));
+        },
+        ImageIoErrorCode::over_limit, "1x1", ImageFileFormat::openexr);
+    std::vector<std::byte> truncated = encoded;
+    truncated.resize(truncated.size() - 4);
+    const bool truncation = expect_error(
+        [&] {
+            static_cast<void>(ctex::io::decode_image_memory({
+                .bytes = truncated,
+                .source_name = "truncated.exr",
+            }));
+        },
+        ImageIoErrorCode::decode_failed, "OpenEXR decode failed");
+    return expect(decoded.report.detected_format == ImageFileFormat::openexr,
+                  "OpenEXR was not detected by content") &&
+           expect(decoded.pixels.format() == PixelFormat{ChannelType::float32, 4},
+                  "OpenEXR did not decode to RGBA float32") &&
+           expect(float_from(decoded_pixel, 0) == 4.0F && float_from(decoded_pixel, 1) == 2.0F &&
+                      float_from(decoded_pixel, 2) == 0.5F && float_from(decoded_pixel, 3) == 1.0F,
+                  "OpenEXR values above one were changed") &&
+           bounded && truncation;
+}
+
+bool hdr_limits_are_checked_before_decode() {
+    const std::vector<std::byte> encoded = make_radiance_hdr();
+    return expect_error(
+        [&] {
+            static_cast<void>(ctex::io::decode_image_memory({
+                .bytes = encoded,
+                .source_name = "large.hdr",
+                .limits =
+                    DecodeLimits{
+                        .maximum_width = 1, .maximum_height = 1, .maximum_decoded_bytes = 4},
+            }));
+        },
+        ImageIoErrorCode::over_limit, "2x1", ImageFileFormat::radiance_hdr);
+}
+
 }  // namespace
 
 int main() {
     return grayscale_memory_decode_and_mismatch() && sixteen_bit_round_trip() &&
                    embedded_space_and_caller_override() && hostile_input_is_bounded_and_named() &&
-                   unsupported_content_is_named() && float_png_is_refused()
+                   unsupported_content_is_named() && float_png_is_refused() &&
+                   radiance_hdr_preserves_unclamped_float_values() &&
+                   openexr_preserves_unclamped_float_values() &&
+                   hdr_limits_are_checked_before_decode()
                ? 0
                : 1;
 }

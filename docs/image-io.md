@@ -1,9 +1,10 @@
 # Image input and output
 
-The slice-A image path decodes and encodes PNG entirely from caller-owned byte
-buffers. Detection uses the file signature; a misleading extension is reported
-but does not select the decoder. Signatures for JPEG, BMP, TIFF, OpenEXR,
-Radiance HDR and PSD are named as unsupported until their decoder tasks land.
+The image path decodes PNG, flat OpenEXR and Radiance HDR entirely from
+caller-owned byte buffers and encodes PNG the same way. Detection uses the file
+signature; a misleading extension is reported but does not select the decoder.
+Signatures for JPEG, BMP, TIFF and PSD are named as unsupported until their
+decoder tasks land.
 
 PNG grayscale, grayscale-alpha, RGB and RGBA data retain 8- or 16-bit channel
 precision. Sub-byte grayscale expands to 8-bit and palette input expands to
@@ -15,6 +16,13 @@ Decode limits are checked from the PNG header before pixel allocation. The
 default ceiling is 16384×16384 and 1 GiB of decoded pixels; hosts can lower each
 limit. Truncated or malformed data produces a named error and no partial image.
 
+Flat OpenEXR and Radiance HDR headers are inspected against the same limits
+before pixel allocation. They decode to native float32 storage without clamping:
+OpenEXR expands named colour channels to RGBA and Radiance HDR retains RGB.
+Automatic colour interpretation is linear Rec. 709; an explicit caller
+declaration remains authoritative. Multipart and deep OpenEXR inputs are refused
+until the layered-source API in task 2.6 lands.
+
 An explicit caller colour-space declaration overrides metadata. Otherwise an
 embedded PNG sRGB declaration is used, followed by the automatic semantic rule.
 Unsupported ICC profiles are reported before the automatic rule is applied.
@@ -22,6 +30,9 @@ Unsupported ICC profiles are reported before the automatic rule is applied.
 LodePNG is pinned for this path because it supports memory-based 8/16-bit PNG
 encoding and decoding without another runtime dependency. Its revision and
 licence are recorded in the dependency manifest and third-party notices.
+Radiance HDR uses the pinned stb decoder. Flat OpenEXR uses pinned TinyEXR and
+its bundled miniz implementation; both licence texts are recorded with the
+dependency.
 
 The texture-export path additionally encodes PNG, JPEG, TGA, TIFF and OpenEXR
 to caller-owned buffers. Its exact format/depth compatibility table and output

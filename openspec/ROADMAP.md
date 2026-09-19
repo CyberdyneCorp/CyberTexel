@@ -7,7 +7,7 @@ decisions taken and questions still open.
 ## Status
 
 Implementation started. 24 capabilities, 332 requirements, 400 scenarios and
-222 tasks, 135 done. Foundation and the complete headless color-management
+222 tasks, 136 done. Foundation and the complete headless color-management
 scenario suite are green. Slice-A now has memory-buffer PNG input plus
 PNG/JPEG/TGA/TIFF/OpenEXR output, with 8/16-bit preservation and hostile-input
 ceilings; full decoder breadth remains scheduled for slice D. Extensible channel
@@ -159,6 +159,11 @@ The encoder follow-up exposes caller-buffer PNG, JPEG, TGA, TIFF and OpenEXR
 output with validated row strides, explicit input/output precision, JPEG quality
 and named impossible format/depth refusals. This completes task 2.7 and reduces
 the exact C ABI gap to 218 runtime requirements.
+Flat OpenEXR and Radiance HDR decoding now validates declared float storage
+against caller limits before allocation and preserves values above one through
+the C ABI. Automatic HDR input is linear Rec. 709; multipart and deep EXR remain
+explicitly deferred to the layered-source API. This completes task 2.5 and
+leaves 217 runtime C ABI gaps.
 
 ## Milestones
 

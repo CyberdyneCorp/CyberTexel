@@ -246,13 +246,71 @@ static int encode_honours_jpeg_quality(void) {
            expect(low_size != high_size || memcmp(low_quality, high_quality, low_size) != 0);
 }
 
+static int decode_preserves_radiance_hdr_values(void) {
+    static const char header[] = "#?RADIANCE\nFORMAT=32-bit_rle_rgbe\n\n-Y 1 +X 2\n";
+    static const unsigned char rgbe[] = {128, 64, 32, 130, 32, 64, 128, 129};
+    unsigned char encoded[sizeof(header) - 1 + sizeof(rgbe)];
+    float pixels[6] = {0};
+    ctex_decoded_image_info info = {.size = CTEX_DECODED_IMAGE_INFO_CURRENT_SIZE};
+    size_t required_size = 0;
+    memcpy(encoded, header, sizeof(header) - 1);
+    memcpy(encoded + sizeof(header) - 1, rgbe, sizeof(rgbe));
+    return expect(ctex_image_decode_memory(
+                      encoded, sizeof(encoded), "environment.png", CTEX_CHANNEL_SEMANTIC_BASE_COLOR,
+                      CTEX_INPUT_COLOR_SPACE_AUTOMATIC, NULL, &info, pixels, sizeof(pixels),
+                      &required_size) == CTEX_RESULT_SUCCESS) &&
+           expect(info.detected_format == CTEX_IMAGE_FILE_FORMAT_RADIANCE_HDR &&
+                  info.scalar_representation == CTEX_SCALAR_REPRESENTATION_FLOATING_POINT &&
+                  info.bit_depth == 32 && info.channel_count == 3 &&
+                  info.color_space == CTEX_COLOR_SPACE_LINEAR_REC709 &&
+                  info.extension_mismatch == 1 && required_size == sizeof(pixels)) &&
+           expect(pixels[0] == 2.0f && pixels[1] == 1.0f && pixels[2] == 0.5f &&
+                  pixels[3] == 0.25f && pixels[4] == 0.5f && pixels[5] == 1.0f);
+}
+
+static int openexr_round_trip_preserves_hdr_values(void) {
+    static const float source[] = {4.0f, 2.0f, 0.5f, 1.0f};
+    ctex_image_encode_descriptor descriptor = {
+        CTEX_IMAGE_ENCODE_DESCRIPTOR_CURRENT_SIZE,
+        1,
+        1,
+        4,
+        CTEX_SCALAR_REPRESENTATION_FLOATING_POINT,
+        32,
+        0,
+        CTEX_COLOR_SPACE_LINEAR_REC709,
+        CTEX_IMAGE_FILE_FORMAT_OPENEXR,
+        32,
+        0,
+    };
+    ctex_decoded_image_info info = {.size = CTEX_DECODED_IMAGE_INFO_CURRENT_SIZE};
+    unsigned char encoded[4096];
+    float decoded[4] = {0};
+    size_t encoded_size = 0;
+    size_t decoded_size = 0;
+    return expect(ctex_image_encode_memory(source, sizeof(source), &descriptor, encoded,
+                                           sizeof(encoded),
+                                           &encoded_size) == CTEX_RESULT_SUCCESS) &&
+           expect(ctex_image_decode_memory(
+                      encoded, encoded_size, "environment.exr", CTEX_CHANNEL_SEMANTIC_BASE_COLOR,
+                      CTEX_INPUT_COLOR_SPACE_AUTOMATIC, NULL, &info, decoded, sizeof(decoded),
+                      &decoded_size) == CTEX_RESULT_SUCCESS) &&
+           expect(info.detected_format == CTEX_IMAGE_FILE_FORMAT_OPENEXR &&
+                  info.scalar_representation == CTEX_SCALAR_REPRESENTATION_FLOATING_POINT &&
+                  decoded_size == sizeof(decoded)) &&
+           expect(decoded[0] == source[0] && decoded[1] == source[1] && decoded[2] == source[2] &&
+                  decoded[3] == source[3]);
+}
+
 int main(void) {
     return decode_reports_content_and_caller_buffers() && decode_preserves_sixteen_bit_samples() &&
                    decode_honours_color_and_resource_limits() &&
                    decode_refuses_unsupported_and_truncated_content() &&
                    encode_supports_every_output_format() &&
                    encode_round_trips_png_and_honours_stride() &&
-                   encode_refuses_invalid_depth_and_small_output() && encode_honours_jpeg_quality()
+                   encode_refuses_invalid_depth_and_small_output() &&
+                   encode_honours_jpeg_quality() && decode_preserves_radiance_hdr_values() &&
+                   openexr_round_trip_preserves_hdr_values()
                ? 0
                : 1;
 }

@@ -18,6 +18,14 @@
             "source": "https://github.com/nothings/stb"
         },
         {
+            "name": "TinyEXR with bundled miniz",
+            "discovery_name": "TinyEXR",
+            "license": "BSD-3-Clause",
+            "license_file": "thirdparty/licenses/tinyexr-and-miniz.txt",
+            "revision": "644148d0fd6b1b204a68a902dc963a70c749b417",
+            "source": "https://github.com/syoyo/tinyexr"
+        },
+        {
             "name": "Kongruent minikong",
             "discovery_name": "kong",
             "license": "Zlib",

@@ -1,4 +1,9 @@
 #include <lodepng.h>
+#include <tinyexr.h>
+
+#define STB_IMAGE_IMPLEMENTATION
+#define STBI_NO_STDIO
+#include <stb_image.h>
 
 #include <algorithm>
 #include <array>
@@ -17,6 +22,8 @@ namespace ctex::io {
 namespace {
 
 using LodePngBuffer = std::unique_ptr<unsigned char, decltype(&std::free)>;
+using StbiFloatBuffer = std::unique_ptr<float, decltype(&stbi_image_free)>;
+using ExrFloatBuffer = std::unique_ptr<float, decltype(&std::free)>;
 
 class LodePngState {
 public:
@@ -33,15 +40,49 @@ private:
     LodePNGState state_{};
 };
 
+class TinyExrHeader {
+public:
+    TinyExrHeader() { InitEXRHeader(&value_); }
+    ~TinyExrHeader() { FreeEXRHeader(&value_); }
+    TinyExrHeader(const TinyExrHeader&) = delete;
+    TinyExrHeader& operator=(const TinyExrHeader&) = delete;
+    [[nodiscard]] EXRHeader* get() noexcept { return &value_; }
+    [[nodiscard]] const EXRHeader* get() const noexcept { return &value_; }
+
+private:
+    EXRHeader value_{};
+};
+
+class TinyExrError {
+public:
+    TinyExrError() = default;
+    ~TinyExrError() {
+        if (value_ != nullptr) {
+            FreeEXRErrorMessage(value_);
+        }
+    }
+    TinyExrError(const TinyExrError&) = delete;
+    TinyExrError& operator=(const TinyExrError&) = delete;
+    [[nodiscard]] const char** output() noexcept { return &value_; }
+    [[nodiscard]] std::string message() const {
+        return value_ == nullptr ? "unknown TinyEXR error" : value_;
+    }
+
+private:
+    const char* value_{};
+};
+
 struct RawLayout {
     LodePNGColorType color_type;
     image::PixelFormat pixel_format;
 };
 
-std::size_t checked_multiply(std::size_t left, std::size_t right) {
+std::size_t checked_multiply(std::size_t left, std::size_t right,
+                             ImageFileFormat format = ImageFileFormat::png) {
     if (right != 0 && left > std::numeric_limits<std::size_t>::max() / right) {
-        throw ImageIoError(ImageIoErrorCode::over_limit, ImageFileFormat::png,
-                           "PNG decoded byte count overflows the platform size type");
+        throw ImageIoError(ImageIoErrorCode::over_limit, format,
+                           std::string(image_file_format_name(format)) +
+                               " decoded byte count overflows the platform size type");
     }
     return left * right;
 }
@@ -96,17 +137,20 @@ RawLayout choose_raw_layout(const LodePNGColorMode& source) {
     }
 }
 
-void enforce_limits(std::uint32_t width, std::uint32_t height, const image::PixelFormat& format,
-                    const DecodeLimits& limits) {
-    const std::size_t pixels = checked_multiply(width, height);
-    const std::size_t decoded_bytes = checked_multiply(pixels, format.bytes_per_pixel());
+void enforce_limits(std::uint32_t width, std::uint32_t height,
+                    const image::PixelFormat& pixel_format, const DecodeLimits& limits,
+                    ImageFileFormat file_format = ImageFileFormat::png) {
+    const std::size_t pixels = checked_multiply(width, height, file_format);
+    const std::size_t decoded_bytes =
+        checked_multiply(pixels, pixel_format.bytes_per_pixel(), file_format);
     if (width > limits.maximum_width || height > limits.maximum_height ||
         decoded_bytes > limits.maximum_decoded_bytes) {
         std::ostringstream message;
-        message << "PNG dimensions " << width << 'x' << height << " require " << decoded_bytes
-                << " decoded bytes; limits are " << limits.maximum_width << 'x'
-                << limits.maximum_height << " and " << limits.maximum_decoded_bytes << " bytes";
-        throw ImageIoError(ImageIoErrorCode::over_limit, ImageFileFormat::png, message.str());
+        message << image_file_format_name(file_format) << " dimensions " << width << 'x' << height
+                << " require " << decoded_bytes << " decoded bytes; limits are "
+                << limits.maximum_width << 'x' << limits.maximum_height << " and "
+                << limits.maximum_decoded_bytes << " bytes";
+        throw ImageIoError(ImageIoErrorCode::over_limit, file_format, message.str());
     }
 }
 
@@ -159,7 +203,150 @@ std::pair<image::ColorSpace, ColorSpaceSource> resolve_color_space(
 
 bool extension_mismatch(std::string_view source_name, ImageFileFormat detected) {
     const std::string extension = lowercase_extension(source_name);
-    return !extension.empty() && detected == ImageFileFormat::png && extension != ".png";
+    if (extension.empty()) {
+        return false;
+    }
+    switch (detected) {
+        case ImageFileFormat::png:
+            return extension != ".png";
+        case ImageFileFormat::jpeg:
+            return extension != ".jpg" && extension != ".jpeg";
+        case ImageFileFormat::bmp:
+            return extension != ".bmp";
+        case ImageFileFormat::tiff:
+            return extension != ".tif" && extension != ".tiff";
+        case ImageFileFormat::openexr:
+            return extension != ".exr";
+        case ImageFileFormat::radiance_hdr:
+            return extension != ".hdr" && extension != ".rgbe";
+        case ImageFileFormat::psd:
+            return extension != ".psd";
+        case ImageFileFormat::unknown:
+            return true;
+    }
+    return true;
+}
+
+std::pair<image::ColorSpace, ColorSpaceSource> resolve_float_color_space(
+    const DecodeRequest& request) {
+    if (request.color_space == image::InputColorSpace::automatic) {
+        return {image::ColorSpace::linear_rec709, ColorSpaceSource::automatic_rule};
+    }
+    const auto resolved = image::resolve_input_space(request.color_space, request.intended_channel);
+    return {resolved.color_space, ColorSpaceSource::caller};
+}
+
+DecodeReport float_decode_report(const DecodeRequest& request, ImageFileFormat format,
+                                 ColorSpaceSource source) {
+    const bool mismatch = extension_mismatch(request.source_name, format);
+    std::vector<std::string> diagnostics;
+    if (mismatch) {
+        diagnostics.emplace_back("source extension disagrees with detected " +
+                                 std::string(image_file_format_name(format)) + " content");
+    }
+    return {format, mismatch, source, std::move(diagnostics)};
+}
+
+DecodedImage decode_radiance_hdr(const DecodeRequest& request) {
+    if (request.bytes.size() > static_cast<std::size_t>(std::numeric_limits<int>::max())) {
+        throw ImageIoError(ImageIoErrorCode::over_limit, ImageFileFormat::radiance_hdr,
+                           "Radiance HDR input exceeds the codec byte-count limit");
+    }
+    const auto* encoded = reinterpret_cast<const stbi_uc*>(request.bytes.data());
+    const int encoded_size = static_cast<int>(request.bytes.size());
+    int width = 0;
+    int height = 0;
+    int channels = 0;
+    if (stbi_info_from_memory(encoded, encoded_size, &width, &height, &channels) == 0 ||
+        width <= 0 || height <= 0 || channels < 1 || channels > 4) {
+        throw ImageIoError(ImageIoErrorCode::malformed_input, ImageFileFormat::radiance_hdr,
+                           "Radiance HDR header inspection failed");
+    }
+    const image::PixelFormat format{image::ChannelType::float32,
+                                    static_cast<std::uint8_t>(channels)};
+    enforce_limits(static_cast<std::uint32_t>(width), static_cast<std::uint32_t>(height), format,
+                   request.limits, ImageFileFormat::radiance_hdr);
+    StbiFloatBuffer decoded(
+        stbi_loadf_from_memory(encoded, encoded_size, &width, &height, &channels, 0),
+        &stbi_image_free);
+    if (decoded == nullptr) {
+        const char* reason = stbi_failure_reason();
+        throw ImageIoError(ImageIoErrorCode::decode_failed, ImageFileFormat::radiance_hdr,
+                           std::string("Radiance HDR decode failed: ") +
+                               (reason == nullptr ? "unknown codec error" : reason));
+    }
+    const auto [color_space, color_source] = resolve_float_color_space(request);
+    return {
+        unpack_image(reinterpret_cast<const unsigned char*>(decoded.get()),
+                     static_cast<std::uint32_t>(width), static_cast<std::uint32_t>(height), format),
+        color_space,
+        float_decode_report(request, ImageFileFormat::radiance_hdr, color_source),
+    };
+}
+
+std::pair<std::uint32_t, std::uint32_t> exr_dimensions(const EXRHeader& header) {
+    const std::int64_t width =
+        static_cast<std::int64_t>(header.data_window.max_x) - header.data_window.min_x + 1;
+    const std::int64_t height =
+        static_cast<std::int64_t>(header.data_window.max_y) - header.data_window.min_y + 1;
+    if (width <= 0 || height <= 0 || width > std::numeric_limits<std::uint32_t>::max() ||
+        height > std::numeric_limits<std::uint32_t>::max()) {
+        throw ImageIoError(ImageIoErrorCode::malformed_input, ImageFileFormat::openexr,
+                           "OpenEXR data window is invalid");
+    }
+    return {static_cast<std::uint32_t>(width), static_cast<std::uint32_t>(height)};
+}
+
+DecodedImage decode_openexr(const DecodeRequest& request) {
+    const auto* encoded = reinterpret_cast<const unsigned char*>(request.bytes.data());
+    EXRVersion version{};
+    if (ParseEXRVersionFromMemory(&version, encoded, request.bytes.size()) != TINYEXR_SUCCESS) {
+        throw ImageIoError(ImageIoErrorCode::malformed_input, ImageFileFormat::openexr,
+                           "OpenEXR version inspection failed");
+    }
+    if (version.multipart != 0 || version.non_image != 0) {
+        throw ImageIoError(ImageIoErrorCode::unsupported_format, ImageFileFormat::openexr,
+                           "OpenEXR multipart and deep images require the layered-source API");
+    }
+    TinyExrHeader header;
+    TinyExrError header_error;
+    if (ParseEXRHeaderFromMemory(header.get(), &version, encoded, request.bytes.size(),
+                                 header_error.output()) != TINYEXR_SUCCESS) {
+        throw ImageIoError(ImageIoErrorCode::malformed_input, ImageFileFormat::openexr,
+                           "OpenEXR header inspection failed: " + header_error.message());
+    }
+    const auto [declared_width, declared_height] = exr_dimensions(*header.get());
+    const image::PixelFormat format{image::ChannelType::float32, 4};
+    enforce_limits(declared_width, declared_height, format, request.limits,
+                   ImageFileFormat::openexr);
+    if (declared_width > static_cast<std::uint32_t>(std::numeric_limits<int>::max()) ||
+        declared_height > static_cast<std::uint32_t>(std::numeric_limits<int>::max())) {
+        throw ImageIoError(ImageIoErrorCode::over_limit, ImageFileFormat::openexr,
+                           "OpenEXR dimensions exceed the codec integer limit");
+    }
+
+    float* allocation = nullptr;
+    int width = 0;
+    int height = 0;
+    TinyExrError decode_error;
+    const int decode_result = LoadEXRFromMemory(&allocation, &width, &height, encoded,
+                                                request.bytes.size(), decode_error.output());
+    ExrFloatBuffer decoded(allocation, &std::free);
+    if (decode_result != TINYEXR_SUCCESS) {
+        throw ImageIoError(ImageIoErrorCode::decode_failed, ImageFileFormat::openexr,
+                           "OpenEXR decode failed: " + decode_error.message());
+    }
+    if (width != static_cast<int>(declared_width) || height != static_cast<int>(declared_height)) {
+        throw ImageIoError(ImageIoErrorCode::decode_failed, ImageFileFormat::openexr,
+                           "OpenEXR decoded dimensions disagree with its header");
+    }
+    const auto [color_space, color_source] = resolve_float_color_space(request);
+    return {
+        unpack_image(reinterpret_cast<const unsigned char*>(decoded.get()), declared_width,
+                     declared_height, format),
+        color_space,
+        float_decode_report(request, ImageFileFormat::openexr, color_source),
+    };
 }
 
 LodePNGColorType png_color_type(image::PixelFormat format) {
@@ -214,13 +401,14 @@ ImageFileFormat detect_image_format(std::span<const std::byte> bytes) noexcept {
     constexpr std::array<std::uint8_t, 4> exr{0x76, 0x2f, 0x31, 0x01};
     constexpr std::array<std::uint8_t, 4> psd{'8', 'B', 'P', 'S'};
     constexpr std::array<std::uint8_t, 10> hdr{'#', '?', 'R', 'A', 'D', 'I', 'A', 'N', 'C', 'E'};
+    constexpr std::array<std::uint8_t, 6> rgbe{'#', '?', 'R', 'G', 'B', 'E'};
     if (starts_with(bytes, png)) return ImageFileFormat::png;
     if (starts_with(bytes, jpeg)) return ImageFileFormat::jpeg;
     if (starts_with(bytes, bmp)) return ImageFileFormat::bmp;
     if (starts_with(bytes, tiff_le) || starts_with(bytes, tiff_be)) return ImageFileFormat::tiff;
     if (starts_with(bytes, exr)) return ImageFileFormat::openexr;
     if (starts_with(bytes, psd)) return ImageFileFormat::psd;
-    if (starts_with(bytes, hdr)) return ImageFileFormat::radiance_hdr;
+    if (starts_with(bytes, hdr) || starts_with(bytes, rgbe)) return ImageFileFormat::radiance_hdr;
     return ImageFileFormat::unknown;
 }
 
@@ -248,10 +436,16 @@ std::string_view image_file_format_name(ImageFileFormat format) noexcept {
 
 DecodedImage decode_image_memory(const DecodeRequest& request) {
     const ImageFileFormat detected = detect_image_format(request.bytes);
+    if (detected == ImageFileFormat::radiance_hdr) {
+        return decode_radiance_hdr(request);
+    }
+    if (detected == ImageFileFormat::openexr) {
+        return decode_openexr(request);
+    }
     if (detected != ImageFileFormat::png) {
         std::string message = "unsupported image format ";
         message += image_file_format_name(detected);
-        message += "; this slice supports PNG";
+        message += "; this slice supports PNG, OpenEXR and Radiance HDR";
         throw ImageIoError(ImageIoErrorCode::unsupported_format, detected, std::move(message));
     }
 
