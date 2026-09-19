@@ -438,6 +438,14 @@ finite extent. Triplanar projection repeats scaled world coordinates and blends
 the three planes by squared normalized-surface-normal weights. All variants
 compose material opacity, canonical paint masks, optional rejection and the
 shared stroke-start enabled-channel shading path.
+Text (10.7) accepts a stable host-supplied font containing global metrics and
+deterministic per-scalar glyph coverage. It strictly decodes UTF-8, refuses
+missing scalars, handles LF/CR/CRLF lines, applies em-relative tracking and
+left/centre/right alignment, and combines overlapping glyph coverage without
+draw-order dependence. The requested size is surface units per em and expands
+the laid-out raster into a decal frame before canonical masks, optional
+rejection and stroke-start channel blending. Persistent text resource identity,
+save/reopen, invalidation and undo remain scheduled in 20.4.
 
 ## 1. Foundation
 
@@ -582,7 +590,7 @@ shared stroke-start enabled-channel shading path.
 - [x] 10.4 Blur and Smear over a stroke-start snapshot
 - [x] 10.5 Decal and Stencil; persistent editable decals through editable-authoring
 - [x] 10.6 Projection, planar and triplanar
-- [ ] 10.7 Text with UTF-8 and supplied fonts
+- [x] 10.7 Text with UTF-8 and supplied fonts
 - [ ] 10.8 Particle with deterministic seeding
 - [ ] 10.9 Picker across every enabled channel
 - [ ] 10.10 Colour ID selection with tolerance and its empty-selection reporting

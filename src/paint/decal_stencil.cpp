@@ -268,38 +268,47 @@ EditableDecalEntry edit_decal_transform(const EditableDecalEntry& entry, DecalTr
     return result;
 }
 
-DecalRasterResult rasterize_editable_decal(
-    const CachedSurfaceMaps& surface,
-    std::span<const PaintToolChannelRaster> enabled_layer_snapshot, const EditableDecalEntry& entry,
-    const DecalRasterSettings& settings) {
+DecalRasterResult rasterize_decal(const CachedSurfaceMaps& surface,
+                                  std::span<const PaintToolChannelRaster> enabled_layer_snapshot,
+                                  const DecalPlacement& placement, const DecalMaterial& material,
+                                  const DecalRasterSettings& settings) {
     static_cast<void>(checked_surface(surface));
-    if (entry.entry_id.empty() || entry.material_content_id.empty() || entry.revision == 0) {
-        throw std::invalid_argument("editable decal entry is invalid");
-    }
-    validate_material(entry.pinned_material);
-    const DecalFrame frame = resolve_decal_frame(entry.placement);
-    std::vector<std::size_t> sample_indices = decal_samples(surface, frame, entry.pinned_material);
-    std::vector<double> strength = decal_strength(entry.pinned_material, sample_indices);
+    validate_material(material);
+    const DecalFrame frame = resolve_decal_frame(placement);
+    std::vector<std::size_t> sample_indices = decal_samples(surface, frame, material);
+    std::vector<double> strength = decal_strength(material, sample_indices);
     const CombinedPaintMask masks =
         combine_paint_masks(surface.surface.width, surface.surface.height, settings.masks);
     multiply_mask(strength, PaintMaskView{masks.values}, "decal masks");
     if (settings.rejection_acceptance) {
         multiply_mask(strength, *settings.rejection_acceptance, "decal rejection acceptance");
     }
-    std::vector<PaintToolChannelRaster> sampled =
-        sample_material(entry.pinned_material, sample_indices);
+    std::vector<PaintToolChannelRaster> sampled = sample_material(material, sample_indices);
     PaintToolShadeResult shaded =
         shade_paint_tool_channels(surface.surface.width, surface.surface.height,
                                   enabled_layer_snapshot, sampled, strength, settings.blend_mode);
     return {.width = surface.surface.width,
             .height = surface.surface.height,
-            .editable_revision = entry.revision,
+            .editable_revision = 0,
             .frame = frame,
             .source_sample_indices = std::move(sample_indices),
             .strength = std::move(strength),
             .sampled_material = std::move(sampled),
             .channels = std::move(shaded.channels),
             .applied_channel_ids = std::move(shaded.applied_channel_ids)};
+}
+
+DecalRasterResult rasterize_editable_decal(
+    const CachedSurfaceMaps& surface,
+    std::span<const PaintToolChannelRaster> enabled_layer_snapshot, const EditableDecalEntry& entry,
+    const DecalRasterSettings& settings) {
+    if (entry.entry_id.empty() || entry.material_content_id.empty() || entry.revision == 0) {
+        throw std::invalid_argument("editable decal entry is invalid");
+    }
+    DecalRasterResult result = rasterize_decal(surface, enabled_layer_snapshot, entry.placement,
+                                               entry.pinned_material, settings);
+    result.editable_revision = entry.revision;
+    return result;
 }
 
 StencilMaskResult resolve_stencil_mask(std::uint32_t width, std::uint32_t height,

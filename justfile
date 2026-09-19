@@ -120,6 +120,9 @@ test-paint-decal-stencil: build
 test-paint-projection: build
     ctest --test-dir build/headless --output-on-failure -R '^paint-projection$'
 
+test-paint-text: build
+    ctest --test-dir build/headless --output-on-failure -R '^paint-text$'
+
 test-paint-rejection: build
     ctest --test-dir build/headless --output-on-failure -R '^paint-rejection$'
 

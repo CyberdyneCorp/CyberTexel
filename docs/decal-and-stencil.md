@@ -13,6 +13,8 @@ parameters and a pinned material snapshot. `edit_decal_transform` returns a new
 revision while preserving the stored position and normal, making the preceding
 value suitable for later undo integration. Editing does not rasterize.
 `rasterize_editable_decal` is the explicit operation that produces pixels.
+`rasterize_decal` exposes the same path for immediate callers such as Text and
+reports editable revision zero.
 
 This implements the retained tool-level entry required by roadmap item 10.5.
 Project serialization, document tile invalidation and undo/redo integration

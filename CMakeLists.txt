@@ -139,6 +139,7 @@ ctex_add_module(
         src/paint/surface_cache.cpp
         src/paint/stroke.cpp
         src/paint/stroke_preset.cpp
+        src/paint/text.cpp
         src/paint/work.cpp
 )
 ctex_add_module(maps DEPENDS image doc)
@@ -342,6 +343,14 @@ if(BUILD_TESTING)
         PRIVATE ctex_paint ctex_doc ctex_emit ctex_pick ctex_mesh ctex_graph ctex_image
     )
     add_test(NAME paint-projection COMMAND ctex_paint_projection_test)
+
+    add_executable(ctex_paint_text_test tests/paint/text_test.cpp)
+    ctex_configure_cpp_target(ctex_paint_text_test)
+    target_link_libraries(
+        ctex_paint_text_test
+        PRIVATE ctex_paint ctex_doc ctex_emit ctex_pick ctex_mesh ctex_graph ctex_image
+    )
+    add_test(NAME paint-text COMMAND ctex_paint_text_test)
 
     add_executable(ctex_paint_rejection_test tests/paint/rejection_test.cpp)
     ctex_configure_cpp_target(ctex_paint_rejection_test)

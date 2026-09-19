@@ -86,6 +86,11 @@ struct DecalRasterResult {
 
 inline constexpr std::size_t no_decal_sample = static_cast<std::size_t>(-1);
 
+[[nodiscard]] DecalRasterResult rasterize_decal(
+    const CachedSurfaceMaps& surface,
+    std::span<const PaintToolChannelRaster> enabled_layer_snapshot, const DecalPlacement& placement,
+    const DecalMaterial& material, const DecalRasterSettings& settings = {});
+
 [[nodiscard]] DecalRasterResult rasterize_editable_decal(
     const CachedSurfaceMaps& surface,
     std::span<const PaintToolChannelRaster> enabled_layer_snapshot, const EditableDecalEntry& entry,

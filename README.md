@@ -87,6 +87,9 @@ The current implementation provides:
   The [Projection tool](docs/projection-tool.md) applies material images through
   a current-view camera with explicit visibility, a finite planar frame, or
   repeat-addressed normal-weighted triplanar mapping.
+  The [Text tool](docs/text-tool.md) strictly decodes UTF-8, lays out supplied
+  deterministic glyph coverage with tracking and line alignment, and projects
+  the result as a size-aware material decal.
 - Sparse tiled image storage for one-to-four-channel 8-bit, 16-bit, and
   floating-point pixels, with tile-level dirty tracking and monotonic channel
   and per-tile [content revisions](docs/host-transport-revisions.md), plus
