@@ -226,8 +226,14 @@ Task 7.4 makes shader-emission features part of every executor descriptor and
 rejects incomplete reports at registration. CPU and host routes publish their
 own binding, dimension, format, filtering and compute limits; one checked seam
 copies the selected executor report into layer-stack, material and preview
-requests so the selected path uses one capability record. Declared numeric
-parity tolerances (7.5) are next.
+requests so the selected path uses one capability record. Task 7.5 declares
+normalized integer parity at one code value unfiltered and two when filtered
+(`1/255`, `2/255`, `1/65535`, `2/65535`). Floating-point parity uses
+absolute-plus-relative bounds of `1e-6 + 1e-5 * magnitude`, widened to
+`5e-6 + 5e-5 * magnitude` after filtering. The executable comparator refuses
+shape mismatches and non-finite values and reports the first index, measured
+deviation and allowed bound. The committed fixture corpus and CI gate (7.6) are
+next.
 
 ## 1. Foundation
 
@@ -324,7 +330,7 @@ parity tolerances (7.5) are next.
 - [x] 7.2 CPU reference executor: UV-space rasterization, its own depth and UV buffers, every operation
 - [x] 7.3 Host-executed route: GPU-resident authority, completion tokens, atomic revision publication, stale-result rejection and recovery before fallback
 - [x] 7.4 Device capability reporting feeding emission
-- [ ] 7.5 Declared parity tolerances per bit depth and for filtered values
+- [x] 7.5 Declared parity tolerances per bit depth and for filtered values
 - [ ] 7.6 Parity fixture corpus and the CI gate, with unmeasured executors reported
 - [ ] 7.7 Cancellation, progress, worker bound, memory ceiling and its refusals
 - [ ] 7.8 Optional owned-GPU executor (first backend), behind a build flag

@@ -102,6 +102,9 @@ The current implementation provides:
 - Executor-owned [device capability reports](docs/executor-capabilities.md) for
   binding budget, texture limits and formats, float filtering, and compute,
   wired directly into layer-stack, material, and preview emission requests.
+- Numeric [cross-executor parity tolerances](docs/executor-parity.md) for
+  normalized 8-bit and 16-bit channels and absolute-plus-relative floating-point
+  channels, with separately bounded filtered values and measured diagnostics.
 - Strict C++20 builds, sanitizer coverage, OpenSpec validation, dependency
   layering checks, licence auditing, deterministic-output gates, and labeled
   [material-graph](docs/material-graph-scenarios.md) and

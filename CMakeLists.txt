@@ -127,6 +127,7 @@ ctex_add_module(
         src/exec/cpu_reference.cpp
         src/exec/host_execution.cpp
         src/exec/emission_features.cpp
+        src/exec/parity.cpp
 )
 ctex_add_module(capi DEPENDS image mesh pick graph emit doc paint maps xport io exec)
 
@@ -481,6 +482,11 @@ if(BUILD_TESTING)
         ctex_executor_emission_features_test PRIVATE ctex_exec ctex_emit ctex_graph ctex_image
     )
     add_test(NAME executor-emission-features COMMAND ctex_executor_emission_features_test)
+
+    add_executable(ctex_executor_parity_test tests/exec/parity_test.cpp)
+    ctex_configure_cpp_target(ctex_executor_parity_test)
+    target_link_libraries(ctex_executor_parity_test PRIVATE ctex_exec ctex_emit ctex_graph ctex_image)
+    add_test(NAME executor-parity-tolerances COMMAND ctex_executor_parity_test)
 
     add_test(
         NAME shader-emission-determinism
