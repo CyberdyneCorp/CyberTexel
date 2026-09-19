@@ -72,7 +72,10 @@ The current implementation provides:
   finalized preview—including dilation—as the committed result. The
   [bounded-work scheduler](docs/paint-bounded-work.md) expands exact stamp
   footprints by that dilation radius, processes only the resulting deduplicated
-  storage tiles, and reports the full ordered tile set.
+  storage tiles, and reports the full ordered tile set. Tool-level
+  [Brush and Eraser](docs/brush-and-eraser.md) compose the canonical mask,
+  deposition and stroke-start blending stages across enabled channels or layer
+  opacity/mask values.
 - Sparse tiled image storage for one-to-four-channel 8-bit, 16-bit, and
   floating-point pixels, with tile-level dirty tracking and monotonic channel
   and per-tile [content revisions](docs/host-transport-revisions.md), plus

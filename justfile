@@ -123,6 +123,9 @@ test-paint-deposition: build
 test-paint-blending: build
     ctest --test-dir build/headless --output-on-failure -R '^paint-blending$'
 
+test-paint-brush-eraser: build
+    ctest --test-dir build/headless --output-on-failure -R '^paint-brush-eraser$'
+
 test-paint-masking: build
     ctest --test-dir build/headless --output-on-failure -R '^paint-masking$'
 

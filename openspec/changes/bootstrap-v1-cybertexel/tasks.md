@@ -399,6 +399,11 @@ object space and are renormalized, including mirrored handedness. Island-owned
 padding expands the declared footprint per mip, never overwrites valid islands,
 leaves contested gutter unassigned and reports affected island identifiers for
 every unsupported mip level. Tangent generation remains scheduled in 11.12.
+Brush and Eraser (10.1) compose the canonical mask, deposition and blending
+stages without re-resolving stroke properties. Brush requires active material
+data for every enabled layer channel, ignores material-only disabled channels
+and shades all outputs from their stroke-start snapshots. Eraser applies the
+same accepted strength proportionally to explicit layer-opacity or mask targets.
 
 ## 1. Foundation
 
@@ -537,7 +542,7 @@ every unsupported mip level. Tangent generation remains scheduled in 11.12.
 
 ## 10. Tools
 
-- [ ] 10.1 Brush and Eraser
+- [x] 10.1 Brush and Eraser
 - [ ] 10.2 Fill: all six scopes
 - [ ] 10.3 Clone, aligned and fixed, with the cross-set refusal
 - [ ] 10.4 Blur and Smear over a stroke-start snapshot
