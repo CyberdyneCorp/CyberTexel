@@ -7,7 +7,7 @@ program intended for a generated shader function body. Device-independent
 state, and commands. [Layer-stack emission](feature-gated-emission.md) now
 connects those plans to all four target artifact forms under a declared device
 feature set; complete material-graph entry-point integration follows in tasks
-6.14–6.16. Canonical graph content, target, feature set, and host-node semantics
+6.15–6.16. Canonical graph content, target, feature set, and host-node semantics
 also key the [emission cache](emission-cache.md).
 
 Each intermediate variable is derived from the stable node ID and output socket
@@ -33,4 +33,6 @@ task 6.16; requesting one now fails by type instead of emitting placeholder code
 `emit_wgsl_expressions` handles a standalone graph. Group instances require
 `emit_material_wgsl_expressions`, which resolves definitions through the owning
 `GraphWorkspace`. The shader-emission determinism gate runs a grouped fixture
-twice and compares the resulting bytes.
+twice and compares the resulting bytes. The concurrency fixture starts four
+different graphs together and requires every result to equal its serial
+baseline.

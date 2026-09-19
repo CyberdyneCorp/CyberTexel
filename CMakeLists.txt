@@ -349,6 +349,11 @@ if(BUILD_TESTING)
     target_link_libraries(ctex_emission_cache_test PRIVATE ctex_emit ctex_graph)
     add_test(NAME emission-cache COMMAND ctex_emission_cache_test)
 
+    add_executable(ctex_concurrent_emission_test tests/emit/concurrent_emission_test.cpp)
+    ctex_configure_cpp_target(ctex_concurrent_emission_test)
+    target_link_libraries(ctex_concurrent_emission_test PRIVATE ctex_emit ctex_graph)
+    add_test(NAME concurrent-emission COMMAND ctex_concurrent_emission_test)
+
     add_executable(ctex_material_graph_output_test tests/doc/material_graph_test.cpp)
     ctex_configure_cpp_target(ctex_material_graph_output_test)
     target_link_libraries(

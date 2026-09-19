@@ -34,10 +34,13 @@ normally.
 
 The cache lock protects lookup, insertion, statistics, and clearing. Expensive
 code generation happens outside that lock, which avoids serializing unrelated
-misses. The dedicated four-thread correctness fixture for concurrent graph
-emission is roadmap task 6.14.
+misses. A dedicated fixture starts four distinct graph emissions together
+through one cache and verifies each result byte-for-byte against serial
+emission. It also runs simultaneous WGSL, MSL, SPIR-V, and HLSL layer-stack
+emissions through a shared cache and compares their complete shaders and pass
+plans with serial results.
 
 Graph expression emission currently supports WGSL and refuses other targets
 before lookup. Complete layer-stack emissions are cached independently for
 WGSL, MSL, SPIR-V, and HLSL. Complete graph entry-point integration remains
-scheduled for tasks 6.14–6.16.
+scheduled for tasks 6.15–6.16.

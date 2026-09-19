@@ -186,7 +186,10 @@ workaround. Task 6.13 caches graph expressions and complete layer-stack
 emissions by collision-free canonical content, target, normalized features and
 versioned host-node semantics. Hits return one immutable stored result without
 code generation, failures are not retained, and statistics expose entries,
-hits and misses. Concurrent emission verification (6.14) is next.
+hits and misses. Task 6.14 starts four different graph emissions together and
+requires byte-identical serial results; a second four-thread fixture covers the
+complete WGSL, MSL, SPIR-V and HLSL layer-stack shader and pass-plan path.
+Preview and inspection shader emission (6.15) is next.
 
 ## 1. Foundation
 
@@ -273,7 +276,7 @@ hits and misses. Concurrent emission verification (6.14) is next.
 - [x] 6.11 Target languages WGSL, MSL, SPIR-V, HLSL; unsupported-target refusal
 - [x] 6.12 Feature-gated emission and layer-stack pass splitting at the binding budget
 - [x] 6.13 Emission cache keyed by graph, target and feature set
-- [ ] 6.14 Concurrent emission test
+- [x] 6.14 Concurrent emission test
 - [ ] 6.15 Preview shader with declared lighting inputs and a documented shading model; per-channel inspection shaders
 - [ ] 6.16 `material-graph` and `shader-emission` scenarios as tests
 

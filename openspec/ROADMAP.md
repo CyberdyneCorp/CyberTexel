@@ -161,6 +161,12 @@ lists are normalized as sets, while target, every feature field, and versioned
 host-node semantics remain explicit key dimensions. Task 6.13 and capability
 `shader-emission`.
 
+**2026-09-19 — Concurrent emission is verified against serial baselines.** Four
+distinct graphs start together through one cache, and four layer stacks compile
+simultaneously across WGSL, MSL, SPIR-V and HLSL. Exact result comparison covers
+graph programs, target shaders and device-independent pass plans without a
+timing-dependent assertion. Task 6.14 and capability `shader-emission`.
+
 ## Open questions
 
 These are unresolved and should be answered by the task that first depends on

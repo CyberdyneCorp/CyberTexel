@@ -76,6 +76,8 @@ The current implementation provides:
 - Collision-free [emission caches](docs/emission-cache.md) keyed by canonical
   graph or layer content, shader target, host-node semantics, and normalized
   device features, returning immutable identical source and pass plans on hits.
+  Four-thread fixtures verify graph, target-compiler, cache, shader, and pass-plan
+  results against serial emission.
 - Strict C++20 builds, sanitizer coverage, OpenSpec validation, dependency
   layering checks, licence auditing, and deterministic-output gates.
 

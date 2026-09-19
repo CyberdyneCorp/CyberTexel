@@ -97,6 +97,8 @@ Foundation implementation is in progress.
 - Thread-safe graph and layer-stack emission caches keyed by collision-free
   canonical content, target, host-node semantics, and normalized device
   features, with immutable results, hit/miss statistics, and failure isolation.
+- Four-thread graph and cross-target layer-stack emission fixtures that compare
+  complete concurrent results with serial baselines.
 - README architecture diagram and a current, implementation-scoped feature list.
 
 ### Changed

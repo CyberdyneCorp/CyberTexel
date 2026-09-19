@@ -137,6 +137,9 @@ test-feature-emission: (_require "spirv-val" "SPIRV-Tools") build
 test-emission-cache: build
     ctest --test-dir build/headless --output-on-failure -R '^emission-cache$'
 
+test-concurrent-emission: build
+    ctest --test-dir build/headless --output-on-failure -R '^concurrent-emission$'
+
 examples:
     @just _unimplemented examples 16.2
 
