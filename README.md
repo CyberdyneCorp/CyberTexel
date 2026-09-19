@@ -93,6 +93,9 @@ The current implementation provides:
   The [Particle tool](docs/particle-tool.md) runs fixed-step, seeded mesh
   collision simulation with configurable physical response and deposits its
   ordered contacts through texture-set-aware canonical paint shading.
+  The [Picker tool](docs/picker-tool.md) resolves a surface hit to its exact
+  texture-set/UDIM texel, returns every enabled channel, and optionally returns
+  explicit per-texel material provenance.
 - Sparse tiled image storage for one-to-four-channel 8-bit, 16-bit, and
   floating-point pixels, with tile-level dirty tracking and monotonic channel
   and per-tile [content revisions](docs/host-transport-revisions.md), plus

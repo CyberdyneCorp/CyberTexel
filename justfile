@@ -126,6 +126,9 @@ test-paint-text: build
 test-paint-particle: build
     ctest --test-dir build/headless --output-on-failure -R '^paint-particle$'
 
+test-paint-picker: build
+    ctest --test-dir build/headless --output-on-failure -R '^paint-picker$'
+
 test-paint-rejection: build
     ctest --test-dir build/headless --output-on-failure -R '^paint-rejection$'
 

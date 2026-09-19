@@ -455,6 +455,12 @@ seed. Ordered contacts map only to matching texture-set, UDIM and triangle
 texels, accumulate by the build-up union formula, and compose canonical masks,
 optional rejection and stroke-start channel blending. Declared particle,
 lifetime and collision limits bound simulation work.
+Picker (10.9) resolves an existing surface hit against exactly one matching
+texture-set and UDIM view, then reports every enabled channel's semantic,
+component count and value in caller-declared order. Views and channel rasters
+are validated before sampling, with missing and overlapping matches refused.
+Optional per-texel material provenance is returned only when explicitly
+supplied, so channel-only picks cannot accidentally select a material.
 
 ## 1. Foundation
 
@@ -601,7 +607,7 @@ lifetime and collision limits bound simulation work.
 - [x] 10.6 Projection, planar and triplanar
 - [x] 10.7 Text with UTF-8 and supplied fonts
 - [x] 10.8 Particle with deterministic seeding
-- [ ] 10.9 Picker across every enabled channel
+- [x] 10.9 Picker across every enabled channel
 - [ ] 10.10 Colour ID selection with tolerance and its empty-selection reporting
 - [ ] 10.11 Selection tool: rectangle, lasso, polygon fill; storable as a mask
 - [ ] 10.12 Parameter validation at every entry point; the no-inert-parameter audit
