@@ -98,6 +98,7 @@ ctex_add_module(
     DEPENDS graph image
     SOURCES
         src/emit/emit.cpp
+        src/emit/feature_emission.cpp
         src/emit/kong_context.cpp
         src/emit/pass_plan.cpp
 )
@@ -303,6 +304,44 @@ if(BUILD_TESTING)
     ctex_configure_cpp_target(ctex_pass_plan_test)
     target_link_libraries(ctex_pass_plan_test PRIVATE ctex_emit ctex_graph)
     add_test(NAME pass-plan COMMAND ctex_pass_plan_test)
+
+    add_executable(ctex_feature_emission_test tests/emit/feature_emission_test.cpp)
+    ctex_configure_cpp_target(ctex_feature_emission_test)
+    target_link_libraries(ctex_feature_emission_test PRIVATE ctex_emit ctex_graph)
+    add_test(NAME feature-emission COMMAND ctex_feature_emission_test)
+    if(CTEX_SPIRV_VAL_EXECUTABLE)
+        set(CTEX_LAYER_STACK_VERTEX_SPIRV
+            "${CMAKE_CURRENT_BINARY_DIR}/layer-stack-vertex.spv"
+        )
+        set(CTEX_LAYER_STACK_FRAGMENT_SPIRV
+            "${CMAKE_CURRENT_BINARY_DIR}/layer-stack-fragment.spv"
+        )
+        add_test(
+            NAME feature-emission-spirv-generate
+            COMMAND
+                ctex_feature_emission_test --write-spirv
+                "${CTEX_LAYER_STACK_VERTEX_SPIRV}" "${CTEX_LAYER_STACK_FRAGMENT_SPIRV}"
+        )
+        set_tests_properties(
+            feature-emission-spirv-generate PROPERTIES FIXTURES_SETUP feature-emission-spirv
+        )
+        add_test(
+            NAME feature-emission-spirv-vertex-validation
+            COMMAND "${CTEX_SPIRV_VAL_EXECUTABLE}" "${CTEX_LAYER_STACK_VERTEX_SPIRV}"
+        )
+        set_tests_properties(
+            feature-emission-spirv-vertex-validation
+            PROPERTIES FIXTURES_REQUIRED feature-emission-spirv
+        )
+        add_test(
+            NAME feature-emission-spirv-fragment-validation
+            COMMAND "${CTEX_SPIRV_VAL_EXECUTABLE}" "${CTEX_LAYER_STACK_FRAGMENT_SPIRV}"
+        )
+        set_tests_properties(
+            feature-emission-spirv-fragment-validation
+            PROPERTIES FIXTURES_REQUIRED feature-emission-spirv
+        )
+    endif()
 
     add_executable(ctex_material_graph_output_test tests/doc/material_graph_test.cpp)
     ctex_configure_cpp_target(ctex_material_graph_output_test)

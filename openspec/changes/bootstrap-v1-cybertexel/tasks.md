@@ -176,7 +176,13 @@ lifetimes, ordered binding and buffer layouts, target state, and validated
 draw/dispatch commands without device handles. Task 6.11 links and isolates all
 four retained Kong backends, exposes explicit split-text, unified-text, and
 binary artifacts, validates SPIR-V externally, and names the available target
-set when a request is unsupported. Feature-set-aware lowering (6.12) is next.
+set when a request is unsupported. Task 6.12 consumes binding, dimension,
+format, float-filtering and compute features while compiling premultiplied
+layer stacks for every target. Stacks
+that fit remain one render pass; larger stacks split greedily with explicit
+intermediate generations and dependencies. Unsupported formats and dimensions
+are refused, and unavailable float linear filtering produces a named nearest
+workaround. Emission caching (6.13) is next.
 
 ## 1. Foundation
 
@@ -261,7 +267,7 @@ set when a request is unsupported. Feature-set-aware lowering (6.12) is next.
 - [x] 6.9 Emission: result naming, group qualification, single-emission fan-out
 - [x] 6.10 Pass plan: logical resource generations, subresource access, dependencies, lifetimes, bindings, layouts, draw/dispatch and state
 - [x] 6.11 Target languages WGSL, MSL, SPIR-V, HLSL; unsupported-target refusal
-- [ ] 6.12 Feature-gated emission and layer-stack pass splitting at the binding budget
+- [x] 6.12 Feature-gated emission and layer-stack pass splitting at the binding budget
 - [ ] 6.13 Emission cache keyed by graph, target and feature set
 - [ ] 6.14 Concurrent emission test
 - [ ] 6.15 Preview shader with declared lighting inputs and a documented shading model; per-channel inspection shaders

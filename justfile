@@ -131,6 +131,9 @@ test-graph-emission: build
 test-pass-plan: build
     ctest --test-dir build/headless --output-on-failure -R '^pass-plan$'
 
+test-feature-emission: (_require "spirv-val" "SPIRV-Tools") build
+    ctest --test-dir build/headless --output-on-failure -R '^feature-emission'
+
 examples:
     @just _unimplemented examples 16.2
 

@@ -69,12 +69,16 @@ The current implementation provides:
   resource generations, mip/layer/tile access ranges, dependency hazards,
   derived lifetimes, explicit bindings and layouts, render state, and
   draw/dispatch commands.
+- Feature-gated [layer-stack emission](docs/feature-gated-emission.md) for all
+  four shader targets, with deterministic binding-budget pass splitting,
+  carried intermediates, format/dimension checks, and reported float-filtering
+  fallback.
 - Strict C++20 builds, sanitizer coverage, OpenSpec validation, dependency
   layering checks, licence auditing, and deterministic-output gates.
 
-The layer stack, painting engine, complete target shader emission, host
-transport, project IO, language bindings, and complete export workflow remain
-roadmap work and are not presented as implemented APIs yet.
+The editable layer document, painting engine, complete graph-to-target shader
+emission, host transport, project IO, language bindings, and complete export
+workflow remain roadmap work and are not presented as implemented APIs yet.
 
 ## Architecture
 

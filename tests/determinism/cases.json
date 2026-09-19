@@ -22,6 +22,20 @@
                         "kong.hlsl.vert",
                         "kong.hlsl.frag"
                     ]
+                },
+                {
+                    "name": "feature-gated layer-stack passes",
+                    "command": ["build/headless/ctex_feature_emission_test", "--write-determinism"],
+                    "outputs": [
+                        "layer-stack-0.vert.wgsl",
+                        "layer-stack-0.frag.wgsl",
+                        "layer-stack-1.vert.wgsl",
+                        "layer-stack-1.frag.wgsl",
+                        "layer-stack-2.vert.wgsl",
+                        "layer-stack-2.frag.wgsl",
+                        "layer-stack-3.vert.wgsl",
+                        "layer-stack-3.frag.wgsl"
+                    ]
                 }
             ]
         },

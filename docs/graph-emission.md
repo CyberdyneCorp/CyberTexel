@@ -4,9 +4,10 @@
 to a deterministic sequence of WGSL statements. The result is an expression
 program intended for a generated shader function body. Device-independent
 [pass plans](pass-plans.md) now define resource generations, layouts, bindings,
-state, and commands; target-specific entry-point integration follows in tasks
-6.12–6.16. The isolated [Kong backend](kong-backend.md) already exposes the four
-target artifact forms and target-selection contract.
+state, and commands. [Layer-stack emission](feature-gated-emission.md) now
+connects those plans to all four target artifact forms under a declared device
+feature set; complete material-graph entry-point integration follows in tasks
+6.13–6.16.
 
 Each intermediate variable is derived from the stable node ID and output socket
 identifier. A node inside a group is additionally qualified by the stable group

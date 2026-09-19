@@ -90,6 +90,10 @@ Foundation implementation is in progress.
 - Validated device-independent render and compute pass plans with versioned
   logical textures, tile-aware subresource hazards, derived lifetimes, explicit
   bindings/layouts, render state, and draw or dispatch commands.
+- Feature-gated layer-stack shader emission for WGSL, MSL, SPIR-V, and HLSL,
+  with deterministic binding-budget pass splitting, carried intermediates,
+  format and dimension refusals, and a reported nearest-filter workaround for
+  devices without floating-point linear filtering.
 - README architecture diagram and a current, implementation-scoped feature list.
 
 ### Changed

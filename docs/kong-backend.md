@@ -15,8 +15,10 @@ unknown request fails with a diagnostic that names the request and every
 available target. SPIR-V fixtures are checked by `spirv-val` in CI.
 
 The graph emitter currently produces the deterministic WGSL expression program
-documented in [graph-emission.md](graph-emission.md). Wiring complete graph and
-layer-stack programs into each target artifact continues in tasks 6.12–6.16.
+documented in [graph-emission.md](graph-emission.md). Feature-gated
+[layer-stack emission](feature-gated-emission.md) already compiles complete
+multi-pass programs for all four targets. Wiring complete graph and preview
+programs into each target artifact continues in tasks 6.13–6.16.
 
 The vendored C API is intentionally private to the build. Library consumers use
 `ctex::emit::KongContext` from `ctex/emit/kong_context.hpp`.

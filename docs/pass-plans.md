@@ -29,7 +29,10 @@ Compute passes name their compute entry point, storage bindings, and dispatch
 dimensions. Target dimensions are checked against the selected mip or tile
 rectangle.
 
-The plan deliberately stops at submission description. Completion records and
+Feature-gated [layer-stack emission](feature-gated-emission.md) now produces
+target shaders whose bindings, intermediate resources, dependencies, and entry
+points match these plans. The plan deliberately stops at submission
+description. Completion records and
 the rule that prevents recycling a generation while a host submission still
 uses it arrive with the host execution protocol in task 7.3. Target-specific
-shader modules are connected to these entry points in tasks 6.11–6.16.
+graph and preview shader modules continue in tasks 6.13–6.16.

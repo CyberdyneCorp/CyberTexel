@@ -7,7 +7,7 @@ decisions taken and questions still open.
 ## Status
 
 Implementation started. 24 capabilities, 332 requirements, 400 scenarios and
-222 tasks, 36 done. Foundation and the complete headless color-management
+222 tasks, 37 done. Foundation and the complete headless color-management
 scenario suite are green. Slice-A now has memory-buffer PNG input/output with
 8/16-bit preservation and hostile-input ceilings; full image-format breadth
 remains scheduled for slice D. Extensible channel descriptors and sparse
@@ -77,6 +77,11 @@ Kong target selection now emits split WGSL/HLSL text, a unified MSL module, or
 binary SPIR-V from the same headless API. Each backend owns per-context state,
 cross-target compilation is concurrent and deterministic, unknown targets name
 the complete available set, and SPIR-V output passes the external validator.
+Feature-gated layer-stack emission now consumes the device binding, dimension,
+format, filtering, and compute declaration. It emits premultiplied source-over
+shaders for every target, keeps fitting stacks in one pass, deterministically
+splits larger stacks with carried intermediate generations, and reports a
+nearest-filter workaround when float linear filtering is unavailable.
 
 ## Milestones
 
@@ -139,6 +144,12 @@ The review moved real hosts and numeric interaction budgets into slice A,
 added resource residency and editable authoring, and clarified GPU completion,
 recovery, brush deposition, tangent frames and extensible channels. No code or
 performance result is implied by these requirements. Design decisions 8, 10–13.
+
+**2026-09-19 — Binding budgets count all shader resource slots.** Layer-stack
+passes reserve one slot for their shared sampler; a continuation also reserves
+one for the carried intermediate. Packing is greedy in bottom-to-top order and
+therefore emits the fewest sequential passes without exceeding the declared
+budget. Task 6.12 and capability `shader-emission`.
 
 ## Open questions
 
