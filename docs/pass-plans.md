@@ -36,9 +36,9 @@ target shaders whose bindings, intermediate resources, dependencies, and entry
 points match these plans. [Preview emission](preview-shading.md) uses the same
 contract for material channels, environment resources, analytic lights, and
 unlit channel inspection. The plan deliberately stops at submission
-description. Completion records and
-the rule that prevents recycling a generation while a host submission still
-uses it arrive with the host execution protocol in task 7.3. Complete material
+description. The [host execution protocol](host-execution.md) supplies
+completion records and prevents recycling a generation while a host submission
+still uses it. Complete material
 graph, layer-stack, preview and inspection entry points all return their plan
 beside the matching shader. Complete layer-stack plans and shaders are retained
 together by the [emission cache](emission-cache.md).

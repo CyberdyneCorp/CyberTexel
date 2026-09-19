@@ -94,12 +94,17 @@ The current implementation provides:
   with a CPU-semantics contract for every operation, homogeneous camera clipping,
   deterministic depth-tested viewport rasterization, and independent UV-space
   texel rasterization with owned depth, UV, coverage, and triangle buffers.
+- A device-free [host execution protocol](docs/host-execution.md) with explicit
+  resource ownership and state, completion-token lifetime tracking, validated
+  host outputs, atomic revision publication, cancellation, stale-result
+  rejection, recovery-before-publication, and device-loss recovery before CPU
+  fallback.
 - Strict C++20 builds, sanitizer coverage, OpenSpec validation, dependency
   layering checks, licence auditing, deterministic-output gates, and labeled
   [material-graph](docs/material-graph-scenarios.md) and
   [shader-emission](docs/shader-emission-scenarios.md) scenario suites.
 
-The editable layer document, painting engine, remaining executor routes, host
+The editable layer document, painting engine, remaining executor work, host
 transport, project IO, language bindings, and complete export workflow remain
 roadmap work and are not presented as implemented APIs yet.
 

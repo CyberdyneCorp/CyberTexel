@@ -119,7 +119,11 @@ ctex_add_module(maps DEPENDS image doc)
 ctex_add_module(xport DEPENDS doc)
 ctex_add_module(io DEPENDS doc image)
 target_link_libraries(ctex_io PRIVATE ctex_lodepng)
-ctex_add_module(exec DEPENDS emit image SOURCES src/exec/exec.cpp src/exec/cpu_reference.cpp)
+ctex_add_module(
+    exec
+    DEPENDS emit image
+    SOURCES src/exec/exec.cpp src/exec/cpu_reference.cpp src/exec/host_execution.cpp
+)
 ctex_add_module(capi DEPENDS image mesh pick graph emit doc paint maps xport io exec)
 
 ctex_add_library()
@@ -461,6 +465,11 @@ if(BUILD_TESTING)
     ctex_configure_cpp_target(ctex_cpu_reference_test)
     target_link_libraries(ctex_cpu_reference_test PRIVATE ctex_exec ctex_emit ctex_graph ctex_image)
     add_test(NAME executor-cpu-reference COMMAND ctex_cpu_reference_test)
+
+    add_executable(ctex_host_execution_test tests/exec/host_execution_test.cpp)
+    ctex_configure_cpp_target(ctex_host_execution_test)
+    target_link_libraries(ctex_host_execution_test PRIVATE ctex_exec ctex_emit ctex_graph ctex_image)
+    add_test(NAME executor-host-execution COMMAND ctex_host_execution_test)
 
     add_test(
         NAME shader-emission-determinism

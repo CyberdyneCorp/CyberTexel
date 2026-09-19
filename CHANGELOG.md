@@ -32,6 +32,10 @@ Foundation implementation is in progress.
 - An always-available CPU reference executor with a universal CPU operation
   contract, independently clipped and depth-tested viewport depth/UV buffers,
   and UV-space texel rasterization carrying projected depth and screen position.
+- A host-executed submission and completion protocol with logical resource
+  ownership/state, in-flight generation retention, output validation, atomic
+  revision publication, stale and cancelled result rejection, asynchronous
+  recovery admission, and device-loss restoration before CPU fallback.
 - Semantic input-colour defaults, preview-only 3D LUTs, structured precision
   warnings, promoted height accumulation and deterministic ordered dithering.
 - Slice-A memory-buffer PNG decoding and encoding with 8/16-bit preservation,

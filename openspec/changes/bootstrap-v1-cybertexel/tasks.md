@@ -202,8 +202,8 @@ MSL, validated SPIR-V and HLSL beside explicit stable pass plans and cache the
 whole result by graph, target, features and resources. Eleven material-graph and
 twenty-two shader-emission labeled CTests map every scenario; focused
 determinism and licence tests are part of the shader label. Execution-side
-completion retirement, executor image parity and reference-host execution
-extend the named scenarios in tasks 7.3, 7.5 and 18.2.
+Completion retirement now extends those named scenarios; executor image parity
+and reference-host execution follow in tasks 7.5 and 18.2.
 
 Task 7.1 defines an instance-owned executor registry with stable descriptors,
 sorted discovery, explicit runtime availability and deterministic automatic,
@@ -214,7 +214,15 @@ always-available device-free CPU reference and requires every operation to carry
 CPU semantics. Its independent homogeneous rasterizer owns depth, UV, coverage
 and triangle buffers for the viewport, while its UV-space raster projects each
 covered texel back to camera depth and screen position, including integer UV
-tile origins. Host-resident completion, publication and recovery (7.3) are next.
+tile origins.
+Task 7.3 adds the host-executed state machine without exposing device handles or
+moving pixels: submissions pin logical generations against an exact base
+revision; completions validate every output and publish atomically; stale,
+duplicate, failed and cancelled results never advance state. Cancellation keeps
+resources alive through late GPU completion. Deterministic record recovery and
+checkpoint-only recovery are admitted before publication, while device loss
+restores the last commit before an explicit CPU fallback report. Device
+capability reporting into emission (7.4) is next.
 
 ## 1. Foundation
 
@@ -309,7 +317,7 @@ tile origins. Host-resident completion, publication and recovery (7.3) are next.
 
 - [x] 7.1 Executor interface, enumeration, selection, environment pin, fallback reporting
 - [x] 7.2 CPU reference executor: UV-space rasterization, its own depth and UV buffers, every operation
-- [ ] 7.3 Host-executed route: GPU-resident authority, completion tokens, atomic revision publication, stale-result rejection and recovery before fallback
+- [x] 7.3 Host-executed route: GPU-resident authority, completion tokens, atomic revision publication, stale-result rejection and recovery before fallback
 - [ ] 7.4 Device capability reporting feeding emission
 - [ ] 7.5 Declared parity tolerances per bit depth and for filtered values
 - [ ] 7.6 Parity fixture corpus and the CI gate, with unmeasured executors reported

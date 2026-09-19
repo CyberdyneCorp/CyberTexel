@@ -40,7 +40,8 @@ been restored and the CPU executor is named. It can instead report
 
 The mandatory [CPU reference executor](cpu-reference-executor.md) supplies the
 always-available `cpu` implementation and independent raster buffers. Host
-completion, revision publication, recovery and actual fallback arrive in 7.3;
-device feature reporting in 7.4; and the optional owned-GPU provider in 7.8.
-Those implementations register against this interface rather than adding
-parallel selection mechanisms.
+[submission and completion](host-execution.md) provides revision-safe atomic
+publication, resource retirement, recovery and actual fallback. Device feature
+reporting arrives in 7.4, and the optional owned-GPU provider in 7.8. Those
+implementations register against this interface rather than adding parallel
+selection mechanisms.
