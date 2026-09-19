@@ -29,6 +29,7 @@ struct BakeRequest {
     const char* texture_set_id{};
     const char* uv_set{};
     mesh::MeshRevision mesh_revision{};
+    const mesh::TangentFrameDescriptor* tangent_frame{};
     std::uint32_t width{};
     std::uint32_t height{};
 };
@@ -40,6 +41,7 @@ enum class BakeProviderStatus : std::uint8_t { completed, cancelled, failed };
 struct BakeProviderOutput {
     BakeImageView image;
     std::optional<NormalMapConvention> normal_convention{};
+    std::optional<mesh::TangentFrameDescriptor> tangent_frame{};
     const char* detail{};
 };
 

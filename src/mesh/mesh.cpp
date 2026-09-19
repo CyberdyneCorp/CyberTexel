@@ -6,6 +6,7 @@
 #include <set>
 #include <stdexcept>
 #include <string>
+#include <vector>
 
 namespace ctex::mesh {
 namespace {
@@ -32,6 +33,140 @@ bool finite(Vec3f value) {
 bool finite(Vec4f value) {
     return std::isfinite(value.x) && std::isfinite(value.y) && std::isfinite(value.z) &&
            std::isfinite(value.w);
+}
+
+Vec3f subtract(Vec3f left, Vec3f right) {
+    return {left.x - right.x, left.y - right.y, left.z - right.z};
+}
+
+Vec3f multiply(Vec3f value, float scale) {
+    return {value.x * scale, value.y * scale, value.z * scale};
+}
+
+float dot(Vec3f left, Vec3f right) {
+    return left.x * right.x + left.y * right.y + left.z * right.z;
+}
+
+Vec3f cross(Vec3f left, Vec3f right) {
+    return {left.y * right.z - left.z * right.y, left.z * right.x - left.x * right.z,
+            left.x * right.y - left.y * right.x};
+}
+
+Vec3f normalize(Vec3f value, std::string_view subject) {
+    const float length_squared = dot(value, value);
+    if (!std::isfinite(length_squared) || length_squared <= 1.0e-20F) {
+        throw std::invalid_argument(std::string(subject) + " must have non-zero finite length");
+    }
+    return multiply(value, 1.0F / std::sqrt(length_squared));
+}
+
+Vec3f fallback_tangent(Vec3f normal) {
+    const Vec3f axis =
+        std::abs(normal.x) < 0.9F ? Vec3f{1.0F, 0.0F, 0.0F} : Vec3f{0.0F, 1.0F, 0.0F};
+    return normalize(cross(axis, normal), "generated tangent");
+}
+
+void validate_tangent_frame_descriptor(const TangentFrameDescriptor& frame,
+                                       const MeshDescriptor& descriptor) {
+    static_cast<void>(tangent_basis_algorithm_name(frame.algorithm));
+    if (frame.algorithm_version == 0 || frame.uv_set.empty()) {
+        throw std::invalid_argument("tangent frame requires an algorithm version and UV set");
+    }
+    if (frame.normal_orientation != NormalOrientation::vertex_normals &&
+        frame.normal_orientation != NormalOrientation::inverted_vertex_normals) {
+        throw std::invalid_argument("tangent frame normal orientation is invalid");
+    }
+    if (frame.coordinate_handedness != CoordinateSystemHandedness::right_handed &&
+        frame.coordinate_handedness != CoordinateSystemHandedness::left_handed) {
+        throw std::invalid_argument("tangent frame coordinate handedness is invalid");
+    }
+    if (frame.uv_v_axis != UvVAxis::upward && frame.uv_v_axis != UvVAxis::downward) {
+        throw std::invalid_argument("tangent frame UV convention is invalid");
+    }
+    if (frame.handedness_encoding != TangentHandednessEncoding::tangent_w_sign) {
+        throw std::invalid_argument("tangent frame handedness encoding is invalid");
+    }
+    const bool has_uv_set = std::ranges::any_of(
+        descriptor.uv_sets,
+        [&](const UvSetView& candidate) { return candidate.name == frame.uv_set; });
+    if (!has_uv_set) {
+        throw std::invalid_argument("tangent frame names a missing UV set: " + frame.uv_set);
+    }
+}
+
+void validate_supplied_tangents(const MeshDescriptor& descriptor) {
+    if (descriptor.corner_tangents.size() != descriptor.triangle_indices.size()) {
+        throw std::invalid_argument("supplied tangents must provide one value per triangle corner");
+    }
+    for (std::size_t corner = 0; corner < descriptor.corner_tangents.size(); ++corner) {
+        const Vec4f tangent = descriptor.corner_tangents[corner];
+        if (!finite(tangent) || std::abs(std::abs(tangent.w) - 1.0F) > 1.0e-5F) {
+            throw std::invalid_argument("supplied tangent must be finite with handedness +1 or -1");
+        }
+        const Vec3f tangent_xyz{tangent.x, tangent.y, tangent.z};
+        const float tangent_length = std::sqrt(dot(tangent_xyz, tangent_xyz));
+        if (std::abs(tangent_length - 1.0F) > 1.0e-4F) {
+            throw std::invalid_argument("supplied tangent direction must have unit length");
+        }
+        const Vec3f direction = normalize(tangent_xyz, "supplied tangent");
+        const Vec3f normal =
+            normalize(descriptor.normals[descriptor.triangle_indices[corner]], "mesh normal");
+        if (std::abs(dot(direction, normal)) > 1.0e-4F) {
+            throw std::invalid_argument("supplied tangent must be orthogonal to its vertex normal");
+        }
+    }
+}
+
+const UvSetView& find_uv_set(const MeshDescriptor& descriptor, std::string_view name) {
+    const auto found = std::ranges::find(descriptor.uv_sets, name, &UvSetView::name);
+    if (found == descriptor.uv_sets.end()) {
+        throw std::invalid_argument("tangent generation UV set is not present");
+    }
+    return *found;
+}
+
+Vec4f generated_corner_tangent(Vec3f raw_tangent, Vec3f raw_bitangent, Vec3f source_normal) {
+    const Vec3f normal = normalize(source_normal, "mesh normal");
+    const Vec3f projected = subtract(raw_tangent, multiply(normal, dot(normal, raw_tangent)));
+    const Vec3f tangent = dot(projected, projected) <= 1.0e-20F
+                              ? fallback_tangent(normal)
+                              : normalize(projected, "generated tangent");
+    const float handedness = dot(cross(normal, tangent), raw_bitangent) < 0.0F ? -1.0F : 1.0F;
+    return {tangent.x, tangent.y, tangent.z, handedness};
+}
+
+std::vector<Vec4f> generate_tangents(const MeshDescriptor& descriptor,
+                                     const TangentFrameDescriptor& frame) {
+    const UvSetView& uv_set = find_uv_set(descriptor, frame.uv_set);
+    std::vector<Vec4f> result(descriptor.triangle_indices.size());
+    for (std::size_t triangle = 0; triangle < descriptor.triangle_indices.size(); triangle += 3) {
+        const std::uint32_t i0 = descriptor.triangle_indices[triangle];
+        const std::uint32_t i1 = descriptor.triangle_indices[triangle + 1];
+        const std::uint32_t i2 = descriptor.triangle_indices[triangle + 2];
+        const Vec3f edge1 = subtract(descriptor.positions[i1], descriptor.positions[i0]);
+        const Vec3f edge2 = subtract(descriptor.positions[i2], descriptor.positions[i0]);
+        const Vec2f delta1{uv_set.values[i1].x - uv_set.values[i0].x,
+                           uv_set.values[i1].y - uv_set.values[i0].y};
+        const Vec2f delta2{uv_set.values[i2].x - uv_set.values[i0].x,
+                           uv_set.values[i2].y - uv_set.values[i0].y};
+        const float determinant = delta1.x * delta2.y - delta1.y * delta2.x;
+        const bool degenerate = std::abs(determinant) <= 1.0e-20F;
+        const float inverse = degenerate ? 1.0F : 1.0F / determinant;
+        const Vec3f tangent =
+            degenerate
+                ? edge1
+                : multiply(subtract(multiply(edge1, delta2.y), multiply(edge2, delta1.y)), inverse);
+        const Vec3f bitangent =
+            degenerate
+                ? edge2
+                : multiply(subtract(multiply(edge2, delta1.x), multiply(edge1, delta2.x)), inverse);
+        for (std::size_t offset = 0; offset < 3; ++offset) {
+            const std::uint32_t vertex = descriptor.triangle_indices[triangle + offset];
+            result[triangle + offset] =
+                generated_corner_tangent(tangent, bitangent, descriptor.normals[vertex]);
+        }
+    }
+    return result;
 }
 
 std::string_view partition_kind_name(PartitionKind kind) {
@@ -137,20 +272,76 @@ void validate_partitions(const MeshDescriptor& descriptor) {
 
 }  // namespace
 
+std::string_view tangent_basis_algorithm_name(TangentBasisAlgorithm algorithm) {
+    switch (algorithm) {
+        case TangentBasisAlgorithm::ctex_uv_derivative:
+            return "CyberTexel UV derivative";
+        case TangentBasisAlgorithm::lengyel_orthonormalized:
+            return "Lengyel orthonormalized UV derivative";
+        case TangentBasisAlgorithm::mikktspace:
+            return "MikkTSpace";
+    }
+    throw std::invalid_argument("tangent basis algorithm is invalid");
+}
+
+bool tangent_frames_compatible(const TangentFrameDescriptor& left,
+                               const TangentFrameDescriptor& right) noexcept {
+    return left == right;
+}
+
+Vec3f tangent_space_to_object(Vec3f tangent_space_normal, Vec3f surface_normal, Vec4f tangent) {
+    const Vec3f normal = normalize(surface_normal, "surface normal");
+    const Vec3f tangent_direction = normalize({tangent.x, tangent.y, tangent.z}, "tangent");
+    if (!finite(tangent) || std::abs(std::abs(tangent.w) - 1.0F) > 1.0e-5F ||
+        std::abs(dot(normal, tangent_direction)) > 1.0e-4F) {
+        throw std::invalid_argument("tangent frame is not orthonormal with signed handedness");
+    }
+    const Vec3f bitangent = multiply(cross(normal, tangent_direction), tangent.w);
+    return normalize({tangent_direction.x * tangent_space_normal.x +
+                          bitangent.x * tangent_space_normal.y + normal.x * tangent_space_normal.z,
+                      tangent_direction.y * tangent_space_normal.x +
+                          bitangent.y * tangent_space_normal.y + normal.y * tangent_space_normal.z,
+                      tangent_direction.z * tangent_space_normal.x +
+                          bitangent.z * tangent_space_normal.y + normal.z * tangent_space_normal.z},
+                     "transformed tangent-space normal");
+}
+
 MeshView::MeshView(MeshDescriptor descriptor) : descriptor_(descriptor) {
     validate_vertex_attributes(descriptor_);
     validate_indices(descriptor_);
     validate_uv_sets(descriptor_);
     validate_partitions(descriptor_);
+    if (descriptor_.corner_tangents.empty()) {
+        if (descriptor_.tangent_frame) {
+            throw std::invalid_argument("a tangent-frame declaration requires supplied tangents");
+        }
+        tangent_frame_descriptor_.uv_set = std::string(descriptor_.default_uv_set);
+        tangent_frame_source_ = TangentFrameSource::generated;
+        corner_tangents_ = generate_tangents(descriptor_, tangent_frame_descriptor_);
+    } else {
+        if (!descriptor_.tangent_frame) {
+            throw std::invalid_argument("supplied tangents require a tangent-frame declaration");
+        }
+        validate_tangent_frame_descriptor(*descriptor_.tangent_frame, descriptor_);
+        validate_supplied_tangents(descriptor_);
+        tangent_frame_descriptor_ = *descriptor_.tangent_frame;
+        tangent_frame_source_ = TangentFrameSource::supplied;
+        corner_tangents_.assign(descriptor_.corner_tangents.begin(),
+                                descriptor_.corner_tangents.end());
+    }
 }
 
 MeshAttributeDescription MeshView::attributes() const noexcept {
     return {
-        descriptor_.positions.size(),
-        triangle_count(),
-        descriptor_.uv_sets.size(),
-        !descriptor_.vertex_colors.empty(),
+        descriptor_.positions.size(),       triangle_count(),      descriptor_.uv_sets.size(),
+        !descriptor_.vertex_colors.empty(), tangent_frame_source_, corner_tangents_.size(),
     };
+}
+
+TangentFrameView MeshView::tangent_frames() const noexcept {
+    return {.descriptor = tangent_frame_descriptor_,
+            .source = tangent_frame_source_,
+            .corner_tangents = corner_tangents_};
 }
 
 std::size_t MeshView::triangle_count() const noexcept {

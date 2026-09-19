@@ -117,12 +117,14 @@ BakeRequestResult request_bake(const BakeProvider& provider, MeshMapSet& target,
                                        .is_cancelled = provider_cancelled,
                                        .report_progress = provider_progress};
     const mesh::MeshRevision requested_mesh_revision = target.mesh_revision();
-    const BakeRequest request{.kind = kind,
-                              .texture_set_id = target.texture_set_id().c_str(),
-                              .uv_set = target.uv_set().c_str(),
-                              .mesh_revision = requested_mesh_revision,
-                              .width = width,
-                              .height = height};
+    const BakeRequest request{
+        .kind = kind,
+        .texture_set_id = target.texture_set_id().c_str(),
+        .uv_set = target.uv_set().c_str(),
+        .mesh_revision = requested_mesh_revision,
+        .tangent_frame = target.tangent_frame() ? &target.tangent_frame().value() : nullptr,
+        .width = width,
+        .height = height};
     BakeProviderOutput output{};
     const BakeProviderStatus status =
         provider.request(provider.user_data, &request, &provider_control, &output);
@@ -149,6 +151,7 @@ BakeRequestResult request_bake(const BakeProvider& provider, MeshMapSet& target,
                                                  .uv_set = target.uv_set(),
                                                  .mesh_revision = requested_mesh_revision,
                                                  .normal_convention = output.normal_convention,
+                                                 .tangent_frame = output.tangent_frame,
                                                  .pixels = std::move(pixels)});
         report(control, 1.0);
         return {.status = BakeRequestStatus::completed,

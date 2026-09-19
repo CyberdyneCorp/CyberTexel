@@ -16,6 +16,8 @@ using namespace ctex::maps;
 
 constexpr mesh::MeshRevision fixture_mesh_revision = 23;
 
+mesh::TangentFrameDescriptor tangent_frame() { return {.uv_set = "paint"}; }
+
 bool expect(bool condition, std::string_view message) {
     if (!condition) {
         std::cerr << message << '\n';
@@ -30,10 +32,12 @@ struct ProviderState {
     std::size_t row_stride_bytes{};
     std::size_t request_count{};
     mesh::MeshRevision requested_mesh_revision{};
+    std::optional<mesh::TangentFrameDescriptor> requested_tangent_frame;
     bool fail{};
     bool invalid_progress{};
     bool invalid_status{};
     std::optional<NormalMapConvention> normal_convention;
+    std::optional<mesh::TangentFrameDescriptor> tangent_frame;
 };
 
 bool can_produce(void* user_data, MeshMapKind kind) noexcept {
@@ -51,6 +55,8 @@ BakeProviderStatus produce(void* user_data, const BakeRequest* request, const Ba
     auto& state = *static_cast<ProviderState*>(user_data);
     ++state.request_count;
     state.requested_mesh_revision = request->mesh_revision;
+    state.requested_tangent_frame =
+        request->tangent_frame == nullptr ? std::nullopt : std::optional(*request->tangent_frame);
     control->report_progress(control->user_data, {.fraction = 0.25});
     if (control->is_cancelled(control->user_data)) {
         return BakeProviderStatus::cancelled;
@@ -73,6 +79,7 @@ BakeProviderStatus produce(void* user_data, const BakeRequest* request, const Ba
         .pixels = state.pixels.data(),
         .pixel_bytes = state.pixels.size()};
     output->normal_convention = state.normal_convention;
+    output->tangent_frame = state.tangent_frame;
     if (state.invalid_status) {
         return static_cast<BakeProviderStatus>(255);
     }
@@ -171,11 +178,12 @@ bool strided_output_needs_no_padding_after_the_last_row() {
 
 bool normal_provider_must_declare_and_forwards_its_convention() {
     doc::TextureDocument document;
-    MeshMapSet maps(texture_set(document), fixture_mesh_revision);
+    MeshMapSet maps(texture_set(document), fixture_mesh_revision, tangent_frame());
     ProviderState state;
     state.advertised = {MeshMapKind::tangent_space_normal};
     state.channel_count = 3;
     state.pixels = {std::byte{128}, std::byte{64}, std::byte{255}};
+    state.tangent_frame = tangent_frame();
     const BakeRequestResult missing =
         request_bake(provider(state), maps, MeshMapKind::tangent_space_normal, 1, 1);
     const bool missing_bound_output = maps.size() != 0;
@@ -185,12 +193,15 @@ bool normal_provider_must_declare_and_forwards_its_convention() {
     const MeshMapSample sample = maps.sample(MeshMapKind::tangent_space_normal, 0.5, 0.5).sample;
     return expect(missing.status == BakeRequestStatus::provider_failed && !missing_bound_output &&
                       maps.size() == 1 && declared.status == BakeRequestStatus::completed &&
-                      declared.binding && declared.binding->resolution_mismatch,
+                      declared.binding && declared.binding->resolution_mismatch &&
+                      state.requested_tangent_frame == tangent_frame(),
                   "normal provider convention was not required and then accepted") &&
-           expect(maps.map(MeshMapKind::tangent_space_normal).normal_convention ==
-                          NormalMapConvention::direct_x &&
-                      std::abs(sample.values[1] - (191.0 / 255.0)) < 1.0e-12,
-                  "provider normal convention was not retained or converted on read");
+           expect(
+               maps.map(MeshMapKind::tangent_space_normal).normal_convention ==
+                       NormalMapConvention::direct_x &&
+                   maps.map(MeshMapKind::tangent_space_normal).tangent_frame == tangent_frame() &&
+                   std::abs(sample.values[1] - (191.0 / 255.0)) < 1.0e-12,
+               "provider normal convention was not retained or converted on read");
 }
 
 bool cancellation_before_and_during_provider_work_binds_nothing() {

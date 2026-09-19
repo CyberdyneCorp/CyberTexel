@@ -194,12 +194,14 @@ ExternalMeshMapImportResult import_external_mesh_map(MeshMapSet& target,
                                              .uv_set = request.uv_set,
                                              .mesh_revision = request.mesh_revision,
                                              .normal_convention = request.normal_convention,
+                                             .tangent_frame = request.tangent_frame,
                                              .pixels = std::move(pixels)});
     return {.binding = std::move(binding),
             .channel_meaning = *request.channel_meaning,
             .declared_color_space = *request.color_space,
             .storage_color_space = image::working_color_space(),
             .normal_convention = request.normal_convention,
+            .tangent_frame = request.tangent_frame,
             .converted_to_working_space = converted};
 }
 

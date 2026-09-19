@@ -16,6 +16,12 @@ The adapter copies the returned float image into CyberTexel's map set, so the
 Unsupported maps are not advertised and CyberTexel never substitutes a neutral
 map.
 
+The normal bake declares CyberRemesherAndUV's version-1 orthonormalized Lengyel
+UV-derivative basis and returns the exact frame requested by the example's map
+set. Production hosts must build their render tangents with that same declared
+basis; CyberTexel refuses a normal map whose basis differs instead of treating
+a green-channel flip as basis conversion.
+
 The dependency is example-only. A normal CyberTexel configure never searches
 for or links CyberRemesherAndUV. To build the example against an installed
 package:

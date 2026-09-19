@@ -142,6 +142,10 @@ BakeProviderStatus produce(void* user_data, const BakeRequest* request, const Ba
         };
         if (request->kind == MeshMapKind::tangent_space_normal) {
             output->normal_convention = ctex::maps::NormalMapConvention::open_gl;
+            if (request->tangent_frame == nullptr) {
+                return fail(state, "tangent-space bake requires the mesh tangent frame", output);
+            }
+            output->tangent_frame = *request->tangent_frame;
         }
         report_progress(control, 0.95);
         return BakeProviderStatus::completed;
@@ -186,6 +190,14 @@ int run(const char* low_path, const char* high_path, std::uint32_t resolution) {
         .low = low.get(), .high = high.get(), .parameters = {}, .pixels = {}, .detail = {}};
     cyber_default_bake_params(&state.parameters);
     const BakeProvider provider = make_provider(state);
+    const ctex::mesh::TangentFrameDescriptor tangent_frame{
+        .algorithm = ctex::mesh::TangentBasisAlgorithm::lengyel_orthonormalized,
+        .algorithm_version = 1,
+        .normal_orientation = ctex::mesh::NormalOrientation::vertex_normals,
+        .coordinate_handedness = ctex::mesh::CoordinateSystemHandedness::right_handed,
+        .uv_v_axis = ctex::mesh::UvVAxis::upward,
+        .handedness_encoding = ctex::mesh::TangentHandednessEncoding::tangent_w_sign,
+        .uv_set = "uv0"};
 
     ctex::doc::TextureDocument document;
     ctex::doc::TextureSet& texture_set =
@@ -196,7 +208,7 @@ int run(const char* low_path, const char* high_path, std::uint32_t resolution) {
                                      .width = resolution,
                                      .height = resolution,
                                      .default_bit_depth = 16});
-    ctex::maps::MeshMapSet maps(texture_set, ctex::mesh::MeshRevision{1});
+    ctex::maps::MeshMapSet maps(texture_set, ctex::mesh::MeshRevision{1}, tangent_frame);
 
     for (const MeshMapKind kind : supported_maps) {
         const ctex::maps::BakeRequestResult result =

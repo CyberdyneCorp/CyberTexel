@@ -15,6 +15,8 @@ using ctex::mesh::MeshDescriptor;
 using ctex::mesh::MeshPartition;
 using ctex::mesh::MeshView;
 using ctex::mesh::PartitionKind;
+using ctex::mesh::TangentFrameDescriptor;
+using ctex::mesh::TangentFrameSource;
 using ctex::mesh::UvSetView;
 using ctex::mesh::Vec2f;
 using ctex::mesh::Vec3f;
@@ -115,6 +117,9 @@ bool accepts_in_memory_attributes_without_modification() {
            expect(attributes.triangle_count == 2, "mesh reported the wrong triangle count") &&
            expect(attributes.uv_set_count == 2, "mesh reported the wrong UV-set count") &&
            expect(attributes.has_vertex_colors, "mesh omitted its vertex-colour attribute") &&
+           expect(attributes.tangent_source == TangentFrameSource::generated &&
+                      attributes.corner_tangent_count == buffers.indices.size(),
+                  "mesh omitted its generated per-corner tangent frames") &&
            expect(std::ranges::equal(mesh.uv_set("lightmap").values, buffers.uv1),
                   "named UV lookup returned the wrong buffer") &&
            expect(mesh.partition_for_face(0).stable_key == "body",
@@ -125,6 +130,99 @@ bool accepts_in_memory_attributes_without_modification() {
                       buffers.colors == colors_before && buffers.indices == indices_before &&
                       buffers.uv0 == uv0_before && buffers.uv1 == uv1_before,
                   "mesh ingest modified a caller-owned buffer");
+}
+
+bool accepts_declared_supplied_corner_tangents() {
+    MeshBuffers buffers;
+    const std::array<Vec4f, 6> tangents{
+        Vec4f{1.0F, 0.0F, 0.0F, 1.0F}, Vec4f{1.0F, 0.0F, 0.0F, 1.0F}, Vec4f{1.0F, 0.0F, 0.0F, 1.0F},
+        Vec4f{1.0F, 0.0F, 0.0F, 1.0F}, Vec4f{1.0F, 0.0F, 0.0F, 1.0F}, Vec4f{1.0F, 0.0F, 0.0F, 1.0F},
+    };
+    auto descriptor = buffers.descriptor();
+    descriptor.corner_tangents = tangents;
+    descriptor.tangent_frame =
+        TangentFrameDescriptor{.algorithm = ctex::mesh::TangentBasisAlgorithm::mikktspace,
+                               .algorithm_version = 1,
+                               .uv_set = "paint"};
+    const MeshView mesh(descriptor);
+    const ctex::mesh::TangentFrameView frames = mesh.tangent_frames();
+    return expect(frames.source == TangentFrameSource::supplied && descriptor.tangent_frame &&
+                      frames.descriptor == *descriptor.tangent_frame &&
+                      std::ranges::equal(frames.corner_tangents, tangents),
+                  "declared supplied per-corner tangents were not retained");
+}
+
+bool generated_tangents_preserve_mirrored_uv_handedness() {
+    const std::array<Vec3f, 6> positions{
+        Vec3f{0.0F, 0.0F, 0.0F}, Vec3f{1.0F, 0.0F, 0.0F}, Vec3f{0.0F, 1.0F, 0.0F},
+        Vec3f{2.0F, 0.0F, 0.0F}, Vec3f{3.0F, 0.0F, 0.0F}, Vec3f{2.0F, 1.0F, 0.0F},
+    };
+    std::array<Vec3f, 6> normals{};
+    normals.fill({0.0F, 0.0F, 1.0F});
+    const std::array<Vec2f, 6> uv{
+        Vec2f{0.0F, 0.0F}, Vec2f{1.0F, 0.0F}, Vec2f{0.0F, 1.0F},
+        Vec2f{0.0F, 0.0F}, Vec2f{0.0F, 1.0F}, Vec2f{1.0F, 0.0F},
+    };
+    const std::array<std::uint32_t, 6> indices{0, 1, 2, 3, 4, 5};
+    const std::array uv_sets{UvSetView{"paint", uv}};
+    const std::array partitions{MeshPartition{PartitionKind::material, "body", "Body"}};
+    const std::array<std::uint32_t, 2> face_partitions{0, 0};
+    const std::array<std::uint32_t, 2> face_materials{1, 1};
+    const MeshView mesh({.positions = positions,
+                         .normals = normals,
+                         .vertex_colors = {},
+                         .triangle_indices = indices,
+                         .uv_sets = uv_sets,
+                         .default_uv_set = "paint",
+                         .partitions = partitions,
+                         .face_partition_indices = face_partitions,
+                         .face_material_ids = face_materials});
+    const ctex::mesh::TangentFrameView frames = mesh.tangent_frames();
+    const Vec3f regular = ctex::mesh::tangent_space_to_object({0.0F, 1.0F, 0.0F}, normals[0],
+                                                              frames.corner_tangents[0]);
+    const Vec3f mirrored = ctex::mesh::tangent_space_to_object({0.0F, 1.0F, 0.0F}, normals[3],
+                                                               frames.corner_tangents[3]);
+    return expect(
+               frames.descriptor.algorithm ==
+                       ctex::mesh::TangentBasisAlgorithm::ctex_uv_derivative &&
+                   frames.descriptor.algorithm_version == ctex::mesh::ctex_uv_derivative_version &&
+                   frames.corner_tangents[0].w == 1.0F && frames.corner_tangents[3].w == -1.0F,
+               "generated tangent frames lost the mirrored island sign") &&
+           expect(regular == Vec3f{0.0F, 1.0F, 0.0F} && mirrored == Vec3f{1.0F, 0.0F, 0.0F},
+                  "normal transformation ignored mirrored tangent handedness");
+}
+
+bool refuses_undeclared_or_invalid_supplied_tangents() {
+    MeshBuffers buffers;
+    std::array<Vec4f, 6> tangents{};
+    tangents.fill({1.0F, 0.0F, 0.0F, 1.0F});
+    auto undeclared = buffers.descriptor();
+    undeclared.corner_tangents = tangents;
+    auto wrong_count = buffers.descriptor();
+    wrong_count.corner_tangents = std::span(tangents).first(5);
+    wrong_count.tangent_frame = TangentFrameDescriptor{.uv_set = "paint"};
+    auto non_orthogonal = buffers.descriptor();
+    auto non_orthogonal_tangents = tangents;
+    non_orthogonal_tangents[0] = {0.0F, 0.0F, 1.0F, 1.0F};
+    non_orthogonal.corner_tangents = non_orthogonal_tangents;
+    non_orthogonal.tangent_frame = TangentFrameDescriptor{.uv_set = "paint"};
+    auto non_unit = buffers.descriptor();
+    auto non_unit_tangents = tangents;
+    non_unit_tangents[0] = {2.0F, 0.0F, 0.0F, 1.0F};
+    non_unit.corner_tangents = non_unit_tangents;
+    non_unit.tangent_frame = TangentFrameDescriptor{.uv_set = "paint"};
+    auto declaration_without_values = buffers.descriptor();
+    declaration_without_values.tangent_frame = TangentFrameDescriptor{.uv_set = "paint"};
+    return expect_invalid_argument([&] { static_cast<void>(MeshView(undeclared)); },
+                                   "mesh accepted undeclared supplied tangents") &&
+           expect_invalid_argument([&] { static_cast<void>(MeshView(wrong_count)); },
+                                   "mesh accepted an incomplete per-corner tangent buffer") &&
+           expect_invalid_argument([&] { static_cast<void>(MeshView(non_orthogonal)); },
+                                   "mesh accepted a tangent parallel to its normal") &&
+           expect_invalid_argument([&] { static_cast<void>(MeshView(non_unit)); },
+                                   "mesh accepted a non-unit tangent direction") &&
+           expect_invalid_argument([&] { static_cast<void>(MeshView(declaration_without_values)); },
+                                   "mesh accepted a tangent declaration without values");
 }
 
 bool derives_total_partitioned_texture_sets() {
@@ -219,6 +317,9 @@ bool refuses_invalid_topology_and_partitioning() {
 
 int main() {
     return accepts_in_memory_attributes_without_modification() &&
+                   accepts_declared_supplied_corner_tangents() &&
+                   generated_tangents_preserve_mirrored_uv_handedness() &&
+                   refuses_undeclared_or_invalid_supplied_tangents() &&
                    derives_total_partitioned_texture_sets() && derives_every_partition_source() &&
                    refuses_invalid_topology_and_partitioning()
                ? 0

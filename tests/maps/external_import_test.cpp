@@ -16,6 +16,8 @@ using namespace ctex::maps;
 
 constexpr mesh::MeshRevision fixture_mesh_revision = 31;
 
+mesh::TangentFrameDescriptor tangent_frame() { return {.uv_set = "paint"}; }
+
 bool expect(bool condition, std::string_view message) {
     if (!condition) {
         std::cerr << message << '\n';
@@ -138,7 +140,7 @@ bool colour_import_converts_rgb_and_preserves_alpha() {
 bool directx_normal_import_records_and_converts_its_green_channel() {
     doc::TextureDocument document;
     const doc::TextureSet& set = texture_set(document);
-    MeshMapSet maps(set, fixture_mesh_revision);
+    MeshMapSet maps(set, fixture_mesh_revision, tangent_frame());
     const std::vector<std::byte> source{std::byte{128}, std::byte{64}, std::byte{255}};
     const ExternalMeshMapImport request{.kind = MeshMapKind::tangent_space_normal,
                                         .channel_meaning = MeshMapChannelMeaning::normal_xyz,
@@ -147,15 +149,19 @@ bool directx_normal_import_records_and_converts_its_green_channel() {
                                         .uv_set = "paint",
                                         .mesh_revision = fixture_mesh_revision,
                                         .normal_convention = NormalMapConvention::direct_x,
+                                        .tangent_frame = tangent_frame(),
                                         .buffer = view(source, 1, 1, 3)};
     const ExternalMeshMapImportResult result = import_external_mesh_map(maps, request);
     const MeshMapSample sample = maps.sample(MeshMapKind::tangent_space_normal, 0.5, 0.5).sample;
-    return expect(result.normal_convention == NormalMapConvention::direct_x &&
-                      maps.map(MeshMapKind::tangent_space_normal).normal_convention ==
-                          NormalMapConvention::direct_x &&
-                      near(sample.values[0], 128.0 / 255.0) &&
-                      near(sample.values[1], 191.0 / 255.0) && near(sample.values[2], 1.0),
-                  "external DirectX normal was not recorded and read as canonical OpenGL");
+    return expect(
+        result.normal_convention == NormalMapConvention::direct_x &&
+            result.tangent_frame == tangent_frame() &&
+            maps.map(MeshMapKind::tangent_space_normal).normal_convention ==
+                NormalMapConvention::direct_x &&
+            maps.map(MeshMapKind::tangent_space_normal).tangent_frame == tangent_frame() &&
+            near(sample.values[0], 128.0 / 255.0) && near(sample.values[1], 191.0 / 255.0) &&
+            near(sample.values[2], 1.0),
+        "external DirectX normal was not recorded and read as canonical OpenGL");
 }
 
 template <typename Operation>

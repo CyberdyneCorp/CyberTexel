@@ -21,6 +21,31 @@ carry a stable key independent of their order and display name. Each face also
 carries one numeric material identifier for picking and material-ID workflows.
 All supplied floating-point attributes must be finite.
 
+## Tangent frames
+
+Every validated mesh exposes one tangent frame per triangle corner through
+`tangent_frames()`. A host may supply `Vec4f` tangents, with XYZ as a unit
+direction and W as the `+1`/`-1` bitangent sign. Supplied values require a
+`TangentFrameDescriptor` naming the algorithm and version, normal orientation,
+coordinate-system handedness, UV V-axis convention, signed-W encoding and UV
+set. Missing declarations, non-finite or non-orthogonal values, invalid signs,
+and buffers that are not exactly one value per corner are refused.
+
+When tangents are absent, CyberTexel generates them with
+`ctex_uv_derivative_version == 1`: per triangle it differentiates position by
+the selected UV set, Gram-Schmidt orthonormalizes the result against each
+corner's vertex normal, and records the bitangent sign in W. Degenerate UV
+triangles use a deterministic perpendicular axis. The generated descriptor is
+right-handed, uses the supplied vertex-normal orientation, an upward UV V axis and the mesh's
+default UV set. The algorithm name and version are part of compatibility, so a
+future implementation change cannot silently reinterpret an existing normal
+map.
+
+`tangent_space_to_object` derives the bitangent as
+`cross(normal, tangent.xyz) * tangent.w`. Consequently a shared tangent-space
+normal texture follows both ordinary and mirrored UV islands without losing
+their per-corner handedness.
+
 `TextureDocument::create_texture_sets_from_mesh` derives one texture set per
 validated partition and binds each to a requested named UV set. The caller
 chooses the non-square-capable resolution and 8-, 16-, or 32-bit default channel

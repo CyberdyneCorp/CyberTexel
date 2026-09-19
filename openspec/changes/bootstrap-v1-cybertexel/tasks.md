@@ -740,7 +740,7 @@ also removes its contribution automatically.
 - [x] 11.9 Map memory accounting and host-driven release
 - [x] 11.10 CyberRemesherAndUV provider binding, as an example rather than a dependency
 - [x] 11.11 `mesh-maps` scenarios as tests
-- [ ] 11.12 Tangent-frame descriptors, supplied/generated tangent policy, normal-map basis validation and mirrored handedness tests
+- [x] 11.12 Tangent-frame descriptors, supplied/generated tangent policy, normal-map basis validation and mirrored handedness tests
 - [ ] 11.13 Asynchronous bake revision tokens, stale-result rejection and coordinated settings/map undo tests
 
 ## 12. Input and output

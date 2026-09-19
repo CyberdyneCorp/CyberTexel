@@ -41,8 +41,54 @@ bool is_identifier_map(MeshMapKind kind) {
     return kind == MeshMapKind::material_id || kind == MeshMapKind::object_id;
 }
 
+void validate_tangent_frame(const mesh::TangentFrameDescriptor& frame, std::string_view uv_set) {
+    static_cast<void>(mesh::tangent_basis_algorithm_name(frame.algorithm));
+    if (frame.algorithm_version == 0 || frame.uv_set != uv_set) {
+        throw std::invalid_argument("tangent frame requires a version and the texture-set UV set");
+    }
+    if (frame.normal_orientation != mesh::NormalOrientation::vertex_normals &&
+        frame.normal_orientation != mesh::NormalOrientation::inverted_vertex_normals) {
+        throw std::invalid_argument("tangent frame normal orientation is invalid");
+    }
+    if (frame.coordinate_handedness != mesh::CoordinateSystemHandedness::right_handed &&
+        frame.coordinate_handedness != mesh::CoordinateSystemHandedness::left_handed) {
+        throw std::invalid_argument("tangent frame coordinate handedness is invalid");
+    }
+    if (frame.uv_v_axis != mesh::UvVAxis::upward && frame.uv_v_axis != mesh::UvVAxis::downward) {
+        throw std::invalid_argument("tangent frame UV convention is invalid");
+    }
+    if (frame.handedness_encoding != mesh::TangentHandednessEncoding::tangent_w_sign) {
+        throw std::invalid_argument("tangent frame handedness encoding is invalid");
+    }
+}
+
+void validate_tangent_binding(
+    const MeshMapDescriptor& descriptor,
+    const std::optional<mesh::TangentFrameDescriptor>& target_tangent_frame,
+    std::string_view uv_set) {
+    if (descriptor.kind != MeshMapKind::tangent_space_normal) {
+        if (descriptor.tangent_frame) {
+            throw std::invalid_argument("only tangent-space normal maps declare a tangent frame");
+        }
+        return;
+    }
+    if (!descriptor.tangent_frame) {
+        throw std::invalid_argument("tangent-space normal map requires a tangent-frame descriptor");
+    }
+    validate_tangent_frame(*descriptor.tangent_frame, uv_set);
+    if (!target_tangent_frame) {
+        throw std::invalid_argument(
+            "tangent-space normal map cannot be validated without the mesh tangent frame");
+    }
+    if (!mesh::tangent_frames_compatible(*descriptor.tangent_frame, *target_tangent_frame)) {
+        throw std::invalid_argument(
+            "tangent-space normal map basis is incompatible with the mesh tangent frame");
+    }
+}
+
 void validate_descriptor(const MeshMapDescriptor& descriptor, std::string_view texture_set_id,
-                         std::string_view uv_set) {
+                         std::string_view uv_set,
+                         const std::optional<mesh::TangentFrameDescriptor>& tangent_frame) {
     const std::string_view name = mesh_map_name(descriptor.kind);
     if (descriptor.texture_set_id != texture_set_id) {
         throw std::invalid_argument("mesh map '" + std::string(name) + "' names texture set '" +
@@ -72,6 +118,7 @@ void validate_descriptor(const MeshMapDescriptor& descriptor, std::string_view t
     if (descriptor.normal_convention) {
         static_cast<void>(normal_map_convention_name(*descriptor.normal_convention));
     }
+    validate_tangent_binding(descriptor, tangent_frame, uv_set);
     const ChannelCountRange channels = channel_count_range(descriptor.kind);
     const std::uint8_t actual = descriptor.pixels->format().channel_count;
     if (actual < channels.minimum || actual > channels.maximum) {
@@ -278,23 +325,31 @@ bool mesh_map_uses_normal_convention(MeshMapKind kind) {
 MissingMeshMapsError::MissingMeshMapsError(MeshMapRequirementReport report)
     : std::out_of_range(report.message), report_(std::move(report)) {}
 
-MeshMapSet::MeshMapSet(const doc::TextureSet& texture_set, mesh::MeshRevision mesh_revision)
+MeshMapSet::MeshMapSet(const doc::TextureSet& texture_set, mesh::MeshRevision mesh_revision,
+                       std::optional<mesh::TangentFrameDescriptor> tangent_frame)
     : texture_set_id_(texture_set.id()),
       uv_set_(texture_set.descriptor().uv_set),
       texture_set_width_(texture_set.descriptor().width),
       texture_set_height_(texture_set.descriptor().height),
       mesh_revision_(mesh_revision),
+      tangent_frame_(std::move(tangent_frame)),
       memory_account_(texture_set.create_memory_account(doc::TextureSetMemoryCategory::mesh_maps)) {
     if (mesh_revision_ == 0) {
         throw std::invalid_argument("mesh map set requires a source mesh revision");
     }
+    if (tangent_frame_) {
+        validate_tangent_frame(*tangent_frame_, uv_set_);
+    }
 }
 
 MeshMapSet::MeshMapSet(const doc::TextureSet& texture_set, const mesh::MeshBinding& mesh)
-    : MeshMapSet(texture_set, mesh.revision()) {}
+    : MeshMapSet(texture_set, mesh.revision(),
+                 mesh.view().tangent_frames().descriptor.uv_set == texture_set.descriptor().uv_set
+                     ? std::optional(mesh.view().tangent_frames().descriptor)
+                     : std::nullopt) {}
 
 MeshMapBindResult MeshMapSet::bind(MeshMapDescriptor descriptor) {
-    validate_descriptor(descriptor, texture_set_id_, uv_set_);
+    validate_descriptor(descriptor, texture_set_id_, uv_set_, tangent_frame_);
     const bool mismatched = descriptor.pixels->width() != texture_set_width_ ||
                             descriptor.pixels->height() != texture_set_height_;
     std::optional<MapResolutionMismatch> mismatch;
@@ -390,6 +445,8 @@ std::vector<MeshMapStaleness> MeshMapSet::synchronize_mesh_revision(mesh::MeshRe
 }
 
 std::vector<MeshMapStaleness> MeshMapSet::synchronize_mesh_revision(const mesh::MeshBinding& mesh) {
+    const mesh::TangentFrameDescriptor frame = mesh.view().tangent_frames().descriptor;
+    tangent_frame_ = frame.uv_set == uv_set_ ? std::optional(std::move(frame)) : std::nullopt;
     return synchronize_mesh_revision(mesh.revision());
 }
 
@@ -409,6 +466,7 @@ MeshMapReadResult MeshMapSet::sample(MeshMapKind kind, double u, double v) const
         throw std::invalid_argument("mesh map sample coordinates must be normalized and finite");
     }
     const MeshMapDescriptor& descriptor = map(kind);
+    validate_tangent_binding(descriptor, tangent_frame_, uv_set_);
     const double x = u * static_cast<double>(descriptor.pixels->width() - 1);
     const double y = (1.0 - v) * static_cast<double>(descriptor.pixels->height() - 1);
     const MeshMapSample filtered = is_identifier_map(kind) ? nearest_sample(descriptor, x, y)

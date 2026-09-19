@@ -77,8 +77,24 @@ convention. Sampling a DirectX normal changes only the encoded green component
 to `1 - green`; red, blue, alpha, source pixels and the recorded declaration are
 unchanged. Conversion occurs on read after filtering, which is algebraically
 equivalent to converting each texel before linear filtering. This convention
-normalization does not claim tangent-basis compatibility: tangent algorithm,
-orientation and mirrored-handedness validation remain roadmap task 11.12.
+normalization does not claim tangent-basis compatibility.
+
+Every tangent-space normal additionally carries the complete
+`mesh::TangentFrameDescriptor`. The map set also retains the frame of its bound
+mesh (or an explicit host declaration when only a mesh revision is available).
+Binding is refused unless algorithm and version, normal orientation,
+coordinate-system handedness, signed-W encoding, UV V-axis convention and UV
+set match exactly. A missing frame on either side is also refused. This check
+happens independently of OpenGL/DirectX green-channel normalization, so a
+green flip can never disguise an incompatible basis.
+
+The descriptor is the single frame contract used by tangent normal sampling,
+normal composition and height-to-normal derivatives. The mesh's per-corner W
+sign remains part of preview reconstruction and exported vertex data; it is not
+collapsed into a texture-wide flag. `MeshMapSet` created from a `MeshBinding`
+adopts its validated frame automatically. Providers receive that frame in
+`BakeRequest` and must return the frame actually used in `BakeProviderOutput`;
+external imports declare it in `ExternalMeshMapImport`.
 
 ## Generators
 

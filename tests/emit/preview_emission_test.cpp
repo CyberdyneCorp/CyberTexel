@@ -223,6 +223,15 @@ bool identical_preview_emission_is_deterministic() {
                   "identical preview requests changed shader source or pass plan");
 }
 
+bool preview_reconstructs_bitangent_from_per_corner_handedness() {
+    const PreviewEmission emitted = emit_lit_preview(request(ShaderTarget::wgsl));
+    const auto& shader = std::get<SplitTextShaderProgram>(emitted.shader.payload);
+    return expect(
+        shader.fragment_source.find(".tangent.w") != std::string::npos &&
+            shader.fragment_source.find("cross(") != std::string::npos,
+        "preview normal reconstruction ignored the per-corner mirrored-UV handedness sign");
+}
+
 bool preview_results_are_cached_by_mode_and_content() {
     PreviewEmissionCache cache;
     const PreviewEmissionRequest fixture = request();
@@ -290,6 +299,7 @@ int main(int argc, char** argv) {
                    invalid_lighting_contracts_are_refused() &&
                    missing_float_filtering_uses_a_reported_workaround() &&
                    identical_preview_emission_is_deterministic() &&
+                   preview_reconstructs_bitangent_from_per_corner_handedness() &&
                    preview_results_are_cached_by_mode_and_content()
                ? 0
                : 1;

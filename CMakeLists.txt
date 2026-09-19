@@ -1061,4 +1061,9 @@ if(BUILD_TESTING)
         mesh-map-no-baker-dependency
         PROPERTIES LABELS mesh-maps-scenario
     )
+    set_tests_properties(mesh-ingest PROPERTIES LABELS mesh-maps-scenario)
+    set_tests_properties(
+        preview-emission
+        PROPERTIES LABELS "shader-emission-scenario;mesh-maps-scenario"
+    )
 endif()

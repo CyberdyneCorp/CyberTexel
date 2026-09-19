@@ -63,6 +63,7 @@ struct MeshMapDescriptor {
     std::string uv_set;
     mesh::MeshRevision mesh_revision{};
     std::optional<NormalMapConvention> normal_convention{};
+    std::optional<mesh::TangentFrameDescriptor> tangent_frame{};
     std::shared_ptr<const image::TiledImage> pixels;
 };
 
@@ -150,7 +151,8 @@ private:
 
 class MeshMapSet {
 public:
-    MeshMapSet(const doc::TextureSet& texture_set, mesh::MeshRevision mesh_revision);
+    MeshMapSet(const doc::TextureSet& texture_set, mesh::MeshRevision mesh_revision,
+               std::optional<mesh::TangentFrameDescriptor> tangent_frame = std::nullopt);
     MeshMapSet(const doc::TextureSet& texture_set, const mesh::MeshBinding& mesh);
 
     [[nodiscard]] const std::string& texture_set_id() const noexcept { return texture_set_id_; }
@@ -158,6 +160,10 @@ public:
     [[nodiscard]] std::uint32_t texture_set_width() const noexcept { return texture_set_width_; }
     [[nodiscard]] std::uint32_t texture_set_height() const noexcept { return texture_set_height_; }
     [[nodiscard]] mesh::MeshRevision mesh_revision() const noexcept { return mesh_revision_; }
+    [[nodiscard]] const std::optional<mesh::TangentFrameDescriptor>& tangent_frame()
+        const noexcept {
+        return tangent_frame_;
+    }
 
     [[nodiscard]] MeshMapBindResult bind(MeshMapDescriptor descriptor);
     [[nodiscard]] bool contains(MeshMapKind kind) const noexcept;
@@ -184,6 +190,7 @@ private:
     std::uint32_t texture_set_width_{};
     std::uint32_t texture_set_height_{};
     mesh::MeshRevision mesh_revision_{};
+    std::optional<mesh::TangentFrameDescriptor> tangent_frame_;
     doc::TextureSetMemoryAccount memory_account_;
     std::map<MeshMapKind, MeshMapDescriptor> maps_;
 };

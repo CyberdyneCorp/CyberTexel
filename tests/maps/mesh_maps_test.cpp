@@ -16,6 +16,8 @@ using namespace ctex::maps;
 
 constexpr mesh::MeshRevision fixture_mesh_revision = 17;
 
+mesh::TangentFrameDescriptor tangent_frame() { return {.uv_set = "paint"}; }
+
 struct MeshFixture {
     std::array<mesh::Vec3f, 3> positions{
         mesh::Vec3f{-1.0F, -1.0F, 0.0F},
@@ -233,7 +235,7 @@ bool supported_storage_precisions_decode_on_read() {
 bool normal_conventions_are_recorded_and_canonicalized_on_read() {
     doc::TextureDocument document;
     const doc::TextureSet& set = texture_set(document);
-    MeshMapSet maps(set, fixture_mesh_revision);
+    MeshMapSet maps(set, fixture_mesh_revision, tangent_frame());
     auto normal = vector_map(1, 1);
     write_rgb8(*normal, 0, 0, 128, 64, 255);
     static_cast<void>(maps.bind({.kind = MeshMapKind::tangent_space_normal,
@@ -241,6 +243,7 @@ bool normal_conventions_are_recorded_and_canonicalized_on_read() {
                                  .uv_set = "paint",
                                  .mesh_revision = fixture_mesh_revision,
                                  .normal_convention = NormalMapConvention::open_gl,
+                                 .tangent_frame = tangent_frame(),
                                  .pixels = normal}));
     const MeshMapSample open_gl = maps.sample(MeshMapKind::tangent_space_normal, 0.5, 0.5).sample;
     static_cast<void>(maps.bind({.kind = MeshMapKind::tangent_space_normal,
@@ -248,6 +251,7 @@ bool normal_conventions_are_recorded_and_canonicalized_on_read() {
                                  .uv_set = "paint",
                                  .mesh_revision = fixture_mesh_revision,
                                  .normal_convention = NormalMapConvention::direct_x,
+                                 .tangent_frame = tangent_frame(),
                                  .pixels = normal}));
     const MeshMapSample direct_x = maps.sample(MeshMapKind::tangent_space_normal, 0.5, 0.5).sample;
     return expect(near(open_gl.values[0], direct_x.values[0]) &&
@@ -257,6 +261,65 @@ bool normal_conventions_are_recorded_and_canonicalized_on_read() {
                       maps.map(MeshMapKind::tangent_space_normal).normal_convention ==
                           NormalMapConvention::direct_x,
                   "normal-map convention was not retained or converted to canonical OpenGL");
+}
+
+bool incompatible_tangent_basis_is_refused_before_green_conversion() {
+    doc::TextureDocument document;
+    const doc::TextureSet& set = texture_set(document);
+    MeshMapSet maps(set, fixture_mesh_revision, tangent_frame());
+    auto normal = vector_map(1, 1);
+    mesh::TangentFrameDescriptor incompatible = tangent_frame();
+    incompatible.algorithm = mesh::TangentBasisAlgorithm::mikktspace;
+    bool incompatible_refused = false;
+    try {
+        static_cast<void>(maps.bind({.kind = MeshMapKind::tangent_space_normal,
+                                     .texture_set_id = set.id(),
+                                     .uv_set = "paint",
+                                     .mesh_revision = fixture_mesh_revision,
+                                     .normal_convention = NormalMapConvention::direct_x,
+                                     .tangent_frame = incompatible,
+                                     .pixels = normal}));
+    } catch (const std::invalid_argument&) {
+        incompatible_refused = true;
+    }
+    bool missing_descriptor_refused = false;
+    try {
+        static_cast<void>(maps.bind({.kind = MeshMapKind::tangent_space_normal,
+                                     .texture_set_id = set.id(),
+                                     .uv_set = "paint",
+                                     .mesh_revision = fixture_mesh_revision,
+                                     .normal_convention = NormalMapConvention::open_gl,
+                                     .pixels = normal}));
+    } catch (const std::invalid_argument&) {
+        missing_descriptor_refused = true;
+    }
+    MeshMapSet frame_unknown(set, fixture_mesh_revision);
+    bool unknown_target_refused = false;
+    try {
+        static_cast<void>(frame_unknown.bind({.kind = MeshMapKind::tangent_space_normal,
+                                              .texture_set_id = set.id(),
+                                              .uv_set = "paint",
+                                              .mesh_revision = fixture_mesh_revision,
+                                              .normal_convention = NormalMapConvention::open_gl,
+                                              .tangent_frame = tangent_frame(),
+                                              .pixels = normal}));
+    } catch (const std::invalid_argument&) {
+        unknown_target_refused = true;
+    }
+    bool frame_on_scalar_refused = false;
+    try {
+        static_cast<void>(maps.bind({.kind = MeshMapKind::height,
+                                     .texture_set_id = set.id(),
+                                     .uv_set = "paint",
+                                     .mesh_revision = fixture_mesh_revision,
+                                     .tangent_frame = tangent_frame(),
+                                     .pixels = scalar_map(1, 1)}));
+    } catch (const std::invalid_argument&) {
+        frame_on_scalar_refused = true;
+    }
+    return expect(incompatible_refused && missing_descriptor_refused && unknown_target_refused &&
+                      frame_on_scalar_refused && maps.size() == 0 && frame_unknown.size() == 0,
+                  "green-channel conversion bypassed incompatible tangent-basis refusal");
 }
 
 bool map_memory_is_accounted_and_host_releasable() {
@@ -588,6 +651,7 @@ int main() {
                    identifiers_use_nearest_sampling() &&
                    supported_storage_precisions_decode_on_read() &&
                    normal_conventions_are_recorded_and_canonicalized_on_read() &&
+                   incompatible_tangent_basis_is_refused_before_green_conversion() &&
                    map_memory_is_accounted_and_host_releasable() &&
                    required_maps_are_reported_without_neutral_substitution() &&
                    complete_requirements_and_direct_missing_reads_are_distinct() &&

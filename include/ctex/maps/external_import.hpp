@@ -31,6 +31,7 @@ struct ExternalMeshMapImport {
     std::string uv_set;
     mesh::MeshRevision mesh_revision{};
     std::optional<NormalMapConvention> normal_convention{};
+    std::optional<mesh::TangentFrameDescriptor> tangent_frame{};
     MeshMapPixelBufferView buffer;
 };
 
@@ -40,6 +41,7 @@ struct ExternalMeshMapImportResult {
     image::ColorSpace declared_color_space{};
     image::ColorSpace storage_color_space{};
     std::optional<NormalMapConvention> normal_convention{};
+    std::optional<mesh::TangentFrameDescriptor> tangent_frame{};
     bool converted_to_working_space{};
 };
 
