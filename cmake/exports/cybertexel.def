@@ -29,6 +29,7 @@ EXPORTS
     ctex_paint_blend_snapshot
     ctex_paint_combine_masks
     ctex_paint_dilate_uv_seams
+    ctex_paint_apply_island_padding
     ctex_paint_dilation_session_create
     ctex_paint_dilation_session_destroy
     ctex_paint_dilation_session_finish
@@ -36,6 +37,9 @@ EXPORTS
     ctex_paint_dilation_session_stage_tile
     ctex_paint_evaluate_material_coordinates
     ctex_paint_evaluate_rejected_coverage
+    ctex_paint_filter_surface_scalar
+    ctex_paint_filter_surface_tangent_vector
+    ctex_paint_plan_island_padding
     ctex_paint_plan_work
     ctex_paint_rejection_init
     ctex_paint_seam_dilation_init

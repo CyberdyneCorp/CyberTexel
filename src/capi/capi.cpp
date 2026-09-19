@@ -14,6 +14,7 @@
 #include <ctex/paint/deposition.hpp>
 #include <ctex/paint/masking.hpp>
 #include <ctex/paint/seam_dilation.hpp>
+#include <ctex/paint/seam_filter.hpp>
 #include <ctex/paint/stroke.hpp>
 #include <ctex/paint/stroke_preset.hpp>
 #include <ctex/paint/work.hpp>
@@ -1998,6 +1999,166 @@ void write_capi_dilation_session_output(const ctex_paint_dilation_session& sessi
     copy_capi_dilation_session_output(session, tiles, pixels);
 }
 
+ctex::paint::SurfaceFilterOperation capi_surface_filter_operation(std::uint32_t operation) {
+    switch (operation) {
+        case CTEX_PAINT_SURFACE_FILTER_BLUR:
+            return ctex::paint::SurfaceFilterOperation::blur;
+        case CTEX_PAINT_SURFACE_FILTER_SMEAR:
+            return ctex::paint::SurfaceFilterOperation::smear;
+        case CTEX_PAINT_SURFACE_FILTER_DERIVATIVE:
+            return ctex::paint::SurfaceFilterOperation::derivative;
+        case CTEX_PAINT_SURFACE_FILTER_MIP_GENERATION:
+            return ctex::paint::SurfaceFilterOperation::mip_generation;
+        default:
+            throw std::invalid_argument("surface-filter operation is invalid");
+    }
+}
+
+std::vector<ctex::paint::SurfaceAdjacentSample> capi_surface_filter_samples(
+    const ctex_paint_surface_filter_descriptor& descriptor) {
+    if (descriptor.samples == nullptr && descriptor.sample_count != 0) {
+        throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                       "filter.samples=null with nonzero count");
+    }
+    if (descriptor.sample_count > CTEX_MAX_PAINT_TILE_TEXEL_COUNT) {
+        throw_boundary(CTEX_RESULT_OVER_BUDGET, CTEX_DIAGNOSTIC_PAINT_LIMIT_EXCEEDED,
+                       "surface-filter sample count exceeds the paint tile limit");
+    }
+    std::vector<ctex::paint::SurfaceAdjacentSample> samples;
+    samples.reserve(descriptor.sample_count);
+    for (std::size_t index = 0; index < descriptor.sample_count; ++index) {
+        const ctex_paint_surface_filter_sample& sample = descriptor.samples[index];
+        samples.push_back({
+            .texel_index = sample.texel_index,
+            .tangent_frame = stroke_frame(sample.tangent_frame),
+            .offset_x = sample.offset_x,
+            .offset_y = sample.offset_y,
+            .weight = sample.weight,
+        });
+    }
+    return samples;
+}
+
+ctex::paint::SurfaceFilterRequest capi_surface_filter_request(
+    const ctex_paint_surface_filter_descriptor& descriptor,
+    std::span<const ctex::paint::SurfaceAdjacentSample> samples) {
+    return {
+        .operation = capi_surface_filter_operation(descriptor.operation),
+        .footprint = {.radius_x = descriptor.radius_x, .radius_y = descriptor.radius_y},
+        .output_frame = stroke_frame(descriptor.output_frame),
+        .samples = samples,
+    };
+}
+
+struct CapiIslandPaddingInput {
+    std::size_t texel_count{};
+    std::size_t pixel_count{};
+};
+
+void validate_capi_surface_filter_value_count(std::size_t value_count) {
+    if (value_count == 0) {
+        throw std::invalid_argument("surface-filter values must not be empty");
+    }
+    if (value_count > CTEX_MAX_PAINT_TILE_TEXEL_COUNT) {
+        throw_boundary(CTEX_RESULT_OVER_BUDGET, CTEX_DIAGNOSTIC_PAINT_LIMIT_EXCEEDED,
+                       "surface-filter value count exceeds the paint tile limit");
+    }
+}
+
+CapiIslandPaddingInput capi_island_padding_input(
+    const ctex_paint_island_padding_descriptor& descriptor) {
+    const std::size_t texel_count = bounded_paint_pixel_count(descriptor.width, descriptor.height,
+                                                              CTEX_DIAGNOSTIC_INVALID_PAINT_FILTER);
+    if (descriptor.component_count == 0 || descriptor.component_count > 4) {
+        throw std::invalid_argument("island-padding component_count must be between one and four");
+    }
+    const std::size_t pixel_count = texel_count * descriptor.component_count;
+    if (descriptor.island_identity_count != texel_count || descriptor.pixel_count != pixel_count) {
+        throw std::invalid_argument("island-padding input counts are inconsistent");
+    }
+    if (descriptor.island_identity == nullptr || descriptor.pixels == nullptr) {
+        throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                       descriptor.island_identity == nullptr ? "padding.island_identity is required"
+                                                             : "padding.pixels is required");
+    }
+    return {
+        .texel_count = texel_count,
+        .pixel_count = pixel_count,
+    };
+}
+
+ctex::paint::SeamDilationRaster capi_island_padding_raster(
+    const ctex_paint_island_padding_descriptor& descriptor) {
+    return {
+        .width = descriptor.width,
+        .height = descriptor.height,
+        .component_count = static_cast<std::uint8_t>(descriptor.component_count),
+        .pixels =
+            std::vector<double>(descriptor.pixels, descriptor.pixels + descriptor.pixel_count),
+    };
+}
+
+ctex::paint::IslandPaddingPlan capi_island_padding_plan(
+    const ctex_paint_island_padding_descriptor& descriptor) {
+    return ctex::paint::plan_island_padding(
+        descriptor.width, descriptor.height,
+        {descriptor.island_identity, descriptor.island_identity_count},
+        {.radius_x = descriptor.radius_x, .radius_y = descriptor.radius_y},
+        descriptor.requested_mip_levels);
+}
+
+std::size_t capi_affected_island_count(const ctex::paint::IslandPaddingPlan& plan) {
+    std::size_t count = 0;
+    for (const ctex::paint::UnsupportedMipLevel& level : plan.unsupported_mip_levels) {
+        if (level.affected_islands.size() > std::numeric_limits<std::size_t>::max() - count) {
+            throw std::length_error("island-padding report exceeds address space");
+        }
+        count += level.affected_islands.size();
+    }
+    return count;
+}
+
+ctex_paint_island_padding_info capi_island_padding_info(const CapiIslandPaddingInput& input,
+                                                        const ctex::paint::IslandPaddingPlan& plan,
+                                                        std::size_t affected_island_count,
+                                                        std::size_t padded_texel_count) {
+    return {
+        .size = CTEX_PAINT_ISLAND_PADDING_INFO_CURRENT_SIZE,
+        .required_ownership_count = input.texel_count,
+        .unsupported_mip_level_count = plan.unsupported_mip_levels.size(),
+        .required_affected_island_count = affected_island_count,
+        .required_pixel_count = input.pixel_count,
+        .padded_texel_count = padded_texel_count,
+        .padding_radius = plan.padding_radius,
+    };
+}
+
+void copy_capi_island_padding_plan(const ctex::paint::IslandPaddingPlan& plan,
+                                   std::uint32_t* ownership,
+                                   ctex_paint_unsupported_mip_level* unsupported_mip_levels,
+                                   std::uint32_t* affected_islands) {
+    if (ownership != nullptr) {
+        std::copy(plan.ownership.begin(), plan.ownership.end(), ownership);
+    }
+    std::size_t offset = 0;
+    for (std::size_t index = 0; index < plan.unsupported_mip_levels.size(); ++index) {
+        const ctex::paint::UnsupportedMipLevel& level = plan.unsupported_mip_levels[index];
+        if (unsupported_mip_levels != nullptr) {
+            unsupported_mip_levels[index] = {
+                .mip_level = level.mip_level,
+                .required_gutter_radius = level.required_gutter_radius,
+                .affected_island_offset = offset,
+                .affected_island_count = level.affected_islands.size(),
+            };
+        }
+        if (affected_islands != nullptr) {
+            std::copy(level.affected_islands.begin(), level.affected_islands.end(),
+                      affected_islands + offset);
+        }
+        offset += level.affected_islands.size();
+    }
+}
+
 ctex::paint::RejectionSettings accept_all_rejection_settings() {
     return {
         .depth_enabled = false,
@@ -3125,6 +3286,144 @@ extern "C" ctex_result ctex_paint_dilation_session_finish(
                            error.what());
         } catch (const std::invalid_argument& error) {
             throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_INVALID_PAINT_DILATION,
+                           error.what());
+        }
+    });
+}
+
+extern "C" ctex_result ctex_paint_filter_surface_scalar(
+    const ctex_paint_surface_filter_descriptor* filter, const double* values,
+    std::size_t value_count, double* out_value) {
+    return call_boundary("ctex_paint_filter_surface_scalar", [&] {
+        if (filter == nullptr || values == nullptr || out_value == nullptr) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                           "filter, values and out_value are required");
+        }
+        validate_structure_size(filter->size, CTEX_PAINT_SURFACE_FILTER_DESCRIPTOR_V1_SIZE,
+                                CTEX_PAINT_SURFACE_FILTER_DESCRIPTOR_CURRENT_SIZE, "filter.size");
+        try {
+            validate_capi_surface_filter_value_count(value_count);
+            const std::vector<ctex::paint::SurfaceAdjacentSample> samples =
+                capi_surface_filter_samples(*filter);
+            const ctex::paint::SurfaceFilterRequest request =
+                capi_surface_filter_request(*filter, samples);
+            const double result =
+                ctex::paint::filter_surface_scalar({values, value_count}, request);
+            *out_value = result;
+        } catch (const std::invalid_argument& error) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_INVALID_PAINT_FILTER,
+                           error.what());
+        } catch (const std::overflow_error& error) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_INVALID_PAINT_FILTER,
+                           error.what());
+        }
+    });
+}
+
+extern "C" ctex_result ctex_paint_filter_surface_tangent_vector(
+    const ctex_paint_surface_filter_descriptor* filter, const ctex_vec3d* values,
+    std::size_t value_count, ctex_vec3d* out_value) {
+    return call_boundary("ctex_paint_filter_surface_tangent_vector", [&] {
+        if (filter == nullptr || values == nullptr || out_value == nullptr) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                           "filter, values and out_value are required");
+        }
+        validate_structure_size(filter->size, CTEX_PAINT_SURFACE_FILTER_DESCRIPTOR_V1_SIZE,
+                                CTEX_PAINT_SURFACE_FILTER_DESCRIPTOR_CURRENT_SIZE, "filter.size");
+        try {
+            validate_capi_surface_filter_value_count(value_count);
+            const std::vector<ctex::paint::SurfaceAdjacentSample> samples =
+                capi_surface_filter_samples(*filter);
+            const ctex::paint::SurfaceFilterRequest request =
+                capi_surface_filter_request(*filter, samples);
+            std::vector<ctex::paint::Vec3d> converted_values;
+            converted_values.reserve(value_count);
+            std::transform(values, values + value_count, std::back_inserter(converted_values),
+                           [](ctex_vec3d value) { return stroke_vec(value); });
+            const ctex::paint::Vec3d result =
+                ctex::paint::filter_surface_tangent_vector(converted_values, request);
+            *out_value = capi_vec(result);
+        } catch (const std::invalid_argument& error) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_INVALID_PAINT_FILTER,
+                           error.what());
+        }
+    });
+}
+
+extern "C" ctex_result ctex_paint_plan_island_padding(
+    const ctex_paint_island_padding_descriptor* padding, ctex_paint_island_padding_info* out_info,
+    std::uint32_t* ownership, std::size_t ownership_capacity, std::size_t* out_ownership_count,
+    ctex_paint_unsupported_mip_level* unsupported_mip_levels,
+    std::size_t unsupported_mip_level_capacity, std::size_t* out_unsupported_mip_level_count,
+    std::uint32_t* affected_islands, std::size_t affected_island_capacity,
+    std::size_t* out_affected_island_count) {
+    return call_boundary("ctex_paint_plan_island_padding", [&] {
+        if (padding == nullptr || out_info == nullptr || out_ownership_count == nullptr ||
+            out_unsupported_mip_level_count == nullptr || out_affected_island_count == nullptr) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                           "padding, out_info and output counts are required");
+        }
+        validate_structure_size(padding->size, CTEX_PAINT_ISLAND_PADDING_DESCRIPTOR_V1_SIZE,
+                                CTEX_PAINT_ISLAND_PADDING_DESCRIPTOR_CURRENT_SIZE, "padding.size");
+        validate_structure_size(out_info->size, CTEX_PAINT_ISLAND_PADDING_INFO_V1_SIZE,
+                                CTEX_PAINT_ISLAND_PADDING_INFO_CURRENT_SIZE, "out_info.size");
+        try {
+            const CapiIslandPaddingInput input = capi_island_padding_input(*padding);
+            const ctex::paint::IslandPaddingPlan plan = capi_island_padding_plan(*padding);
+            const std::size_t affected_island_count = capi_affected_island_count(plan);
+            *out_ownership_count = plan.ownership.size();
+            *out_unsupported_mip_level_count = plan.unsupported_mip_levels.size();
+            *out_affected_island_count = affected_island_count;
+            validate_output_array(ownership, ownership_capacity, plan.ownership.size(),
+                                  "ownership");
+            validate_output_array(unsupported_mip_levels, unsupported_mip_level_capacity,
+                                  plan.unsupported_mip_levels.size(), "unsupported_mip_levels");
+            validate_output_array(affected_islands, affected_island_capacity, affected_island_count,
+                                  "affected_islands");
+            *out_info = capi_island_padding_info(input, plan, affected_island_count, 0);
+            copy_capi_island_padding_plan(plan, ownership, unsupported_mip_levels,
+                                          affected_islands);
+        } catch (const std::invalid_argument& error) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_INVALID_PAINT_FILTER,
+                           error.what());
+        } catch (const std::length_error& error) {
+            throw_boundary(CTEX_RESULT_OVER_BUDGET, CTEX_DIAGNOSTIC_PAINT_LIMIT_EXCEEDED,
+                           error.what());
+        }
+    });
+}
+
+extern "C" ctex_result ctex_paint_apply_island_padding(
+    const ctex_paint_island_padding_descriptor* padding, ctex_paint_island_padding_info* out_info,
+    double* pixels, std::size_t pixel_capacity, std::size_t* out_pixel_count) {
+    return call_boundary("ctex_paint_apply_island_padding", [&] {
+        if (padding == nullptr || out_info == nullptr || out_pixel_count == nullptr) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                           "padding, out_info and out_pixel_count are required");
+        }
+        validate_structure_size(padding->size, CTEX_PAINT_ISLAND_PADDING_DESCRIPTOR_V1_SIZE,
+                                CTEX_PAINT_ISLAND_PADDING_DESCRIPTOR_CURRENT_SIZE, "padding.size");
+        validate_structure_size(out_info->size, CTEX_PAINT_ISLAND_PADDING_INFO_V1_SIZE,
+                                CTEX_PAINT_ISLAND_PADDING_INFO_CURRENT_SIZE, "out_info.size");
+        try {
+            const CapiIslandPaddingInput input = capi_island_padding_input(*padding);
+            const ctex::paint::IslandPaddingPlan plan = capi_island_padding_plan(*padding);
+            const ctex::paint::SeamDilationRaster raster = capi_island_padding_raster(*padding);
+            const ctex::paint::IslandPaddingResult result = ctex::paint::apply_island_padding(
+                raster, {padding->island_identity, padding->island_identity_count}, plan);
+            const std::size_t affected_island_count = capi_affected_island_count(plan);
+            *out_pixel_count = result.raster.pixels.size();
+            validate_output_array(pixels, pixel_capacity, result.raster.pixels.size(), "pixels");
+            *out_info = capi_island_padding_info(input, plan, affected_island_count,
+                                                 result.padded_texel_count);
+            if (pixels != nullptr) {
+                std::copy(result.raster.pixels.begin(), result.raster.pixels.end(), pixels);
+            }
+        } catch (const std::invalid_argument& error) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_INVALID_PAINT_FILTER,
+                           error.what());
+        } catch (const std::length_error& error) {
+            throw_boundary(CTEX_RESULT_OVER_BUDGET, CTEX_DIAGNOSTIC_PAINT_LIMIT_EXCEEDED,
                            error.what());
         }
     });

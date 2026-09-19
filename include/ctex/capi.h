@@ -78,7 +78,8 @@ typedef enum ctex_diagnostic_code {
     CTEX_DIAGNOSTIC_INVALID_PAINT_COORDINATES = 42,
     CTEX_DIAGNOSTIC_INVALID_PAINT_REJECTION = 43,
     CTEX_DIAGNOSTIC_INVALID_PAINT_WORK = 44,
-    CTEX_DIAGNOSTIC_INVALID_PAINT_DILATION = 45
+    CTEX_DIAGNOSTIC_INVALID_PAINT_DILATION = 45,
+    CTEX_DIAGNOSTIC_INVALID_PAINT_FILTER = 46
 } ctex_diagnostic_code;
 
 typedef enum ctex_log_severity {
@@ -124,6 +125,7 @@ typedef struct ctex_paint_dilation_session ctex_paint_dilation_session;
 
 #define CTEX_MAX_MESH_VERTEX_COUNT ((size_t)100000000)
 #define CTEX_MAX_MESH_TRIANGLE_COUNT ((size_t)100000000)
+#define CTEX_NO_UV_ISLAND UINT32_MAX
 
 typedef enum ctex_partition_source_kind {
     CTEX_PARTITION_SOURCE_MATERIAL = 0,
@@ -631,6 +633,76 @@ typedef struct ctex_paint_dilation_session_info {
 #define CTEX_PAINT_DILATION_SESSION_INFO_CURRENT_SIZE \
     ((uint32_t)sizeof(ctex_paint_dilation_session_info))
 
+typedef enum ctex_paint_surface_filter_operation {
+    CTEX_PAINT_SURFACE_FILTER_BLUR = 0,
+    CTEX_PAINT_SURFACE_FILTER_SMEAR = 1,
+    CTEX_PAINT_SURFACE_FILTER_DERIVATIVE = 2,
+    CTEX_PAINT_SURFACE_FILTER_MIP_GENERATION = 3
+} ctex_paint_surface_filter_operation;
+
+typedef struct ctex_paint_surface_filter_sample {
+    size_t texel_index;
+    ctex_stroke_frame tangent_frame;
+    int32_t offset_x;
+    int32_t offset_y;
+    double weight;
+} ctex_paint_surface_filter_sample;
+
+typedef struct ctex_paint_surface_filter_descriptor {
+    uint32_t size;
+    uint32_t operation;
+    uint32_t radius_x;
+    uint32_t radius_y;
+    ctex_stroke_frame output_frame;
+    const ctex_paint_surface_filter_sample* samples;
+    size_t sample_count;
+} ctex_paint_surface_filter_descriptor;
+
+#define CTEX_PAINT_SURFACE_FILTER_DESCRIPTOR_V1_SIZE \
+    ((uint32_t)sizeof(ctex_paint_surface_filter_descriptor))
+#define CTEX_PAINT_SURFACE_FILTER_DESCRIPTOR_CURRENT_SIZE \
+    ((uint32_t)sizeof(ctex_paint_surface_filter_descriptor))
+
+typedef struct ctex_paint_island_padding_descriptor {
+    uint32_t size;
+    uint32_t width;
+    uint32_t height;
+    uint32_t component_count;
+    uint32_t radius_x;
+    uint32_t radius_y;
+    uint32_t requested_mip_levels;
+    const uint32_t* island_identity;
+    size_t island_identity_count;
+    const double* pixels;
+    size_t pixel_count;
+} ctex_paint_island_padding_descriptor;
+
+#define CTEX_PAINT_ISLAND_PADDING_DESCRIPTOR_V1_SIZE \
+    ((uint32_t)sizeof(ctex_paint_island_padding_descriptor))
+#define CTEX_PAINT_ISLAND_PADDING_DESCRIPTOR_CURRENT_SIZE \
+    ((uint32_t)sizeof(ctex_paint_island_padding_descriptor))
+
+typedef struct ctex_paint_unsupported_mip_level {
+    uint32_t mip_level;
+    uint32_t required_gutter_radius;
+    size_t affected_island_offset;
+    size_t affected_island_count;
+} ctex_paint_unsupported_mip_level;
+
+typedef struct ctex_paint_island_padding_info {
+    uint32_t size;
+    size_t required_ownership_count;
+    size_t unsupported_mip_level_count;
+    size_t required_affected_island_count;
+    size_t required_pixel_count;
+    size_t padded_texel_count;
+    uint32_t padding_radius;
+} ctex_paint_island_padding_info;
+
+#define CTEX_PAINT_ISLAND_PADDING_INFO_V1_SIZE ((uint32_t)sizeof(ctex_paint_island_padding_info))
+#define CTEX_PAINT_ISLAND_PADDING_INFO_CURRENT_SIZE \
+    ((uint32_t)sizeof(ctex_paint_island_padding_info))
+
 typedef struct ctex_paint_deposition_descriptor {
     uint32_t size;
     uint32_t mode;
@@ -1124,6 +1196,27 @@ CTEX_API ctex_result ctex_paint_dilation_session_get_preview(
 CTEX_API ctex_result ctex_paint_dilation_session_finish(
     ctex_paint_dilation_session* session, ctex_paint_dilation_session_info* out_info,
     ctex_paint_dilation_tile_info* tiles, size_t tile_capacity, size_t* out_tile_count,
+    double* pixels, size_t pixel_capacity, size_t* out_pixel_count);
+
+/* Applies explicit surface-adjacent taps to scalar or tangent-vector values. */
+CTEX_API ctex_result
+ctex_paint_filter_surface_scalar(const ctex_paint_surface_filter_descriptor* filter,
+                                 const double* values, size_t value_count, double* out_value);
+CTEX_API ctex_result ctex_paint_filter_surface_tangent_vector(
+    const ctex_paint_surface_filter_descriptor* filter, const ctex_vec3d* values,
+    size_t value_count, ctex_vec3d* out_value);
+
+/* Plans owned gutters and reports unsupported mip levels through flattened arrays. */
+CTEX_API ctex_result ctex_paint_plan_island_padding(
+    const ctex_paint_island_padding_descriptor* padding, ctex_paint_island_padding_info* out_info,
+    uint32_t* ownership, size_t ownership_capacity, size_t* out_ownership_count,
+    ctex_paint_unsupported_mip_level* unsupported_mip_levels, size_t unsupported_mip_level_capacity,
+    size_t* out_unsupported_mip_level_count, uint32_t* affected_islands,
+    size_t affected_island_capacity, size_t* out_affected_island_count);
+
+/* Applies the deterministic plan without overwriting valid or contested island texels. */
+CTEX_API ctex_result ctex_paint_apply_island_padding(
+    const ctex_paint_island_padding_descriptor* padding, ctex_paint_island_padding_info* out_info,
     double* pixels, size_t pixel_capacity, size_t* out_pixel_count);
 
 /* Intersects every active normalized mask for one bounded tile. */
