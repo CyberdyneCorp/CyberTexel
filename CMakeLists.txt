@@ -935,6 +935,15 @@ if(BUILD_TESTING)
     set_tests_properties(
         shader-emission-licence-audit PROPERTIES WORKING_DIRECTORY "${PROJECT_SOURCE_DIR}"
     )
+    add_test(
+        NAME mesh-map-no-baker-dependency
+        COMMAND
+            "${CTEX_PYTHON3_EXECUTABLE}" tools/check_no_sibling_links.py
+            "${PROJECT_BINARY_DIR}"
+    )
+    set_tests_properties(
+        mesh-map-no-baker-dependency PROPERTIES WORKING_DIRECTORY "${PROJECT_SOURCE_DIR}"
+    )
 
     set_tests_properties(
         material-graph-document
@@ -948,6 +957,10 @@ if(BUILD_TESTING)
         material-graph-library
         material-graph-portable-nodes
         PROPERTIES LABELS material-graph-scenario
+    )
+    set_tests_properties(
+        material-graph-validation
+        PROPERTIES LABELS "material-graph-scenario;mesh-maps-scenario"
     )
     set_tests_properties(
         graph-emission
@@ -1038,5 +1051,14 @@ if(BUILD_TESTING)
         paint-preview
         paint-scenarios
         PROPERTIES LABELS "stroke-model-scenario;paint-engine-scenario"
+    )
+    set_tests_properties(
+        mesh-maps
+        mesh-map-bake-provider
+        mesh-map-external-import
+        mesh-map-generators
+        mesh-map-generator-parity
+        mesh-map-no-baker-dependency
+        PROPERTIES LABELS mesh-maps-scenario
     )
 endif()
