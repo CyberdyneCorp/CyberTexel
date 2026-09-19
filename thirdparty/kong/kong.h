@@ -104,6 +104,7 @@ typedef enum operatorr {
 typedef enum texture_kind {
 	TEXTURE_KIND_NONE,
 	TEXTURE_KIND_2D,
+	TEXTURE_KIND_CUBE,
 } texture_kind;
 
 typedef size_t   name_id;

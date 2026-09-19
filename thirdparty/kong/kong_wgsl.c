@@ -343,8 +343,9 @@ static void write_globals(char *wgsl, size_t *offset, function *main, bool *fram
 			}
 			else if (get_type(base_type)->tex_kind != TEXTURE_KIND_NONE) {
 				if (referenced) {
-					*offset += sprintf(&wgsl[*offset], "@group(%zu) @binding(%u) var _set%zu_%" PRIu64 ": texture_2d<f32>;\n\n", set_index, binding, set_index,
-					                   g->var_index);
+					const char *texture_type = get_type(base_type)->tex_kind == TEXTURE_KIND_CUBE ? "texture_cube<f32>" : "texture_2d<f32>";
+					*offset += sprintf(&wgsl[*offset], "@group(%zu) @binding(%u) var _set%zu_%" PRIu64 ": %s;\n\n", set_index, binding, set_index,
+					                   g->var_index, texture_type);
 				}
 				binding += 1;
 			}

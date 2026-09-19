@@ -167,6 +167,14 @@ simultaneously across WGSL, MSL, SPIR-V and HLSL. Exact result comparison covers
 graph programs, target shaders and device-independent pass plans without a
 timing-dependent assertion. Task 6.14 and capability `shader-emission`.
 
+**2026-09-19 — Preview lighting uses a reproducible metallic/roughness
+contract.** The shader uses GGX distribution and masking, Schlick Fresnel,
+Lambertian energy partition, split-sum image-based specular and explicit linear
+Rec. 709 encodings. Radiance cubes use roughness-indexed mips; irradiance cubes
+store the cosine integral before division by pi. Missing environments select a
+fixed sky/ground fallback, while channel inspection remains entirely unlit.
+Task 6.15 and capability `shader-emission`.
+
 ## Open questions
 
 These are unresolved and should be answered by the task that first depends on

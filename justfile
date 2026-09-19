@@ -140,6 +140,9 @@ test-emission-cache: build
 test-concurrent-emission: build
     ctest --test-dir build/headless --output-on-failure -R '^concurrent-emission$'
 
+test-preview-emission: (_require "spirv-val" "SPIRV-Tools") build
+    ctest --test-dir build/headless --output-on-failure -R '^preview-emission'
+
 examples:
     @just _unimplemented examples 16.2
 

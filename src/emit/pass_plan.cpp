@@ -378,6 +378,13 @@ void validate_bindings(const PassDescriptor& pass,
         const LogicalTexture& texture =
             require_resource(resources, binding.resource, "texture binding");
         validate_subresources(texture, binding.subresources, "texture binding");
+        if (binding.view_dimension == TextureViewDimension::cube &&
+            (texture.extent.width != texture.extent.height || texture.extent.layers % 6U != 0 ||
+             binding.subresources.first_layer % 6U != 0 ||
+             binding.subresources.layer_count % 6U != 0)) {
+            throw PassPlanError("pass " + pass.identifier +
+                                " cube binding requires square six-layer faces");
+        }
         const bool require_read = binding.kind != TextureBindingKind::storage_write;
         const bool require_write = binding.kind == TextureBindingKind::storage_write ||
                                    binding.kind == TextureBindingKind::storage_read_write;

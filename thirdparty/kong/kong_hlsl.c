@@ -78,6 +78,9 @@ static char *type_string(type_id type) {
 		if (get_type(type)->tex_kind == TEXTURE_KIND_2D) {
 			return "Texture2D<float4>";
 		}
+		else if (get_type(type)->tex_kind == TEXTURE_KIND_CUBE) {
+			return "TextureCube<float4>";
+		}
 		else {
 			// TODO
 			assert(false);
@@ -316,6 +319,7 @@ static void write_globals(char *hlsl, size_t *offset, function *main, function *
 		}
 		else if (get_type(base_type)->tex_kind != TEXTURE_KIND_NONE) {
 			if (writable) {
+				assert(get_type(base_type)->tex_kind == TEXTURE_KIND_2D);
 				*offset += sprintf(&hlsl[*offset], "RWTexture2D<float4> _%" PRIu64 " : register(u%i);\n\n", g->var_index, register_index);
 			}
 			else {
@@ -323,7 +327,8 @@ static void write_globals(char *hlsl, size_t *offset, function *main, function *
 					*offset += sprintf(&hlsl[*offset], "Texture2D<float4> _%" PRIu64 "[] : register(t%i, space1);\n\n", g->var_index, register_index);
 				}
 				else {
-					*offset += sprintf(&hlsl[*offset], "Texture2D<float4> _%" PRIu64 " : register(t%i);\n\n", g->var_index, register_index);
+					const char *texture_type = get_type(base_type)->tex_kind == TEXTURE_KIND_CUBE ? "TextureCube<float4>" : "Texture2D<float4>";
+					*offset += sprintf(&hlsl[*offset], "%s _%" PRIu64 " : register(t%i);\n\n", texture_type, g->var_index, register_index);
 				}
 			}
 		}

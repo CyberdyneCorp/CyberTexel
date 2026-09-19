@@ -1,6 +1,6 @@
 # Emission cache
 
-`ctex/emit/emission_cache.hpp` provides caches for the two emission products
+`ctex/emit/emission_cache.hpp` provides caches for the three emission products
 currently implemented:
 
 - `GraphEmissionCache` stores deterministic WGSL expression programs for a
@@ -8,6 +8,8 @@ currently implemented:
 - `LayerStackEmissionCache` stores the complete target shader set, workaround
   report, and validated pass plan produced by feature-gated layer-stack
   emission.
+- `PreviewEmissionCache` stores lit previews and unlit channel inspections,
+  partitioned by the full preview resource contract and display mode.
 
 Cache keys retain canonical content bytes rather than a truncated digest, so a
 hash collision cannot return an unrelated program. Graph keys contain the
@@ -16,7 +18,9 @@ workspace, and the declarative host-node registry semantics. A host-node
 callback whose behavior changes must receive a new node-type version, as
 required by the versioned registration contract. Layer-stack keys contain the
 ordered layers, complete logical texture declarations, output, stable identity,
-and sampling request.
+and sampling request. Preview keys additionally contain ordered channel
+semantics, component counts, environment resources, analytic-light count,
+geometry count, and whether the result is lit or inspecting a named channel.
 
 Both key types additionally contain the requested shader target and every
 `DeviceFeatureSet` field: binding budget, maximum texture dimension, supported
@@ -42,5 +46,6 @@ plans with serial results.
 
 Graph expression emission currently supports WGSL and refuses other targets
 before lookup. Complete layer-stack emissions are cached independently for
-WGSL, MSL, SPIR-V, and HLSL. Complete graph entry-point integration remains
-scheduled for tasks 6.15–6.16.
+WGSL, MSL, SPIR-V, and HLSL, as are [preview and inspection
+shaders](preview-shading.md). Complete graph entry-point integration remains
+scheduled for task 6.16.

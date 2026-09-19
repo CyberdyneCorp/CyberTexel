@@ -36,6 +36,16 @@
                         "layer-stack-3.vert.wgsl",
                         "layer-stack-3.frag.wgsl"
                     ]
+                },
+                {
+                    "name": "lit preview and roughness inspection",
+                    "command": ["build/headless/ctex_preview_emission_test", "--write-determinism"],
+                    "outputs": [
+                        "preview.vert.wgsl",
+                        "preview.frag.wgsl",
+                        "inspect-roughness.vert.wgsl",
+                        "inspect-roughness.frag.wgsl"
+                    ]
                 }
             ]
         },

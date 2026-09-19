@@ -6,8 +6,8 @@ program intended for a generated shader function body. Device-independent
 [pass plans](pass-plans.md) now define resource generations, layouts, bindings,
 state, and commands. [Layer-stack emission](feature-gated-emission.md) now
 connects those plans to all four target artifact forms under a declared device
-feature set; complete material-graph entry-point integration follows in tasks
-6.15–6.16. Canonical graph content, target, feature set, and host-node semantics
+feature set; complete material-graph entry-point integration follows in task
+6.16. Canonical graph content, target, feature set, and host-node semantics
 also key the [emission cache](emission-cache.md).
 
 Each intermediate variable is derived from the stable node ID and output socket

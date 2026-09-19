@@ -2076,8 +2076,9 @@ static void write_function(instructions_buffer *instructions, function *f, spirv
 				spirv_id sampled_image_type;
 
 				if (get_type(image_var.type.type)->tex_kind != TEXTURE_KIND_NONE) {
-					image_type         = spirv_image_type;
-					sampled_image_type = spirv_sampled_image_type;
+					bool cube          = get_type(image_var.type.type)->tex_kind == TEXTURE_KIND_CUBE;
+					image_type         = cube ? spirv_imagecube_type : spirv_image_type;
+					sampled_image_type = cube ? spirv_sampled_imagecube_type : spirv_sampled_image_type;
 				}
 
 				spirv_id image         = write_op_load(instructions, image_type, convert_kong_index_to_spirv_id(image_var.index));
@@ -2096,8 +2097,9 @@ static void write_function(instructions_buffer *instructions, function *f, spirv
 				spirv_id sampled_image_type;
 
 				if (get_type(image_var.type.type)->tex_kind != TEXTURE_KIND_NONE) {
-					image_type         = spirv_image_type;
-					sampled_image_type = spirv_sampled_image_type;
+					bool cube          = get_type(image_var.type.type)->tex_kind == TEXTURE_KIND_CUBE;
+					image_type         = cube ? spirv_imagecube_type : spirv_image_type;
+					sampled_image_type = cube ? spirv_sampled_imagecube_type : spirv_sampled_image_type;
 				}
 
 				spirv_id image         = write_op_load(instructions, image_type, convert_kong_index_to_spirv_id(image_var.index));
@@ -3525,8 +3527,9 @@ static void write_globals(instructions_buffer *decorations, instructions_buffer 
 					image_pointer_type = spirv_readwrite_image_pointer_type;
 				}
 				else {
-					add_to_type_map(g->type, spirv_image_type, false, STORAGE_CLASS_NONE);
-					image_pointer_type = spirv_image_pointer_type;
+					bool cube = get_type(base_type)->tex_kind == TEXTURE_KIND_CUBE;
+					add_to_type_map(g->type, cube ? spirv_imagecube_type : spirv_image_type, false, STORAGE_CLASS_NONE);
+					image_pointer_type = cube ? spirv_imagecube_pointer_type : spirv_image_pointer_type;
 				}
 
 				add_to_type_map(g->type, image_pointer_type, readable || writable, STORAGE_CLASS_UNIFORM_CONSTANT);

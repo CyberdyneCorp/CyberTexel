@@ -102,6 +102,7 @@ ctex_add_module(
         src/emit/feature_emission.cpp
         src/emit/kong_context.cpp
         src/emit/pass_plan.cpp
+        src/emit/preview_emission.cpp
 )
 target_include_directories(ctex_emit SYSTEM PRIVATE "${PROJECT_SOURCE_DIR}/thirdparty/kong")
 target_link_libraries(ctex_emit PRIVATE ctex_kong)
@@ -353,6 +354,40 @@ if(BUILD_TESTING)
     ctex_configure_cpp_target(ctex_concurrent_emission_test)
     target_link_libraries(ctex_concurrent_emission_test PRIVATE ctex_emit ctex_graph)
     add_test(NAME concurrent-emission COMMAND ctex_concurrent_emission_test)
+
+    add_executable(ctex_preview_emission_test tests/emit/preview_emission_test.cpp)
+    ctex_configure_cpp_target(ctex_preview_emission_test)
+    target_link_libraries(ctex_preview_emission_test PRIVATE ctex_emit ctex_graph)
+    add_test(NAME preview-emission COMMAND ctex_preview_emission_test)
+    if(CTEX_SPIRV_VAL_EXECUTABLE)
+        set(CTEX_PREVIEW_VERTEX_SPIRV "${CMAKE_CURRENT_BINARY_DIR}/preview-vertex.spv")
+        set(CTEX_PREVIEW_FRAGMENT_SPIRV "${CMAKE_CURRENT_BINARY_DIR}/preview-fragment.spv")
+        add_test(
+            NAME preview-emission-spirv-generate
+            COMMAND
+                ctex_preview_emission_test --write-spirv
+                "${CTEX_PREVIEW_VERTEX_SPIRV}" "${CTEX_PREVIEW_FRAGMENT_SPIRV}"
+        )
+        set_tests_properties(
+            preview-emission-spirv-generate PROPERTIES FIXTURES_SETUP preview-emission-spirv
+        )
+        add_test(
+            NAME preview-emission-spirv-vertex-validation
+            COMMAND "${CTEX_SPIRV_VAL_EXECUTABLE}" "${CTEX_PREVIEW_VERTEX_SPIRV}"
+        )
+        set_tests_properties(
+            preview-emission-spirv-vertex-validation
+            PROPERTIES FIXTURES_REQUIRED preview-emission-spirv
+        )
+        add_test(
+            NAME preview-emission-spirv-fragment-validation
+            COMMAND "${CTEX_SPIRV_VAL_EXECUTABLE}" "${CTEX_PREVIEW_FRAGMENT_SPIRV}"
+        )
+        set_tests_properties(
+            preview-emission-spirv-fragment-validation
+            PROPERTIES FIXTURES_REQUIRED preview-emission-spirv
+        )
+    endif()
 
     add_executable(ctex_material_graph_output_test tests/doc/material_graph_test.cpp)
     ctex_configure_cpp_target(ctex_material_graph_output_test)

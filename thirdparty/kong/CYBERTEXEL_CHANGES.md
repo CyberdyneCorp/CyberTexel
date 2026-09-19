@@ -17,5 +17,9 @@ CyberTexel changes:
   text, unified-module, and binary artifact ownership.
 - Used the compiler-recognized `__typeof__` spelling in stb_ds so its C99
   literal-address helper remains available under strict C11 compilation.
+- Promoted four-byte stb_ds hash inputs to unsigned values before shifting so
+  high bytes do not trigger signed-shift undefined behaviour.
+- Preserved `texcube` as a cube texture through WGSL, Metal, HLSL, and SPIR-V
+  declaration and sampling lowering instead of treating it as `tex2d`.
 
 All four retained backends are compiled and independently context-isolated.

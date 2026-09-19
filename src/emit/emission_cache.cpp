@@ -187,6 +187,30 @@ std::string layer_stack_content(const LayerStackEmissionRequest& request) {
     return key.take();
 }
 
+std::string preview_content(const PreviewEmissionRequest& request, std::string_view mode,
+                            std::string_view inspected_channel = {}) {
+    KeyWriter key;
+    key.text(mode);
+    key.text(inspected_channel);
+    key.text(request.stable_identity);
+    key.unsigned_value(request.channels.size());
+    for (const PreviewChannelInput& channel : request.channels) {
+        key.text(channel.semantic_id);
+        key.unsigned_value(channel.component_count);
+        write_texture(key, channel.texture);
+    }
+    write_texture(key, request.output);
+    key.boolean(request.environment.has_value());
+    if (request.environment) {
+        write_texture(key, request.environment->radiance);
+        write_texture(key, request.environment->diffuse_irradiance);
+        write_texture(key, request.environment->specular_brdf_lookup);
+    }
+    key.unsigned_value(request.analytic_light_count);
+    key.unsigned_value(request.vertex_count);
+    return key.take();
+}
+
 std::string workspace_content(const graph::GraphWorkspace& workspace,
                               std::string_view material_identifier,
                               const graph::NodeTypeRegistry& registry) {
@@ -350,6 +374,51 @@ EmissionCacheStatistics LayerStackEmissionCache::statistics() const {
 }
 
 void LayerStackEmissionCache::clear() {
+    if (impl_ != nullptr) {
+        impl_->cache.clear();
+    }
+}
+
+class PreviewEmissionCache::Impl {
+public:
+    ConcurrentCache<PreviewEmission> cache;
+};
+
+PreviewEmissionCache::PreviewEmissionCache() : impl_(std::make_unique<Impl>()) {}
+PreviewEmissionCache::~PreviewEmissionCache() = default;
+PreviewEmissionCache::PreviewEmissionCache(PreviewEmissionCache&&) noexcept = default;
+PreviewEmissionCache& PreviewEmissionCache::operator=(PreviewEmissionCache&&) noexcept = default;
+
+CachedPreviewEmission PreviewEmissionCache::emit_lit(const PreviewEmissionRequest& request) {
+    if (impl_ == nullptr) {
+        throw std::logic_error("cannot use a moved-from preview emission cache");
+    }
+    auto [emission, hit] = impl_->cache.get(
+        cache_key(preview_content(request, "lit"), request.target, request.features),
+        [&request] { return emit_lit_preview(request); });
+    return {std::move(emission), hit};
+}
+
+CachedPreviewEmission PreviewEmissionCache::emit_inspection(const PreviewEmissionRequest& request,
+                                                            std::string_view semantic_id) {
+    if (impl_ == nullptr) {
+        throw std::logic_error("cannot use a moved-from preview emission cache");
+    }
+    auto [emission, hit] = impl_->cache.get(
+        cache_key(preview_content(request, "inspection", semantic_id), request.target,
+                  request.features),
+        [&request, semantic_id] { return emit_channel_inspection(request, semantic_id); });
+    return {std::move(emission), hit};
+}
+
+EmissionCacheStatistics PreviewEmissionCache::statistics() const {
+    if (impl_ == nullptr) {
+        return {};
+    }
+    return impl_->cache.statistics();
+}
+
+void PreviewEmissionCache::clear() {
     if (impl_ != nullptr) {
         impl_->cache.clear();
     }

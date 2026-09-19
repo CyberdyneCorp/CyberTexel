@@ -250,10 +250,12 @@ static void write_argument_buffers(char *code, size_t *offset) {
 			}
 			else if (is_texture(g->type)) {
 				if (writable) {
+					assert(get_type(g->type)->tex_kind == TEXTURE_KIND_2D);
 					*offset += sprintf(&code[*offset], "\ttexture2d<float, access::write> _%" PRIu64 " [[id(%zu)]];\n", g->var_index, global_index);
 				}
 				else {
-					*offset += sprintf(&code[*offset], "\ttexture2d<float> _%" PRIu64 " [[id(%zu)]];\n", g->var_index, global_index);
+					const char *texture_type = get_type(g->type)->tex_kind == TEXTURE_KIND_CUBE ? "texturecube<float>" : "texture2d<float>";
+					*offset += sprintf(&code[*offset], "\t%s _%" PRIu64 " [[id(%zu)]];\n", texture_type, g->var_index, global_index);
 				}
 			}
 			else if (is_sampler(g->type)) {

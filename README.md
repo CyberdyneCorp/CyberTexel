@@ -78,6 +78,10 @@ The current implementation provides:
   device features, returning immutable identical source and pass plans on hits.
   Four-thread fixtures verify graph, target-compiler, cache, shader, and pass-plan
   results against serial emission.
+- Cross-target [material preview shaders](docs/preview-shading.md) with a
+  documented GGX metallic/roughness model, explicit environment and analytic
+  light contracts, defined fallback lighting, and unlit inspection for every
+  supplied channel.
 - Strict C++20 builds, sanitizer coverage, OpenSpec validation, dependency
   layering checks, licence auditing, and deterministic-output gates.
 

@@ -97,6 +97,7 @@ enum class TextureBindingKind : std::uint8_t {
     storage_write,
     storage_read_write,
 };
+enum class TextureViewDimension : std::uint8_t { d2, cube };
 
 struct TextureBinding {
     std::uint32_t group{};
@@ -106,6 +107,9 @@ struct TextureBinding {
     TextureBindingKind kind{};
     ResourceVersion resource;
     TextureSubresourceRange subresources;
+    TextureViewDimension view_dimension{TextureViewDimension::d2};
+    std::string encoding{};
+    std::string mip_convention{};
     friend bool operator==(const TextureBinding&, const TextureBinding&) = default;
 };
 

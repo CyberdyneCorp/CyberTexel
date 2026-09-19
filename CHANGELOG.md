@@ -99,6 +99,10 @@ Foundation implementation is in progress.
   features, with immutable results, hit/miss statistics, and failure isolation.
 - Four-thread graph and cross-target layer-stack emission fixtures that compare
   complete concurrent results with serial baselines.
+- Cached WGSL, MSL, SPIR-V, and HLSL material preview emission with documented
+  GGX metallic/roughness lighting, cube environment metadata, analytic lights,
+  deterministic fallback lighting, and unlit per-channel inspection shaders.
+- Kong cube-texture lowering across all four retained shader targets.
 - README architecture diagram and a current, implementation-scoped feature list.
 
 ### Changed

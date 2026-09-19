@@ -3999,7 +3999,7 @@ static definition parse_const(state_t *state, attribute_list attributes) {
 		tex_type.array_size                  = 0;
 		tex_type.base                        = NO_TYPE;
 		d.kind                               = DEFINITION_TEX2D;
-		tex_type.tex_kind                    = TEXTURE_KIND_2D;
+		tex_type.tex_kind = type_name == texcube_name || type_name == texcubearray_name ? TEXTURE_KIND_CUBE : TEXTURE_KIND_2D;
 		type_id t_id                         = add_full_type(&tex_type);
 
 		if (array) {

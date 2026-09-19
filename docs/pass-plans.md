@@ -21,9 +21,11 @@ The plan derives the first and last pass that uses each resource generation;
 these lifetimes apply to this submission only.
 
 Bindings are ordered values with explicit group and binding indices. Texture
-bindings state sampled or storage access, sampler bindings carry filtering and
-addressing, and uniform blocks carry byte-exact field offsets, sizes, and
-alignments. Render passes additionally name vertex layouts, color and depth
+bindings state sampled or storage access plus 2D/cube view, encoding, and mip
+convention metadata when the host needs them. Sampler bindings carry filtering
+and addressing, and uniform blocks carry byte-exact field offsets, sizes, and
+alignments. Cube views are checked for square six-layer faces. Render passes
+additionally name vertex layouts, color and depth
 targets, blending and depth state, shader entry points, and draw dimensions.
 Compute passes name their compute entry point, storage bindings, and dispatch
 dimensions. Target dimensions are checked against the selected mip or tile
@@ -31,10 +33,12 @@ rectangle.
 
 Feature-gated [layer-stack emission](feature-gated-emission.md) now produces
 target shaders whose bindings, intermediate resources, dependencies, and entry
-points match these plans. The plan deliberately stops at submission
+points match these plans. [Preview emission](preview-shading.md) uses the same
+contract for material channels, environment resources, analytic lights, and
+unlit channel inspection. The plan deliberately stops at submission
 description. Completion records and
 the rule that prevents recycling a generation while a host submission still
-uses it arrive with the host execution protocol in task 7.3. Target-specific
-graph and preview shader modules continue in tasks 6.14–6.16. Complete
+uses it arrive with the host execution protocol in task 7.3. Complete graph
+entry-point integration and scenario mapping continue in task 6.16. Complete
 layer-stack plans and shaders are retained together by the
 [emission cache](emission-cache.md).

@@ -12,7 +12,7 @@ dependencies fetched at configure time.
 | Component | Licence | Revision | Role |
 |---|---|---|---|
 | LodePNG | Zlib | `ed6fe5825c6a4fbb7f58ab35a4231c7543cd452a` | Slice-A PNG decoding and encoding |
-| [Kongruent minikong](https://github.com/armory3d/armorpaint/tree/c5ccdf27818a36e67decb691009a3db457d59ab3/base/sources/kong) | Zlib | `c5ccdf27818a36e67decb691009a3db457d59ab3` | Context-isolated WGSL compiler backend |
+| [Kongruent minikong](https://github.com/armory3d/armorpaint/tree/c5ccdf27818a36e67decb691009a3db457d59ab3/base/sources/kong) | Zlib | `c5ccdf27818a36e67decb691009a3db457d59ab3` | Context-isolated multi-target shader compiler backend |
 
 The upstream licence texts are copied at `thirdparty/licenses/lodepng.txt` and
 `thirdparty/licenses/kongruent.txt`. ArmorPaint's minikong tree is derived from

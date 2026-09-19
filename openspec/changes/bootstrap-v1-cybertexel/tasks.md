@@ -189,7 +189,12 @@ code generation, failures are not retained, and statistics expose entries,
 hits and misses. Task 6.14 starts four different graph emissions together and
 requires byte-identical serial results; a second four-thread fixture covers the
 complete WGSL, MSL, SPIR-V and HLSL layer-stack shader and pass-plan path.
-Preview and inspection shader emission (6.15) is next.
+Task 6.15 emits cached lit previews and unlit inspection shaders for every
+supplied channel across all four targets. Pass plans name cube environment
+radiance and irradiance encodings, the split-sum BRDF lookup, camera,
+environment controls and up to four analytic lights. The documented GGX model
+also defines deterministic fallback lighting when environment maps are absent.
+Complete material-graph and shader-emission scenario coverage (6.16) is next.
 
 ## 1. Foundation
 
@@ -277,7 +282,7 @@ Preview and inspection shader emission (6.15) is next.
 - [x] 6.12 Feature-gated emission and layer-stack pass splitting at the binding budget
 - [x] 6.13 Emission cache keyed by graph, target and feature set
 - [x] 6.14 Concurrent emission test
-- [ ] 6.15 Preview shader with declared lighting inputs and a documented shading model; per-channel inspection shaders
+- [x] 6.15 Preview shader with declared lighting inputs and a documented shading model; per-channel inspection shaders
 - [ ] 6.16 `material-graph` and `shader-emission` scenarios as tests
 
 ## 7. Execution

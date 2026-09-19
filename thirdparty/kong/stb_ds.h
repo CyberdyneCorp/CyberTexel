@@ -1125,7 +1125,8 @@ size_t stbds_hash_bytes(void *p, size_t len, size_t seed)
   unsigned char *d = (unsigned char *) p;
 
   if (len == 4) {
-    unsigned int hash = d[0] | (d[1] << 8) | (d[2] << 16) | (d[3] << 24);
+    unsigned int hash = (unsigned int) d[0] | ((unsigned int) d[1] << 8) |
+                        ((unsigned int) d[2] << 16) | ((unsigned int) d[3] << 24);
     #if 0
     // HASH32-A  Bob Jenkin's hash function w/o large constants
     hash ^= seed;

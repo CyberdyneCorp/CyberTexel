@@ -4,6 +4,7 @@
 #include <cstddef>
 #include <ctex/emit/feature_emission.hpp>
 #include <ctex/emit/graph_emission.hpp>
+#include <ctex/emit/preview_emission.hpp>
 #include <memory>
 #include <string_view>
 
@@ -23,6 +24,11 @@ struct CachedGraphEmission {
 
 struct CachedLayerStackEmission {
     std::shared_ptr<const LayerStackEmission> emission;
+    bool cache_hit{};
+};
+
+struct CachedPreviewEmission {
+    std::shared_ptr<const PreviewEmission> emission;
     bool cache_hit{};
 };
 
@@ -68,6 +74,26 @@ public:
     LayerStackEmissionCache& operator=(const LayerStackEmissionCache&) = delete;
 
     [[nodiscard]] CachedLayerStackEmission emit(const LayerStackEmissionRequest& request);
+    [[nodiscard]] EmissionCacheStatistics statistics() const;
+    void clear();
+
+private:
+    class Impl;
+    std::unique_ptr<Impl> impl_;
+};
+
+class PreviewEmissionCache {
+public:
+    PreviewEmissionCache();
+    ~PreviewEmissionCache();
+    PreviewEmissionCache(PreviewEmissionCache&&) noexcept;
+    PreviewEmissionCache& operator=(PreviewEmissionCache&&) noexcept;
+    PreviewEmissionCache(const PreviewEmissionCache&) = delete;
+    PreviewEmissionCache& operator=(const PreviewEmissionCache&) = delete;
+
+    [[nodiscard]] CachedPreviewEmission emit_lit(const PreviewEmissionRequest& request);
+    [[nodiscard]] CachedPreviewEmission emit_inspection(const PreviewEmissionRequest& request,
+                                                        std::string_view semantic_id);
     [[nodiscard]] EmissionCacheStatistics statistics() const;
     void clear();
 
