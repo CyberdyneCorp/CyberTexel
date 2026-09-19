@@ -379,6 +379,49 @@ typedef struct ctex_paint_tile_coverage_descriptor {
 #define CTEX_PAINT_TILE_COVERAGE_DESCRIPTOR_CURRENT_SIZE \
     ((uint32_t)sizeof(ctex_paint_tile_coverage_descriptor))
 
+typedef enum ctex_paint_deposition_mode {
+    CTEX_PAINT_DEPOSITION_NON_BUILDING = 0,
+    CTEX_PAINT_DEPOSITION_BUILD_UP = 1
+} ctex_paint_deposition_mode;
+
+typedef enum ctex_alpha_discard_format {
+    CTEX_ALPHA_DISCARD_UNORM8 = 0,
+    CTEX_ALPHA_DISCARD_UNORM16 = 1,
+    CTEX_ALPHA_DISCARD_FLOATING_POINT = 2
+} ctex_alpha_discard_format;
+
+typedef struct ctex_paint_deposition_descriptor {
+    uint32_t size;
+    uint32_t mode;
+    uint32_t alpha_discard_format;
+    uint32_t has_custom_alpha_discard_threshold;
+    double custom_alpha_discard_threshold;
+} ctex_paint_deposition_descriptor;
+
+#define CTEX_PAINT_DEPOSITION_DESCRIPTOR_V1_SIZE \
+    ((uint32_t)sizeof(ctex_paint_deposition_descriptor))
+#define CTEX_PAINT_DEPOSITION_DESCRIPTOR_CURRENT_SIZE \
+    ((uint32_t)sizeof(ctex_paint_deposition_descriptor))
+
+typedef struct ctex_paint_deposition_info {
+    uint32_t size;
+    uint32_t mode;
+    size_t applied_stamp_count;
+    double alpha_discard_threshold;
+    uint32_t alpha_discard_threshold_clamped;
+} ctex_paint_deposition_info;
+
+#define CTEX_PAINT_DEPOSITION_INFO_V1_SIZE ((uint32_t)sizeof(ctex_paint_deposition_info))
+#define CTEX_PAINT_DEPOSITION_INFO_CURRENT_SIZE ((uint32_t)sizeof(ctex_paint_deposition_info))
+
+typedef struct ctex_paint_deposition_sample {
+    double non_building_coverage;
+    double build_up_deposition;
+    double strength;
+    double retained_strength;
+    uint32_t write;
+} ctex_paint_deposition_sample;
+
 typedef struct ctex_stroke_preset_info {
     uint32_t size;
     uint32_t schema_version;
@@ -768,6 +811,13 @@ CTEX_API ctex_result ctex_paint_evaluate_tile_coverage(
     const ctex_mesh* mesh, const ctex_paint_tile_coverage_descriptor* tile,
     const ctex_resolved_stroke_descriptor* stroke, double* coverage, size_t coverage_capacity,
     size_t* out_coverage_count);
+
+/* Evaluates per-stamp deposition and alpha discard for one bounded UV tile. */
+CTEX_API ctex_result ctex_paint_evaluate_tile_deposition(
+    const ctex_mesh* mesh, const ctex_paint_tile_coverage_descriptor* tile,
+    const ctex_resolved_stroke_descriptor* stroke,
+    const ctex_paint_deposition_descriptor* deposition, ctex_paint_deposition_info* out_info,
+    ctex_paint_deposition_sample* samples, size_t sample_capacity, size_t* out_sample_count);
 
 /*
  * Installs one process-wide sink. Pass NULL to uninstall it. The callback can

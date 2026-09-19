@@ -10,6 +10,7 @@
 #include <ctex/io/image_io.hpp>
 #include <ctex/io/texture_encode.hpp>
 #include <ctex/paint/coverage.hpp>
+#include <ctex/paint/deposition.hpp>
 #include <ctex/paint/stroke.hpp>
 #include <ctex/paint/stroke_preset.hpp>
 #include <exception>
@@ -1518,6 +1519,77 @@ std::size_t paint_tile_texel_count(const ctex_paint_tile_coverage_descriptor& ti
     return count;
 }
 
+ctex::paint::TextureSpaceRaster paint_tile_surface(
+    const ctex_mesh& mesh, const ctex_paint_tile_coverage_descriptor& tile) {
+    const PaintMeshData converted_mesh = paint_mesh_data(mesh, tile.uv_set);
+    return ctex::paint::rasterize_texture_space(
+        converted_mesh.view(), {.width = tile.width,
+                                .height = tile.height,
+                                .tile_origin = {tile.tile_origin.x, tile.tile_origin.y}});
+}
+
+ctex::paint::RejectionSettings accept_all_rejection_settings() {
+    return {
+        .depth_enabled = false,
+        .depth_bias = ctex::paint::default_depth_rejection_bias,
+        .symmetry_depth_policy = ctex::paint::SymmetryDepthPolicy::require_consistent_per_instance,
+        .angle_enabled = false,
+        .minimum_normal_dot = ctex::paint::default_angle_rejection_dot,
+        .backface_enabled = false,
+    };
+}
+
+ctex::paint::DepositionMode paint_deposition_mode(std::uint32_t value) {
+    switch (value) {
+        case CTEX_PAINT_DEPOSITION_NON_BUILDING:
+            return ctex::paint::DepositionMode::non_building;
+        case CTEX_PAINT_DEPOSITION_BUILD_UP:
+            return ctex::paint::DepositionMode::build_up;
+        default:
+            throw std::invalid_argument("paint deposition mode is invalid");
+    }
+}
+
+ctex::paint::AlphaDiscardFormat alpha_discard_format(std::uint32_t value) {
+    switch (value) {
+        case CTEX_ALPHA_DISCARD_UNORM8:
+            return ctex::paint::AlphaDiscardFormat::unorm8;
+        case CTEX_ALPHA_DISCARD_UNORM16:
+            return ctex::paint::AlphaDiscardFormat::unorm16;
+        case CTEX_ALPHA_DISCARD_FLOATING_POINT:
+            return ctex::paint::AlphaDiscardFormat::floating_point;
+        default:
+            throw std::invalid_argument("alpha discard format is invalid");
+    }
+}
+
+ctex::paint::AlphaDiscardSettings alpha_discard_settings(
+    const ctex_paint_deposition_descriptor& descriptor) {
+    if (descriptor.has_custom_alpha_discard_threshold > 1) {
+        throw std::invalid_argument("custom alpha discard threshold flag is invalid");
+    }
+    return {
+        .format = alpha_discard_format(descriptor.alpha_discard_format),
+        .threshold = descriptor.has_custom_alpha_discard_threshold != 0
+                         ? std::optional<double>(descriptor.custom_alpha_discard_threshold)
+                         : std::nullopt,
+    };
+}
+
+void copy_deposition_samples(const ctex::paint::DepositionRaster& deposition,
+                             const ctex::paint::AlphaDiscardResult& discarded,
+                             ctex_paint_deposition_sample* samples) {
+    for (std::size_t index = 0; index < deposition.strength.size(); ++index) {
+        samples[index] = {
+            .non_building_coverage = deposition.non_building_coverage[index],
+            .build_up_deposition = deposition.build_up_deposition[index],
+            .strength = deposition.strength[index],
+            .retained_strength = discarded.retained_strength[index],
+            .write = discarded.write_mask[index],
+        };
+    }
+}
+
 }  // namespace
 
 void* ctex_host_memory_resource::do_allocate(std::size_t bytes, std::size_t alignment) {
@@ -2117,17 +2189,72 @@ extern "C" ctex_result ctex_paint_evaluate_tile_coverage(
         const std::size_t texel_count = paint_tile_texel_count(*tile);
         *out_coverage_count = texel_count;
         try {
-            const PaintMeshData converted_mesh = paint_mesh_data(*mesh, tile->uv_set);
             const ctex::paint::ResolvedStroke converted_stroke = paint_stroke(*stroke);
-            const ctex::paint::TextureSpaceRaster surface = ctex::paint::rasterize_texture_space(
-                converted_mesh.view(), {.width = tile->width,
-                                        .height = tile->height,
-                                        .tile_origin = {tile->tile_origin.x, tile->tile_origin.y}});
+            const ctex::paint::TextureSpaceRaster surface = paint_tile_surface(*mesh, *tile);
             const ctex::paint::CoverageRaster result =
                 ctex::paint::evaluate_stroke_coverage(surface, converted_stroke);
             validate_output_array(coverage, coverage_capacity, result.values.size(), "coverage");
             if (coverage != nullptr) {
                 std::copy(result.values.begin(), result.values.end(), coverage);
+            }
+        } catch (const ctex::paint::StrokeResolutionError& error) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_INVALID_STROKE,
+                           error.what());
+        } catch (const std::invalid_argument& error) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_INVALID_PAINT_COVERAGE,
+                           error.what());
+        } catch (const std::out_of_range& error) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_INVALID_PAINT_COVERAGE,
+                           error.what());
+        }
+    });
+}
+
+extern "C" ctex_result ctex_paint_evaluate_tile_deposition(
+    const ctex_mesh* mesh, const ctex_paint_tile_coverage_descriptor* tile,
+    const ctex_resolved_stroke_descriptor* stroke,
+    const ctex_paint_deposition_descriptor* descriptor, ctex_paint_deposition_info* out_info,
+    ctex_paint_deposition_sample* samples, std::size_t sample_capacity,
+    std::size_t* out_sample_count) {
+    return call_boundary("ctex_paint_evaluate_tile_deposition", [&] {
+        if (mesh == nullptr || tile == nullptr || stroke == nullptr || descriptor == nullptr ||
+            out_info == nullptr || out_sample_count == nullptr) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                           "mesh, tile, stroke, deposition, out_info and out_sample_count are "
+                           "required");
+        }
+        validate_structure_size(descriptor->size, CTEX_PAINT_DEPOSITION_DESCRIPTOR_V1_SIZE,
+                                CTEX_PAINT_DEPOSITION_DESCRIPTOR_CURRENT_SIZE, "deposition.size");
+        validate_structure_size(out_info->size, CTEX_PAINT_DEPOSITION_INFO_V1_SIZE,
+                                CTEX_PAINT_DEPOSITION_INFO_CURRENT_SIZE, "out_info.size");
+        const std::size_t texel_count = paint_tile_texel_count(*tile);
+        *out_sample_count = texel_count;
+        try {
+            const ctex::paint::DepositionMode mode = paint_deposition_mode(descriptor->mode);
+            const ctex::paint::AlphaDiscardSettings discard_settings =
+                alpha_discard_settings(*descriptor);
+            const ctex::paint::ResolvedStroke converted_stroke = paint_stroke(*stroke);
+            const ctex::paint::TextureSpaceRaster surface = paint_tile_surface(*mesh, *tile);
+            const ctex::paint::RejectedCoverageRaster rejected =
+                ctex::paint::evaluate_rejected_coverage(surface, converted_stroke,
+                                                        accept_all_rejection_settings());
+            const ctex::paint::DepositionRaster deposited =
+                ctex::paint::evaluate_deposition(converted_stroke, rejected, mode);
+            const ctex::paint::AlphaDiscardResult discarded =
+                ctex::paint::apply_alpha_discard(deposited.strength, discard_settings);
+            validate_output_array(samples, sample_capacity, texel_count, "samples");
+            *out_info = {
+                .size = CTEX_PAINT_DEPOSITION_INFO_CURRENT_SIZE,
+                .mode = descriptor->mode,
+                .applied_stamp_count = deposited.applied_stamp_count,
+                .alpha_discard_threshold = discarded.threshold,
+                .alpha_discard_threshold_clamped =
+                    discarded.parameter_report.clamp_for("alpha_discard.threshold").has_value()
+                        ? 1U
+                        : 0U,
+            };
+            if (samples != nullptr) {
+                copy_deposition_samples(deposited, discarded, samples);
             }
         } catch (const ctex::paint::StrokeResolutionError& error) {
             throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_INVALID_STROKE,

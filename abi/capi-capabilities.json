@@ -62,7 +62,10 @@
     {"name": "paint-engine", "kind": "runtime", "requirements": [
       {"requirement": "Texture-space rasterization", "symbols": ["ctex_paint_evaluate_tile_coverage"]},
       {"requirement": "Swept coverage", "symbols": ["ctex_paint_evaluate_tile_coverage"]},
-      {"requirement": "Falloff", "symbols": ["ctex_paint_evaluate_tile_coverage"]}
+      {"requirement": "Falloff", "symbols": ["ctex_paint_evaluate_tile_coverage"]},
+      {"requirement": "Alpha discard", "symbols": ["ctex_paint_evaluate_tile_deposition"]},
+      {"requirement": "Per-stroke coverage accumulation", "symbols": ["ctex_paint_evaluate_tile_deposition"]},
+      {"requirement": "Flow separate from opacity", "symbols": ["ctex_paint_evaluate_tile_deposition"]}
     ]},
     {"name": "paint-tools", "kind": "runtime", "requirements": []},
     {"name": "picking", "kind": "runtime", "requirements": []},

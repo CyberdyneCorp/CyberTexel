@@ -125,6 +125,79 @@ static int discrete_tips_do_not_synthesize_sweeps(void) {
     return passed;
 }
 
+static int deposition_accumulates_and_discards_canonical_stamps(void) {
+    ctex_mesh* mesh = coverage_mesh();
+    const ctex_paint_tile_coverage_descriptor tile = {
+        CTEX_PAINT_TILE_COVERAGE_DESCRIPTOR_CURRENT_SIZE, "uv0", 1, 1, {0.0, 0.0}};
+    ctex_resolved_stamp stamps[3] = {stamp(5.0, 0), stamp(5.0, 1), stamp(5.0, 2)};
+    size_t index = 0;
+    for (index = 0; index < 3; ++index) {
+        stamps[index].opacity = 0.5;
+        stamps[index].flow = 0.2;
+    }
+    const ctex_resolved_stroke_descriptor stroke = {
+        .size = CTEX_RESOLVED_STROKE_DESCRIPTOR_CURRENT_SIZE,
+        .reconstruction_version = 1,
+        .tip_mode = CTEX_STROKE_TIP_DISCRETE_ALPHA,
+        .symmetry_instance_count = 1,
+        .stamps = stamps,
+        .stamp_count = 3,
+    };
+    ctex_paint_deposition_descriptor deposition = {CTEX_PAINT_DEPOSITION_DESCRIPTOR_CURRENT_SIZE,
+                                                   CTEX_PAINT_DEPOSITION_NON_BUILDING,
+                                                   CTEX_ALPHA_DISCARD_UNORM8, 1, 0.25};
+    ctex_paint_deposition_info info = {.size = CTEX_PAINT_DEPOSITION_INFO_CURRENT_SIZE};
+    ctex_paint_deposition_sample sample = {-1.0, -1.0, -1.0, -1.0, 7};
+    size_t count = 0;
+    int passed = mesh != NULL;
+    if (passed) {
+        passed =
+            expect(ctex_paint_evaluate_tile_deposition(mesh, &tile, &stroke, &deposition, &info,
+                                                       NULL, 0, &count) == CTEX_RESULT_SUCCESS) &&
+            expect(count == 1 && info.applied_stamp_count == 3 &&
+                   near(info.alpha_discard_threshold, 0.25));
+    }
+    if (passed) {
+        passed = expect(ctex_paint_evaluate_tile_deposition(mesh, &tile, &stroke, &deposition,
+                                                            &info, &sample, 0, &count) ==
+                        CTEX_RESULT_BUFFER_TOO_SMALL) &&
+                 expect(sample.write == 7 && sample.strength == -1.0);
+    }
+    if (passed) {
+        passed = expect(ctex_paint_evaluate_tile_deposition(mesh, &tile, &stroke, &deposition,
+                                                            &info, &sample, 1,
+                                                            &count) == CTEX_RESULT_SUCCESS) &&
+                 expect(near(sample.non_building_coverage, 1.0) &&
+                        near(sample.build_up_deposition, 0.0) && near(sample.strength, 0.1) &&
+                        near(sample.retained_strength, 0.1) && sample.write == 0);
+    }
+    deposition.mode = CTEX_PAINT_DEPOSITION_BUILD_UP;
+    deposition.alpha_discard_format = CTEX_ALPHA_DISCARD_FLOATING_POINT;
+    deposition.has_custom_alpha_discard_threshold = 0;
+    if (passed) {
+        passed = expect(ctex_paint_evaluate_tile_deposition(mesh, &tile, &stroke, &deposition,
+                                                            &info, &sample, 1,
+                                                            &count) == CTEX_RESULT_SUCCESS) &&
+                 expect(info.mode == CTEX_PAINT_DEPOSITION_BUILD_UP &&
+                        near(info.alpha_discard_threshold, 0.004) &&
+                        near(sample.non_building_coverage, 0.0) &&
+                        near(sample.build_up_deposition, 0.488) && near(sample.strength, 0.244) &&
+                        near(sample.retained_strength, 0.244) && sample.write == 1);
+    }
+    deposition.mode = CTEX_PAINT_DEPOSITION_NON_BUILDING;
+    deposition.has_custom_alpha_discard_threshold = 1;
+    deposition.custom_alpha_discard_threshold = 2.0;
+    if (passed) {
+        passed = expect(ctex_paint_evaluate_tile_deposition(mesh, &tile, &stroke, &deposition,
+                                                            &info, &sample, 1,
+                                                            &count) == CTEX_RESULT_SUCCESS) &&
+                 expect(near(info.alpha_discard_threshold, 1.0) &&
+                        info.alpha_discard_threshold_clamped == 1 && sample.write == 0);
+    }
+    ctex_mesh_destroy(mesh);
+    return passed;
+}
+
 static int invalid_inputs_are_stable_diagnostics(void) {
     ctex_mesh* mesh = coverage_mesh();
     ctex_paint_tile_coverage_descriptor tile = {
@@ -167,6 +240,7 @@ static int invalid_inputs_are_stable_diagnostics(void) {
 int main(void) {
     return continuous_and_external_strokes_produce_tile_coverage() &&
                    discrete_tips_do_not_synthesize_sweeps() &&
+                   deposition_accumulates_and_discards_canonical_stamps() &&
                    invalid_inputs_are_stable_diagnostics()
                ? 0
                : 1;
