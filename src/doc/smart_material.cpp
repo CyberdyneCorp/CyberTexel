@@ -32,6 +32,17 @@ std::string encode_bytes(std::string_view value) {
     return result;
 }
 
+std::string encode_bytes(std::span<const std::byte> value) {
+    std::string result;
+    result.reserve(value.size() * 2);
+    for (const std::byte byte : value) {
+        const auto number = std::to_integer<std::uint8_t>(byte);
+        result.push_back(hex_digits[number >> 4U]);
+        result.push_back(hex_digits[number & 0x0fU]);
+    }
+    return result;
+}
+
 std::uint8_t hex_nibble(char value) {
     if (value >= '0' && value <= '9') {
         return static_cast<std::uint8_t>(value - '0');
@@ -51,6 +62,16 @@ std::string decode_bytes(std::string_view encoded) {
     for (std::size_t index = 0; index < encoded.size(); index += 2) {
         result.push_back(
             static_cast<char>((hex_nibble(encoded[index]) << 4U) | hex_nibble(encoded[index + 1])));
+    }
+    return result;
+}
+
+std::vector<std::byte> decode_pixel_bytes(std::string_view encoded) {
+    const std::string decoded = decode_bytes(encoded);
+    std::vector<std::byte> result;
+    result.reserve(decoded.size());
+    for (const unsigned char byte : decoded) {
+        result.push_back(static_cast<std::byte>(byte));
     }
     return result;
 }
@@ -241,12 +262,64 @@ void validate_parameter(const ExposedSmartMaterialParameter& parameter) {
     }
 }
 
+std::size_t expected_pixel_bytes(const SmartMaterialPixelPayload& payload) {
+    if (payload.identifier.empty() || payload.width == 0 || payload.height == 0 ||
+        !payload.format.is_valid()) {
+        invalid("model-specific pixel payload metadata is invalid");
+    }
+    constexpr std::size_t maximum = std::numeric_limits<std::size_t>::max();
+    if (payload.width > maximum / payload.height) {
+        invalid("model-specific pixel payload dimensions overflow");
+    }
+    const std::size_t area = static_cast<std::size_t>(payload.width) * payload.height;
+    if (area > maximum / payload.format.bytes_per_pixel()) {
+        invalid("model-specific pixel payload byte size overflows");
+    }
+    return area * payload.format.bytes_per_pixel();
+}
+
+void validate_content(const SmartMaterialEntry& entry) {
+    if (static_cast<std::uint8_t>(entry.content_kind) >
+        static_cast<std::uint8_t>(SmartMaterialContentKind::model_specific)) {
+        invalid("smart material entry has an unknown content kind");
+    }
+    if (entry.content_kind == SmartMaterialContentKind::derived) {
+        if (!entry.pixel_payloads.empty()) {
+            invalid("derived smart material content cannot carry rasterized output");
+        }
+        return;
+    }
+    if ((entry.kind != SmartMaterialEntryKind::layer &&
+         entry.kind != SmartMaterialEntryKind::mask) ||
+        entry.pixel_payloads.empty()) {
+        invalid("model-specific content requires painted layer or mask pixels");
+    }
+    std::map<std::string_view, bool, std::less<>> payload_identifiers;
+    for (const SmartMaterialPixelPayload& payload : entry.pixel_payloads) {
+        if (payload.pixels.size() != expected_pixel_bytes(payload)) {
+            invalid("model-specific pixel payload byte count does not match its format");
+        }
+        if (!payload_identifiers.emplace(payload.identifier, true).second) {
+            invalid("model-specific content repeats pixel payload identity '" + payload.identifier +
+                    "'");
+        }
+    }
+}
+
 SmartMaterialEntryKind parse_entry_kind(std::string_view value) {
     const auto parsed = parse_decimal<std::uint8_t>(value, "stack entry kind");
     if (parsed > static_cast<std::uint8_t>(SmartMaterialEntryKind::generator)) {
         malformed("smart material has an unknown stack entry kind");
     }
     return static_cast<SmartMaterialEntryKind>(parsed);
+}
+
+SmartMaterialContentKind parse_content_kind(std::string_view value) {
+    const auto parsed = parse_decimal<std::uint8_t>(value, "content kind");
+    if (parsed > static_cast<std::uint8_t>(SmartMaterialContentKind::model_specific)) {
+        malformed("smart material has an unknown content kind");
+    }
+    return static_cast<SmartMaterialContentKind>(parsed);
 }
 
 graph::SocketType parse_parameter_type(std::string_view value) {
@@ -283,7 +356,19 @@ void append_entry(std::string& output, const SmartMaterialEntry& entry) {
     output += double_hex(entry.opacity);
     output += "\t";
     output += entry.graph.has_value() ? encode_bytes(graph::serialize_graph(*entry.graph)) : "-";
+    output += "\t" + std::to_string(static_cast<unsigned>(entry.content_kind));
     output.push_back('\n');
+}
+
+void append_pixels(std::string& output, const SmartMaterialEntry& entry,
+                   const SmartMaterialPixelPayload& payload) {
+    output += "PIXELS\t" + encode_bytes(entry.identifier);
+    output += "\t" + encode_bytes(payload.identifier);
+    output += "\t" + std::to_string(payload.width);
+    output += "\t" + std::to_string(payload.height);
+    output += "\t" + std::to_string(static_cast<unsigned>(payload.format.channel_type));
+    output += "\t" + std::to_string(payload.format.channel_count);
+    output += "\t" + encode_bytes(payload.pixels) + "\n";
 }
 
 void append_parameter(std::string& output, const ExposedSmartMaterialParameter& parameter) {
@@ -330,7 +415,7 @@ SmartMaterialPreset parse_preset_record(std::string_view record, std::uint32_t v
 }
 
 SmartMaterialEntry parse_entry_record(std::span<const std::string_view> fields) {
-    if (fields.size() != 8 || fields[0] != "ENTRY") {
+    if (fields.size() != 9 || fields[0] != "ENTRY") {
         malformed("smart material contains a malformed stack entry record");
     }
     if (fields[5] != "0" && fields[5] != "1") {
@@ -342,7 +427,33 @@ SmartMaterialEntry parse_entry_record(std::span<const std::string_view> fields) 
             .kind = parse_entry_kind(fields[1]),
             .enabled = fields[5] == "1",
             .opacity = parse_double(fields[6]),
-            .graph = parse_optional_graph(fields[7])};
+            .graph = parse_optional_graph(fields[7]),
+            .content_kind = parse_content_kind(fields[8]),
+            .pixel_payloads = {}};
+}
+
+struct ParsedPixelPayload {
+    std::string entry_identifier;
+    SmartMaterialPixelPayload payload;
+};
+
+ParsedPixelPayload parse_pixel_record(std::span<const std::string_view> fields) {
+    if (fields.size() != 8 || fields[0] != "PIXELS") {
+        malformed("smart material contains a malformed pixel record");
+    }
+    const auto channel_type = parse_decimal<std::uint8_t>(fields[5], "pixel channel type");
+    if (channel_type > static_cast<std::uint8_t>(image::ChannelType::float32)) {
+        malformed("smart material has an unknown pixel channel type");
+    }
+    return {
+        .entry_identifier = decode_bytes(fields[1]),
+        .payload = {.identifier = decode_bytes(fields[2]),
+                    .width = parse_decimal<std::uint32_t>(fields[3], "pixel width"),
+                    .height = parse_decimal<std::uint32_t>(fields[4], "pixel height"),
+                    .format = {static_cast<image::ChannelType>(channel_type),
+                               parse_decimal<std::uint8_t>(fields[6], "pixel channel count")},
+                    .pixels = decode_pixel_bytes(fields[7])},
+    };
 }
 
 ExposedSmartMaterialParameter parse_parameter_record(std::span<const std::string_view> fields) {
@@ -363,6 +474,14 @@ void append_parsed_record(SmartMaterialPreset& preset, std::string_view record,
     const std::vector<std::string_view> fields = split(record, '\t');
     if (!fields.empty() && fields[0] == "ENTRY" && !saw_parameter) {
         preset.stack.push_back(parse_entry_record(fields));
+        return;
+    }
+    if (!fields.empty() && fields[0] == "PIXELS" && !saw_parameter && !preset.stack.empty()) {
+        ParsedPixelPayload parsed = parse_pixel_record(fields);
+        if (parsed.entry_identifier != preset.stack.back().identifier) {
+            malformed("smart material pixel record does not follow its owning entry");
+        }
+        preset.stack.back().pixel_payloads.push_back(std::move(parsed.payload));
         return;
     }
     if (!fields.empty() && fields[0] == "PARAM") {
@@ -414,6 +533,7 @@ void validate_smart_material(const SmartMaterialPreset& preset) {
         if (!entries.emplace(entry.identifier, entry.kind).second) {
             invalid("smart material repeats stack entry identity '" + entry.identifier + "'");
         }
+        validate_content(entry);
     }
     std::map<std::string_view, bool, std::less<>> parameters;
     for (const ExposedSmartMaterialParameter& parameter : preset.exposed_parameters) {
@@ -425,6 +545,29 @@ void validate_smart_material(const SmartMaterialPreset& preset) {
     }
 }
 
+SmartMaterialContentReport report_smart_material_content(const SmartMaterialPreset& preset) {
+    validate_smart_material(preset);
+    SmartMaterialContentReport report;
+    report.entries.reserve(preset.stack.size());
+    for (const SmartMaterialEntry& entry : preset.stack) {
+        std::size_t stored_pixel_bytes = 0;
+        for (const SmartMaterialPixelPayload& payload : entry.pixel_payloads) {
+            stored_pixel_bytes += payload.pixels.size();
+        }
+        report.entries.push_back({.entry_identifier = entry.identifier,
+                                  .content_kind = entry.content_kind,
+                                  .pixel_payload_count = entry.pixel_payloads.size(),
+                                  .stored_pixel_bytes = stored_pixel_bytes});
+        if (entry.content_kind == SmartMaterialContentKind::derived) {
+            ++report.derived_entry_count;
+        } else {
+            ++report.model_specific_entry_count;
+            report.model_specific_pixel_bytes += stored_pixel_bytes;
+        }
+    }
+    return report;
+}
+
 std::string serialize_smart_material(const SmartMaterialPreset& preset) {
     validate_smart_material(preset);
     std::string output = "CTEX_SMART_MATERIAL\t" + std::to_string(preset.schema_version) + "\n";
@@ -432,6 +575,9 @@ std::string serialize_smart_material(const SmartMaterialPreset& preset) {
               encode_bytes(preset.display_name) + "\n";
     for (const SmartMaterialEntry& entry : preset.stack) {
         append_entry(output, entry);
+        for (const SmartMaterialPixelPayload& payload : entry.pixel_payloads) {
+            append_pixels(output, entry, payload);
+        }
     }
     for (const ExposedSmartMaterialParameter& parameter : preset.exposed_parameters) {
         append_parameter(output, parameter);

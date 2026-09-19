@@ -14,10 +14,27 @@ order is retained because it is part of compositing semantics. A parent must
 already occur in that order, which makes the fragment a deterministic acyclic
 hierarchy and prevents ambiguous forward ownership.
 
-Graphs use the same canonical graph serializer as ordinary materials. They are
-stored as definitions rather than evaluated pixels. Whether an entry is derived
-or carries model-specific painted pixels is added by task 13.2; parameter
-bindings and application are added by tasks 13.3 and 13.9.
+Graphs use the same canonical graph serializer as ordinary materials. Each
+entry explicitly declares `derived` or `model_specific` content:
+
+- derived entries retain generator and graph definitions but cannot contain
+  rasterized output, so a target model can evaluate them from its own maps;
+- model-specific entries are painted layers or masks and contain one or more
+  named, tightly packed pixel payloads with dimensions and pixel format.
+
+Model-specific content cannot be attached to a group, filter or generator, and
+its byte count must exactly match its declared dimensions and format. This
+prevents cached generator output from being mistaken for portable authored
+pixels. Parameter bindings and application are added by tasks 13.3 and 13.9.
+
+## Content report
+
+`report_smart_material_content()` returns one ordered record per stack entry,
+including its content kind, pixel-payload count and stored byte count. It also
+reports aggregate derived and model-specific entry counts and the total stored
+model-specific bytes. A host can therefore warn that painted content was made
+for another model before applying it. The application report added in task
+13.9 will carry this information into the one-step application operation.
 
 ## Exposed parameters
 
@@ -37,13 +54,15 @@ out-of-range defaults and opacity outside `[0, 1]` are refused before encoding.
 
 ## Canonical format
 
-`serialize_smart_material()` writes `CTEX_SMART_MATERIAL` schema 1. Text and
-embedded graph bytes are hexadecimal, so tabs, line breaks and arbitrary UTF-8
-cannot alter record boundaries. Floating-point values use their exact IEEE bit
-patterns. Re-serializing a successfully decoded preset therefore returns the
-same bytes.
+`serialize_smart_material()` writes `CTEX_SMART_MATERIAL` schema 2. Text and
+embedded graph and pixel bytes are hexadecimal, so tabs, line breaks, arbitrary
+UTF-8 and binary pixels cannot alter record boundaries. Floating-point values
+use their exact IEEE bit patterns. Re-serializing a successfully decoded preset
+therefore returns the same bytes.
 
 `deserialize_smart_material()` rejects malformed envelopes, records appearing
 out of canonical order, invalid embedded graphs and unsupported schema
 versions. Schema migration and documented defaults for older versions belong
-to task 13.8; schema 1 is the only accepted version at this stage.
+to task 13.8; schema 2 is the only accepted version at this stage. Schema 1 was
+the definition-only precursor and is intentionally refused until that migration
+is implemented rather than being partially interpreted.

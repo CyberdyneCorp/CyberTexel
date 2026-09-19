@@ -615,7 +615,11 @@ layers, groups, masks, filters and generators, optional embedded material graphs
 and typed exposed parameters carrying defaults, finite ranges and display
 groups. Validation refuses ambiguous hierarchy, duplicate identities,
 type/default mismatch and non-finite metadata before serialization. Derived
-versus model-specific content and its application report (13.2) are next.
+versus model-specific content is now explicit: derived entries reject cached
+raster output, while painted layers and masks retain validated pixel payloads.
+The ordered content report names and measures each model-specific entry so a
+host can surface its portability before application. Exposed parameter binding
+across many entries (13.3) is next.
 
 ## 1. Foundation
 
@@ -801,7 +805,7 @@ versus model-specific content and its application report (13.2) are next.
 ## 13. Smart materials
 
 - [x] 13.1 Smart material serialization: stack fragment plus exposed parameters
-- [ ] 13.2 Derived versus model-specific content and its reporting
+- [x] 13.2 Derived versus model-specific content and its reporting
 - [ ] 13.3 Exposed parameter binding across many entries
 - [ ] 13.4 Smart masks with independent instances
 - [ ] 13.5 Anchor points, ordering rule, cycle refusal, dependency-ordered evaluation

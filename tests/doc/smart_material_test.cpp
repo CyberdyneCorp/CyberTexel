@@ -53,35 +53,59 @@ SmartMaterialPreset rich_preset() {
                  .kind = SmartMaterialEntryKind::group,
                  .enabled = true,
                  .opacity = 1.0,
-                 .graph = std::nullopt},
+                 .graph = std::nullopt,
+                 .content_kind = SmartMaterialContentKind::derived,
+                 .pixel_payloads = {}},
                 {.identifier = "base",
                  .parent_identifier = "surface",
                  .display_name = "Base layer",
                  .kind = SmartMaterialEntryKind::layer,
                  .enabled = true,
                  .opacity = 0.8,
-                 .graph = graph_fixture("Base graph")},
+                 .graph = graph_fixture("Base graph"),
+                 .content_kind = SmartMaterialContentKind::derived,
+                 .pixel_payloads = {}},
                 {.identifier = "wear-mask",
                  .parent_identifier = "base",
                  .display_name = "Wear mask",
                  .kind = SmartMaterialEntryKind::mask,
                  .enabled = true,
                  .opacity = 1.0,
-                 .graph = graph_fixture("Mask graph")},
+                 .graph = graph_fixture("Mask graph"),
+                 .content_kind = SmartMaterialContentKind::derived,
+                 .pixel_payloads = {}},
                 {.identifier = "levels",
                  .parent_identifier = "wear-mask",
                  .display_name = "Levels filter",
                  .kind = SmartMaterialEntryKind::filter,
                  .enabled = false,
                  .opacity = 0.75,
-                 .graph = graph_fixture("Filter graph")},
+                 .graph = graph_fixture("Filter graph"),
+                 .content_kind = SmartMaterialContentKind::derived,
+                 .pixel_payloads = {}},
                 {.identifier = "scratches",
                  .parent_identifier = "surface",
                  .display_name = "Scratch generator",
                  .kind = SmartMaterialEntryKind::generator,
                  .enabled = true,
                  .opacity = 0.6,
-                 .graph = graph_fixture("Generator graph")},
+                 .graph = graph_fixture("Generator graph"),
+                 .content_kind = SmartMaterialContentKind::derived,
+                 .pixel_payloads = {}},
+                {.identifier = "paint-mask",
+                 .parent_identifier = "base",
+                 .display_name = "Hand-painted wear",
+                 .kind = SmartMaterialEntryKind::mask,
+                 .enabled = true,
+                 .opacity = 1.0,
+                 .graph = std::nullopt,
+                 .content_kind = SmartMaterialContentKind::model_specific,
+                 .pixel_payloads = {{.identifier = "mask",
+                                     .width = 2,
+                                     .height = 2,
+                                     .format = {image::ChannelType::uint8_unorm, 1},
+                                     .pixels = {std::byte{0}, std::byte{64}, std::byte{128},
+                                                std::byte{255}}}}},
             },
         .exposed_parameters =
             {
@@ -117,11 +141,29 @@ bool complete_fragment_round_trips_canonically() {
     return expect(restored == source, "smart material stack and parameters did not round-trip") &&
            expect(serialize_smart_material(restored) == serialized,
                   "smart material serialization is not canonical") &&
-           expect(restored.stack.size() == 5 && restored.stack[2].graph.has_value() &&
+           expect(restored.stack.size() == 6 && restored.stack[2].graph.has_value() &&
                       restored.exposed_parameters.size() == 3,
                   "smart material omitted an entry kind, graph, or exposed parameter") &&
            expect(serialized.find(source.display_name) == std::string::npos,
                   "smart material text was not safely length-independent encoded");
+}
+
+bool mixed_content_is_classified_and_reported() {
+    const SmartMaterialPreset source = rich_preset();
+    const SmartMaterialContentReport report = report_smart_material_content(source);
+    return expect(report.entries.size() == 6 && report.derived_entry_count == 5,
+                  "derived smart material entries were not reported") &&
+           expect(report.contains_model_specific_content() &&
+                      report.model_specific_entry_count == 1 &&
+                      report.model_specific_pixel_bytes == 4,
+                  "model-specific hand-painted pixels were not reported") &&
+           expect(report.entries.back() ==
+                      SmartMaterialContentReportEntry{
+                          .entry_identifier = "paint-mask",
+                          .content_kind = SmartMaterialContentKind::model_specific,
+                          .pixel_payload_count = 1,
+                          .stored_pixel_bytes = 4},
+                  "model-specific report did not name and measure its source entry");
 }
 
 bool invalid_fragments_are_refused() {
@@ -146,16 +188,30 @@ bool invalid_fragments_are_refused() {
 
     SmartMaterialPreset outside_range = rich_preset();
     outside_range.exposed_parameters.front().default_value = 2.0;
-    return duplicate_refused && parent_refused && type_refused &&
-           expect_error([&] { static_cast<void>(serialize_smart_material(outside_range)); },
+    const bool range_refused =
+        expect_error([&] { static_cast<void>(serialize_smart_material(outside_range)); },
+                     SmartMaterialErrorCode::invalid_preset,
+                     "parameter default outside its declared range was accepted");
+
+    SmartMaterialPreset derived_pixels = rich_preset();
+    derived_pixels.stack.front().pixel_payloads = derived_pixels.stack.back().pixel_payloads;
+    const bool derived_pixels_refused = expect_error(
+        [&] { static_cast<void>(serialize_smart_material(derived_pixels)); },
+        SmartMaterialErrorCode::invalid_preset, "derived content accepted rasterized output");
+
+    SmartMaterialPreset wrong_pixel_size = rich_preset();
+    wrong_pixel_size.stack.back().pixel_payloads.front().pixels.pop_back();
+    return duplicate_refused && parent_refused && type_refused && range_refused &&
+           derived_pixels_refused &&
+           expect_error([&] { static_cast<void>(serialize_smart_material(wrong_pixel_size)); },
                         SmartMaterialErrorCode::invalid_preset,
-                        "parameter default outside its declared range was accepted");
+                        "model-specific content accepted a mismatched pixel byte count");
 }
 
 bool malformed_and_future_serializations_are_refused() {
     const std::string valid = serialize_smart_material(rich_preset());
     std::string future = valid;
-    future.replace(0, std::string_view("CTEX_SMART_MATERIAL\t1").size(), "CTEX_SMART_MATERIAL\t2");
+    future.replace(0, std::string_view("CTEX_SMART_MATERIAL\t2").size(), "CTEX_SMART_MATERIAL\t3");
     const bool future_refused = expect_error(
         [&] { static_cast<void>(deserialize_smart_material(future)); },
         SmartMaterialErrorCode::unsupported_version, "future smart material version was accepted");
@@ -177,7 +233,8 @@ bool malformed_and_future_serializations_are_refused() {
 }  // namespace
 
 int main() {
-    return complete_fragment_round_trips_canonically() && invalid_fragments_are_refused() &&
+    return complete_fragment_round_trips_canonically() &&
+                   mixed_content_is_classified_and_reported() && invalid_fragments_are_refused() &&
                    malformed_and_future_serializations_are_refused()
                ? 0
                : 1;

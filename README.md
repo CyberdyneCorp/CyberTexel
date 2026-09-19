@@ -170,7 +170,9 @@ The current implementation provides:
   move stable, named graph presets between machines.
 - Canonical [smart-material serialization](docs/smart-material-serialization.md)
   preserves ordered layer, group, mask, filter and generator fragments with
-  embedded graphs and typed, ranged, display-grouped exposed parameters.
+  embedded graphs and typed, ranged, display-grouped exposed parameters. It
+  keeps derived content definition-only while preserving and reporting
+  model-specific painted pixels.
 - An isolated [Kong shader compiler context](docs/kong-backend.md) that compiles
   Kong source deterministically to WGSL, MSL, binary SPIR-V, or HLSL, supports
   concurrent independent targets, and reports unsupported requests explicitly.
