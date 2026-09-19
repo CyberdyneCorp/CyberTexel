@@ -33,6 +33,8 @@ struct TileCoordinate {
 struct TileExtent {
     std::uint32_t width;
     std::uint32_t height;
+
+    friend constexpr bool operator==(TileExtent, TileExtent) noexcept = default;
 };
 
 struct TileChangeSet {
@@ -54,6 +56,7 @@ public:
     [[nodiscard]] PixelFormat format() const noexcept { return format_; }
     [[nodiscard]] std::size_t pixel_bytes() const noexcept { return pixel_bytes_; }
     [[nodiscard]] std::size_t tile_bytes() const noexcept { return tile_bytes_; }
+    [[nodiscard]] std::span<const std::byte> clear_pixel() const noexcept { return clear_pixel_; }
     [[nodiscard]] std::size_t resident_pixel_bytes() const noexcept;
     [[nodiscard]] Revision revision() const noexcept { return revision_; }
     [[nodiscard]] RevisionCursor revision_cursor() const noexcept {

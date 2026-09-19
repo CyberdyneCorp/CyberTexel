@@ -65,7 +65,13 @@
         {
             "name": "project-save",
             "task": "12.1",
-            "cases": []
+            "cases": [
+                {
+                    "name": "versioned sparse project container",
+                    "command": ["build/headless/ctex_project_container_test", "--write-determinism"],
+                    "outputs": ["project-container.ctex"]
+                }
+            ]
         },
         {
             "name": "texture-export",

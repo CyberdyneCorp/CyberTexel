@@ -11,10 +11,11 @@ The runner gives the command two clean output directories through
 `CTEX_DETERMINISM_OUTPUT_DIR` and compares every declared file byte for byte.
 
 Pass one or more category names to `tools/check_determinism.py` to run a focused
-subset. The labeled shader-emission scenario suite uses this mode so later empty
-project-save and texture-export categories do not substitute for, or block,
-shader reproducibility coverage.
+subset. The labeled shader-emission and project-I/O scenario suites use this
+mode so unrelated later categories do not substitute for, or block, their
+reproducibility coverage.
 
-The project-save and texture-export categories deliberately remain red until
-their owning tasks register real outputs. An empty category is reported by name
-and task rather than counted as a pass.
+The texture-export category deliberately remains red until its owning task
+registers real outputs. An empty category is reported by name and task rather
+than counted as a pass. Project-save now writes a versioned sparse container
+twice and compares the complete binary output.

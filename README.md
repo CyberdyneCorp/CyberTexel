@@ -118,6 +118,8 @@ The current implementation provides:
   preview-only 3D LUTs, ordered dithering, and promoted-precision operations.
 - Memory-buffer PNG decoding and encoding with 8/16-bit preservation,
   content-based detection, metadata handling, and allocation limits.
+- A versioned, forward-preserving [project container](docs/project-container.md)
+  with a probeable header and independently compressed sparse tile storage.
 - Extensible semantic channels and a nine-channel metallic/roughness PBR preset,
   with independent precision and allocation-free disabled channels.
 - Texture-set documents derived from mesh partitions and named UVs, with stable

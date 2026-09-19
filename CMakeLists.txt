@@ -174,7 +174,7 @@ ctex_add_module(
         src/xport/readback.cpp
         src/xport/snapshot.cpp
 )
-ctex_add_module(io DEPENDS doc image)
+ctex_add_module(io DEPENDS doc image SOURCES src/io/io.cpp src/io/project_container.cpp)
 target_link_libraries(ctex_io PRIVATE ctex_lodepng)
 set(
     CTEX_EXEC_SOURCES
@@ -273,6 +273,18 @@ if(BUILD_TESTING)
     ctex_configure_cpp_target(ctex_png_io_test)
     target_link_libraries(ctex_png_io_test PRIVATE cybertexel)
     add_test(NAME png-io COMMAND ctex_png_io_test)
+
+    add_executable(ctex_project_container_test tests/io/project_container_test.cpp)
+    ctex_configure_cpp_target(ctex_project_container_test)
+    target_link_libraries(ctex_project_container_test PRIVATE cybertexel)
+    add_test(NAME project-container COMMAND ctex_project_container_test)
+    add_test(
+        NAME project-container-determinism
+        COMMAND "${CTEX_PYTHON3_EXECUTABLE}" tools/check_determinism.py project-save
+    )
+    set_tests_properties(
+        project-container-determinism PROPERTIES WORKING_DIRECTORY "${PROJECT_SOURCE_DIR}"
+    )
 
     add_executable(ctex_channels_test tests/doc/channels_test.cpp)
     ctex_configure_cpp_target(ctex_channels_test)
@@ -1062,6 +1074,11 @@ if(BUILD_TESTING)
         PROPERTIES LABELS mesh-maps-scenario
     )
     set_tests_properties(mesh-ingest PROPERTIES LABELS mesh-maps-scenario)
+    set_tests_properties(
+        project-container
+        project-container-determinism
+        PROPERTIES LABELS project-io-scenario
+    )
     set_tests_properties(
         preview-emission
         PROPERTIES LABELS "shader-emission-scenario;mesh-maps-scenario"

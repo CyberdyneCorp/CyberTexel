@@ -586,6 +586,16 @@ disposition. A settings edit snapshots the complete map binding set as one undo
 step. Accepted replacements remain grouped with that edit, while undo restores
 both the prior settings revision and prior bindings and invalidates every late
 request from the undone state.
+The project-container foundation (12.1) defines a little-endian framed schema
+whose fixed header exposes the library-derived schema version without decoding
+the body. Known sections decode independently, while unknown kinds, versions
+and tile encodings are reported and retained byte-for-byte for a later re-save.
+The first known section stores named sparse tiled images with explicit channel,
+clear-pixel, coordinate, edge-extent and compression metadata. Each occupied
+tile is independently zlib-compressed; unallocated tiles consume no records,
+and snapshot/restore helpers round-trip `TiledImage` pixels and layout. The
+project-save determinism registry now compares complete sparse container bytes
+across two clean runs.
 
 ## 1. Foundation
 
@@ -756,7 +766,7 @@ request from the undone state.
 
 ## 12. Input and output
 
-- [ ] 12.1 Container format: schema, versioning, backward-open reading, tile storage
+- [x] 12.1 Container format: schema, versioning, backward-open reading, tile storage
 - [ ] 12.2 Referenced and packed resources; missing-resource reporting
 - [ ] 12.3 Atomic save; deterministic writing
 - [ ] 12.4 Autosave, recovery enumeration, non-blocking snapshot
