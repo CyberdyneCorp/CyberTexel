@@ -170,6 +170,15 @@ frames, enum values, timestamps and reconstruction versions return
 timestamp and fixed-grid rules remain defined by
 [`stroke-reconstruction.md`](stroke-reconstruction.md).
 
+`ctex_stroke_preset_serialize` writes a named current-schema preset as canonical
+bytes with the standard two-call buffer contract. `ctex_stroke_preset_deserialize`
+validates and migrates those bytes, first reporting the exact storage needed for
+the name, tip identity and all response-curve points. A filling call writes that
+data into caller-owned buffers and returns a settings descriptor whose pointers
+refer only to those buffers. Older schemas receive documented defaults for
+absent fields; newer schemas are refused with
+`CTEX_DIAGNOSTIC_INVALID_STROKE_PRESET` rather than partially applied.
+
 ## ABI version and compatibility
 
 `ctex_get_abi_version` is safe before any handle exists and returns the major,
@@ -207,7 +216,7 @@ The contract is stated per entry-point family:
 | --- | --- |
 | `ctex_get_version`, `ctex_get_abi_version` | Process-safe and callable concurrently from any thread |
 | `ctex_get_working_color_space`, `ctex_color_space_get_name`, `ctex_channel_get_color_policy`, `ctex_channel_get_bit_depth_warning`, `ctex_resolve_input_color_space`, `ctex_color_convert`, `ctex_color_input_to_working`, `ctex_accumulate_height`, `ctex_quantize_unorm8` | Stateless, process-safe and callable concurrently from any thread |
-| `ctex_image_decode_memory`, `ctex_image_encode_memory`, `ctex_stroke_settings_init`, `ctex_stroke_resolve` | Stateless and safe to call concurrently; inputs are borrowed only for the call and outputs are caller-owned |
+| `ctex_image_decode_memory`, `ctex_image_encode_memory`, `ctex_stroke_settings_init`, `ctex_stroke_resolve`, `ctex_stroke_preset_serialize`, `ctex_stroke_preset_deserialize` | Stateless and safe to call concurrently; inputs are borrowed only for the call and outputs are caller-owned |
 | `ctex_cube_lut_create` | Process-safe; each successful call creates independent immutable state and captures the active allocator |
 | `ctex_cube_lut_apply_preview` | Safe to call concurrently, including against the same immutable LUT handle |
 | `ctex_cube_lut_destroy` | The caller ensures no application call is using that handle; distinct handles may be destroyed concurrently |

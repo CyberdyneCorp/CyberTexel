@@ -160,10 +160,169 @@ static int constraints_stabilizer_and_validation_are_reachable(void) {
                   strstr(ctex_get_last_diagnostic(), "timestamps") != NULL);
 }
 
+enum { PRESET_CAPACITY = 4096, PRESET_CURVE_CAPACITY = 32 };
+
+static int configure_preset_settings(ctex_stroke_settings_descriptor* settings) {
+    static const ctex_response_curve_point curve[3] = {{0.0, 0.1}, {0.4, 0.25}, {1.0, 0.9}};
+    if (!expect(ctex_stroke_settings_init(settings) == CTEX_RESULT_SUCCESS)) {
+        return 0;
+    }
+    settings->tip_mode = CTEX_STROKE_TIP_DISCRETE_ALPHA;
+    settings->tip_resource_identity = "brushes/chalk\ttip";
+    settings->radius = 3.5;
+    settings->flow = 0.45;
+    settings->pressure_radius.points = curve;
+    settings->pressure_radius.point_count = 3;
+    settings->pressure_radius.minimum_output = 0.2;
+    settings->pressure_radius.maximum_output = 1.5;
+    settings->jitter.seed = UINT64_C(0xfedcba9876543210);
+    settings->jitter.flow = 0.3;
+    settings->symmetry.mirror_x = 1;
+    settings->symmetry.radial_count = 3;
+    settings->symmetry.radial_axis = CTEX_STROKE_SYMMETRY_AXIS_Y;
+    return 1;
+}
+
+static int serialize_preset(const ctex_stroke_settings_descriptor* settings, char* serialized,
+                            size_t capacity, size_t* required_size) {
+    return expect(ctex_stroke_preset_serialize("Chalk soft", settings, NULL, 0, required_size) ==
+                  CTEX_RESULT_SUCCESS) &&
+           expect(*required_size > 0 && *required_size < capacity) &&
+           expect(ctex_stroke_preset_serialize("Chalk soft", settings, serialized,
+                                               *required_size - 1,
+                                               required_size) == CTEX_RESULT_BUFFER_TOO_SMALL) &&
+           expect(ctex_stroke_preset_serialize("Chalk soft", settings, serialized, capacity,
+                                               required_size) == CTEX_RESULT_SUCCESS);
+}
+
+static ctex_stroke_preset_buffers_descriptor preset_buffers(char* name, size_t name_size, char* tip,
+                                                            size_t tip_size,
+                                                            ctex_response_curve_point* points) {
+    const ctex_stroke_preset_buffers_descriptor buffers = {
+        .size = CTEX_STROKE_PRESET_BUFFERS_DESCRIPTOR_CURRENT_SIZE,
+        .name_buffer = name,
+        .name_buffer_size = name_size,
+        .tip_resource_identity_buffer = tip,
+        .tip_resource_identity_buffer_size = tip_size,
+        .curve_points = points,
+        .curve_point_capacity = PRESET_CURVE_CAPACITY,
+    };
+    return buffers;
+}
+
+static int current_preset_round_trip(void) {
+    ctex_stroke_settings_descriptor settings;
+    ctex_stroke_settings_descriptor restored = {
+        .size = CTEX_STROKE_SETTINGS_DESCRIPTOR_CURRENT_SIZE, .radius = 123.0};
+    ctex_stroke_preset_info info = {.size = CTEX_STROKE_PRESET_INFO_CURRENT_SIZE};
+    ctex_response_curve_point points[PRESET_CURVE_CAPACITY];
+    char name[64];
+    char tip[64];
+    char serialized[PRESET_CAPACITY] = {0};
+    char repeated[PRESET_CAPACITY] = {0};
+    size_t required_size = 0;
+    size_t repeated_size = 0;
+    ctex_stroke_preset_buffers_descriptor buffers =
+        preset_buffers(name, sizeof(name), tip, sizeof(tip), points);
+
+    if (!configure_preset_settings(&settings) ||
+        !serialize_preset(&settings, serialized, sizeof(serialized), &required_size) ||
+        !expect(ctex_stroke_preset_deserialize(serialized, required_size, &info, NULL, NULL) ==
+                CTEX_RESULT_SUCCESS) ||
+        !expect(info.schema_version == 2 && info.required_curve_point_count == 15 &&
+                info.required_name_size == strlen("Chalk soft") + 1 &&
+                info.required_tip_resource_identity_size == strlen("brushes/chalk\ttip") + 1)) {
+        return 0;
+    }
+
+    buffers.name_buffer_size = 1;
+    if (!expect(ctex_stroke_preset_deserialize(serialized, required_size, &info, &restored,
+                                               &buffers) == CTEX_RESULT_BUFFER_TOO_SMALL) ||
+        !expect(restored.radius == 123.0)) {
+        return 0;
+    }
+    buffers.name_buffer_size = sizeof(name);
+    if (!expect(ctex_stroke_preset_deserialize(serialized, required_size, &info, &restored,
+                                               &buffers) == CTEX_RESULT_SUCCESS) ||
+        !expect(strcmp(name, "Chalk soft") == 0 && strcmp(tip, "brushes/chalk\ttip") == 0 &&
+                restored.tip_resource_identity == tip &&
+                restored.pressure_radius.points == points &&
+                restored.pressure_radius.point_count == 3 && near(restored.radius, 3.5) &&
+                near(restored.jitter.flow, 0.3) && restored.symmetry.radial_count == 3) ||
+        !expect(ctex_stroke_preset_serialize(name, &restored, repeated, sizeof(repeated),
+                                             &repeated_size) == CTEX_RESULT_SUCCESS) ||
+        !expect(repeated_size == required_size &&
+                memcmp(repeated, serialized, required_size) == 0)) {
+        return 0;
+    }
+    return 1;
+}
+
+static size_t remove_schema_one_flow_field(char* serialized, size_t serialized_size) {
+    char* jitter = strstr(serialized, "\nJITTER\t");
+    char* line_end = jitter == NULL ? NULL : strchr(jitter + 1, '\n');
+    char* last_field = line_end;
+    while (last_field != NULL && last_field > jitter && *last_field != '\t') {
+        --last_field;
+    }
+    if (jitter == NULL || line_end == NULL || last_field == NULL || *last_field != '\t') {
+        return 0;
+    }
+    memmove(last_field, line_end, serialized_size - (size_t)(line_end - serialized));
+    return serialized_size - (size_t)(line_end - last_field);
+}
+
+static int older_preset_migrates(void) {
+    ctex_stroke_settings_descriptor settings;
+    ctex_stroke_settings_descriptor restored = {.size =
+                                                    CTEX_STROKE_SETTINGS_DESCRIPTOR_CURRENT_SIZE};
+    ctex_stroke_preset_info info = {.size = CTEX_STROKE_PRESET_INFO_CURRENT_SIZE};
+    ctex_response_curve_point points[PRESET_CURVE_CAPACITY];
+    char name[64];
+    char tip[64];
+    char migrated[PRESET_CAPACITY] = {0};
+    size_t migrated_size = 0;
+    ctex_stroke_preset_buffers_descriptor buffers =
+        preset_buffers(name, sizeof(name), tip, sizeof(tip), points);
+
+    if (!configure_preset_settings(&settings) ||
+        !serialize_preset(&settings, migrated, sizeof(migrated), &migrated_size)) {
+        return 0;
+    }
+    migrated[strlen("CTEX_STROKE_PRESET\t")] = '1';
+    migrated_size = remove_schema_one_flow_field(migrated, migrated_size);
+    if (!expect(migrated_size != 0)) {
+        return 0;
+    }
+    return expect(ctex_stroke_preset_deserialize(migrated, migrated_size, &info, NULL, NULL) ==
+                  CTEX_RESULT_SUCCESS) &&
+           expect(ctex_stroke_preset_deserialize(migrated, migrated_size, &info, &restored,
+                                                 &buffers) == CTEX_RESULT_SUCCESS) &&
+           expect(info.schema_version == 2 && near(restored.jitter.flow, 0.0));
+}
+
+static int newer_preset_is_refused(void) {
+    ctex_stroke_settings_descriptor settings;
+    ctex_stroke_preset_info info = {.size = CTEX_STROKE_PRESET_INFO_CURRENT_SIZE};
+    char serialized[PRESET_CAPACITY] = {0};
+    size_t serialized_size = 0;
+    if (!configure_preset_settings(&settings) ||
+        !serialize_preset(&settings, serialized, sizeof(serialized), &serialized_size)) {
+        return 0;
+    }
+    serialized[strlen("CTEX_STROKE_PRESET\t")] = '9';
+    return expect(ctex_stroke_preset_deserialize(serialized, serialized_size, &info, NULL, NULL) ==
+                  CTEX_RESULT_INVALID_ARGUMENT) &&
+           expect(ctex_get_last_diagnostic_code() == CTEX_DIAGNOSTIC_INVALID_STROKE_PRESET &&
+                  strstr(ctex_get_last_diagnostic(), "9") != NULL);
+}
+
 int main(void) {
     return defaults_and_caller_owned_buffers() &&
                    mappings_taper_jitter_and_symmetry_are_reachable() &&
-                   constraints_stabilizer_and_validation_are_reachable()
+                   constraints_stabilizer_and_validation_are_reachable() &&
+                   current_preset_round_trip() && older_preset_migrates() &&
+                   newer_preset_is_refused()
                ? 0
                : 1;
 }

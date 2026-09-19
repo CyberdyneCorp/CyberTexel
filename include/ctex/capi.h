@@ -69,7 +69,8 @@ typedef enum ctex_diagnostic_code {
     CTEX_DIAGNOSTIC_IMAGE_LIMIT_EXCEEDED = 33,
     CTEX_DIAGNOSTIC_UNSUPPORTED_IMAGE_COMBINATION = 34,
     CTEX_DIAGNOSTIC_IMAGE_ENCODING_FAILED = 35,
-    CTEX_DIAGNOSTIC_INVALID_STROKE = 36
+    CTEX_DIAGNOSTIC_INVALID_STROKE = 36,
+    CTEX_DIAGNOSTIC_INVALID_STROKE_PRESET = 37
 } ctex_diagnostic_code;
 
 typedef enum ctex_log_severity {
@@ -345,6 +346,32 @@ typedef struct ctex_resolved_stroke_info {
 
 #define CTEX_RESOLVED_STROKE_INFO_V1_SIZE ((uint32_t)sizeof(ctex_resolved_stroke_info))
 #define CTEX_RESOLVED_STROKE_INFO_CURRENT_SIZE ((uint32_t)sizeof(ctex_resolved_stroke_info))
+
+typedef struct ctex_stroke_preset_info {
+    uint32_t size;
+    uint32_t schema_version;
+    size_t required_name_size;
+    size_t required_tip_resource_identity_size;
+    size_t required_curve_point_count;
+} ctex_stroke_preset_info;
+
+#define CTEX_STROKE_PRESET_INFO_V1_SIZE ((uint32_t)sizeof(ctex_stroke_preset_info))
+#define CTEX_STROKE_PRESET_INFO_CURRENT_SIZE ((uint32_t)sizeof(ctex_stroke_preset_info))
+
+typedef struct ctex_stroke_preset_buffers_descriptor {
+    uint32_t size;
+    char* name_buffer;
+    size_t name_buffer_size;
+    char* tip_resource_identity_buffer;
+    size_t tip_resource_identity_buffer_size;
+    ctex_response_curve_point* curve_points;
+    size_t curve_point_capacity;
+} ctex_stroke_preset_buffers_descriptor;
+
+#define CTEX_STROKE_PRESET_BUFFERS_DESCRIPTOR_V1_SIZE \
+    ((uint32_t)sizeof(ctex_stroke_preset_buffers_descriptor))
+#define CTEX_STROKE_PRESET_BUFFERS_DESCRIPTOR_CURRENT_SIZE \
+    ((uint32_t)sizeof(ctex_stroke_preset_buffers_descriptor))
 
 typedef struct ctex_uv_set_descriptor {
     uint32_t size;
@@ -681,6 +708,24 @@ CTEX_API ctex_result ctex_stroke_resolve(
     size_t sample_count, ctex_resolved_stroke_info* out_info, ctex_resolved_stamp* stamps,
     size_t stamp_capacity, size_t* out_stamp_count, ctex_swept_segment* swept_segments,
     size_t swept_segment_capacity, size_t* out_swept_segment_count);
+
+/* Serializes a named current-schema stroke preset into canonical bytes. */
+CTEX_API ctex_result ctex_stroke_preset_serialize(const char* name,
+                                                  const ctex_stroke_settings_descriptor* settings,
+                                                  char* serialized_buffer,
+                                                  size_t serialized_buffer_size,
+                                                  size_t* out_required_size);
+
+/*
+ * Validates and migrates canonical stroke-preset bytes. Pass NULL for both
+ * out_settings and buffers to query the storage requirements in out_info.
+ * A filling call points the returned settings at the supplied tip and curve
+ * buffers; all output storage remains owned by the caller.
+ */
+CTEX_API ctex_result ctex_stroke_preset_deserialize(
+    const char* serialized, size_t serialized_size, ctex_stroke_preset_info* out_info,
+    ctex_stroke_settings_descriptor* out_settings,
+    const ctex_stroke_preset_buffers_descriptor* buffers);
 
 /*
  * Installs one process-wide sink. Pass NULL to uninstall it. The callback can

@@ -2,6 +2,7 @@
 #include <ctex/version.h>
 
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <cstdio>
 #include <cstring>
@@ -9,6 +10,7 @@
 #include <ctex/io/image_io.hpp>
 #include <ctex/io/texture_encode.hpp>
 #include <ctex/paint/stroke.hpp>
+#include <ctex/paint/stroke_preset.hpp>
 #include <exception>
 #include <iterator>
 #include <limits>
@@ -1296,6 +1298,118 @@ ctex_stroke_settings_descriptor default_stroke_settings() {
     };
 }
 
+std::array<const ctex::paint::ResponseMapping*, 7> stroke_mappings(
+    const ctex::paint::StrokeSettings& settings) {
+    return {
+        &settings.input_mapping.pressure_radius,   &settings.input_mapping.pressure_opacity,
+        &settings.input_mapping.pressure_hardness, &settings.input_mapping.pressure_flow,
+        &settings.input_mapping.pressure_rotation, &settings.input_mapping.tilt_rotation,
+        &settings.input_mapping.tilt_elongation,
+    };
+}
+
+std::size_t stroke_curve_point_count(const ctex::paint::StrokeSettings& settings) {
+    std::size_t result = 0;
+    for (const ctex::paint::ResponseMapping* mapping : stroke_mappings(settings)) {
+        if (mapping->curve.points.size() > std::numeric_limits<std::size_t>::max() - result) {
+            throw std::overflow_error("stroke preset curve-point count overflow");
+        }
+        result += mapping->curve.points.size();
+    }
+    return result;
+}
+
+ctex_response_mapping_descriptor copy_capi_mapping(const ctex::paint::ResponseMapping& mapping,
+                                                   ctex_response_curve_point*& destination) {
+    ctex_response_mapping_descriptor result = capi_mapping(mapping);
+    result.points = destination;
+    result.point_count = mapping.curve.points.size();
+    for (const ctex::paint::ResponseCurvePoint point : mapping.curve.points) {
+        *destination = {point.input, point.output};
+        ++destination;
+    }
+    return result;
+}
+
+ctex_stroke_settings_descriptor copy_capi_stroke_settings(
+    const ctex::paint::StrokeSettings& settings, const char* tip_resource_identity,
+    ctex_response_curve_point* curve_points) {
+    ctex_stroke_settings_descriptor result = default_stroke_settings();
+    result.reconstruction_version = settings.reconstruction_version;
+    result.tip_mode = static_cast<std::uint32_t>(settings.tip_mode);
+    result.spacing_fraction = settings.spacing_fraction;
+    result.radius = settings.radius;
+    result.opacity = settings.opacity;
+    result.hardness = settings.hardness;
+    result.rotation_radians = settings.rotation_radians;
+    result.elongation = settings.elongation;
+    result.flow = settings.flow;
+    result.tip_resource_identity = tip_resource_identity;
+    result.stabilizer.radius = settings.stabilizer.radius;
+    result.stabilizer.time_constant_seconds = settings.stabilizer.time_constant_seconds;
+    result.pressure_radius =
+        copy_capi_mapping(settings.input_mapping.pressure_radius, curve_points);
+    result.pressure_opacity =
+        copy_capi_mapping(settings.input_mapping.pressure_opacity, curve_points);
+    result.pressure_hardness =
+        copy_capi_mapping(settings.input_mapping.pressure_hardness, curve_points);
+    result.pressure_flow = copy_capi_mapping(settings.input_mapping.pressure_flow, curve_points);
+    result.pressure_rotation =
+        copy_capi_mapping(settings.input_mapping.pressure_rotation, curve_points);
+    result.tilt_rotation = copy_capi_mapping(settings.input_mapping.tilt_rotation, curve_points);
+    result.tilt_elongation =
+        copy_capi_mapping(settings.input_mapping.tilt_elongation, curve_points);
+    result.jitter = {
+        .size = CTEX_STROKE_JITTER_DESCRIPTOR_CURRENT_SIZE,
+        .seed = settings.jitter.seed,
+        .position_fraction = settings.jitter.position_fraction,
+        .radius_fraction = settings.jitter.radius_fraction,
+        .rotation_radians = settings.jitter.rotation_radians,
+        .opacity = settings.jitter.opacity,
+        .flow = settings.jitter.flow,
+    };
+    result.taper = {
+        .size = CTEX_STROKE_TAPER_DESCRIPTOR_CURRENT_SIZE,
+        .entry = capi_taper_span(settings.taper.entry),
+        .exit = capi_taper_span(settings.taper.exit),
+        .floor = settings.taper.floor,
+        .affect_radius = settings.taper.affect_radius ? 1U : 0U,
+        .affect_opacity = settings.taper.affect_opacity ? 1U : 0U,
+    };
+    result.constraint = {
+        .size = CTEX_STROKE_CONSTRAINT_DESCRIPTOR_CURRENT_SIZE,
+        .mode = static_cast<std::uint32_t>(settings.constraint.mode),
+        .grid_step = settings.constraint.grid_step,
+    };
+    result.symmetry = {
+        .size = CTEX_STROKE_SYMMETRY_DESCRIPTOR_CURRENT_SIZE,
+        .mirror_x = settings.symmetry.mirror_x ? 1U : 0U,
+        .mirror_y = settings.symmetry.mirror_y ? 1U : 0U,
+        .mirror_z = settings.symmetry.mirror_z ? 1U : 0U,
+        .radial_count = settings.symmetry.radial_count,
+        .radial_axis = static_cast<std::uint32_t>(settings.symmetry.radial_axis),
+    };
+    return result;
+}
+
+void validate_preset_buffers(const ctex_stroke_preset_buffers_descriptor& buffers,
+                             const ctex_stroke_preset_info& info) {
+    validate_structure_size(buffers.size, CTEX_STROKE_PRESET_BUFFERS_DESCRIPTOR_V1_SIZE,
+                            CTEX_STROKE_PRESET_BUFFERS_DESCRIPTOR_CURRENT_SIZE, "buffers.size");
+    if (buffers.name_buffer == nullptr || buffers.tip_resource_identity_buffer == nullptr ||
+        buffers.curve_points == nullptr) {
+        throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                       "preset output buffers are required");
+    }
+    validate_output_array(buffers.name_buffer, buffers.name_buffer_size, info.required_name_size,
+                          "name_buffer");
+    validate_output_array(buffers.tip_resource_identity_buffer,
+                          buffers.tip_resource_identity_buffer_size,
+                          info.required_tip_resource_identity_size, "tip_resource_identity_buffer");
+    validate_output_array(buffers.curve_points, buffers.curve_point_capacity,
+                          info.required_curve_point_count, "curve_points");
+}
+
 }  // namespace
 
 void* ctex_host_memory_resource::do_allocate(std::size_t bytes, std::size_t alignment) {
@@ -1796,6 +1910,87 @@ extern "C" ctex_result ctex_stroke_resolve(
             }
         } catch (const ctex::paint::StrokeResolutionError& error) {
             throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_INVALID_STROKE,
+                           error.what());
+        }
+    });
+}
+
+extern "C" ctex_result ctex_stroke_preset_serialize(const char* name,
+                                                    const ctex_stroke_settings_descriptor* settings,
+                                                    char* serialized_buffer,
+                                                    std::size_t serialized_buffer_size,
+                                                    std::size_t* out_required_size) {
+    return call_boundary("ctex_stroke_preset_serialize", [&] {
+        if (name == nullptr || settings == nullptr || out_required_size == nullptr) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                           "name, settings and out_required_size are required");
+        }
+        try {
+            const ctex::paint::StrokePreset preset{
+                .schema_version = ctex::paint::current_stroke_preset_schema_version,
+                .name = name,
+                .settings = stroke_settings(*settings),
+            };
+            const std::string serialized = ctex::paint::serialize_stroke_preset(preset);
+            *out_required_size = serialized.size();
+            validate_string_buffer(serialized_buffer, serialized_buffer_size, serialized.size());
+            if (serialized_buffer != nullptr) {
+                std::memcpy(serialized_buffer, serialized.data(), serialized.size());
+            }
+        } catch (const ctex::paint::StrokePresetError& error) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_INVALID_STROKE_PRESET,
+                           error.what());
+        }
+    });
+}
+
+extern "C" ctex_result ctex_stroke_preset_deserialize(
+    const char* serialized, std::size_t serialized_size, ctex_stroke_preset_info* out_info,
+    ctex_stroke_settings_descriptor* out_settings,
+    const ctex_stroke_preset_buffers_descriptor* buffers) {
+    return call_boundary("ctex_stroke_preset_deserialize", [&] {
+        if ((serialized == nullptr && serialized_size != 0) || out_info == nullptr) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                           out_info == nullptr ? "out_info=null"
+                                               : "serialized=null with nonzero serialized_size");
+        }
+        validate_structure_size(out_info->size, CTEX_STROKE_PRESET_INFO_V1_SIZE,
+                                CTEX_STROKE_PRESET_INFO_CURRENT_SIZE, "out_info.size");
+        try {
+            const std::string_view bytes = serialized_size == 0
+                                               ? std::string_view{}
+                                               : std::string_view(serialized, serialized_size);
+            const ctex::paint::StrokePreset preset = ctex::paint::deserialize_stroke_preset(bytes);
+            const ctex_stroke_preset_info info{
+                .size = CTEX_STROKE_PRESET_INFO_CURRENT_SIZE,
+                .schema_version = preset.schema_version,
+                .required_name_size = preset.name.size() + 1,
+                .required_tip_resource_identity_size =
+                    preset.settings.tip_resource_identity.size() + 1,
+                .required_curve_point_count = stroke_curve_point_count(preset.settings),
+            };
+            *out_info = info;
+            if (out_settings == nullptr && buffers == nullptr) {
+                return;
+            }
+            if (out_settings == nullptr || buffers == nullptr) {
+                throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                               "out_settings and buffers must be supplied together");
+            }
+            validate_structure_size(out_settings->size, CTEX_STROKE_SETTINGS_DESCRIPTOR_V1_SIZE,
+                                    CTEX_STROKE_SETTINGS_DESCRIPTOR_CURRENT_SIZE,
+                                    "out_settings.size");
+            validate_preset_buffers(*buffers, info);
+
+            std::memcpy(buffers->name_buffer, preset.name.c_str(), info.required_name_size);
+            std::memcpy(buffers->tip_resource_identity_buffer,
+                        preset.settings.tip_resource_identity.c_str(),
+                        info.required_tip_resource_identity_size);
+            const ctex_stroke_settings_descriptor converted = copy_capi_stroke_settings(
+                preset.settings, buffers->tip_resource_identity_buffer, buffers->curve_points);
+            *out_settings = converted;
+        } catch (const ctex::paint::StrokePresetError& error) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_INVALID_STROKE_PRESET,
                            error.what());
         }
     });
