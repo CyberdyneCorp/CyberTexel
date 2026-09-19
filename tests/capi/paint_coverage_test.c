@@ -127,6 +127,87 @@ static int discrete_tips_do_not_synthesize_sweeps(void) {
     return passed;
 }
 
+static int material_coordinate_modes_are_exposed_per_texel(void) {
+    ctex_mesh* mesh = coverage_mesh();
+    const ctex_paint_tile_coverage_descriptor tile = {
+        CTEX_PAINT_TILE_COVERAGE_DESCRIPTOR_CURRENT_SIZE, "uv0", 1, 1, {0.0, 0.0}};
+    ctex_paint_material_coordinate_descriptor descriptor = {
+        .size = CTEX_PAINT_MATERIAL_COORDINATE_DESCRIPTOR_CURRENT_SIZE,
+        .mode = CTEX_PAINT_MATERIAL_COORDINATE_UV,
+    };
+    ctex_paint_material_coordinate_sample sample = {.covered = 7};
+    size_t count = 0;
+    int passed = mesh != NULL;
+    if (passed) {
+        passed = expect(ctex_paint_evaluate_material_coordinates(mesh, &tile, &descriptor, NULL, 0,
+                                                                 &count) == CTEX_RESULT_SUCCESS) &&
+                 expect(count == 1);
+    }
+    if (passed) {
+        passed = expect(ctex_paint_evaluate_material_coordinates(mesh, &tile, &descriptor, &sample,
+                                                                 0, &count) ==
+                        CTEX_RESULT_BUFFER_TOO_SMALL) &&
+                 expect(sample.covered == 7);
+    }
+    if (passed) {
+        passed = expect(ctex_paint_evaluate_material_coordinates(
+                            mesh, &tile, &descriptor, &sample, 1, &count) == CTEX_RESULT_SUCCESS) &&
+                 expect(sample.covered == 1 && sample.projection_count == 1 &&
+                        near(sample.coordinates[0].x, 0.5) && near(sample.coordinates[0].y, 0.5) &&
+                        near(sample.weights[0], 1.0));
+    }
+    descriptor.mode = CTEX_PAINT_MATERIAL_COORDINATE_TRIPLANAR;
+    if (passed) {
+        passed = expect(ctex_paint_evaluate_material_coordinates(
+                            mesh, &tile, &descriptor, &sample, 1, &count) == CTEX_RESULT_SUCCESS) &&
+                 expect(sample.projection_count == 3 && near(sample.coordinates[0].x, 0.5) &&
+                        near(sample.coordinates[0].y, 0.0) && near(sample.coordinates[1].x, 5.0) &&
+                        near(sample.coordinates[1].y, 0.0) && near(sample.coordinates[2].x, 5.0) &&
+                        near(sample.coordinates[2].y, 0.5) && near(sample.weights[0], 0.0) &&
+                        near(sample.weights[1], 0.0) && near(sample.weights[2], 1.0));
+    }
+    descriptor.mode = CTEX_PAINT_MATERIAL_COORDINATE_PLANAR;
+    descriptor.planar_u_axis = (ctex_vec3d){1.0, 0.0, 0.0};
+    descriptor.planar_v_axis = (ctex_vec3d){0.0, 1.0, 0.0};
+    if (passed) {
+        passed = expect(ctex_paint_evaluate_material_coordinates(
+                            mesh, &tile, &descriptor, &sample, 1, &count) == CTEX_RESULT_SUCCESS) &&
+                 expect(sample.projection_count == 1 && near(sample.coordinates[0].x, 5.0) &&
+                        near(sample.coordinates[0].y, 0.5));
+    }
+    descriptor.planar_v_axis = descriptor.planar_u_axis;
+    sample.covered = 9;
+    if (passed) {
+        passed =
+            expect(ctex_paint_evaluate_material_coordinates(mesh, &tile, &descriptor, &sample, 1,
+                                                            &count) ==
+                   CTEX_RESULT_INVALID_ARGUMENT) &&
+            expect(ctex_get_last_diagnostic_code() == CTEX_DIAGNOSTIC_INVALID_PAINT_COORDINATES) &&
+            expect(sample.covered == 9);
+    }
+    ctex_mesh_destroy(mesh);
+    return passed;
+}
+
+static int uncovered_material_texels_have_no_projections(void) {
+    ctex_mesh* mesh = coverage_mesh();
+    const ctex_paint_tile_coverage_descriptor tile = {
+        CTEX_PAINT_TILE_COVERAGE_DESCRIPTOR_CURRENT_SIZE, "uv0", 1, 1, {2.0, 0.0}};
+    const ctex_paint_material_coordinate_descriptor descriptor = {
+        .size = CTEX_PAINT_MATERIAL_COORDINATE_DESCRIPTOR_CURRENT_SIZE,
+        .mode = CTEX_PAINT_MATERIAL_COORDINATE_UV,
+    };
+    ctex_paint_material_coordinate_sample sample = {.covered = 7, .projection_count = 7};
+    size_t count = 0;
+    const int passed =
+        mesh != NULL &&
+        expect(ctex_paint_evaluate_material_coordinates(mesh, &tile, &descriptor, &sample, 1,
+                                                        &count) == CTEX_RESULT_SUCCESS) &&
+        expect(count == 1 && sample.covered == 0 && sample.projection_count == 0);
+    ctex_mesh_destroy(mesh);
+    return passed;
+}
+
 static int deposition_mask_extension_is_append_only(
     ctex_mesh* mesh, const ctex_paint_tile_coverage_descriptor* tile,
     const ctex_resolved_stroke_descriptor* stroke, ctex_paint_deposition_descriptor* deposition,
@@ -414,6 +495,8 @@ static int invalid_inputs_are_stable_diagnostics(void) {
 int main(void) {
     return continuous_and_external_strokes_produce_tile_coverage() &&
                    discrete_tips_do_not_synthesize_sweeps() &&
+                   material_coordinate_modes_are_exposed_per_texel() &&
+                   uncovered_material_texels_have_no_projections() &&
                    deposition_accumulates_and_discards_canonical_stamps() &&
                    paint_mask_classes_intersect_before_deposition() &&
                    snapshot_blending_uses_deposition_write_mask() &&

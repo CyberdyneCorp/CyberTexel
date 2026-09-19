@@ -74,7 +74,8 @@ typedef enum ctex_diagnostic_code {
     CTEX_DIAGNOSTIC_INVALID_PAINT_COVERAGE = 38,
     CTEX_DIAGNOSTIC_PAINT_LIMIT_EXCEEDED = 39,
     CTEX_DIAGNOSTIC_INVALID_PAINT_BLEND = 40,
-    CTEX_DIAGNOSTIC_INVALID_PAINT_MASK = 41
+    CTEX_DIAGNOSTIC_INVALID_PAINT_MASK = 41,
+    CTEX_DIAGNOSTIC_INVALID_PAINT_COORDINATES = 42
 } ctex_diagnostic_code;
 
 typedef enum ctex_log_severity {
@@ -419,6 +420,32 @@ typedef struct ctex_paint_mask_info {
 
 #define CTEX_PAINT_MASK_INFO_V1_SIZE ((uint32_t)sizeof(ctex_paint_mask_info))
 #define CTEX_PAINT_MASK_INFO_CURRENT_SIZE ((uint32_t)sizeof(ctex_paint_mask_info))
+
+typedef enum ctex_paint_material_coordinate_mode {
+    CTEX_PAINT_MATERIAL_COORDINATE_UV = 0,
+    CTEX_PAINT_MATERIAL_COORDINATE_TRIPLANAR = 1,
+    CTEX_PAINT_MATERIAL_COORDINATE_PLANAR = 2
+} ctex_paint_material_coordinate_mode;
+
+typedef struct ctex_paint_material_coordinate_descriptor {
+    uint32_t size;
+    uint32_t mode;
+    ctex_vec3d planar_origin;
+    ctex_vec3d planar_u_axis;
+    ctex_vec3d planar_v_axis;
+} ctex_paint_material_coordinate_descriptor;
+
+#define CTEX_PAINT_MATERIAL_COORDINATE_DESCRIPTOR_V1_SIZE \
+    ((uint32_t)sizeof(ctex_paint_material_coordinate_descriptor))
+#define CTEX_PAINT_MATERIAL_COORDINATE_DESCRIPTOR_CURRENT_SIZE \
+    ((uint32_t)sizeof(ctex_paint_material_coordinate_descriptor))
+
+typedef struct ctex_paint_material_coordinate_sample {
+    uint32_t covered;
+    uint32_t projection_count;
+    ctex_vec2d coordinates[3];
+    double weights[3];
+} ctex_paint_material_coordinate_sample;
 
 typedef struct ctex_paint_deposition_descriptor {
     uint32_t size;
@@ -856,6 +883,13 @@ CTEX_API ctex_result ctex_paint_evaluate_tile_coverage(
     const ctex_mesh* mesh, const ctex_paint_tile_coverage_descriptor* tile,
     const ctex_resolved_stroke_descriptor* stroke, double* coverage, size_t coverage_capacity,
     size_t* out_coverage_count);
+
+/* Evaluates UV, triplanar or planar material coordinates for one UV tile. */
+CTEX_API ctex_result ctex_paint_evaluate_material_coordinates(
+    const ctex_mesh* mesh, const ctex_paint_tile_coverage_descriptor* tile,
+    const ctex_paint_material_coordinate_descriptor* descriptor,
+    ctex_paint_material_coordinate_sample* samples, size_t sample_capacity,
+    size_t* out_sample_count);
 
 /* Intersects every active normalized mask for one bounded tile. */
 CTEX_API ctex_result ctex_paint_combine_masks(uint32_t width, uint32_t height,

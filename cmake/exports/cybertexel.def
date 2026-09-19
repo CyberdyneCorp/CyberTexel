@@ -28,6 +28,7 @@ EXPORTS
     ctex_mesh_replace
     ctex_paint_blend_snapshot
     ctex_paint_combine_masks
+    ctex_paint_evaluate_material_coordinates
     ctex_paint_evaluate_tile_deposition
     ctex_paint_evaluate_tile_coverage
     ctex_quantize_unorm8

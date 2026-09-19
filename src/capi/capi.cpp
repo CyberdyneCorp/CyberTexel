@@ -1535,6 +1535,60 @@ ctex::paint::TextureSpaceRaster paint_tile_surface(
                                 .tile_origin = {tile.tile_origin.x, tile.tile_origin.y}});
 }
 
+ctex::paint::MaterialCoordinateRequest paint_material_coordinate_request(
+    const ctex_paint_material_coordinate_descriptor& descriptor) {
+    ctex::paint::MaterialCoordinateMode mode;
+    switch (descriptor.mode) {
+        case CTEX_PAINT_MATERIAL_COORDINATE_UV:
+            mode = ctex::paint::MaterialCoordinateMode::uv;
+            break;
+        case CTEX_PAINT_MATERIAL_COORDINATE_TRIPLANAR:
+            mode = ctex::paint::MaterialCoordinateMode::triplanar;
+            break;
+        case CTEX_PAINT_MATERIAL_COORDINATE_PLANAR:
+            mode = ctex::paint::MaterialCoordinateMode::planar;
+            break;
+        default:
+            throw std::invalid_argument("paint material coordinate mode is invalid");
+    }
+    return {
+        .mode = mode,
+        .planar =
+            {
+                .origin = stroke_vec(descriptor.planar_origin),
+                .u_axis = stroke_vec(descriptor.planar_u_axis),
+                .v_axis = stroke_vec(descriptor.planar_v_axis),
+            },
+    };
+}
+
+void validate_material_coordinate_request(const ctex::paint::MaterialCoordinateRequest& request) {
+    const ctex::paint::SurfaceTexel validation_texel{
+        .position = {},
+        .normal = {0.0, 0.0, 1.0},
+        .geometric_normal = {0.0, 0.0, 1.0},
+        .uv = {},
+        .triangle = 0,
+    };
+    static_cast<void>(ctex::paint::material_coordinates(validation_texel, request));
+}
+
+ctex_paint_material_coordinate_sample capi_material_coordinates(
+    const ctex::paint::MaterialCoordinates& coordinates) {
+    ctex_paint_material_coordinate_sample result{
+        .covered = 1,
+        .projection_count = static_cast<std::uint32_t>(coordinates.count),
+        .coordinates = {},
+        .weights = {},
+    };
+    for (std::size_t index = 0; index < coordinates.count; ++index) {
+        result.coordinates[index] = {coordinates.projections[index].coordinate.x,
+                                     coordinates.projections[index].coordinate.y};
+        result.weights[index] = coordinates.projections[index].weight;
+    }
+    return result;
+}
+
 ctex::paint::RejectionSettings accept_all_rejection_settings() {
     return {
         .depth_enabled = false,
@@ -2337,6 +2391,48 @@ extern "C" ctex_result ctex_paint_evaluate_tile_coverage(
                            error.what());
         } catch (const std::out_of_range& error) {
             throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_INVALID_PAINT_COVERAGE,
+                           error.what());
+        }
+    });
+}
+
+extern "C" ctex_result ctex_paint_evaluate_material_coordinates(
+    const ctex_mesh* mesh, const ctex_paint_tile_coverage_descriptor* tile,
+    const ctex_paint_material_coordinate_descriptor* descriptor,
+    ctex_paint_material_coordinate_sample* samples, std::size_t sample_capacity,
+    std::size_t* out_sample_count) {
+    return call_boundary("ctex_paint_evaluate_material_coordinates", [&] {
+        if (mesh == nullptr || tile == nullptr || descriptor == nullptr ||
+            out_sample_count == nullptr) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                           "mesh, tile, descriptor and out_sample_count are required");
+        }
+        validate_structure_size(descriptor->size, CTEX_PAINT_MATERIAL_COORDINATE_DESCRIPTOR_V1_SIZE,
+                                CTEX_PAINT_MATERIAL_COORDINATE_DESCRIPTOR_CURRENT_SIZE,
+                                "descriptor.size");
+        const std::size_t sample_count = paint_tile_texel_count(*tile);
+        *out_sample_count = sample_count;
+        validate_output_array(samples, sample_capacity, sample_count, "samples");
+        try {
+            const ctex::paint::MaterialCoordinateRequest request =
+                paint_material_coordinate_request(*descriptor);
+            validate_material_coordinate_request(request);
+            const ctex::paint::TextureSpaceRaster surface = paint_tile_surface(*mesh, *tile);
+            std::vector<ctex_paint_material_coordinate_sample> staged(sample_count);
+            for (std::size_t index = 0; index < sample_count; ++index) {
+                if (surface.covered(index)) {
+                    staged[index] = capi_material_coordinates(
+                        ctex::paint::material_coordinates(surface.texels[index], request));
+                }
+            }
+            if (samples != nullptr) {
+                std::copy(staged.begin(), staged.end(), samples);
+            }
+        } catch (const std::invalid_argument& error) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_INVALID_PAINT_COORDINATES,
+                           error.what());
+        } catch (const std::out_of_range& error) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_INVALID_PAINT_COORDINATES,
                            error.what());
         }
     });
