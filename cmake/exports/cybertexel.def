@@ -28,10 +28,12 @@ EXPORTS
     ctex_mesh_replace
     ctex_paint_blend_snapshot
     ctex_paint_combine_masks
+    ctex_paint_dilate_uv_seams
     ctex_paint_evaluate_material_coordinates
     ctex_paint_evaluate_rejected_coverage
     ctex_paint_plan_work
     ctex_paint_rejection_init
+    ctex_paint_seam_dilation_init
     ctex_paint_work_init
     ctex_paint_evaluate_tile_deposition
     ctex_paint_evaluate_tile_coverage

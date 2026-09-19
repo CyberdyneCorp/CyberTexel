@@ -77,7 +77,8 @@ typedef enum ctex_diagnostic_code {
     CTEX_DIAGNOSTIC_INVALID_PAINT_MASK = 41,
     CTEX_DIAGNOSTIC_INVALID_PAINT_COORDINATES = 42,
     CTEX_DIAGNOSTIC_INVALID_PAINT_REJECTION = 43,
-    CTEX_DIAGNOSTIC_INVALID_PAINT_WORK = 44
+    CTEX_DIAGNOSTIC_INVALID_PAINT_WORK = 44,
+    CTEX_DIAGNOSTIC_INVALID_PAINT_DILATION = 45
 } ctex_diagnostic_code;
 
 typedef enum ctex_log_severity {
@@ -550,6 +551,35 @@ typedef struct ctex_paint_work_info {
 #define CTEX_PAINT_WORK_INFO_V1_SIZE ((uint32_t)sizeof(ctex_paint_work_info))
 #define CTEX_PAINT_WORK_INFO_CURRENT_SIZE ((uint32_t)sizeof(ctex_paint_work_info))
 
+typedef struct ctex_paint_seam_dilation_descriptor {
+    uint32_t size;
+    uint32_t width;
+    uint32_t height;
+    uint32_t component_count;
+    uint32_t radius;
+    const double* pixels;
+    size_t pixel_count;
+    const uint8_t* coverage;
+    size_t coverage_count;
+} ctex_paint_seam_dilation_descriptor;
+
+#define CTEX_PAINT_SEAM_DILATION_DESCRIPTOR_V1_SIZE \
+    ((uint32_t)sizeof(ctex_paint_seam_dilation_descriptor))
+#define CTEX_PAINT_SEAM_DILATION_DESCRIPTOR_CURRENT_SIZE \
+    ((uint32_t)sizeof(ctex_paint_seam_dilation_descriptor))
+
+typedef struct ctex_paint_seam_dilation_info {
+    uint32_t size;
+    size_t required_pixel_count;
+    size_t dilated_texel_count;
+    size_t zero_gradient_texel_count;
+    uint32_t resolved_radius;
+    uint32_t radius_clamped;
+} ctex_paint_seam_dilation_info;
+
+#define CTEX_PAINT_SEAM_DILATION_INFO_V1_SIZE ((uint32_t)sizeof(ctex_paint_seam_dilation_info))
+#define CTEX_PAINT_SEAM_DILATION_INFO_CURRENT_SIZE ((uint32_t)sizeof(ctex_paint_seam_dilation_info))
+
 typedef struct ctex_paint_deposition_descriptor {
     uint32_t size;
     uint32_t mode;
@@ -1013,6 +1043,16 @@ CTEX_API ctex_result ctex_paint_plan_work(const ctex_paint_work_descriptor* work
                                           ctex_paint_tile_coordinate* processed_tiles,
                                           size_t processed_tile_capacity,
                                           size_t* out_processed_tile_count);
+
+/* Initializes the canonical two-texel seam-dilation radius. */
+CTEX_API ctex_result
+ctex_paint_seam_dilation_init(ctex_paint_seam_dilation_descriptor* out_dilation);
+
+/* Extrapolates covered source values into a UV seam gutter. */
+CTEX_API ctex_result ctex_paint_dilate_uv_seams(const ctex_paint_seam_dilation_descriptor* dilation,
+                                                ctex_paint_seam_dilation_info* out_info,
+                                                double* pixels, size_t pixel_capacity,
+                                                size_t* out_pixel_count);
 
 /* Intersects every active normalized mask for one bounded tile. */
 CTEX_API ctex_result ctex_paint_combine_masks(uint32_t width, uint32_t height,

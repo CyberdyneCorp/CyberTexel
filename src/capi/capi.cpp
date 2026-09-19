@@ -13,6 +13,7 @@
 #include <ctex/paint/coverage.hpp>
 #include <ctex/paint/deposition.hpp>
 #include <ctex/paint/masking.hpp>
+#include <ctex/paint/seam_dilation.hpp>
 #include <ctex/paint/stroke.hpp>
 #include <ctex/paint/stroke_preset.hpp>
 #include <ctex/paint/work.hpp>
@@ -1772,6 +1773,35 @@ void copy_paint_work_tiles(const ctex::paint::PaintWorkReport& report,
     }
 }
 
+std::size_t validate_capi_seam_dilation(const ctex_paint_seam_dilation_descriptor& dilation) {
+    if (dilation.component_count == 0 || dilation.component_count > 4) {
+        throw std::invalid_argument("seam-dilation component_count must be between one and four");
+    }
+    const std::size_t texel_count = bounded_paint_pixel_count(
+        dilation.width, dilation.height, CTEX_DIAGNOSTIC_INVALID_PAINT_DILATION);
+    const std::size_t required_pixel_count = texel_count * dilation.component_count;
+    if (dilation.pixel_count != required_pixel_count || dilation.coverage_count != texel_count) {
+        throw std::invalid_argument("seam-dilation input counts are inconsistent");
+    }
+    if (dilation.pixels == nullptr || dilation.coverage == nullptr) {
+        throw std::invalid_argument("seam-dilation input arrays are required");
+    }
+    return required_pixel_count;
+}
+
+ctex_paint_seam_dilation_info capi_seam_dilation_info(
+    const ctex::paint::SeamDilationResult& result) {
+    return {
+        .size = CTEX_PAINT_SEAM_DILATION_INFO_CURRENT_SIZE,
+        .required_pixel_count = result.raster.pixels.size(),
+        .dilated_texel_count = result.dilated_texel_count,
+        .zero_gradient_texel_count = result.zero_gradient_texel_count,
+        .resolved_radius = result.radius,
+        .radius_clamped =
+            result.parameter_report.clamp_for("seam_dilation.radius").has_value() ? 1U : 0U,
+    };
+}
+
 ctex::paint::RejectionSettings accept_all_rejection_settings() {
     return {
         .depth_enabled = false,
@@ -2744,6 +2774,63 @@ extern "C" ctex_result ctex_paint_plan_work(const ctex_paint_work_descriptor* wo
                            error.what());
         } catch (const std::invalid_argument& error) {
             throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_INVALID_PAINT_WORK,
+                           error.what());
+        }
+    });
+}
+
+extern "C" ctex_result ctex_paint_seam_dilation_init(
+    ctex_paint_seam_dilation_descriptor* out_dilation) {
+    return call_boundary("ctex_paint_seam_dilation_init", [&] {
+        if (out_dilation == nullptr) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                           "out_dilation is required");
+        }
+        *out_dilation = {
+            .size = CTEX_PAINT_SEAM_DILATION_DESCRIPTOR_CURRENT_SIZE,
+            .width = 0,
+            .height = 0,
+            .component_count = 0,
+            .radius = ctex::paint::default_seam_dilation_radius,
+            .pixels = nullptr,
+            .pixel_count = 0,
+            .coverage = nullptr,
+            .coverage_count = 0,
+        };
+    });
+}
+
+extern "C" ctex_result ctex_paint_dilate_uv_seams(
+    const ctex_paint_seam_dilation_descriptor* dilation, ctex_paint_seam_dilation_info* out_info,
+    double* pixels, std::size_t pixel_capacity, std::size_t* out_pixel_count) {
+    return call_boundary("ctex_paint_dilate_uv_seams", [&] {
+        if (dilation == nullptr || out_info == nullptr || out_pixel_count == nullptr) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                           "dilation, out_info and out_pixel_count are required");
+        }
+        validate_structure_size(dilation->size, CTEX_PAINT_SEAM_DILATION_DESCRIPTOR_V1_SIZE,
+                                CTEX_PAINT_SEAM_DILATION_DESCRIPTOR_CURRENT_SIZE, "dilation.size");
+        validate_structure_size(out_info->size, CTEX_PAINT_SEAM_DILATION_INFO_V1_SIZE,
+                                CTEX_PAINT_SEAM_DILATION_INFO_CURRENT_SIZE, "out_info.size");
+        try {
+            const std::size_t required_pixel_count = validate_capi_seam_dilation(*dilation);
+            *out_pixel_count = required_pixel_count;
+            validate_output_array(pixels, pixel_capacity, required_pixel_count, "pixels");
+            const ctex::paint::SeamDilationRaster source{
+                .width = dilation->width,
+                .height = dilation->height,
+                .component_count = static_cast<std::uint8_t>(dilation->component_count),
+                .pixels =
+                    std::vector<double>(dilation->pixels, dilation->pixels + dilation->pixel_count),
+            };
+            const ctex::paint::SeamDilationResult result = ctex::paint::dilate_uv_seams(
+                source, std::span(dilation->coverage, dilation->coverage_count), dilation->radius);
+            *out_info = capi_seam_dilation_info(result);
+            if (pixels != nullptr) {
+                std::copy(result.raster.pixels.begin(), result.raster.pixels.end(), pixels);
+            }
+        } catch (const std::invalid_argument& error) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_INVALID_PAINT_DILATION,
                            error.what());
         }
     });
