@@ -643,7 +643,12 @@ gate (14.4) now expose an explicit pre-handle query derived from `VERSION` and
 enforce the documented same-major append-only rules against a committed release
 baseline. The gate compares symbol declarations, live dynamic exports, the
 Windows definition, structure fields and enumeration values. The threading
-contract and two-document concurrency test (14.5) are next.
+contract (14.5) now documents every entry-point family: distinct documents are
+safe concurrently, one document requires external synchronization, and
+diagnostics are thread-local. A synchronized-start fixture creates and enumerates
+256 texture sets on each of two documents and proves that one worker's failure
+does not change the other's state. Host logging and stable diagnostic codes
+(14.6) are next.
 
 ## 1. Foundation
 
@@ -845,7 +850,7 @@ contract and two-document concurrency test (14.5) are next.
 - [x] 14.2 Caller-owned buffers with two-call sizing
 - [x] 14.3 Versioned descriptors and the implausible-size refusal
 - [x] 14.4 ABI version query, stability rules, symbol and descriptor diff gate
-- [ ] 14.5 Threading contract documentation and the two-document concurrency test
+- [x] 14.5 Threading contract documentation and the two-document concurrency test
 - [ ] 14.6 Host log sink and the English-plus-codes diagnostic rule
 - [ ] 14.7 Host allocator callbacks
 - [ ] 14.8 Full-surface coverage gate

@@ -321,6 +321,10 @@ if(BUILD_TESTING)
         target_include_directories(ctex_capi_descriptors_test PRIVATE src/capi)
         target_link_libraries(ctex_capi_descriptors_test PRIVATE cybertexel)
         add_test(NAME c-abi-versioned-descriptors COMMAND ctex_capi_descriptors_test)
+        add_executable(ctex_capi_threading_test tests/capi/threading_test.cpp)
+        ctex_configure_cpp_target(ctex_capi_threading_test)
+        target_link_libraries(ctex_capi_threading_test PRIVATE cybertexel Threads::Threads)
+        add_test(NAME c-abi-two-document-concurrency COMMAND ctex_capi_threading_test)
         if(UNIX AND NOT APPLE)
             add_test(
                 NAME c-abi-export-surface

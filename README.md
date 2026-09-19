@@ -197,7 +197,9 @@ The current implementation provides:
   implausibly large layouts before mutation. An explicit ABI version query and
   [compatibility baseline](docs/c-abi.md#abi-version-and-compatibility) reject
   same-major symbol, signature, descriptor, enum, or export drift. The same
-  public header is compiled by a strict C11 consumer test.
+  public header is compiled by a strict C11 consumer test. Its documented
+  threading contract permits concurrent work on distinct documents, requires
+  caller serialization per shared handle, and keeps diagnostics thread-local.
 - An isolated [Kong shader compiler context](docs/kong-backend.md) that compiles
   Kong source deterministically to WGSL, MSL, binary SPIR-V, or HLSL, supports
   concurrent independent targets, and reports unsupported requests explicitly.

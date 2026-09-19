@@ -61,6 +61,25 @@ non-append descriptor edit, enum renumbering, or header/export mismatch fails
 with the affected name. A deliberate incompatible change therefore requires a
 major version increment.
 
+## Threading contract
+
+The contract is stated per entry-point family:
+
+| Calls | Contract |
+| --- | --- |
+| `ctex_get_version`, `ctex_get_abi_version` | Process-safe and callable concurrently from any thread |
+| `ctex_document_create` | Process-safe; each successful call creates independent state |
+| `ctex_document_destroy` | The caller ensures no other call is using that handle; distinct handles may be destroyed concurrently |
+| `ctex_document_create_texture_set`, `ctex_document_get_texture_set_ids` | Calls on distinct document handles are safe concurrently; every call on the same document handle must be externally synchronized, including read-only calls |
+| `ctex_get_last_result`, `ctex_get_last_diagnostic` | Thread-local; concurrent threads never observe or replace one another's diagnostic state |
+
+A handle may move between threads while idle. CyberTexel does not attach thread
+affinity to a document, but it does not lock operations on the same document;
+the caller owns that serialization. The `c-abi-two-document-concurrency` test
+starts two workers together, creates and enumerates 256 texture sets on each
+independent document, and verifies that a failure diagnostic in one worker does
+not alter the successful worker's state.
+
 After a failed call, `ctex_get_last_result` returns the same result and
 `ctex_get_last_diagnostic` returns an English message naming the operation and
 the offending value. Diagnostic state belongs to the calling thread. The
