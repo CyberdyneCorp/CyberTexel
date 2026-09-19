@@ -13,11 +13,13 @@ dependencies fetched at configure time.
 |---|---|---|---|
 | LodePNG | Zlib | `ed6fe5825c6a4fbb7f58ab35a4231c7543cd452a` | Slice-A PNG decoding and encoding |
 | [Kongruent minikong](https://github.com/armory3d/armorpaint/tree/c5ccdf27818a36e67decb691009a3db457d59ab3/base/sources/kong) | Zlib | `c5ccdf27818a36e67decb691009a3db457d59ab3` | Context-isolated multi-target shader compiler backend |
+| [Vulkan-Headers](https://github.com/KhronosGroup/Vulkan-Headers) | MIT | `217e93c664ec6704ec2d8c36fa116c1a4a1e2d40` | Optional owned Vulkan executor API declarations |
+| [volk](https://github.com/zeux/volk) | MIT | `f2a16e3e19c2349b873343b2dc38a1d4c25af23a` | Optional dynamic Vulkan entry-point loader |
 
-The upstream licence texts are copied at `thirdparty/licenses/lodepng.txt` and
-`thirdparty/licenses/kongruent.txt`. ArmorPaint's minikong tree is derived from
-Kongruent revision `1b0f3b70673122e3b20701cdb434781a065555d7`; CyberTexel's
-local changes are recorded in `thirdparty/kong/CYBERTEXEL_CHANGES.md`.
+The upstream licence texts are copied under `thirdparty/licenses/` for all four
+dependencies. ArmorPaint's minikong tree is derived from Kongruent revision
+`1b0f3b70673122e3b20701cdb434781a065555d7`; CyberTexel's local changes are
+recorded in `thirdparty/kong/CYBERTEXEL_CHANGES.md`.
 
 ## Planned
 

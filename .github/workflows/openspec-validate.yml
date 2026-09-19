@@ -30,8 +30,8 @@ jobs:
     steps:
     - uses: actions/checkout@v4
     - uses: extractions/setup-just@v2
-    - name: Install SPIR-V validator
-      run: sudo apt-get update && sudo apt-get install -y spirv-tools
+    - name: Install graphics test dependencies
+      run: sudo apt-get update && sudo apt-get install -y spirv-tools libvulkan1 mesa-vulkan-drivers
     - name: Build
       run: just build
     - name: Formatting
@@ -78,6 +78,8 @@ jobs:
       run: just test-pass-plan
     - name: Executor parity corpus
       run: just gate-parity
+    - name: Optional owned Vulkan executor
+      run: just test-vulkan
     - name: Test suite
       run: just test
 

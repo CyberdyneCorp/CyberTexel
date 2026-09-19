@@ -49,6 +49,9 @@ Foundation implementation is in progress.
 - Staged bounded CPU execution with cooperative cancellation, monotonic progress,
   enforced worker limits, pre-allocation memory-ceiling refusal, and atomic
   commit only after complete success.
+- An optional owned Vulkan executor behind `CTEX_ENABLE_VULKAN_EXECUTOR`, using
+  pinned Vulkan-Headers and Volk, with deterministic device selection, private
+  instance/device/queue ownership, and physical-device capability reporting.
 - Semantic input-colour defaults, preview-only 3D LUTs, structured precision
   warnings, promoted height accumulation and deterministic ordered dithering.
 - Slice-A memory-buffer PNG decoding and encoding with 8/16-bit preservation,

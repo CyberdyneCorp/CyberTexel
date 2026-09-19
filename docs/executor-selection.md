@@ -44,5 +44,6 @@ always-available `cpu` implementation and independent raster buffers. Host
 [submission and completion](host-execution.md) provides revision-safe atomic
 publication, resource retirement, recovery and actual fallback. Device feature
 reporting feeds emission through the same descriptor. The optional owned-GPU
-provider arrives in 7.8. All implementations register against this interface
-rather than adding parallel selection or capability mechanisms.
+[Vulkan provider](vulkan-executor.md) is available behind its build flag. All
+implementations register against this interface rather than adding parallel
+selection or capability mechanisms.

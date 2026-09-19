@@ -52,6 +52,14 @@
             }
         },
         {
+            "name": "vulkan",
+            "displayName": "Native debug build with owned Vulkan executor",
+            "inherits": "debug",
+            "cacheVariables": {
+                "CTEX_ENABLE_VULKAN_EXECUTOR": true
+            }
+        },
+        {
             "name": "linux-x64",
             "displayName": "Linux x86-64 release build",
             "inherits": "release",
@@ -111,6 +119,7 @@
     "buildPresets": [
         { "name": "headless", "configurePreset": "headless" },
         { "name": "headless-sanitize", "configurePreset": "headless-sanitize" },
+        { "name": "vulkan", "configurePreset": "vulkan" },
         { "name": "linux-x64", "configurePreset": "linux-x64" },
         { "name": "macos-universal", "configurePreset": "macos-universal" },
         { "name": "windows-x64", "configurePreset": "windows-x64" },
@@ -131,6 +140,11 @@
                 "ASAN_OPTIONS": "detect_leaks=1:halt_on_error=1",
                 "UBSAN_OPTIONS": "halt_on_error=1:print_stacktrace=1"
             }
+        },
+        {
+            "name": "vulkan",
+            "configurePreset": "vulkan",
+            "output": { "outputOnFailure": true }
         }
     ]
 }

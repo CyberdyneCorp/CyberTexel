@@ -111,6 +111,10 @@ The current implementation provides:
 - A committed document/stroke/camera/material parity corpus and CI gate that
   measures every available executor against the CPU reference and explicitly
   reports compiled but unavailable routes as unmeasured.
+- An optional [owned Vulkan executor](docs/vulkan-executor.md), disabled by
+  default, with pinned loader/header dependencies, deterministic physical-device
+  selection, owned headless instance/device/queue lifetime, and live capability
+  reporting.
 - Strict C++20 builds, sanitizer coverage, OpenSpec validation, dependency
   layering checks, licence auditing, deterministic-output gates, and labeled
   [material-graph](docs/material-graph-scenarios.md) and

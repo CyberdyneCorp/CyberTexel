@@ -246,7 +246,15 @@ executor refuses overflow or an exceeded ceiling before allocating work storage,
 uses no more than the requested workers, serializes monotonic interval progress,
 and polls cancellation between bounded items. Only successful completion calls
 the non-throwing commit boundary; cancelled staging is discarded and the
-document remains unchanged. The optional owned-GPU executor (7.8) is next.
+document remains unchanged.
+Task 7.8 adds the first optional owned backend under
+`CTEX_ENABLE_VULKAN_EXECUTOR`. Default builds use a no-dependency stub; enabled
+builds use pinned Vulkan-Headers and Volk to dynamically discover a loader,
+select a physical device deterministically, and own a headless instance, logical
+device and graphics-plus-compute queue. Live limits and format support feed the
+common executor descriptor. Missing loaders or devices remain compiled but
+`device-unavailable`; an enabled CI build requires a Mesa software device. The
+full `execution-backends` scenario suite (7.9) is next.
 
 ## 1. Foundation
 
@@ -346,7 +354,7 @@ document remains unchanged. The optional owned-GPU executor (7.8) is next.
 - [x] 7.5 Declared parity tolerances per bit depth and for filtered values
 - [x] 7.6 Parity fixture corpus and the CI gate, with unmeasured executors reported
 - [x] 7.7 Cancellation, progress, worker bound, memory ceiling and its refusals
-- [ ] 7.8 Optional owned-GPU executor (first backend), behind a build flag
+- [x] 7.8 Optional owned-GPU executor (first backend), behind a build flag
 - [ ] 7.9 `execution-backends` scenarios as tests
 
 ## 8. Host transport

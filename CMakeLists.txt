@@ -12,6 +12,7 @@ find_package(Threads REQUIRED)
 
 option(CTEX_WARNINGS_AS_ERRORS "Treat compiler warnings in CyberTexel sources as errors" ON)
 option(CTEX_ENABLE_SANITIZERS "Enable address and undefined-behaviour sanitizers" OFF)
+option(CTEX_ENABLE_VULKAN_EXECUTOR "Build the optional owned Vulkan executor" OFF)
 
 if(CTEX_ENABLE_SANITIZERS)
     if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
@@ -121,24 +122,51 @@ ctex_add_module(maps DEPENDS image doc)
 ctex_add_module(xport DEPENDS doc)
 ctex_add_module(io DEPENDS doc image)
 target_link_libraries(ctex_io PRIVATE ctex_lodepng)
-ctex_add_module(
-    exec
-    DEPENDS emit image
-    SOURCES
-        src/exec/exec.cpp
-        src/exec/cpu_reference.cpp
-        src/exec/cpu_execution.cpp
-        src/exec/execution_control.cpp
-        src/exec/host_execution.cpp
-        src/exec/emission_features.cpp
-        src/exec/parity.cpp
-        src/exec/parity_gate.cpp
+set(
+    CTEX_EXEC_SOURCES
+    src/exec/exec.cpp
+    src/exec/cpu_reference.cpp
+    src/exec/cpu_execution.cpp
+    src/exec/execution_control.cpp
+    src/exec/host_execution.cpp
+    src/exec/emission_features.cpp
+    src/exec/parity.cpp
+    src/exec/parity_gate.cpp
 )
+if(CTEX_ENABLE_VULKAN_EXECUTOR)
+    FetchContent_Declare(
+        VulkanHeaders
+        GIT_REPOSITORY https://github.com/KhronosGroup/Vulkan-Headers.git
+        GIT_TAG 217e93c664ec6704ec2d8c36fa116c1a4a1e2d40
+        GIT_SHALLOW FALSE
+    )
+    FetchContent_Declare(
+        Volk
+        GIT_REPOSITORY https://github.com/zeux/volk.git
+        GIT_TAG f2a16e3e19c2349b873343b2dc38a1d4c25af23a
+        GIT_SHALLOW FALSE
+    )
+    set(VOLK_PULL_IN_VULKAN OFF CACHE BOOL "" FORCE)
+    set(VOLK_INSTALL OFF CACHE BOOL "" FORCE)
+    FetchContent_MakeAvailable(VulkanHeaders Volk)
+    target_link_libraries(volk PUBLIC Vulkan::Headers)
+    list(APPEND CTEX_EXEC_SOURCES src/exec/vulkan_executor.cpp)
+else()
+    list(APPEND CTEX_EXEC_SOURCES src/exec/vulkan_executor_stub.cpp)
+endif()
+
+ctex_add_module(exec DEPENDS emit image SOURCES ${CTEX_EXEC_SOURCES})
 target_link_libraries(ctex_exec PRIVATE Threads::Threads)
+if(CTEX_ENABLE_VULKAN_EXECUTOR)
+    target_link_libraries(ctex_exec PRIVATE volk::volk)
+endif()
 ctex_add_module(capi DEPENDS image mesh pick graph emit doc paint maps xport io exec)
 
 ctex_add_library()
-target_link_libraries(cybertexel PUBLIC ctex_lodepng ctex_kong)
+target_link_libraries(cybertexel PUBLIC ctex_lodepng ctex_kong Threads::Threads)
+if(CTEX_ENABLE_VULKAN_EXECUTOR)
+    target_link_libraries(cybertexel PUBLIC volk::volk)
+endif()
 
 include(CTest)
 if(BUILD_TESTING)
@@ -483,6 +511,11 @@ if(BUILD_TESTING)
         ctex_execution_control_test PRIVATE ctex_exec ctex_emit ctex_graph ctex_image
     )
     add_test(NAME executor-bounded-execution COMMAND ctex_execution_control_test)
+
+    add_executable(ctex_vulkan_executor_test tests/exec/vulkan_executor_test.cpp)
+    ctex_configure_cpp_target(ctex_vulkan_executor_test)
+    target_link_libraries(ctex_vulkan_executor_test PRIVATE cybertexel)
+    add_test(NAME executor-vulkan COMMAND ctex_vulkan_executor_test)
 
     add_executable(ctex_host_execution_test tests/exec/host_execution_test.cpp)
     ctex_configure_cpp_target(ctex_host_execution_test)

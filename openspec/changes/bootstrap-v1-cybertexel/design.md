@@ -64,6 +64,15 @@ CPU reference are mandatory:
 | **CPU reference** (mandatory) | Nobody — plain memory | CI, tests, Python, headless CLI |
 | **Owned GPU** (optional) | CyberTexel | A CLI that wants speed without a host renderer |
 
+The first optional owned backend is headless Vulkan, enabled only by an explicit
+CMake option. Pinned Vulkan-Headers plus Volk provide declarations and dynamic
+loader discovery without adding any graphics dependency to default builds. The
+backend owns its instance, device and graphics-plus-compute queue, exposes no
+handle, and derives its executor feature report from the chosen physical device.
+Absence remains an enumerable `device-unavailable` state. Enabled-build CI uses
+software Vulkan so lifecycle and selection are exercised without claiming a
+hardware performance measurement.
+
 In the host-executed route the library produces, per operation, a **pass plan**:
 shader source in the host's language, the render targets and their formats, the
 uniform and texture bindings in declared order, the draw call and its vertex

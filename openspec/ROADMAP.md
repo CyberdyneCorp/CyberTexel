@@ -118,6 +118,12 @@ textures across two APIs. CyberTexel emits shader source and a pass plan
 instead. ClayCore's `docs/06-host-gpu-previews.md` set the precedent. Design
 decision 1.
 
+**2026-09-19 — Vulkan is the first optional owned-GPU backend.** It is disabled
+by default and owns a headless instance, device and queue only for consumers
+without a host renderer. Pinned Vulkan-Headers and Volk keep the build auditable;
+software Vulkan exercises the enabled configuration in CI. Design decision 1,
+task 7.8.
+
 **2026-09-18 — Per-tile revisions are mandatory, not an optimization.**
 Revisions identify logical resource versions. CPU-authored edits upload only
 changed tiles; host-executed edits remain resident on the same device. Explicit

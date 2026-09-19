@@ -44,6 +44,10 @@ build: (_require "cmake" "3.24") (_require "c++" "C++20") (_require "ninja" "1.1
     cmake --preset headless
     cmake --build --preset headless
 
+build-vulkan: (_require "cmake" "3.24") (_require "c++" "C++20") (_require "ninja" "1.10")
+    cmake --preset vulkan
+    cmake --build --preset vulkan
+
 test: build
     ctest --preset headless
     python3 -m unittest discover -s tests/tools -p 'test_*.py'
@@ -52,6 +56,9 @@ test-sanitize: (_require "cmake" "3.24") (_require "c++" "C++20") (_require "nin
     cmake --preset headless-sanitize
     cmake --build --preset headless-sanitize
     ctest --preset headless-sanitize
+
+test-vulkan: build-vulkan
+    ./build/vulkan/ctex_vulkan_executor_test --require-device
 
 test-image: build
     ctest --test-dir build/headless --output-on-failure -R '^tiled-image$'
@@ -156,7 +163,7 @@ test-material-emission: (_require "spirv-val" "SPIRV-Tools") build
     ctest --test-dir build/headless --output-on-failure -R '^material-emission'
 
 test-executor-registry: build
-    ctest --test-dir build/headless --output-on-failure -R '^executor-(registry|environment-pin|cpu-reference|bounded-execution|host-execution|emission-features|parity-tolerances)$'
+    ctest --test-dir build/headless --output-on-failure -R '^executor-(registry|environment-pin|cpu-reference|bounded-execution|vulkan|host-execution|emission-features|parity-tolerances)$'
 
 test-shader-emission-scenarios: (_require "spirv-val" "SPIRV-Tools") build
     ctest --test-dir build/headless --output-on-failure -L '^shader-emission-scenario$'

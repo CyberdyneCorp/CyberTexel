@@ -16,6 +16,22 @@
             "license_file": "thirdparty/licenses/kongruent.txt",
             "revision": "c5ccdf27818a36e67decb691009a3db457d59ab3",
             "source": "https://github.com/armory3d/armorpaint/tree/c5ccdf27818a36e67decb691009a3db457d59ab3/base/sources/kong"
+        },
+        {
+            "name": "Vulkan-Headers",
+            "discovery_name": "VulkanHeaders",
+            "license": "MIT",
+            "license_file": "thirdparty/licenses/vulkan-headers.txt",
+            "revision": "217e93c664ec6704ec2d8c36fa116c1a4a1e2d40",
+            "source": "https://github.com/KhronosGroup/Vulkan-Headers"
+        },
+        {
+            "name": "volk",
+            "discovery_name": "Volk",
+            "license": "MIT",
+            "license_file": "thirdparty/licenses/volk.txt",
+            "revision": "f2a16e3e19c2349b873343b2dc38a1d4c25af23a",
+            "source": "https://github.com/zeux/volk"
         }
     ]
 }
