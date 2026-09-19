@@ -3,6 +3,7 @@
 #include <cmath>
 #include <ctex/paint/blur_smear.hpp>
 #include <iostream>
+#include <limits>
 #include <stdexcept>
 #include <string>
 #include <string_view>
@@ -201,27 +202,47 @@ bool blur_transforms_normals_in_both_separable_passes() {
         "separable blur lost tangent-frame orientation across a mirrored seam");
 }
 
-bool invalid_blur_and_smear_requests_are_refused() {
+bool blur_and_smear_parameters_are_bounded_and_reported() {
     const std::array layer{channel("pbr.roughness", {0.0F})};
     const auto neighborhoods = linear_blur_neighborhoods(1, 1);
     const auto mappings = drag_from_left(1);
-    bool zero_radius_refused = false;
+    const BlurResult blur =
+        apply_blur(stroke(), coverage({1}), layer, blur_settings(0, neighborhoods));
+
+    SmearSettings clamped_settings = smear_settings(mappings);
+    clamped_settings.strength = 2.0;
+    clamped_settings.footprint = {.radius_x = maximum_blur_smear_radius + 1, .radius_y = 0};
+    const SmearResult smear = apply_smear(stroke(), coverage({1}), layer, clamped_settings);
+
+    bool zero_footprint_refused = false;
     try {
-        static_cast<void>(
-            apply_blur(stroke(), coverage({1}), layer, blur_settings(0, neighborhoods)));
+        SmearSettings invalid = smear_settings(mappings);
+        invalid.footprint = {};
+        static_cast<void>(apply_smear(stroke(), coverage({1}), layer, invalid));
     } catch (const std::invalid_argument&) {
-        zero_radius_refused = true;
+        zero_footprint_refused = true;
     }
-    bool strength_refused = false;
+    bool non_finite_strength_refused = false;
     try {
-        SmearSettings settings = smear_settings(mappings);
-        settings.strength = 1.1;
-        static_cast<void>(apply_smear(stroke(), coverage({1}), layer, settings));
+        SmearSettings invalid = smear_settings(mappings);
+        invalid.strength = std::numeric_limits<double>::infinity();
+        static_cast<void>(apply_smear(stroke(), coverage({1}), layer, invalid));
     } catch (const std::invalid_argument&) {
-        strength_refused = true;
+        non_finite_strength_refused = true;
     }
-    return expect(zero_radius_refused && strength_refused,
-                  "invalid blur radius or smear strength was not refused");
+    return expect(
+               blur.footprint == SamplingFootprint{1, 1} &&
+                   blur.parameter_report.clamp_for("blur.radius") ==
+                       ToolParameterClamp{.name = "blur.radius", .supplied = 0.0, .resolved = 1.0},
+               "blur radius was not bounded, reported, and used") &&
+           expect(smear.strength == 1.0 &&
+                      smear.footprint == SamplingFootprint{maximum_blur_smear_radius, 0} &&
+                      smear.parameter_report.clamps.size() == 2 &&
+                      smear.parameter_report.clamp_for("smear.strength") &&
+                      smear.parameter_report.clamp_for("smear.footprint.radius_x"),
+                  "smear parameters were not bounded, reported, and used") &&
+           expect(zero_footprint_refused && non_finite_strength_refused,
+                  "a structurally invalid smear request was accepted");
 }
 
 }  // namespace
@@ -231,7 +252,7 @@ int main() {
                    smear_drags_snapshot_content_with_strength_and_masks() &&
                    smear_transforms_normals_across_a_mirrored_seam() &&
                    blur_transforms_normals_in_both_separable_passes() &&
-                   invalid_blur_and_smear_requests_are_refused()
+                   blur_and_smear_parameters_are_bounded_and_reported()
                ? 0
                : 1;
 }

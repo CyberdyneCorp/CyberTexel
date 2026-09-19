@@ -481,8 +481,10 @@ Jitter amounts, taper floor, grid step and bounded radial symmetry use the same
 contract. All pressure and tilt response-range endpoints are likewise bounded,
 reported and then checked for valid ordering. Conditional taper spans resolve
 against their selected unit, including zeroing disabled spans, while fractional
-stamp counts remain invalid. Remaining tool families and the complete
-behavioural no-inert audit still keep 10.12 open.
+stamp counts remain invalid. Blur radius, smear strength and smear footprint
+axes expose bounded resolved values and clamp reports through their tool
+results. Remaining tool families and the complete behavioural no-inert audit
+still keep 10.12 open.
 
 ## 1. Foundation
 

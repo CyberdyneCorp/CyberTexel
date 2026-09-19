@@ -20,3 +20,9 @@ Both tools declare their `SamplingFootprint`. Scalar and colour channels use
 normalized surface-filter weights. The `pbr.normal` channel is decoded to a
 unit tangent-space vector, transformed through the supplied frames at seams,
 filtered, renormalized and encoded again.
+
+Blur radius defaults to 1 and is clamped to `[1, 4096]`. Smear strength
+defaults to 0.5 and is clamped to `[0, 1]`; each footprint radius defaults to 1
+and is clamped to `[0, 4096]`, while an all-zero footprint is refused. The
+resolved values drive filtering and are returned with any clamps in the tool
+result's `parameter_report`. Non-finite strength is refused.

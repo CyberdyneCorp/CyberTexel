@@ -262,21 +262,25 @@ BlurResult apply_blur(const ResolvedStroke& stroke, const RejectedCoverageRaster
                       std::span<const PaintToolChannelRaster> enabled_layer_stroke_start_snapshot,
                       const BlurSettings& settings) {
     const std::size_t texel_count = checked_texel_count(rejected);
-    if (settings.radius == 0 || settings.neighborhoods.size() != texel_count) {
-        throw std::invalid_argument("blur radius or neighborhood count is invalid");
+    ToolParameterReport parameter_report;
+    const auto radius = static_cast<std::uint32_t>(
+        validate_tool_parameter(blur_radius_parameter, settings.radius, parameter_report));
+    if (settings.neighborhoods.size() != texel_count) {
+        throw std::invalid_argument("blur neighborhood count is invalid");
     }
     validate_snapshot(enabled_layer_stroke_start_snapshot, texel_count);
     DepositionRaster deposition =
         tool_deposition(stroke, rejected, settings.masks, settings.deposition_mode);
     std::vector<PaintToolChannelRaster> filtered =
-        blur_snapshot(enabled_layer_stroke_start_snapshot, settings.neighborhoods, settings.radius);
+        blur_snapshot(enabled_layer_stroke_start_snapshot, settings.neighborhoods, radius);
     PaintToolShadeResult shaded = shade_paint_tool_channels(
         rejected.coverage.width, rejected.coverage.height, enabled_layer_stroke_start_snapshot,
         filtered, deposition.strength, settings.blend_mode);
     normalize_output_normals(shaded.channels, deposition.strength);
     return {.width = rejected.coverage.width,
             .height = rejected.coverage.height,
-            .footprint = {.radius_x = settings.radius, .radius_y = settings.radius},
+            .parameter_report = std::move(parameter_report),
+            .footprint = {.radius_x = radius, .radius_y = radius},
             .deposition = std::move(deposition),
             .filtered_snapshot = std::move(filtered),
             .channels = std::move(shaded.channels),
@@ -287,28 +291,36 @@ SmearResult apply_smear(const ResolvedStroke& stroke, const RejectedCoverageRast
                         std::span<const PaintToolChannelRaster> enabled_layer_stroke_start_snapshot,
                         const SmearSettings& settings) {
     const std::size_t texel_count = checked_texel_count(rejected);
-    if (!std::isfinite(settings.strength) || settings.strength < 0.0 || settings.strength > 1.0 ||
-        (settings.footprint.radius_x == 0 && settings.footprint.radius_y == 0) ||
+    ToolParameterReport parameter_report;
+    const double strength =
+        validate_tool_parameter(smear_strength_parameter, settings.strength, parameter_report);
+    const SamplingFootprint footprint{
+        .radius_x = static_cast<std::uint32_t>(validate_tool_parameter(
+            smear_footprint_radius_x_parameter, settings.footprint.radius_x, parameter_report)),
+        .radius_y = static_cast<std::uint32_t>(validate_tool_parameter(
+            smear_footprint_radius_y_parameter, settings.footprint.radius_y, parameter_report))};
+    if ((footprint.radius_x == 0 && footprint.radius_y == 0) ||
         settings.mappings.size() != texel_count) {
-        throw std::invalid_argument("smear strength, footprint or mapping count is invalid");
+        throw std::invalid_argument("smear footprint or mapping count is invalid");
     }
     validate_snapshot(enabled_layer_stroke_start_snapshot, texel_count);
     DepositionRaster deposition =
         tool_deposition(stroke, rejected, settings.masks, settings.deposition_mode);
     std::vector<double> effective_strength = deposition.strength;
     for (double& value : effective_strength) {
-        value *= settings.strength;
+        value *= strength;
     }
     std::vector<PaintToolChannelRaster> dragged =
-        smear_snapshot(enabled_layer_stroke_start_snapshot, settings.mappings, settings.footprint);
+        smear_snapshot(enabled_layer_stroke_start_snapshot, settings.mappings, footprint);
     PaintToolShadeResult shaded = shade_paint_tool_channels(
         rejected.coverage.width, rejected.coverage.height, enabled_layer_stroke_start_snapshot,
         dragged, effective_strength, settings.blend_mode);
     normalize_output_normals(shaded.channels, effective_strength);
     return {.width = rejected.coverage.width,
             .height = rejected.coverage.height,
-            .footprint = settings.footprint,
-            .strength = settings.strength,
+            .parameter_report = std::move(parameter_report),
+            .footprint = footprint,
+            .strength = strength,
             .deposition = std::move(deposition),
             .effective_strength = std::move(effective_strength),
             .dragged_snapshot = std::move(dragged),
