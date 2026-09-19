@@ -2,13 +2,11 @@
 
 `ctex/emit/graph_emission.hpp` lowers the reachable portion of a material graph
 to a deterministic sequence of WGSL statements. The result is an expression
-program intended for a generated shader function body. Device-independent
-[pass plans](pass-plans.md) now define resource generations, layouts, bindings,
-state, and commands. [Layer-stack emission](feature-gated-emission.md) now
-connects those plans to all four target artifact forms under a declared device
-feature set; complete material-graph entry-point integration follows in task
-6.16. Canonical graph content, target, feature set, and host-node semantics
-also key the [emission cache](emission-cache.md).
+program intended for a generated shader function body. `material_emission.hpp`
+wraps that program in complete vertex and fragment stages for WGSL or lowers it
+through Kong for MSL, SPIR-V and HLSL. It returns the shader together with a
+device-independent [pass plan](pass-plans.md) naming the output, graph resources,
+sampler, vertex layout, state and draw command.
 
 Each intermediate variable is derived from the stable node ID and output socket
 identifier. A node inside a group is additionally qualified by the stable group
@@ -23,12 +21,12 @@ consumers. Unreachable nodes emit nothing. Socket coercions are inserted at each
 use: scalar-to-vector broadcast, vector-to-scalar Rec. 709 luminance,
 colour-to-vector RGB extraction, and colour-to-scalar Rec. 709 luminance.
 
-The current built-in lowering covers Constant Value and Constant Colour, which
+The current shader lowering covers Constant Value and Constant Colour, which
 are sufficient to establish naming, grouping, fan-out, literal formatting, and
 coercion behavior. Registered host nodes participate through their checked WGSL
 callbacks and report their resource identifiers without duplication. Remaining
-built-in semantics are added with the complete material/shader scenario suite in
-task 6.16; requesting one now fails by type instead of emitting placeholder code.
+built-in semantics arrive with their owning executor work; requesting one now
+fails by type instead of emitting placeholder code.
 
 `emit_wgsl_expressions` handles a standalone graph. Group instances require
 `emit_material_wgsl_expressions`, which resolves definitions through the owning
@@ -36,3 +34,10 @@ task 6.16; requesting one now fails by type instead of emitting placeholder code
 twice and compares the resulting bytes. The concurrency fixture starts four
 different graphs together and requires every result to equal its serial
 baseline.
+
+`MaterialShaderEmissionCache` retains the complete shader and pass plan by
+canonical graph/workspace content, host-node semantics, target, normalized
+features, resource declarations and request settings. A constant-only edit
+changes shader bytes while leaving the pass plan and binding layout stable.
+Host resource callbacks use `material_resource_name` to obtain an injection-safe
+textual identifier matching the declared binding.

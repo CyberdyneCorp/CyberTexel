@@ -46,6 +46,19 @@
                         "inspect-roughness.vert.wgsl",
                         "inspect-roughness.frag.wgsl"
                     ]
+                },
+                {
+                    "name": "complete material graph artifacts",
+                    "command": ["build/headless/ctex_material_emission_test", "--write-determinism"],
+                    "outputs": [
+                        "material.vert.wgsl",
+                        "material.frag.wgsl",
+                        "material.msl",
+                        "material.vert.spv",
+                        "material.frag.spv",
+                        "material.vert.hlsl",
+                        "material.frag.hlsl"
+                    ]
                 }
             ]
         },

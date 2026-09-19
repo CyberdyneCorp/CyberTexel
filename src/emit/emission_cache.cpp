@@ -187,6 +187,28 @@ std::string layer_stack_content(const LayerStackEmissionRequest& request) {
     return key.take();
 }
 
+std::string material_request_content(const MaterialShaderEmissionRequest& request) {
+    KeyWriter key;
+    key.text(request.stable_identity);
+    key.unsigned_value(request.resources.size());
+    for (const MaterialResourceInput& resource : request.resources) {
+        key.text(resource.identifier);
+        write_texture(key, resource.texture);
+    }
+    write_texture(key, request.output);
+    key.enum_value(request.requested_filter);
+    key.unsigned_value(request.vertex_count);
+    return key.take();
+}
+
+std::string material_cache_content(std::string_view graph,
+                                   const MaterialShaderEmissionRequest& request) {
+    KeyWriter key;
+    key.text(graph);
+    key.text(material_request_content(request));
+    return key.take();
+}
+
 std::string preview_content(const PreviewEmissionRequest& request, std::string_view mode,
                             std::string_view inspected_channel = {}) {
     KeyWriter key;
@@ -374,6 +396,74 @@ EmissionCacheStatistics LayerStackEmissionCache::statistics() const {
 }
 
 void LayerStackEmissionCache::clear() {
+    if (impl_ != nullptr) {
+        impl_->cache.clear();
+    }
+}
+
+class MaterialShaderEmissionCache::Impl {
+public:
+    ConcurrentCache<MaterialShaderEmission> cache;
+};
+
+MaterialShaderEmissionCache::MaterialShaderEmissionCache() : impl_(std::make_unique<Impl>()) {}
+MaterialShaderEmissionCache::~MaterialShaderEmissionCache() = default;
+MaterialShaderEmissionCache::MaterialShaderEmissionCache(MaterialShaderEmissionCache&&) noexcept =
+    default;
+MaterialShaderEmissionCache& MaterialShaderEmissionCache::operator=(
+    MaterialShaderEmissionCache&&) noexcept = default;
+
+CachedMaterialShaderEmission MaterialShaderEmissionCache::emit(
+    const graph::GraphDocument& graph, const graph::NodeTypeRegistry& registry,
+    const MaterialShaderEmissionRequest& request) {
+    if (impl_ == nullptr) {
+        throw std::logic_error("cannot use a moved-from material shader emission cache");
+    }
+    auto [emission, hit] =
+        impl_->cache.get(cache_key(material_cache_content(graph_content(graph, registry), request),
+                                   request.target, request.features),
+                         [&] { return emit_material_shader(graph, registry, request); });
+    return {std::move(emission), hit};
+}
+
+CachedMaterialShaderEmission MaterialShaderEmissionCache::emit(
+    const graph::GraphDocument& graph, const MaterialShaderEmissionRequest& request) {
+    const graph::NodeTypeRegistry registry;
+    return emit(graph, registry, request);
+}
+
+CachedMaterialShaderEmission MaterialShaderEmissionCache::emit_material(
+    const graph::GraphWorkspace& workspace, std::string_view material_identifier,
+    const graph::NodeTypeRegistry& registry, const MaterialShaderEmissionRequest& request) {
+    if (impl_ == nullptr) {
+        throw std::logic_error("cannot use a moved-from material shader emission cache");
+    }
+    auto [emission, hit] = impl_->cache.get(
+        cache_key(material_cache_content(
+                      workspace_content(workspace, material_identifier, registry), request),
+                  request.target, request.features),
+        [&] {
+            return emit_workspace_material_shader(workspace, material_identifier, registry,
+                                                  request);
+        });
+    return {std::move(emission), hit};
+}
+
+CachedMaterialShaderEmission MaterialShaderEmissionCache::emit_material(
+    const graph::GraphWorkspace& workspace, std::string_view material_identifier,
+    const MaterialShaderEmissionRequest& request) {
+    const graph::NodeTypeRegistry registry;
+    return emit_material(workspace, material_identifier, registry, request);
+}
+
+EmissionCacheStatistics MaterialShaderEmissionCache::statistics() const {
+    if (impl_ == nullptr) {
+        return {};
+    }
+    return impl_->cache.statistics();
+}
+
+void MaterialShaderEmissionCache::clear() {
     if (impl_ != nullptr) {
         impl_->cache.clear();
     }

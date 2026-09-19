@@ -20,8 +20,9 @@ The graph emitter currently produces the deterministic WGSL expression program
 documented in [graph-emission.md](graph-emission.md). Feature-gated
 [layer-stack emission](feature-gated-emission.md) already compiles complete
 multi-pass programs for all four targets. [Preview emission](preview-shading.md)
-compiles lit and per-channel programs for the same targets. Wiring complete
-material-graph entry points continues in task 6.16. The
+compiles lit and per-channel programs for the same targets. Complete
+[material-graph emission](graph-emission.md) now wraps reachable expressions and
+their pass plan for every target. The
 concurrency fixture emits one layer stack per target simultaneously and compares
 every shader and pass plan with serial output. Generated
 programs and plans can be retained by the [emission cache](emission-cache.md).

@@ -38,7 +38,7 @@ contract for material channels, environment resources, analytic lights, and
 unlit channel inspection. The plan deliberately stops at submission
 description. Completion records and
 the rule that prevents recycling a generation while a host submission still
-uses it arrive with the host execution protocol in task 7.3. Complete graph
-entry-point integration and scenario mapping continue in task 6.16. Complete
-layer-stack plans and shaders are retained together by the
-[emission cache](emission-cache.md).
+uses it arrive with the host execution protocol in task 7.3. Complete material
+graph, layer-stack, preview and inspection entry points all return their plan
+beside the matching shader. Complete layer-stack plans and shaders are retained
+together by the [emission cache](emission-cache.md).

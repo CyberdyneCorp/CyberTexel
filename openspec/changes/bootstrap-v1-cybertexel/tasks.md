@@ -194,13 +194,17 @@ supplied channel across all four targets. Pass plans name cube environment
 radiance and irradiance encodings, the split-sum BRDF lookup, camera,
 environment controls and up to four analytic lights. The documented GGX model
 also defines deterministic fallback lighting when environment maps are absent.
-Complete material-graph and shader-emission scenario coverage (6.16) is next.
-Its material-graph integration now includes portable seeded Noise evaluation,
-one reference formula surface for all twenty Blend modes, and a canonical
-device-independent material library whose stable preset identities resolve to
-the same independently instantiated graph after transfer. The labeled scenario
-matrix and complete graph-to-target shader entry point remain before 6.16 can
-close.
+Task 6.16 closes both capability suites. Material-graph coverage adds portable
+seeded Noise evaluation, one reference formula surface for all twenty Blend
+modes, and a canonical device-independent material library whose stable preset
+identities resolve after transfer. Complete material entry points emit WGSL,
+MSL, validated SPIR-V and HLSL beside explicit stable pass plans and cache the
+whole result by graph, target, features and resources. Eleven material-graph and
+twenty-two shader-emission labeled CTests map every scenario; focused
+determinism and licence tests are part of the shader label. Execution-side
+completion retirement, executor image parity and reference-host execution
+extend the named scenarios in tasks 7.3, 7.5 and 18.2. Executor discovery and
+selection (7.1) is next.
 
 ## 1. Foundation
 
@@ -289,7 +293,7 @@ close.
 - [x] 6.13 Emission cache keyed by graph, target and feature set
 - [x] 6.14 Concurrent emission test
 - [x] 6.15 Preview shader with declared lighting inputs and a documented shading model; per-channel inspection shaders
-- [ ] 6.16 `material-graph` and `shader-emission` scenarios as tests
+- [x] 6.16 `material-graph` and `shader-emission` scenarios as tests
 
 ## 7. Execution
 

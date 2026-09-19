@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import importlib.util
+import json
 import tempfile
 import unittest
 from pathlib import Path
@@ -48,6 +49,38 @@ class DeterminismGateTests(unittest.TestCase):
             )
 
         self.assertEqual(failures, [])
+
+
+class DeterminismCategoryTests(unittest.TestCase):
+    def manifest(self, root: Path) -> Path:
+        path = root / "cases.json"
+        path.write_text(
+            json.dumps(
+                {
+                    "schema": 1,
+                    "categories": [
+                        {"name": "ready", "task": "1", "cases": []},
+                        {"name": "future", "task": "2", "cases": []},
+                    ],
+                }
+            ),
+            encoding="utf-8",
+        )
+        return path
+
+    def test_selected_category_does_not_run_other_empty_categories(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            failures = CHECK_DETERMINISM.check(root, self.manifest(root), {"ready"})
+        self.assertEqual(
+            failures, ["ready: no determinism cases registered; delivered by task 1"]
+        )
+
+    def test_unknown_selected_category_is_reported(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            failures = CHECK_DETERMINISM.check(root, self.manifest(root), {"missing"})
+        self.assertEqual(failures, ["unknown determinism category: missing"])
 
 
 if __name__ == "__main__":

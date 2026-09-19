@@ -10,6 +10,11 @@ The determinism gate is registry-driven. Each category in
 The runner gives the command two clean output directories through
 `CTEX_DETERMINISM_OUTPUT_DIR` and compares every declared file byte for byte.
 
-The shader-emission, project-save and texture-export categories deliberately
-remain red until their owning tasks register real outputs. An empty category is
-reported by name and task rather than counted as a pass.
+Pass one or more category names to `tools/check_determinism.py` to run a focused
+subset. The labeled shader-emission scenario suite uses this mode so later empty
+project-save and texture-export categories do not substitute for, or block,
+shader reproducibility coverage.
+
+The project-save and texture-export categories deliberately remain red until
+their owning tasks register real outputs. An empty category is reported by name
+and task rather than counted as a pass.

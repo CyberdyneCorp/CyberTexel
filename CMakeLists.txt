@@ -103,6 +103,7 @@ ctex_add_module(
         src/emit/emission_cache.cpp
         src/emit/feature_emission.cpp
         src/emit/kong_context.cpp
+        src/emit/material_emission.cpp
         src/emit/pass_plan.cpp
         src/emit/preview_emission.cpp
 )
@@ -126,6 +127,7 @@ target_link_libraries(cybertexel PUBLIC ctex_lodepng ctex_kong)
 
 include(CTest)
 if(BUILD_TESTING)
+    find_program(CTEX_PYTHON3_EXECUTABLE python3 REQUIRED)
     add_executable(ctex_version_test tests/version_test.c)
     target_include_directories(
         ctex_version_test
@@ -371,6 +373,40 @@ if(BUILD_TESTING)
     ctex_configure_cpp_target(ctex_preview_emission_test)
     target_link_libraries(ctex_preview_emission_test PRIVATE ctex_emit ctex_graph)
     add_test(NAME preview-emission COMMAND ctex_preview_emission_test)
+
+    add_executable(ctex_material_emission_test tests/emit/material_emission_test.cpp)
+    ctex_configure_cpp_target(ctex_material_emission_test)
+    target_link_libraries(ctex_material_emission_test PRIVATE ctex_emit ctex_graph)
+    add_test(NAME material-emission COMMAND ctex_material_emission_test)
+    if(CTEX_SPIRV_VAL_EXECUTABLE)
+        set(CTEX_MATERIAL_VERTEX_SPIRV "${CMAKE_CURRENT_BINARY_DIR}/material-vertex.spv")
+        set(CTEX_MATERIAL_FRAGMENT_SPIRV "${CMAKE_CURRENT_BINARY_DIR}/material-fragment.spv")
+        add_test(
+            NAME material-emission-spirv-generate
+            COMMAND
+                ctex_material_emission_test --write-spirv
+                "${CTEX_MATERIAL_VERTEX_SPIRV}" "${CTEX_MATERIAL_FRAGMENT_SPIRV}"
+        )
+        set_tests_properties(
+            material-emission-spirv-generate PROPERTIES FIXTURES_SETUP material-emission-spirv
+        )
+        add_test(
+            NAME material-emission-spirv-vertex-validation
+            COMMAND "${CTEX_SPIRV_VAL_EXECUTABLE}" "${CTEX_MATERIAL_VERTEX_SPIRV}"
+        )
+        set_tests_properties(
+            material-emission-spirv-vertex-validation
+            PROPERTIES FIXTURES_REQUIRED material-emission-spirv
+        )
+        add_test(
+            NAME material-emission-spirv-fragment-validation
+            COMMAND "${CTEX_SPIRV_VAL_EXECUTABLE}" "${CTEX_MATERIAL_FRAGMENT_SPIRV}"
+        )
+        set_tests_properties(
+            material-emission-spirv-fragment-validation
+            PROPERTIES FIXTURES_REQUIRED material-emission-spirv
+        )
+    endif()
     if(CTEX_SPIRV_VAL_EXECUTABLE)
         set(CTEX_PREVIEW_VERTEX_SPIRV "${CMAKE_CURRENT_BINARY_DIR}/preview-vertex.spv")
         set(CTEX_PREVIEW_FRAGMENT_SPIRV "${CMAKE_CURRENT_BINARY_DIR}/preview-fragment.spv")
@@ -408,4 +444,69 @@ if(BUILD_TESTING)
         PRIVATE ctex_doc ctex_mesh ctex_graph ctex_image
     )
     add_test(NAME material-graph-output COMMAND ctex_material_graph_output_test)
+
+    add_test(
+        NAME shader-emission-determinism
+        COMMAND "${CTEX_PYTHON3_EXECUTABLE}" tools/check_determinism.py shader-emission
+    )
+    set_tests_properties(
+        shader-emission-determinism PROPERTIES WORKING_DIRECTORY "${PROJECT_SOURCE_DIR}"
+    )
+    add_test(
+        NAME shader-emission-licence-audit
+        COMMAND "${CTEX_PYTHON3_EXECUTABLE}" tools/check_licenses.py
+    )
+    set_tests_properties(
+        shader-emission-licence-audit PROPERTIES WORKING_DIRECTORY "${PROJECT_SOURCE_DIR}"
+    )
+
+    set_tests_properties(
+        material-graph-document
+        material-graph-output
+        material-graph-cycle-detection
+        material-graph-socket-links
+        material-graph-catalogue
+        material-graph-groups
+        material-graph-validation
+        material-graph-host-nodes
+        material-graph-library
+        material-graph-portable-nodes
+        PROPERTIES LABELS material-graph-scenario
+    )
+    set_tests_properties(
+        graph-emission
+        PROPERTIES LABELS "material-graph-scenario;shader-emission-scenario"
+    )
+    set(
+        CTEX_SHADER_SCENARIO_TESTS
+        kong-context
+        pass-plan
+        feature-emission
+        emission-cache
+        concurrent-emission
+        preview-emission
+        material-emission
+        shader-emission-determinism
+        shader-emission-licence-audit
+    )
+    if(CTEX_SPIRV_VAL_EXECUTABLE)
+        list(
+            APPEND CTEX_SHADER_SCENARIO_TESTS
+            kong-spirv-generate
+            kong-spirv-vertex-validation
+            kong-spirv-fragment-validation
+            feature-emission-spirv-generate
+            feature-emission-spirv-vertex-validation
+            feature-emission-spirv-fragment-validation
+            preview-emission-spirv-generate
+            preview-emission-spirv-vertex-validation
+            preview-emission-spirv-fragment-validation
+            material-emission-spirv-generate
+            material-emission-spirv-vertex-validation
+            material-emission-spirv-fragment-validation
+        )
+    endif()
+    set_tests_properties(
+        ${CTEX_SHADER_SCENARIO_TESTS} PROPERTIES LABELS shader-emission-scenario
+    )
 endif()

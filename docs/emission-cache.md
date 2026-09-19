@@ -44,8 +44,8 @@ emission. It also runs simultaneous WGSL, MSL, SPIR-V, and HLSL layer-stack
 emissions through a shared cache and compares their complete shaders and pass
 plans with serial results.
 
-Graph expression emission currently supports WGSL and refuses other targets
-before lookup. Complete layer-stack emissions are cached independently for
-WGSL, MSL, SPIR-V, and HLSL, as are [preview and inspection
-shaders](preview-shading.md). Complete graph entry-point integration remains
-scheduled for task 6.16.
+Graph expression emission remains a WGSL-body cache. Complete material shaders
+and pass plans use `MaterialShaderEmissionCache`, independently of complete
+layer-stack and [preview/inspection](preview-shading.md) caches. Its key includes
+the graph or workspace, host-node semantics, target, normalized feature set,
+logical resource declarations, output and draw settings.

@@ -128,6 +128,9 @@ test-material-library: build
 test-portable-nodes: build
     ctest --test-dir build/headless --output-on-failure -R '^material-graph-portable-nodes$'
 
+test-material-graph-scenarios: build
+    ctest --test-dir build/headless --output-on-failure -L '^material-graph-scenario$'
+
 test-kong-context: (_require "spirv-val" "SPIRV-Tools") build
     ctest --test-dir build/headless --output-on-failure -R '^kong-(context|spirv-)'
 
@@ -148,6 +151,12 @@ test-concurrent-emission: build
 
 test-preview-emission: (_require "spirv-val" "SPIRV-Tools") build
     ctest --test-dir build/headless --output-on-failure -R '^preview-emission'
+
+test-material-emission: (_require "spirv-val" "SPIRV-Tools") build
+    ctest --test-dir build/headless --output-on-failure -R '^material-emission'
+
+test-shader-emission-scenarios: (_require "spirv-val" "SPIRV-Tools") build
+    ctest --test-dir build/headless --output-on-failure -L '^shader-emission-scenario$'
 
 examples:
     @just _unimplemented examples 16.2

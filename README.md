@@ -65,9 +65,10 @@ The current implementation provides:
 - An isolated [Kong shader compiler context](docs/kong-backend.md) that compiles
   Kong source deterministically to WGSL, MSL, binary SPIR-V, or HLSL, supports
   concurrent independent targets, and reports unsupported requests explicitly.
-- Deterministic [material graph expression emission](docs/graph-emission.md)
-  with node-derived result names, complete nested-group qualification,
-  emission-time socket coercion, node attribution, and single-emission fan-out.
+- Deterministic [material graph emission](docs/graph-emission.md) with
+  node-derived result names, complete nested-group qualification, emission-time
+  coercion, attribution and fan-out. Complete cached material entry points
+  produce WGSL, MSL, validated SPIR-V or HLSL beside a stable pass plan.
 - Validated, device-independent [pass plans](docs/pass-plans.md) with logical
   resource generations, mip/layer/tile access ranges, dependency hazards,
   derived lifetimes, explicit bindings and layouts, render state, and
@@ -86,7 +87,9 @@ The current implementation provides:
   light contracts, defined fallback lighting, and unlit inspection for every
   supplied channel.
 - Strict C++20 builds, sanitizer coverage, OpenSpec validation, dependency
-  layering checks, licence auditing, and deterministic-output gates.
+  layering checks, licence auditing, deterministic-output gates, and labeled
+  [material-graph](docs/material-graph-scenarios.md) and
+  [shader-emission](docs/shader-emission-scenarios.md) scenario suites.
 
 The editable layer document, painting engine, complete graph-to-target shader
 emission, host transport, project IO, language bindings, and complete export

@@ -71,7 +71,9 @@ def run_case(root: Path, case: dict[str, Any]) -> list[str]:
         return compare_outputs(first, second, outputs, str(name))
 
 
-def check(root: Path, manifest_path: Path) -> list[str]:
+def check(
+    root: Path, manifest_path: Path, selected_categories: set[str] | None = None
+) -> list[str]:
     try:
         manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     except (json.JSONDecodeError, OSError) as error:
@@ -80,8 +82,12 @@ def check(root: Path, manifest_path: Path) -> list[str]:
         return ["determinism manifest must use schema 1 with a categories array"]
 
     failures: list[str] = []
+    discovered: set[str] = set()
     for category in manifest["categories"]:
         name = category.get("name", "unnamed category")
+        discovered.add(name)
+        if selected_categories is not None and name not in selected_categories:
+            continue
         task = category.get("task", "unknown")
         cases = category.get("cases")
         if not isinstance(cases, list) or not cases:
@@ -92,11 +98,15 @@ def check(root: Path, manifest_path: Path) -> list[str]:
                 failures.append(f"{name}: case is not an object")
                 continue
             failures.extend(run_case(root, case))
+    if selected_categories is not None:
+        for missing in sorted(selected_categories - discovered):
+            failures.append(f"unknown determinism category: {missing}")
     return failures
 
 
 def main() -> int:
-    failures = check(ROOT, MANIFEST)
+    selected = set(sys.argv[1:]) or None
+    failures = check(ROOT, MANIFEST, selected)
     if failures:
         print("determinism gate failed:", file=sys.stderr)
         for failure in failures:

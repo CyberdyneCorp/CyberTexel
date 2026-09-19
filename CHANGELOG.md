@@ -105,6 +105,11 @@ Foundation implementation is in progress.
 - Cached WGSL, MSL, SPIR-V, and HLSL material preview emission with documented
   GGX metallic/roughness lighting, cube environment metadata, analytic lights,
   deterministic fallback lighting, and unlit per-channel inspection shaders.
+- Complete material-graph shader entry points for WGSL, MSL, SPIR-V, and HLSL,
+  with explicit resource bindings, stable pass layouts, capability workarounds,
+  target/feature-aware immutable caching, and deterministic artifacts.
+- Labeled material-graph and shader-emission scenario suites mapping every
+  OpenSpec scenario to native, external-validation, policy, or determinism tests.
 - Kong cube-texture lowering across all four retained shader targets.
 - README architecture diagram and a current, implementation-scoped feature list.
 
