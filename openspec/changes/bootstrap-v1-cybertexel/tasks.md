@@ -609,8 +609,13 @@ OpenSpec and rejects missing, duplicate or unknown CTest evidence. The export
 suite now exercises packed ORM and derived specular/glossiness output end to
 end and the specified cancellation point after eight of twenty outputs. The
 project suite includes missing-mesh identity evidence and records remaining
-cross-capability dependencies without presenting them as complete. Smart
-material serialization (13.1) is next.
+cross-capability dependencies without presenting them as complete. Task 13.1
+defines a canonical smart-material payload with an ordered fragment of
+layers, groups, masks, filters and generators, optional embedded material graphs,
+and typed exposed parameters carrying defaults, finite ranges and display
+groups. Validation refuses ambiguous hierarchy, duplicate identities,
+type/default mismatch and non-finite metadata before serialization. Derived
+versus model-specific content and its application report (13.2) are next.
 
 ## 1. Foundation
 
@@ -795,7 +800,7 @@ material serialization (13.1) is next.
 
 ## 13. Smart materials
 
-- [ ] 13.1 Smart material serialization: stack fragment plus exposed parameters
+- [x] 13.1 Smart material serialization: stack fragment plus exposed parameters
 - [ ] 13.2 Derived versus model-specific content and its reporting
 - [ ] 13.3 Exposed parameter binding across many entries
 - [ ] 13.4 Smart masks with independent instances

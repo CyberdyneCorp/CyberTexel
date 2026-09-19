@@ -130,7 +130,11 @@ target_link_libraries(ctex_emit PRIVATE ctex_kong)
 ctex_add_module(
     doc
     DEPENDS image mesh graph
-    SOURCES src/doc/channels.cpp src/doc/document.cpp src/doc/material_graph.cpp
+    SOURCES
+        src/doc/channels.cpp
+        src/doc/document.cpp
+        src/doc/material_graph.cpp
+        src/doc/smart_material.cpp
 )
 ctex_add_module(
     paint
@@ -376,6 +380,12 @@ if(BUILD_TESTING)
     ctex_configure_cpp_target(ctex_channels_test)
     target_link_libraries(ctex_channels_test PRIVATE ctex_doc ctex_mesh ctex_graph ctex_image)
     add_test(NAME document-channels COMMAND ctex_channels_test)
+    add_executable(ctex_smart_material_test tests/doc/smart_material_test.cpp)
+    ctex_configure_cpp_target(ctex_smart_material_test)
+    target_link_libraries(
+        ctex_smart_material_test PRIVATE ctex_doc ctex_graph ctex_image ctex_mesh
+    )
+    add_test(NAME smart-material-serialization COMMAND ctex_smart_material_test)
 
     add_executable(ctex_host_transport_revisions_test tests/doc/revisions_test.cpp)
     ctex_configure_cpp_target(ctex_host_transport_revisions_test)

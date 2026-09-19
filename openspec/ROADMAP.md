@@ -7,7 +7,7 @@ decisions taken and questions still open.
 ## Status
 
 Implementation started. 24 capabilities, 332 requirements, 400 scenarios and
-222 tasks, 115 done. Foundation and the complete headless color-management
+222 tasks, 116 done. Foundation and the complete headless color-management
 scenario suite are green. Slice-A now has memory-buffer PNG input/output with
 8/16-bit preservation and hostile-input ceilings; full image-format breadth
 remains scheduled for slice D. Extensible channel descriptors and sparse
@@ -90,8 +90,10 @@ Texture export now plans and encodes deterministic multi-output manifests with
 independent bilinear resolution, shared extrapolating UV padding, dry-run and
 JSON reports, progress and cancellation, and self-describing in-memory buffers.
 All thirty-three project-I/O and texture-export scenarios now have a checked
-evidence matrix and named scenario suites. Smart material serialization (13.1)
-is the next roadmap item.
+evidence matrix and named scenario suites. Smart materials now have canonical
+ordered stack-fragment serialization with embedded graphs and typed, ranged,
+display-grouped parameters. Derived versus model-specific content reporting
+(13.2) is the next roadmap item.
 
 ## Milestones
 
