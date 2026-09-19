@@ -163,3 +163,13 @@ preview changes after a query, readback from its token still returns the queried
 version, while the next delta reports the later edit. Ending the operation
 destroys the preview resource without publishing it into the document; commit
 semantics are defined by the later painting milestone.
+
+## Host-owned cache identities
+
+Logical textures already identify host copies by their logical ID and
+generation. For compiled render and compute pipelines,
+`PassPlan::pipeline_identity` supplies a structured `HostCacheIdentity` made
+from the pipeline kind, stable plan scope, and named pass. A host can use that
+value directly as an ordered cache key. It is stable across separately emitted
+or reconstructed equivalent plans and independent of pointer values and pass
+ordinals.

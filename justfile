@@ -96,6 +96,9 @@ test-host-transport-snapshot: build
 test-host-transport-preview: build
     ctest --test-dir build/headless --output-on-failure -R '^host-transport-preview$'
 
+test-host-transport-identity: build
+    ctest --test-dir build/headless --output-on-failure -R '^host-transport-identity$'
+
 test-mesh: build
     ctest --test-dir build/headless --output-on-failure -R '^mesh-ingest$'
 

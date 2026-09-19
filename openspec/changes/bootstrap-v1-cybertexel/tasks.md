@@ -293,7 +293,11 @@ path: committed channels and previews return the same delta and snapshot types,
 use the same layout and format negotiation, and enter the same asynchronous
 tile readback. A pinned preview remains immutable across later preview edits,
 and no preview write changes committed document pixels. Stable host cache
-identities (8.10) are next.
+identities (8.10) add a structured key for each named render or compute pass.
+The key combines resource kind, stable plan scope and pass identifier without
+delimiter ambiguity, remains stable across plan reconstruction and pass
+reordering, and lets a host cache compiled pipelines without pointer or ordinal
+keys. The consolidated host-transport scenario suite (8.11) is next.
 
 ## 1. Foundation
 
@@ -407,7 +411,7 @@ identities (8.10) are next.
 - [x] 8.7 Releasable, budgeted snapshot tokens pin resource versions between query and readback
 - [x] 8.8 Delta query cost independent of document tile count
 - [x] 8.9 Preview transport through the same mechanism
-- [ ] 8.10 Stable identities for host-cached resources
+- [x] 8.10 Stable identities for host-cached resources
 - [ ] 8.11 `host-transport` scenarios as tests
 
 ## 9. Painting

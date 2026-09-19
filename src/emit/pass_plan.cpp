@@ -531,4 +531,19 @@ PassPlan::PassPlan(std::string stable_identity, std::vector<LogicalTexture> reso
     }
 }
 
+HostCacheIdentity PassPlan::pipeline_identity(std::string_view pass_identifier) const {
+    const auto found = std::find_if(
+        passes_.begin(), passes_.end(),
+        [&](const PassDescriptor& pass) { return pass.identifier == pass_identifier; });
+    if (found == passes_.end()) {
+        throw PassPlanError("pass plan has no pass named " + std::string(pass_identifier));
+    }
+    return {
+        .kind = found->kind == PassKind::render ? HostCacheResourceKind::render_pipeline
+                                                : HostCacheResourceKind::compute_pipeline,
+        .scope = stable_identity_,
+        .resource = found->identifier,
+    };
+}
+
 }  // namespace ctex::emit

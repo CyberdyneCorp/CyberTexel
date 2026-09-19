@@ -82,7 +82,8 @@ The current implementation provides:
 - Validated, device-independent [pass plans](docs/pass-plans.md) with logical
   resource generations, mip/layer/tile access ranges, dependency hazards,
   derived lifetimes, explicit bindings and layouts, render state, and
-  draw/dispatch commands.
+  draw/dispatch commands, plus structured stable identities for host-cached
+  render and compute pipelines.
 - Feature-gated [layer-stack emission](docs/feature-gated-emission.md) for all
   four shader targets, with deterministic binding-budget pass splitting,
   carried intermediates, format/dimension checks, and reported float-filtering

@@ -51,6 +51,9 @@ Foundation implementation is in progress.
 - Isolated in-flight preview resources transported through the same revision
   delta, budgeted snapshot, negotiated layout, and asynchronous tile-readback
   contracts as committed channels.
+- Structured stable identities for host-cached render and compute pipelines,
+  keyed by pipeline kind, plan scope, and pass name rather than pointers or
+  pass ordinals.
 - Linear Rec. 709 working-space and sRGB transfer functions with unclamped HDR
   conversion.
 - Native and sanitizer test presets plus a registry-driven determinism gate that

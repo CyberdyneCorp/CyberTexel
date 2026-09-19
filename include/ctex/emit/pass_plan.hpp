@@ -1,11 +1,13 @@
 #ifndef CTEX_EMIT_PASS_PLAN_HPP
 #define CTEX_EMIT_PASS_PLAN_HPP
 
+#include <compare>
 #include <cstdint>
 #include <optional>
 #include <span>
 #include <stdexcept>
 #include <string>
+#include <string_view>
 #include <variant>
 #include <vector>
 
@@ -277,6 +279,17 @@ struct DispatchCommand {
 using PassCommand = std::variant<DrawCommand, DispatchCommand>;
 enum class PassKind : std::uint8_t { render, compute };
 
+enum class HostCacheResourceKind : std::uint8_t { render_pipeline, compute_pipeline };
+
+struct HostCacheIdentity {
+    HostCacheResourceKind kind{};
+    std::string scope;
+    std::string resource;
+
+    friend bool operator==(const HostCacheIdentity&, const HostCacheIdentity&) = default;
+    friend auto operator<=>(const HostCacheIdentity&, const HostCacheIdentity&) = default;
+};
+
 struct PassDescriptor {
     std::string identifier;
     PassKind kind{};
@@ -319,6 +332,7 @@ public:
     [[nodiscard]] std::span<const ResourceLifetime> lifetimes() const noexcept {
         return lifetimes_;
     }
+    [[nodiscard]] HostCacheIdentity pipeline_identity(std::string_view pass_identifier) const;
 
     friend bool operator==(const PassPlan&, const PassPlan&) = default;
 

@@ -31,6 +31,20 @@ Compute passes name their compute entry point, storage bindings, and dispatch
 dimensions. Target dimensions are checked against the selected mip or tile
 rectangle.
 
+## Host cache identities
+
+`PassPlan::pipeline_identity` returns a structured `HostCacheIdentity` for a
+named pass. The key contains the render-or-compute pipeline kind, the plan's
+stable identity as its scope, and the pass identifier as the resource name.
+Hosts can therefore cache API pipeline objects without using a `PassPlan`
+address or a pass's ordinal position.
+
+The fields remain separate instead of being joined with a delimiter, so
+different scope/resource pairs cannot alias through punctuation in their
+names. Reconstructing the same plan produces the same key, and reordering
+independent passes does not change either pass's key. Requesting an identity
+for a pass not declared by the plan is refused.
+
 Feature-gated [layer-stack emission](feature-gated-emission.md) now produces
 target shaders whose bindings, intermediate resources, dependencies, and entry
 points match these plans. [Preview emission](preview-shading.md) uses the same

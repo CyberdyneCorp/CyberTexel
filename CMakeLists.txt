@@ -275,6 +275,11 @@ if(BUILD_TESTING)
     )
     add_test(NAME host-transport-preview COMMAND ctex_host_transport_preview_test)
 
+    add_executable(ctex_host_transport_identity_test tests/xport/identity_test.cpp)
+    ctex_configure_cpp_target(ctex_host_transport_identity_test)
+    target_link_libraries(ctex_host_transport_identity_test PRIVATE ctex_emit ctex_graph)
+    add_test(NAME host-transport-identity COMMAND ctex_host_transport_identity_test)
+
     add_executable(ctex_document_test tests/doc/document_test.cpp)
     ctex_configure_cpp_target(ctex_document_test)
     target_link_libraries(ctex_document_test PRIVATE ctex_doc ctex_mesh ctex_graph ctex_image)
