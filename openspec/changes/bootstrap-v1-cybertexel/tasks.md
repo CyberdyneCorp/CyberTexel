@@ -536,6 +536,13 @@ with both revisions. Stale pixels remain bound and readable so the host can
 present them with a warning; only an explicit current-revision replacement
 clears the report. Bake requests carry the same revision and tag accepted output
 with it.
+External map import (11.5) requires concrete channel-meaning and colour-space
+declarations, validates the meaning against the requested map, copies bounded
+strided caller memory and publishes through the same transactional bind path as
+provider output. RGB/RGBA vertex colours are converted from declared sRGB into
+the linear working space while alpha and every non-colour data channel remain
+numeric. The result reports the declaration, canonical storage space and whether
+conversion occurred; malformed metadata or buffers publish nothing.
 
 ## 1. Foundation
 
@@ -694,7 +701,7 @@ with it.
 - [x] 11.2 Bake provider interface: capability query, request, progress, cancellation
 - [x] 11.3 Missing-map reporting with no neutral substitution
 - [x] 11.4 Staleness tracking against the mesh revision
-- [ ] 11.5 External map import with declared channel meaning and colour space
+- [x] 11.5 External map import with declared channel meaning and colour space
 - [ ] 11.6 Normal map convention recording and conversion on read
 - [ ] 11.7 Generators: AO, curvature, thickness, position gradient, direction, dirt, edge wear, scratches
 - [ ] 11.8 Generator parameter validation and cross-executor determinism

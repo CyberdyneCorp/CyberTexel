@@ -3,8 +3,8 @@
 
 #include <cstddef>
 #include <cstdint>
-#include <ctex/image/pixel_format.hpp>
 #include <ctex/maps/mesh_maps.hpp>
+#include <ctex/maps/pixel_buffer.hpp>
 #include <optional>
 #include <string>
 
@@ -33,14 +33,7 @@ struct BakeRequest {
     std::uint32_t height{};
 };
 
-struct BakeImageView {
-    std::uint32_t width{};
-    std::uint32_t height{};
-    image::PixelFormat format{};
-    std::size_t row_stride_bytes{};
-    const void* pixels{};
-    std::size_t pixel_bytes{};
-};
+using BakeImageView = MeshMapPixelBufferView;
 
 enum class BakeProviderStatus : std::uint8_t { completed, cancelled, failed };
 

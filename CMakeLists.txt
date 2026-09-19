@@ -150,7 +150,12 @@ ctex_add_module(
 ctex_add_module(
     maps
     DEPENDS image mesh doc
-    SOURCES src/maps/maps.cpp src/maps/mesh_maps.cpp src/maps/bake_provider.cpp
+    SOURCES
+        src/maps/maps.cpp
+        src/maps/mesh_maps.cpp
+        src/maps/pixel_buffer_copy.cpp
+        src/maps/bake_provider.cpp
+        src/maps/external_import.cpp
 )
 ctex_add_module(
     xport
@@ -526,6 +531,13 @@ if(BUILD_TESTING)
         ctex_bake_provider_test PRIVATE ctex_maps ctex_doc ctex_image ctex_mesh ctex_graph
     )
     add_test(NAME mesh-map-bake-provider COMMAND ctex_bake_provider_test)
+
+    add_executable(ctex_external_map_import_test tests/maps/external_import_test.cpp)
+    ctex_configure_cpp_target(ctex_external_map_import_test)
+    target_link_libraries(
+        ctex_external_map_import_test PRIVATE ctex_maps ctex_doc ctex_image ctex_mesh ctex_graph
+    )
+    add_test(NAME mesh-map-external-import COMMAND ctex_external_map_import_test)
 
     add_executable(ctex_document_test tests/doc/document_test.cpp)
     ctex_configure_cpp_target(ctex_document_test)

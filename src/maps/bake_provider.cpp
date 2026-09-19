@@ -1,11 +1,10 @@
 #include <cmath>
 #include <ctex/maps/bake_provider.hpp>
-#include <limits>
-#include <memory>
-#include <span>
 #include <stdexcept>
 #include <string_view>
 #include <utility>
+
+#include "pixel_buffer_copy.hpp"
 
 namespace ctex::maps {
 namespace {
@@ -74,44 +73,12 @@ void provider_progress(void* user_data, BakeProgress progress) noexcept {
     }
 }
 
-std::size_t checked_row_bytes(const BakeImageView& image) {
-    const std::size_t pixel_size = image.format.bytes_per_pixel();
-    if (!image.format.is_valid() || image.width == 0 || image.height == 0 || pixel_size == 0 ||
-        image.width > std::numeric_limits<std::size_t>::max() / pixel_size) {
-        throw std::invalid_argument("bake provider returned an invalid image format or extent");
-    }
-    return static_cast<std::size_t>(image.width) * pixel_size;
-}
-
-std::shared_ptr<const image::TiledImage> copy_image(const BakeImageView& source,
-                                                    std::uint32_t requested_width,
-                                                    std::uint32_t requested_height) {
+void validate_output_extent(const BakeImageView& source, std::uint32_t requested_width,
+                            std::uint32_t requested_height) {
     if (source.width != requested_width || source.height != requested_height) {
         throw std::invalid_argument(
             "bake provider returned a resolution different from the request");
     }
-    const std::size_t row_bytes = checked_row_bytes(source);
-    if (source.row_stride_bytes < row_bytes ||
-        source.height - 1 >
-            (std::numeric_limits<std::size_t>::max() - row_bytes) / source.row_stride_bytes) {
-        throw std::invalid_argument("bake provider returned an invalid image row stride");
-    }
-    const std::size_t required_bytes =
-        static_cast<std::size_t>(source.height - 1) * source.row_stride_bytes + row_bytes;
-    if (source.pixels == nullptr || source.pixel_bytes < required_bytes) {
-        throw std::invalid_argument("bake provider returned an incomplete image buffer");
-    }
-    auto result = std::make_shared<image::TiledImage>(source.width, source.height, source.format);
-    const auto* bytes = static_cast<const std::byte*>(source.pixels);
-    const std::size_t pixel_size = source.format.bytes_per_pixel();
-    for (std::uint32_t y = 0; y < source.height; ++y) {
-        for (std::uint32_t x = 0; x < source.width; ++x) {
-            const std::size_t offset = static_cast<std::size_t>(y) * source.row_stride_bytes +
-                                       static_cast<std::size_t>(x) * pixel_size;
-            result->write_pixel(x, y, std::span(bytes + offset, pixel_size));
-        }
-    }
-    return result;
 }
 
 BakeRequestResult provider_failure(const BakeProvider& provider, const BakeProviderOutput& output,
@@ -175,7 +142,8 @@ BakeRequestResult request_bake(const BakeProvider& provider, MeshMapSet& target,
     }
 
     try {
-        auto pixels = copy_image(output.image, width, height);
+        validate_output_extent(output.image, width, height);
+        auto pixels = detail::copy_mesh_map_pixel_buffer(output.image);
         MeshMapBindResult binding = target.bind({.kind = kind,
                                                  .texture_set_id = target.texture_set_id(),
                                                  .uv_set = target.uv_set(),

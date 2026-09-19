@@ -123,6 +123,9 @@ The current implementation provides:
 - Texture-set documents derived from mesh partitions and named UVs, with stable
   identities and independent channel storage.
 - Validated read-only mesh ingest and reusable flat CPU acceleration structures.
+- Revision-aware [mesh-map sets](docs/mesh-maps.md) with named missing-map and
+  staleness reports, a host-supplied bake-provider seam, and transactional
+  external strided-buffer import with explicit channel meaning and colour space.
 - Perspective and orthographic ray picking, ordered occlusion, configurable
   backface policy, inverse UV picking, surface snapping, region selection,
   deterministic shared-boundary ownership, and bounded cancellable batches.

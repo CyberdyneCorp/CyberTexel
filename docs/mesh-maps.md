@@ -45,6 +45,24 @@ still displaying or inspecting the retained pixels. A map becomes current only
 when it is explicitly replaced by pixels produced from the current mesh
 revision.
 
+## External map import
+
+`import_external_mesh_map` accepts caller-owned strided pixel buffers without a
+bake provider. Both `channel_meaning` and `color_space` are required concrete
+declarations; omission, unknown values or a meaning incompatible with the map
+kind are refused before publication. Meanings distinguish scalar data, XYZ
+normal/direction/position vectors, identifiers and RGB/RGBA colour. The import
+copies the buffer and then uses the same `MeshMapSet::bind` path as provider
+output, so texture-set/UV validation, mesh revision staleness and resolution
+mismatch reporting are identical and failures leave existing bindings intact.
+
+RGB and RGBA vertex-colour imports declared as sRGB are converted to the linear
+Rec. 709 working space before binding, with alpha preserved. Numeric data,
+vectors and identifiers are never transfer-function transformed; their colour
+space is still declared and returned in `ExternalMeshMapImportResult`, alongside
+the canonical storage space and whether conversion occurred. Caller memory can
+be released or changed as soon as the synchronous import returns.
+
 ## Bake-provider seam
 
 `BakeProvider` is an optional synchronous callback table with an opaque context,
