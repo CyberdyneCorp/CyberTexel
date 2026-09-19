@@ -7,7 +7,7 @@ decisions taken and questions still open.
 ## Status
 
 Implementation started. 24 capabilities, 332 requirements, 400 scenarios and
-222 tasks, 132 done. Foundation and the complete headless color-management
+222 tasks, 133 done. Foundation and the complete headless color-management
 scenario suite are green. Slice-A now has memory-buffer PNG input/output with
 8/16-bit preservation and hostile-input ceilings; full image-format breadth
 remains scheduled for slice D. Extensible channel descriptors and sparse
@@ -144,8 +144,11 @@ enablement, per-channel precision and memory reporting to C hosts while routing
 persistent tiled storage through the captured allocator. A second slice exposes
 the complete headless colour-management policy, transforms, precision
 operations, deterministic dithering and preview-only `.cube` LUTs. The gate
-correctly remains red, naming the 227 runtime requirements that still lack C
-entry points; those gaps must be implemented before the task can close.
+correctly remains red. A third slice adds allocator-owned, read-only in-memory
+mesh handles with four-or-more named UV sets, atomic revisioned replacement and
+declared 100,000,000-vertex/triangle refusals, completing task 4.8. The gate now
+names the 222 runtime requirements that still lack C entry points; those gaps
+must be implemented before task 14.8 can close.
 
 ## Milestones
 

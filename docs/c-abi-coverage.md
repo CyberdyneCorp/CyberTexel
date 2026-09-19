@@ -20,7 +20,10 @@ requirement.
 
 The gate is intentionally red while task 14.8 is in progress. The current C ABI
 fully maps its boundary requirements and records the implemented document and
-texture-set and colour-management operations, but 227 runtime requirements still
-lack C entry points.
+texture-set, colour-management and read-only mesh-ingest operations, but 222
+runtime requirements still lack C entry points. Mesh handles own allocator-routed
+copies of host buffers, expose named UV sets and revision changes, and enforce
+the declared 100,000,000-vertex and 100,000,000-triangle ceilings before reading
+array contents.
 The gate is not part of the aggregate `just check` until that count reaches zero;
 its unit tests run in the normal tooling suite throughout the migration.

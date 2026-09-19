@@ -43,9 +43,14 @@
     {"name": "language-bindings", "kind": "non-runtime", "rationale": "Bindings mirror the C ABI and are checked by their own parity gate.", "evidence": ["just gate-binding-parity"]},
     {"name": "material-graph", "kind": "runtime", "requirements": []},
     {"name": "mesh-and-texture-sets", "kind": "runtime", "requirements": [
+      {"requirement": "Mesh ingest is read-only", "symbols": ["ctex_mesh_create", "ctex_mesh_destroy"]},
+      {"requirement": "Mesh is supplied, not loaded", "symbols": ["ctex_mesh_create"]},
+      {"requirement": "Multiple UV sets", "symbols": ["ctex_mesh_create", "ctex_mesh_get_info", "ctex_mesh_get_uv_set_names", "ctex_document_create_texture_set"]},
       {"requirement": "Texture set partitioning", "symbols": ["ctex_document_create_texture_set"]},
       {"requirement": "Per-set resolution and bit depth", "symbols": ["ctex_document_create_texture_set"]},
-      {"requirement": "Set identity is stable", "symbols": ["ctex_document_get_texture_set_ids"]}
+      {"requirement": "Set identity is stable", "symbols": ["ctex_document_get_texture_set_ids"]},
+      {"requirement": "Mesh revision", "symbols": ["ctex_mesh_replace", "ctex_mesh_get_info"]},
+      {"requirement": "Mesh limits are declared", "symbols": ["ctex_mesh_create", "ctex_mesh_replace"]}
     ]},
     {"name": "mesh-maps", "kind": "runtime", "requirements": []},
     {"name": "paint-engine", "kind": "runtime", "requirements": []},

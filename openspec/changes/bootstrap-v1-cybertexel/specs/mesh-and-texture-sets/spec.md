@@ -99,7 +99,10 @@ The mesh SHALL carry a revision that advances whenever geometry, UVs or partitio
 - **THEN** the revision SHALL advance and every consumer SHALL detect the change from that revision alone, rather than each maintaining its own notion of freshness
 
 ### Requirement: Mesh limits are declared
-The specification SHALL state the maximum supported vertex and triangle counts and the behaviour when they are exceeded, which SHALL be a named refusal rather than undefined behaviour.
+The maximum supported mesh has 100,000,000 vertices and 100,000,000 triangles.
+The C++ and C ingest boundaries SHALL check these counts before reading array
+contents. Exceeding either limit SHALL be a named refusal rather than undefined
+behaviour; the diagnostic SHALL identify the count, supplied value and maximum.
 
 #### Scenario: Oversized mesh
 - **WHEN** a mesh exceeding the declared limit is supplied

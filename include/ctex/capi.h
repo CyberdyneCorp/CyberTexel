@@ -60,7 +60,9 @@ typedef enum ctex_diagnostic_code {
     CTEX_DIAGNOSTIC_UNSUPPORTED_CHANNEL_SEMANTIC = 24,
     CTEX_DIAGNOSTIC_INVALID_COLOR_COMPONENT = 25,
     CTEX_DIAGNOSTIC_INVALID_COLOR_BIT_DEPTH = 26,
-    CTEX_DIAGNOSTIC_INVALID_CUBE_LUT = 27
+    CTEX_DIAGNOSTIC_INVALID_CUBE_LUT = 27,
+    CTEX_DIAGNOSTIC_MESH_LIMIT_EXCEEDED = 28,
+    CTEX_DIAGNOSTIC_INVALID_MESH = 29
 } ctex_diagnostic_code;
 
 typedef enum ctex_log_severity {
@@ -101,6 +103,10 @@ typedef struct ctex_allocator_descriptor {
 
 typedef struct ctex_document ctex_document;
 typedef struct ctex_cube_lut ctex_cube_lut;
+typedef struct ctex_mesh ctex_mesh;
+
+#define CTEX_MAX_MESH_VERTEX_COUNT ((size_t)100000000)
+#define CTEX_MAX_MESH_TRIANGLE_COUNT ((size_t)100000000)
 
 typedef enum ctex_partition_source_kind {
     CTEX_PARTITION_SOURCE_MATERIAL = 0,
@@ -108,6 +114,82 @@ typedef enum ctex_partition_source_kind {
     CTEX_PARTITION_SOURCE_SUBMESH = 2,
     CTEX_PARTITION_SOURCE_EXPLICIT_FACES = 3
 } ctex_partition_source_kind;
+
+typedef struct ctex_vec2f {
+    float x;
+    float y;
+} ctex_vec2f;
+
+typedef struct ctex_vec3f {
+    float x;
+    float y;
+    float z;
+} ctex_vec3f;
+
+typedef struct ctex_vec4f {
+    float x;
+    float y;
+    float z;
+    float w;
+} ctex_vec4f;
+
+typedef struct ctex_uv_set_descriptor {
+    uint32_t size;
+    const char* name;
+    const ctex_vec2f* values;
+    size_t value_count;
+} ctex_uv_set_descriptor;
+
+#define CTEX_UV_SET_DESCRIPTOR_V1_SIZE ((uint32_t)sizeof(ctex_uv_set_descriptor))
+#define CTEX_UV_SET_DESCRIPTOR_CURRENT_SIZE ((uint32_t)sizeof(ctex_uv_set_descriptor))
+
+typedef struct ctex_mesh_partition_descriptor {
+    uint32_t size;
+    uint32_t kind;
+    const char* stable_key;
+    const char* display_name;
+} ctex_mesh_partition_descriptor;
+
+#define CTEX_MESH_PARTITION_DESCRIPTOR_V1_SIZE ((uint32_t)sizeof(ctex_mesh_partition_descriptor))
+#define CTEX_MESH_PARTITION_DESCRIPTOR_CURRENT_SIZE \
+    ((uint32_t)sizeof(ctex_mesh_partition_descriptor))
+
+typedef struct ctex_mesh_descriptor {
+    uint32_t size;
+    const ctex_vec3f* positions;
+    size_t position_count;
+    const ctex_vec3f* normals;
+    size_t normal_count;
+    const ctex_vec4f* vertex_colors;
+    size_t vertex_color_count;
+    const uint32_t* triangle_indices;
+    size_t triangle_index_count;
+    const ctex_uv_set_descriptor* uv_sets;
+    size_t uv_set_count;
+    const char* default_uv_set;
+    const ctex_mesh_partition_descriptor* partitions;
+    size_t partition_count;
+    const uint32_t* face_partition_indices;
+    size_t face_partition_index_count;
+    const uint32_t* face_material_ids;
+    size_t face_material_id_count;
+} ctex_mesh_descriptor;
+
+#define CTEX_MESH_DESCRIPTOR_V1_SIZE ((uint32_t)sizeof(ctex_mesh_descriptor))
+#define CTEX_MESH_DESCRIPTOR_CURRENT_SIZE ((uint32_t)sizeof(ctex_mesh_descriptor))
+
+typedef struct ctex_mesh_info {
+    uint32_t size;
+    size_t vertex_count;
+    size_t triangle_count;
+    size_t uv_set_count;
+    size_t partition_count;
+    uint32_t has_vertex_colors;
+    uint64_t revision;
+} ctex_mesh_info;
+
+#define CTEX_MESH_INFO_V1_SIZE ((uint32_t)sizeof(ctex_mesh_info))
+#define CTEX_MESH_INFO_CURRENT_SIZE ((uint32_t)sizeof(ctex_mesh_info))
 
 typedef struct ctex_texture_set_descriptor {
     uint32_t size;
@@ -299,6 +381,19 @@ CTEX_API ctex_result ctex_set_log_sink(const ctex_log_sink_descriptor* descripto
  * been destroyed.
  */
 CTEX_API ctex_result ctex_set_allocator(const ctex_allocator_descriptor* descriptor);
+
+/*
+ * Mesh creation copies the supplied arrays and strings. The inputs are never
+ * modified and need only remain valid for the duration of the call. Replacement
+ * is atomic: a rejected descriptor leaves the mesh and its revision unchanged.
+ */
+CTEX_API ctex_result ctex_mesh_create(const ctex_mesh_descriptor* descriptor, ctex_mesh** out_mesh);
+CTEX_API void ctex_mesh_destroy(ctex_mesh* mesh);
+CTEX_API ctex_result ctex_mesh_replace(ctex_mesh* mesh, const ctex_mesh_descriptor* descriptor);
+CTEX_API ctex_result ctex_mesh_get_info(const ctex_mesh* mesh, ctex_mesh_info* out_info);
+CTEX_API ctex_result ctex_mesh_get_uv_set_names(const ctex_mesh* mesh, char* buffer,
+                                                size_t buffer_size, size_t* out_required_size,
+                                                size_t* out_count);
 
 CTEX_API ctex_result ctex_document_create(ctex_document** out_document);
 CTEX_API void ctex_document_destroy(ctex_document* document);

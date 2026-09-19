@@ -313,6 +313,22 @@ bool refuses_invalid_topology_and_partitioning() {
                                    "mesh accepted a non-finite vertex position");
 }
 
+bool refuses_declared_mesh_limits_before_reading_buffers() {
+    const Vec3f vertex{};
+    const std::uint32_t index = 0;
+    MeshDescriptor too_many_vertices{};
+    too_many_vertices.positions =
+        std::span<const Vec3f>(&vertex, ctex::mesh::maximum_vertex_count + 1);
+    MeshDescriptor too_many_triangles{};
+    too_many_triangles.triangle_indices =
+        std::span<const std::uint32_t>(&index, (ctex::mesh::maximum_triangle_count + 1) * 3);
+
+    return expect_invalid_argument([&] { static_cast<void>(MeshView(too_many_vertices)); },
+                                   "mesh accepted more than the vertex limit") &&
+           expect_invalid_argument([&] { static_cast<void>(MeshView(too_many_triangles)); },
+                                   "mesh accepted more than the triangle limit");
+}
+
 }  // namespace
 
 int main() {
@@ -321,7 +337,8 @@ int main() {
                    generated_tangents_preserve_mirrored_uv_handedness() &&
                    refuses_undeclared_or_invalid_supplied_tangents() &&
                    derives_total_partitioned_texture_sets() && derives_every_partition_source() &&
-                   refuses_invalid_topology_and_partitioning()
+                   refuses_invalid_topology_and_partitioning() &&
+                   refuses_declared_mesh_limits_before_reading_buffers()
                ? 0
                : 1;
 }

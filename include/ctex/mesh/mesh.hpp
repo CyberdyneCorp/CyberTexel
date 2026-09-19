@@ -11,6 +11,9 @@
 
 namespace ctex::mesh {
 
+inline constexpr std::size_t maximum_vertex_count = 100'000'000;
+inline constexpr std::size_t maximum_triangle_count = 100'000'000;
+
 struct Vec2f {
     float x;
     float y;

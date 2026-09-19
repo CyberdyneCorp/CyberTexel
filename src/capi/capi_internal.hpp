@@ -5,6 +5,7 @@
 
 #include <ctex/doc/document.hpp>
 #include <ctex/image/cube_lut.hpp>
+#include <ctex/mesh/mesh.hpp>
 #include <memory_resource>
 
 struct ctex_allocator_state {
@@ -39,6 +40,38 @@ struct ctex_cube_lut {
     ctex_allocator_state allocator;
     ctex_host_memory_resource memory_resource;
     ctex::image::CubeLut value;
+};
+
+struct ctex_mesh_state {
+    explicit ctex_mesh_state(const ctex_mesh_descriptor& descriptor,
+                             std::pmr::memory_resource* memory_resource);
+
+    std::pmr::vector<ctex::mesh::Vec3f> positions;
+    std::pmr::vector<ctex::mesh::Vec3f> normals;
+    std::pmr::vector<ctex::mesh::Vec4f> vertex_colors;
+    std::pmr::vector<std::uint32_t> triangle_indices;
+    std::pmr::vector<ctex::mesh::Vec2f> uv_values;
+    std::pmr::vector<std::pmr::string> uv_names;
+    std::pmr::string default_uv_set;
+    std::pmr::vector<ctex::mesh::UvSetView> uv_views;
+    std::pmr::vector<std::pmr::string> partition_keys;
+    std::pmr::vector<std::pmr::string> partition_names;
+    std::pmr::vector<ctex::mesh::MeshPartition> partition_views;
+    std::pmr::vector<std::uint32_t> face_partition_indices;
+    std::pmr::vector<std::uint32_t> face_material_ids;
+    std::uint64_t revision{};
+
+    [[nodiscard]] ctex::mesh::MeshDescriptor descriptor() const noexcept;
+};
+
+struct ctex_mesh {
+    explicit ctex_mesh(ctex_allocator_state allocator_value,
+                       const ctex_mesh_descriptor& descriptor);
+    ~ctex_mesh();
+
+    ctex_allocator_state allocator;
+    ctex_host_memory_resource memory_resource;
+    ctex_mesh_state* state;
 };
 
 #endif

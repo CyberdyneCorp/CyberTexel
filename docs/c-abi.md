@@ -36,6 +36,24 @@ prefix contain another value. Current callers use
 as `CTEX_TEXTURE_SET_DESCRIPTOR_V1_SIZE`. Descriptor strings are borrowed for
 the duration of `ctex_document_create_texture_set` and copied into the document.
 
+## Mesh ingest
+
+`ctex_mesh_create` accepts positions, normals, triangle indices, at least one
+named UV set, optional vertex colours, total face partitions and material IDs
+entirely from memory. It never writes caller buffers. The resulting opaque
+handle owns allocator-routed copies, so arrays and strings need only remain valid
+for the call. `ctex_mesh_get_uv_set_names` enumerates all names with the packed
+two-call buffer contract; at least four UV sets are supported, and
+`ctex_mesh_get_info` reports attribute counts, partition count and revision.
+
+`ctex_mesh_replace` validates and copies a complete replacement before publishing
+it. Success advances the globally unique revision; failure preserves both the
+prior mesh and revision. The maximum supported mesh has 100,000,000 vertices and
+100,000,000 triangles, exposed as `CTEX_MAX_MESH_VERTEX_COUNT` and
+`CTEX_MAX_MESH_TRIANGLE_COUNT`. Both boundaries reject larger declared counts
+before reading array contents and report `CTEX_DIAGNOSTIC_MESH_LIMIT_EXCEEDED`
+with the count, supplied value and maximum.
+
 ## Texture-set channels
 
 Every new texture set registers the nine metallic/roughness preset channels but
@@ -127,6 +145,8 @@ The contract is stated per entry-point family:
 | `ctex_document_create` | Process-safe; each successful call creates independent state |
 | `ctex_document_destroy` | The caller ensures no other call is using that handle; distinct handles may be destroyed concurrently |
 | `ctex_document_create_texture_set`, `ctex_document_get_texture_set_ids`, `ctex_texture_set_*` | Calls on distinct document handles are safe concurrently; every call on the same document handle must be externally synchronized, including read-only calls |
+| `ctex_mesh_create` | Process-safe; each successful call creates independent owned state and captures the active allocator |
+| `ctex_mesh_destroy`, `ctex_mesh_replace`, `ctex_mesh_get_info`, `ctex_mesh_get_uv_set_names` | Calls on distinct mesh handles are safe concurrently; every call on the same mesh handle must be externally synchronized, including read-only calls |
 | `ctex_get_last_result`, `ctex_get_last_diagnostic_code`, `ctex_get_last_diagnostic` | Thread-local; concurrent threads never observe or replace one another's diagnostic state |
 
 A handle may move between threads while idle. CyberTexel does not attach thread
@@ -186,7 +206,8 @@ current C surface use the captured allocator through a core
 `std::pmr::memory_resource`. This includes the ordered texture-set index and
 keys, texture-set identity and descriptor strings, shared accounting state,
 preset-vector capacity, channel descriptor/map storage, tiled channel-image
-metadata and pixels, and opaque `.cube` LUT handles and sample tables.
+metadata and pixels, opaque `.cube` LUT handles and sample tables, and opaque
+mesh handles with their copied geometry, UV, partition and material buffers.
 Copy-on-write image versions retain that resource across copy and move
 publication. Native C++ callers use the standard default resource unless they
 provide another one. Temporary conversion and scratch allocations are

@@ -672,8 +672,12 @@ slice exposes the complete colour-management contract: declared spaces,
 per-channel policy, automatic input resolution, headless transforms, bit-depth
 warnings, higher-precision accumulation, deterministic dithering and
 preview-only `.cube` LUTs. LUT allocations preserve the captured host allocator.
-The gate refuses 227 unmapped runtime requirements by name and remains outside
-the green aggregate until those entry points exist.
+A third slice exposes read-only in-memory mesh ingest through allocator-owned
+handles, including four-or-more named UV sets, attribute and partition counts,
+atomic replacement, revisions and the declared 100,000,000-vertex/triangle
+refusals. This also completes task 4.8. The gate refuses 222 unmapped runtime
+requirements by name and remains outside the green aggregate until those entry
+points exist.
 
 ## 1. Foundation
 
@@ -727,7 +731,7 @@ the green aggregate until those entry points exist.
 - [ ] 4.5 Overlap and coverage diagnostics
 - [x] 4.6 Mesh revision; every derived structure keyed by it
 - [ ] 4.7 Mesh replacement: identity matching, UV-change reporting, host-chosen policy
-- [ ] 4.8 Declared mesh limits and their named refusals
+- [x] 4.8 Declared mesh limits and their named refusals
 - [ ] 4.9 `mesh-and-texture-sets` scenarios as tests
 
 ## 5. Picking

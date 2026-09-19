@@ -7,6 +7,7 @@
 #include <cstring>
 #include <ctex/image/color_policy.hpp>
 #include <exception>
+#include <iterator>
 #include <limits>
 #include <mutex>
 #include <new>
@@ -530,6 +531,149 @@ ctex::doc::PartitionSourceKind partition_source_kind(std::uint32_t kind) {
                    "partition_kind=" + std::to_string(kind));
 }
 
+ctex::mesh::PartitionKind mesh_partition_kind(std::uint32_t kind) {
+    switch (kind) {
+        case CTEX_PARTITION_SOURCE_MATERIAL:
+            return ctex::mesh::PartitionKind::material;
+        case CTEX_PARTITION_SOURCE_OBJECT:
+            return ctex::mesh::PartitionKind::object;
+        case CTEX_PARTITION_SOURCE_SUBMESH:
+            return ctex::mesh::PartitionKind::submesh;
+        case CTEX_PARTITION_SOURCE_EXPLICIT_FACES:
+            return ctex::mesh::PartitionKind::explicit_faces;
+    }
+    throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_INVALID_ENUM_VALUE,
+                   "partition.kind=" + std::to_string(kind));
+}
+
+template <typename Value>
+void require_mesh_array(const Value* values, std::size_t count, std::string_view field) {
+    if (values == nullptr && count != 0) {
+        throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                       std::string(field) + "=null with count=" + std::to_string(count));
+    }
+}
+
+void validate_mesh_limit(std::size_t supplied, std::size_t maximum, std::string_view name) {
+    if (supplied > maximum) {
+        throw_boundary(CTEX_RESULT_OVER_BUDGET, CTEX_DIAGNOSTIC_MESH_LIMIT_EXCEEDED,
+                       std::string(name) + " supplied=" + std::to_string(supplied) +
+                           " maximum=" + std::to_string(maximum));
+    }
+}
+
+void validate_mesh_array_pointers(const ctex_mesh_descriptor& descriptor) {
+    require_mesh_array(descriptor.positions, descriptor.position_count, "descriptor.positions");
+    require_mesh_array(descriptor.normals, descriptor.normal_count, "descriptor.normals");
+    require_mesh_array(descriptor.vertex_colors, descriptor.vertex_color_count,
+                       "descriptor.vertex_colors");
+    require_mesh_array(descriptor.triangle_indices, descriptor.triangle_index_count,
+                       "descriptor.triangle_indices");
+    require_mesh_array(descriptor.uv_sets, descriptor.uv_set_count, "descriptor.uv_sets");
+    require_mesh_array(descriptor.partitions, descriptor.partition_count, "descriptor.partitions");
+    require_mesh_array(descriptor.face_partition_indices, descriptor.face_partition_index_count,
+                       "descriptor.face_partition_indices");
+    require_mesh_array(descriptor.face_material_ids, descriptor.face_material_id_count,
+                       "descriptor.face_material_ids");
+    if (descriptor.default_uv_set == nullptr) {
+        throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                       "descriptor.default_uv_set=null");
+    }
+}
+
+void validate_mesh_counts(const ctex_mesh_descriptor& descriptor) {
+    validate_mesh_limit(descriptor.position_count, CTEX_MAX_MESH_VERTEX_COUNT, "vertex_count");
+    const std::size_t triangle_count = descriptor.triangle_index_count / 3;
+    validate_mesh_limit(triangle_count, CTEX_MAX_MESH_TRIANGLE_COUNT, "triangle_count");
+    if (descriptor.position_count == 0 || descriptor.normal_count != descriptor.position_count ||
+        (descriptor.vertex_color_count != 0 &&
+         descriptor.vertex_color_count != descriptor.position_count)) {
+        throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_INVALID_MESH,
+                       "vertex attributes have inconsistent counts");
+    }
+    if (descriptor.triangle_index_count == 0 || descriptor.triangle_index_count % 3 != 0) {
+        throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_INVALID_MESH,
+                       "triangle_index_count must describe complete triangles");
+    }
+    if (descriptor.uv_set_count == 0 || descriptor.partition_count == 0 ||
+        descriptor.face_partition_index_count != triangle_count ||
+        descriptor.face_material_id_count != triangle_count) {
+        throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_INVALID_MESH,
+                       "UV sets and total face partition metadata are required");
+    }
+}
+
+void validate_mesh_uv_sets(const ctex_mesh_descriptor& descriptor) {
+    for (std::size_t index = 0; index < descriptor.uv_set_count; ++index) {
+        const ctex_uv_set_descriptor& uv_set = descriptor.uv_sets[index];
+        validate_structure_size(uv_set.size, CTEX_UV_SET_DESCRIPTOR_V1_SIZE,
+                                CTEX_UV_SET_DESCRIPTOR_CURRENT_SIZE, "uv_set.size");
+        if (uv_set.name == nullptr) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                           "uv_set.name=null at index=" + std::to_string(index));
+        }
+        require_mesh_array(uv_set.values, uv_set.value_count, "uv_set.values");
+        if (uv_set.value_count != descriptor.position_count) {
+            throw_boundary(
+                CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_INVALID_MESH,
+                "uv_set.value_count does not match vertex_count at index=" + std::to_string(index));
+        }
+    }
+}
+
+void validate_mesh_partitions(const ctex_mesh_descriptor& descriptor) {
+    for (std::size_t index = 0; index < descriptor.partition_count; ++index) {
+        const ctex_mesh_partition_descriptor& partition = descriptor.partitions[index];
+        validate_structure_size(partition.size, CTEX_MESH_PARTITION_DESCRIPTOR_V1_SIZE,
+                                CTEX_MESH_PARTITION_DESCRIPTOR_CURRENT_SIZE, "partition.size");
+        if (partition.stable_key == nullptr || partition.display_name == nullptr) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                           "partition strings are required at index=" + std::to_string(index));
+        }
+        static_cast<void>(mesh_partition_kind(partition.kind));
+    }
+}
+
+void validate_mesh_descriptor(const ctex_mesh_descriptor& descriptor) {
+    validate_structure_size(descriptor.size, CTEX_MESH_DESCRIPTOR_V1_SIZE,
+                            CTEX_MESH_DESCRIPTOR_CURRENT_SIZE, "descriptor.size");
+    validate_mesh_array_pointers(descriptor);
+    validate_mesh_counts(descriptor);
+    validate_mesh_uv_sets(descriptor);
+    validate_mesh_partitions(descriptor);
+}
+
+ctex::mesh::Vec2f mesh_vec(ctex_vec2f value) { return {value.x, value.y}; }
+ctex::mesh::Vec3f mesh_vec(ctex_vec3f value) { return {value.x, value.y, value.z}; }
+ctex::mesh::Vec4f mesh_vec(ctex_vec4f value) { return {value.x, value.y, value.z, value.w}; }
+
+ctex_mesh* create_mesh(const ctex_allocator_state& allocator,
+                       const ctex_mesh_descriptor& descriptor) {
+    void* storage = allocate_storage(allocator, sizeof(ctex_mesh), alignof(ctex_mesh));
+    try {
+        return ::new (storage) ctex_mesh(allocator, descriptor);
+    } catch (...) {
+        deallocate_storage(allocator, storage, sizeof(ctex_mesh), alignof(ctex_mesh));
+        throw;
+    }
+}
+
+ctex_mesh_state* create_mesh_state(ctex_mesh& mesh, const ctex_mesh_descriptor& descriptor) {
+    void* storage =
+        mesh.memory_resource.allocate(sizeof(ctex_mesh_state), alignof(ctex_mesh_state));
+    try {
+        return ::new (storage) ctex_mesh_state(descriptor, &mesh.memory_resource);
+    } catch (...) {
+        mesh.memory_resource.deallocate(storage, sizeof(ctex_mesh_state), alignof(ctex_mesh_state));
+        throw;
+    }
+}
+
+void destroy_mesh_state(ctex_mesh& mesh, ctex_mesh_state* state) noexcept {
+    state->~ctex_mesh_state();
+    mesh.memory_resource.deallocate(state, sizeof(ctex_mesh_state), alignof(ctex_mesh_state));
+}
+
 void validate_descriptor_size(const ctex_texture_set_descriptor& descriptor) {
     if (descriptor.size < CTEX_TEXTURE_SET_DESCRIPTOR_V1_SIZE) {
         throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_INVALID_DESCRIPTOR_SIZE,
@@ -618,6 +762,102 @@ ctex_cube_lut::ctex_cube_lut(ctex_allocator_state allocator_value, std::string_v
     : allocator(allocator_value),
       memory_resource(allocator_value),
       value(ctex::image::CubeLut::from_cube(source, &memory_resource)) {}
+
+ctex_mesh_state::ctex_mesh_state(const ctex_mesh_descriptor& source,
+                                 std::pmr::memory_resource* memory_resource)
+    : positions(memory_resource),
+      normals(memory_resource),
+      vertex_colors(memory_resource),
+      triangle_indices(memory_resource),
+      uv_values(memory_resource),
+      uv_names(memory_resource),
+      default_uv_set(source.default_uv_set, memory_resource),
+      uv_views(memory_resource),
+      partition_keys(memory_resource),
+      partition_names(memory_resource),
+      partition_views(memory_resource),
+      face_partition_indices(memory_resource),
+      face_material_ids(memory_resource) {
+    positions.reserve(source.position_count);
+    std::transform(source.positions, source.positions + source.position_count,
+                   std::back_inserter(positions), [](ctex_vec3f value) { return mesh_vec(value); });
+    normals.reserve(source.normal_count);
+    std::transform(source.normals, source.normals + source.normal_count,
+                   std::back_inserter(normals), [](ctex_vec3f value) { return mesh_vec(value); });
+    if (source.vertex_color_count != 0) {
+        vertex_colors.reserve(source.vertex_color_count);
+        std::transform(source.vertex_colors, source.vertex_colors + source.vertex_color_count,
+                       std::back_inserter(vertex_colors),
+                       [](ctex_vec4f value) { return mesh_vec(value); });
+    }
+    triangle_indices.assign(source.triangle_indices,
+                            source.triangle_indices + source.triangle_index_count);
+    uv_names.reserve(source.uv_set_count);
+    for (std::size_t index = 0; index < source.uv_set_count; ++index) {
+        uv_names.emplace_back(source.uv_sets[index].name);
+        const ctex_uv_set_descriptor& uv_set = source.uv_sets[index];
+        std::transform(uv_set.values, uv_set.values + uv_set.value_count,
+                       std::back_inserter(uv_values),
+                       [](ctex_vec2f value) { return mesh_vec(value); });
+    }
+    uv_views.reserve(source.uv_set_count);
+    std::size_t uv_offset = 0;
+    for (std::size_t index = 0; index < source.uv_set_count; ++index) {
+        const std::size_t count = source.uv_sets[index].value_count;
+        uv_views.push_back({uv_names[index], std::span(uv_values).subspan(uv_offset, count)});
+        uv_offset += count;
+    }
+    partition_keys.reserve(source.partition_count);
+    partition_names.reserve(source.partition_count);
+    for (std::size_t index = 0; index < source.partition_count; ++index) {
+        partition_keys.emplace_back(source.partitions[index].stable_key);
+        partition_names.emplace_back(source.partitions[index].display_name);
+    }
+    partition_views.reserve(source.partition_count);
+    for (std::size_t index = 0; index < source.partition_count; ++index) {
+        partition_views.push_back({mesh_partition_kind(source.partitions[index].kind),
+                                   partition_keys[index], partition_names[index]});
+    }
+    face_partition_indices.assign(
+        source.face_partition_indices,
+        source.face_partition_indices + source.face_partition_index_count);
+    face_material_ids.assign(source.face_material_ids,
+                             source.face_material_ids + source.face_material_id_count);
+    const ctex::mesh::MeshBinding validated(descriptor());
+    revision = validated.revision();
+}
+
+ctex::mesh::MeshDescriptor ctex_mesh_state::descriptor() const noexcept {
+    return {
+        .positions = positions,
+        .normals = normals,
+        .vertex_colors = vertex_colors,
+        .triangle_indices = triangle_indices,
+        .uv_sets = uv_views,
+        .default_uv_set = default_uv_set,
+        .partitions = partition_views,
+        .face_partition_indices = face_partition_indices,
+        .face_material_ids = face_material_ids,
+    };
+}
+
+ctex_mesh::ctex_mesh(ctex_allocator_state allocator_value, const ctex_mesh_descriptor& descriptor)
+    : allocator(allocator_value), memory_resource(allocator_value), state(nullptr) {
+    void* storage = memory_resource.allocate(sizeof(ctex_mesh_state), alignof(ctex_mesh_state));
+    try {
+        state = ::new (storage) ctex_mesh_state(descriptor, &memory_resource);
+    } catch (...) {
+        memory_resource.deallocate(storage, sizeof(ctex_mesh_state), alignof(ctex_mesh_state));
+        throw;
+    }
+}
+
+ctex_mesh::~ctex_mesh() {
+    if (state != nullptr) {
+        state->~ctex_mesh_state();
+        memory_resource.deallocate(state, sizeof(ctex_mesh_state), alignof(ctex_mesh_state));
+    }
+}
 
 extern "C" ctex_version ctex_get_version(void) {
     return {
@@ -864,6 +1104,108 @@ extern "C" ctex_result ctex_set_log_sink(const ctex_log_sink_descriptor* descrip
 
 extern "C" ctex_result ctex_set_allocator(const ctex_allocator_descriptor* descriptor) {
     return call_boundary("ctex_set_allocator", [descriptor] { install_allocator(descriptor); });
+}
+
+extern "C" ctex_result ctex_mesh_create(const ctex_mesh_descriptor* descriptor,
+                                        ctex_mesh** out_mesh) {
+    return call_boundary("ctex_mesh_create", [&] {
+        if (out_mesh == nullptr) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                           "out_mesh=null");
+        }
+        *out_mesh = nullptr;
+        if (descriptor == nullptr) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                           "descriptor=null");
+        }
+        validate_mesh_descriptor(*descriptor);
+        try {
+            *out_mesh = create_mesh(current_allocator(), *descriptor);
+        } catch (const std::invalid_argument& error) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_INVALID_MESH,
+                           error.what());
+        }
+    });
+}
+
+extern "C" void ctex_mesh_destroy(ctex_mesh* mesh) {
+    if (mesh == nullptr) {
+        return;
+    }
+    const ctex_allocator_state allocator = mesh->allocator;
+    mesh->~ctex_mesh();
+    deallocate_storage(allocator, mesh, sizeof(ctex_mesh), alignof(ctex_mesh));
+}
+
+extern "C" ctex_result ctex_mesh_replace(ctex_mesh* mesh, const ctex_mesh_descriptor* descriptor) {
+    return call_boundary("ctex_mesh_replace", [&] {
+        if (mesh == nullptr || descriptor == nullptr) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                           mesh == nullptr ? "mesh=null" : "descriptor=null");
+        }
+        validate_mesh_descriptor(*descriptor);
+        ctex_mesh_state* replacement = nullptr;
+        try {
+            replacement = create_mesh_state(*mesh, *descriptor);
+        } catch (const std::invalid_argument& error) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_INVALID_MESH,
+                           error.what());
+        }
+        ctex_mesh_state* previous = std::exchange(mesh->state, replacement);
+        destroy_mesh_state(*mesh, previous);
+    });
+}
+
+extern "C" ctex_result ctex_mesh_get_info(const ctex_mesh* mesh, ctex_mesh_info* out_info) {
+    return call_boundary("ctex_mesh_get_info", [&] {
+        if (mesh == nullptr || out_info == nullptr) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                           mesh == nullptr ? "mesh=null" : "out_info=null");
+        }
+        validate_structure_size(out_info->size, CTEX_MESH_INFO_V1_SIZE, CTEX_MESH_INFO_CURRENT_SIZE,
+                                "out_info.size");
+        const ctex::mesh::MeshDescriptor descriptor = mesh->state->descriptor();
+        *out_info = {
+            .size = CTEX_MESH_INFO_CURRENT_SIZE,
+            .vertex_count = descriptor.positions.size(),
+            .triangle_count = descriptor.triangle_indices.size() / 3,
+            .uv_set_count = descriptor.uv_sets.size(),
+            .partition_count = descriptor.partitions.size(),
+            .has_vertex_colors = descriptor.vertex_colors.empty() ? 0U : 1U,
+            .revision = mesh->state->revision,
+        };
+    });
+}
+
+extern "C" ctex_result ctex_mesh_get_uv_set_names(const ctex_mesh* mesh, char* buffer,
+                                                  std::size_t buffer_size,
+                                                  std::size_t* out_required_size,
+                                                  std::size_t* out_count) {
+    return call_boundary("ctex_mesh_get_uv_set_names", [&] {
+        if (mesh == nullptr || out_required_size == nullptr) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                           mesh == nullptr ? "mesh=null" : "out_required_size=null");
+        }
+        std::size_t required_size = 0;
+        for (const std::pmr::string& name : mesh->state->uv_names) {
+            if (name.size() + 1 > std::numeric_limits<std::size_t>::max() - required_size) {
+                throw std::overflow_error("UV-set name buffer size overflow");
+            }
+            required_size += name.size() + 1;
+        }
+        *out_required_size = required_size;
+        if (out_count != nullptr) {
+            *out_count = mesh->state->uv_names.size();
+        }
+        validate_string_buffer(buffer, buffer_size, required_size);
+        if (buffer != nullptr) {
+            std::size_t offset = 0;
+            for (const std::pmr::string& name : mesh->state->uv_names) {
+                std::memcpy(buffer + offset, name.c_str(), name.size() + 1);
+                offset += name.size() + 1;
+            }
+        }
+    });
 }
 
 extern "C" ctex_result ctex_document_create(ctex_document** out_document) {

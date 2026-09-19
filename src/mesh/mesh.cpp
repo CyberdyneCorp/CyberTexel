@@ -208,6 +208,20 @@ void validate_vertex_attributes(const MeshDescriptor& descriptor) {
     }
 }
 
+void validate_mesh_limits(const MeshDescriptor& descriptor) {
+    if (descriptor.positions.size() > maximum_vertex_count) {
+        throw std::invalid_argument(
+            "mesh vertex_count supplied=" + std::to_string(descriptor.positions.size()) +
+            " maximum=" + std::to_string(maximum_vertex_count));
+    }
+    const std::size_t triangle_count = descriptor.triangle_indices.size() / 3;
+    if (triangle_count > maximum_triangle_count) {
+        throw std::invalid_argument(
+            "mesh triangle_count supplied=" + std::to_string(triangle_count) +
+            " maximum=" + std::to_string(maximum_triangle_count));
+    }
+}
+
 void validate_indices(const MeshDescriptor& descriptor) {
     if (descriptor.triangle_indices.empty() || descriptor.triangle_indices.size() % 3 != 0) {
         throw std::invalid_argument("mesh indices must describe one or more complete triangles");
@@ -307,6 +321,7 @@ Vec3f tangent_space_to_object(Vec3f tangent_space_normal, Vec3f surface_normal, 
 }
 
 MeshView::MeshView(MeshDescriptor descriptor) : descriptor_(descriptor) {
+    validate_mesh_limits(descriptor_);
     validate_vertex_attributes(descriptor_);
     validate_indices(descriptor_);
     validate_uv_sets(descriptor_);
