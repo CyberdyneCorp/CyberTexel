@@ -35,3 +35,25 @@ list. The host must fully synchronize and retain the returned current cursor
 before incremental queries resume. Snapshot pinning and readback are later
 tasks. The current scan is linear in the logical tile count, with the
 change-proportional index scheduled for task 8.8.
+
+## Explicit tile readback
+
+`TileReadback` is a move-only asynchronous operation over an exact list of
+`TileVersion` records and caller-owned output spans. CPU-resident tiles stage and
+validate all requested bytes, then complete immediately through the same state
+model. Host-device requests remain `pending` until the host supplies one
+matching `HostTileCompletion` payload per requested tile. A request exposes
+`pending`, `complete`, `cancelled`, and `failed` states; output is valid only
+when `output_readable()` is true.
+
+The library publishes into caller buffers only after every tile, version,
+coordinate, and byte count validates. Stale CPU versions, malformed host
+completions, cancellation, failure, and completion arriving after cancellation
+leave every output span unchanged. The caller must keep those spans alive until
+the operation reaches a terminal state.
+
+Readback is never triggered by revision or delta queries. Task 8.4 uses the
+channel's current native format and tightly packed visible tile extent; task 8.5
+turns that provisional representation into a declared stable layout. Until
+snapshot tokens land in task 8.7, CPU readback requires the current cursor and
+fails rather than reading a stale version.

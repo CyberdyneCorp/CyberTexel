@@ -33,6 +33,9 @@ Foundation implementation is in progress.
 - Epoch-qualified revision cursors with explicit full-resynchronization results
   after reset, preserving pixels and per-tile generations without returning a
   misleading partial delta.
+- Move-only asynchronous tile readback operations for CPU- and host-resident
+  versions, publishing exact named-tile payloads into caller buffers only after
+  successful validation and completion.
 - Linear Rec. 709 working-space and sRGB transfer functions with unclamped HDR
   conversion.
 - Native and sanitizer test presets plus a registry-driven determinism gate that

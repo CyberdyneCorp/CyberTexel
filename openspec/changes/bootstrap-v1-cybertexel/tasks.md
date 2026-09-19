@@ -267,8 +267,12 @@ tile's latest revision and generation with explicit CPU residency. It moves no
 pixels. Task 8.3 qualifies caller revisions with an epoch; controlled reset or
 revision exhaustion advances that epoch while preserving pixels and tile
 generations. Unknown or mismatched epochs return a full-resynchronization result
-with no partial delta. Explicit asynchronous tile readback (8.4) is next, while
-the change-proportional index remains task 8.8.
+with no partial delta. Task 8.4 adds move-only asynchronous tile readbacks over
+exact named versions and caller buffers. CPU-resident requests complete through
+the same state model; host-resident requests accept an explicit completion
+payload. Pending, cancelled, failed, stale and malformed operations publish no
+bytes. Declaring the provisional native packed layout (8.5) is next, while the
+change-proportional index remains task 8.8.
 
 ## 1. Foundation
 
@@ -376,7 +380,7 @@ the change-proportional index remains task 8.8.
 - [x] 8.1 Channel and per-tile revisions, advancing on change
 - [x] 8.2 Delta query since a caller-held revision; completeness and coalescing
 - [x] 8.3 Stale-revision detection and the full-resynchronization signal
-- [ ] 8.4 Explicit asynchronous tile readback into caller-owned buffers; no implicit readback on delta queries
+- [x] 8.4 Explicit asynchronous tile readback into caller-owned buffers; no implicit readback on delta queries
 - [ ] 8.5 Declared, stable memory layout; direct-upload test
 - [ ] 8.6 Format negotiation and the host-owned conversion decision
 - [ ] 8.7 Releasable, budgeted snapshot tokens pin resource versions between query and readback

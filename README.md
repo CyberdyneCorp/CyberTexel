@@ -38,7 +38,8 @@ The current implementation provides:
   floating-point pixels, with tile-level dirty tracking and monotonic channel
   and per-tile [content revisions](docs/host-transport-revisions.md), plus
   epoch-qualified coalesced delta queries carrying residency and generation
-  metadata and explicit full-resynchronization signaling.
+  metadata, explicit full-resynchronization signaling, and asynchronous named
+  tile readback into caller-owned buffers.
 - Linear Rec. 709 and sRGB colour transforms, semantic input policies,
   preview-only 3D LUTs, ordered dithering, and promoted-precision operations.
 - Memory-buffer PNG decoding and encoding with 8/16-bit preservation,
