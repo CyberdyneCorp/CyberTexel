@@ -500,6 +500,18 @@ preview-finalization and bounded-work entry points. The repository gate keeps
 all 69 documented numeric controls tied to implementation identifiers and
 explicit output-changing behaviour tests; categorical controls and structural
 inputs remain validated by their owning operations.
+Task 10.13 remains open because its complete scenario set includes work owned by
+later roadmap items: parity through all language bindings in 14.9--14.13,
+persistent editable surface paths in 20.4 and integrated symmetry behaviour
+across every tool. Existing implemented-tool scenarios remain covered by their
+focused tests rather than being treated as evidence for those missing routes.
+Mesh-map sets (11.1) define the complete thirteen-kind inventory and bind each
+map to one texture-set identity and named UV layout. Bindings validate their
+kind-specific channel count without requiring the map resolution to equal the
+texture-set resolution. A bind returns the single resolution-mismatch report,
+and continuous maps remain readable through normalized bilinear sampling while
+material and object identifiers use nearest sampling. Rebinding a kind replaces
+its authoritative pixels explicitly.
 
 ## 1. Foundation
 
@@ -654,7 +666,7 @@ inputs remain validated by their owning operations.
 
 ## 11. Mesh maps
 
-- [ ] 11.1 Map set definition, per-set binding, resolution mismatch reporting
+- [x] 11.1 Map set definition, per-set binding, resolution mismatch reporting
 - [ ] 11.2 Bake provider interface: capability query, request, progress, cancellation
 - [ ] 11.3 Missing-map reporting with no neutral substitution
 - [ ] 11.4 Staleness tracking against the mesh revision

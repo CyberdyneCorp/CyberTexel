@@ -147,7 +147,11 @@ ctex_add_module(
         src/paint/text.cpp
         src/paint/work.cpp
 )
-ctex_add_module(maps DEPENDS image doc)
+ctex_add_module(
+    maps
+    DEPENDS image doc
+    SOURCES src/maps/maps.cpp src/maps/mesh_maps.cpp
+)
 ctex_add_module(
     xport
     DEPENDS doc
@@ -508,6 +512,13 @@ if(BUILD_TESTING)
         PRIVATE ctex_paint ctex_doc ctex_emit ctex_pick ctex_mesh ctex_graph ctex_image
     )
     add_test(NAME paint-scenarios COMMAND ctex_paint_scenarios_test)
+
+    add_executable(ctex_mesh_maps_test tests/maps/mesh_maps_test.cpp)
+    ctex_configure_cpp_target(ctex_mesh_maps_test)
+    target_link_libraries(
+        ctex_mesh_maps_test PRIVATE ctex_maps ctex_doc ctex_image ctex_mesh ctex_graph
+    )
+    add_test(NAME mesh-maps COMMAND ctex_mesh_maps_test)
 
     add_executable(ctex_document_test tests/doc/document_test.cpp)
     ctex_configure_cpp_target(ctex_document_test)
