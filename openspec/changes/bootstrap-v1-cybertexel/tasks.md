@@ -410,6 +410,12 @@ ownership, selection preserves soft weights, and connected-by-angle performs a
 deterministic breadth-first walk over explicit mesh adjacency and unit face
 normals. Applying a fill intersects paint masks and rejection acceptance before
 the shared enabled-channel shading path.
+Clone (10.3) stores its source independently and samples an explicit immutable
+source snapshot. Aligned mode applies the source-to-destination UV offset fixed
+at stroke start, while fixed mode retains the source anchor for every accepted
+destination texel. Both modes compose canonical rejection, masks, deposition
+and stroke-start blending. Cross-texture-set requests are refused before
+shading with both stable set identities in the diagnostic.
 
 ## 1. Foundation
 
@@ -550,7 +556,7 @@ the shared enabled-channel shading path.
 
 - [x] 10.1 Brush and Eraser
 - [x] 10.2 Fill: all six scopes
-- [ ] 10.3 Clone, aligned and fixed, with the cross-set refusal
+- [x] 10.3 Clone, aligned and fixed, with the cross-set refusal
 - [ ] 10.4 Blur and Smear over a stroke-start snapshot
 - [ ] 10.5 Decal and Stencil; persistent editable decals through editable-authoring
 - [ ] 10.6 Projection, planar and triplanar

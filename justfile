@@ -126,6 +126,9 @@ test-paint-blending: build
 test-paint-brush-eraser: build
     ctest --test-dir build/headless --output-on-failure -R '^paint-brush-eraser$'
 
+test-paint-clone: build
+    ctest --test-dir build/headless --output-on-failure -R '^paint-clone$'
+
 test-paint-fill: build
     ctest --test-dir build/headless --output-on-failure -R '^paint-fill$'
 

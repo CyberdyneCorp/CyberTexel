@@ -77,7 +77,9 @@ The current implementation provides:
   deposition and stroke-start blending stages across enabled channels or layer
   opacity/mask values. The [Fill tool](docs/fill-tool.md) resolves whole-set,
   exact-triangle, connected-angle, UV-island, UV-tile and selection scopes from
-  cached surface identities and explicit mesh adjacency.
+  cached surface identities and explicit mesh adjacency. The
+  [Clone tool](docs/clone-tool.md) copies an immutable source snapshot using
+  aligned or fixed UV sampling and explicitly refuses cross-texture-set clones.
 - Sparse tiled image storage for one-to-four-channel 8-bit, 16-bit, and
   floating-point pixels, with tile-level dirty tracking and monotonic channel
   and per-tile [content revisions](docs/host-transport-revisions.md), plus
