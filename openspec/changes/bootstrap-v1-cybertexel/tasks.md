@@ -130,7 +130,12 @@ preflighted logical-memory ceiling. Cancellation reports processed work but
 discards partial hit arrays. Task 5.12 labels and maps all fifteen picking
 scenarios to headless tests, including bounded traversal over 2,097,152 indexed
 triangles and cancellation of a 5,000-ray batch. The picking work package is
-complete; the material graph document (6.1) is next.
+complete. Task 6.1 adds the device-independent material graph document: stable
+node identities, ordered socket declarations and stored constants, canonical
+links, deep cloning and comparison, and exact versioned text serialization.
+The document owns exactly one output node; a `doc` adapter derives its ordered
+inputs and defaults from registered channels, including the built-in nine.
+Edit-time cycle detection with path diagnostics (6.2) is next.
 
 ## 1. Foundation
 
@@ -204,7 +209,7 @@ complete; the material graph document (6.1) is next.
 
 ## 6. Graph and emission
 
-- [ ] 6.1 Graph document: nodes, links, sockets, serialization, comparison
+- [x] 6.1 Graph document: nodes, links, sockets, serialization, comparison
 - [ ] 6.2 Edit-time cycle detection and its diagnostics
 - [ ] 6.3 Socket typing, coercion rules, one-link-per-input, refusal of non-coercible links
 - [ ] 6.4 Node catalogue: input, texture, colour and filter, vector and math

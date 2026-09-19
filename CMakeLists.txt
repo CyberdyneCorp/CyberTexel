@@ -61,9 +61,17 @@ ctex_add_module(
         src/pick/region.cpp
         src/pick/batch.cpp
 )
-ctex_add_module(graph DEPENDS image)
+ctex_add_module(
+    graph
+    DEPENDS image
+    SOURCES src/graph/graph.cpp src/graph/document.cpp src/graph/serialization.cpp
+)
 ctex_add_module(emit DEPENDS graph image)
-ctex_add_module(doc DEPENDS image mesh graph SOURCES src/doc/channels.cpp src/doc/document.cpp)
+ctex_add_module(
+    doc
+    DEPENDS image mesh graph
+    SOURCES src/doc/channels.cpp src/doc/document.cpp src/doc/material_graph.cpp
+)
 ctex_add_module(paint DEPENDS doc emit pick)
 ctex_add_module(maps DEPENDS image doc)
 ctex_add_module(xport DEPENDS doc)
@@ -113,17 +121,17 @@ if(BUILD_TESTING)
 
     add_executable(ctex_channels_test tests/doc/channels_test.cpp)
     ctex_configure_cpp_target(ctex_channels_test)
-    target_link_libraries(ctex_channels_test PRIVATE ctex_doc ctex_mesh ctex_image)
+    target_link_libraries(ctex_channels_test PRIVATE ctex_doc ctex_mesh ctex_graph ctex_image)
     add_test(NAME document-channels COMMAND ctex_channels_test)
 
     add_executable(ctex_document_test tests/doc/document_test.cpp)
     ctex_configure_cpp_target(ctex_document_test)
-    target_link_libraries(ctex_document_test PRIVATE ctex_doc ctex_mesh ctex_image)
+    target_link_libraries(ctex_document_test PRIVATE ctex_doc ctex_mesh ctex_graph ctex_image)
     add_test(NAME texture-document COMMAND ctex_document_test)
 
     add_executable(ctex_mesh_test tests/mesh/mesh_test.cpp)
     ctex_configure_cpp_target(ctex_mesh_test)
-    target_link_libraries(ctex_mesh_test PRIVATE ctex_doc ctex_mesh ctex_image)
+    target_link_libraries(ctex_mesh_test PRIVATE ctex_doc ctex_mesh ctex_graph ctex_image)
     add_test(NAME mesh-ingest COMMAND ctex_mesh_test)
 
     add_executable(ctex_spatial_index_test tests/pick/spatial_index_test.cpp)
@@ -183,4 +191,17 @@ if(BUILD_TESTING)
         picking-batch
         PROPERTIES LABELS picking-scenario
     )
+
+    add_executable(ctex_graph_document_test tests/graph/document_test.cpp)
+    ctex_configure_cpp_target(ctex_graph_document_test)
+    target_link_libraries(ctex_graph_document_test PRIVATE ctex_graph ctex_image)
+    add_test(NAME material-graph-document COMMAND ctex_graph_document_test)
+
+    add_executable(ctex_material_graph_output_test tests/doc/material_graph_test.cpp)
+    ctex_configure_cpp_target(ctex_material_graph_output_test)
+    target_link_libraries(
+        ctex_material_graph_output_test
+        PRIVATE ctex_doc ctex_mesh ctex_graph ctex_image
+    )
+    add_test(NAME material-graph-output COMMAND ctex_material_graph_output_test)
 endif()

@@ -61,6 +61,9 @@ Foundation implementation is in progress.
   outcomes, interval progress callbacks, and no exposed partial results.
 - A labeled headless picking scenario suite, including bounded BVH traversal on
   a 2,097,152-triangle indexed mesh.
+- A device-independent material graph document with stable nodes, sockets and
+  links; deep comparison; exact versioned serialization; and channel-derived
+  output constants.
 
 ### Changed
 

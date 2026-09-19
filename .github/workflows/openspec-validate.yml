@@ -52,6 +52,8 @@ jobs:
       run: just test-mesh
     - name: Picking scenarios
       run: just test-picking-scenarios
+    - name: Material graph document
+      run: just test-graph-document
     - name: Test suite
       run: just test
 

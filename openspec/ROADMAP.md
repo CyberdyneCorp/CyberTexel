@@ -7,7 +7,7 @@ decisions taken and questions still open.
 ## Status
 
 Implementation started. 24 capabilities, 332 requirements, 400 scenarios and
-222 tasks, 25 done. Foundation and the complete headless color-management
+222 tasks, 26 done. Foundation and the complete headless color-management
 scenario suite are green. Slice-A now has memory-buffer PNG input/output with
 8/16-bit preservation and hostile-input ceilings; full image-format breadth
 remains scheduled for slice D. Extensible channel descriptors and sparse
@@ -37,6 +37,10 @@ preflights a declared logical-memory ceiling before allocating output.
 All fifteen picking scenarios now map to one labeled headless test suite. Its
 acceleration fixture contains 2,097,152 indexed triangles and verifies that a
 query reaches one bounded leaf rather than scanning the mesh.
+The material graph now has a device-independent document with stable node IDs,
+ordered sockets and links, cloning and structural comparison, and canonical
+versioned serialization. Its single output is derived from registered document
+channels, including all nine metallic/roughness defaults.
 
 ## Milestones
 

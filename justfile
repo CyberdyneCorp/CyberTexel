@@ -101,6 +101,9 @@ test-picking-batch: build
 test-picking-scenarios: build
     ctest --test-dir build/headless --output-on-failure -L '^picking-scenario$'
 
+test-graph-document: build
+    ctest --test-dir build/headless --output-on-failure -R '^material-graph-(document|output)$'
+
 examples:
     @just _unimplemented examples 16.2
 
