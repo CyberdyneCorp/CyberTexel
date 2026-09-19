@@ -132,6 +132,7 @@ ctex_add_module(
         src/paint/fill.cpp
         src/paint/masking.cpp
         src/paint/preview.cpp
+        src/paint/projection.cpp
         src/paint/rejection.cpp
         src/paint/seam_dilation.cpp
         src/paint/seam_filter.cpp
@@ -333,6 +334,14 @@ if(BUILD_TESTING)
         PRIVATE ctex_paint ctex_doc ctex_emit ctex_pick ctex_mesh ctex_graph ctex_image
     )
     add_test(NAME paint-decal-stencil COMMAND ctex_paint_decal_stencil_test)
+
+    add_executable(ctex_paint_projection_test tests/paint/projection_test.cpp)
+    ctex_configure_cpp_target(ctex_paint_projection_test)
+    target_link_libraries(
+        ctex_paint_projection_test
+        PRIVATE ctex_paint ctex_doc ctex_emit ctex_pick ctex_mesh ctex_graph ctex_image
+    )
+    add_test(NAME paint-projection COMMAND ctex_paint_projection_test)
 
     add_executable(ctex_paint_rejection_test tests/paint/rejection_test.cpp)
     ctex_configure_cpp_target(ctex_paint_rejection_test)

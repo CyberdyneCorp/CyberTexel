@@ -84,6 +84,9 @@ The current implementation provides:
   immutable stroke-start snapshot, including tangent-frame-correct normal maps.
   [Decal and Stencil](docs/decal-and-stencil.md) provide editable surface-frame
   material projection and transformable, invertible screen-space restrictions.
+  The [Projection tool](docs/projection-tool.md) applies material images through
+  a current-view camera with explicit visibility, a finite planar frame, or
+  repeat-addressed normal-weighted triplanar mapping.
 - Sparse tiled image storage for one-to-four-channel 8-bit, 16-bit, and
   floating-point pixels, with tile-level dirty tracking and monotonic channel
   and per-tile [content revisions](docs/host-transport-revisions.md), plus

@@ -430,6 +430,14 @@ not repick or rasterize, and rasterization is an explicit call. Stencil position
 rotation, scale and inversion resolve only from screen positions and constrain
 the canonical masked deposition path. Project round-trip, tile invalidation and
 undo/redo for editable entries remain scheduled together in 20.4.
+Projection (10.6) applies pinned material images through explicit camera,
+planar or triplanar mappings. Camera projection consumes a column-major current
+view-projection matrix plus a required per-texel visibility result and clips to
+the camera frustum. Planar projection uses a centered orthonormal frame and
+finite extent. Triplanar projection repeats scaled world coordinates and blends
+the three planes by squared normalized-surface-normal weights. All variants
+compose material opacity, canonical paint masks, optional rejection and the
+shared stroke-start enabled-channel shading path.
 
 ## 1. Foundation
 
@@ -573,7 +581,7 @@ undo/redo for editable entries remain scheduled together in 20.4.
 - [x] 10.3 Clone, aligned and fixed, with the cross-set refusal
 - [x] 10.4 Blur and Smear over a stroke-start snapshot
 - [x] 10.5 Decal and Stencil; persistent editable decals through editable-authoring
-- [ ] 10.6 Projection, planar and triplanar
+- [x] 10.6 Projection, planar and triplanar
 - [ ] 10.7 Text with UTF-8 and supplied fonts
 - [ ] 10.8 Particle with deterministic seeding
 - [ ] 10.9 Picker across every enabled channel

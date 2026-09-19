@@ -117,6 +117,9 @@ test-paint-coverage: build
 test-paint-decal-stencil: build
     ctest --test-dir build/headless --output-on-failure -R '^paint-decal-stencil$'
 
+test-paint-projection: build
+    ctest --test-dir build/headless --output-on-failure -R '^paint-projection$'
+
 test-paint-rejection: build
     ctest --test-dir build/headless --output-on-failure -R '^paint-rejection$'
 
