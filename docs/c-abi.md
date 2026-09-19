@@ -127,10 +127,11 @@ callbacks may run on the calling thread or a library worker thread, must be
 thread-safe, and must not throw. User data remains host-owned and must outlive
 all objects and work that captured it.
 
-Task 14.7 remains in progress: opaque document storage follows this contract,
-while allocator propagation through persistent containers owned by the document
-is the remaining step. Transient scratch allocations are intentionally outside
-the long-lived allocation contract.
+Task 14.7 remains in progress: opaque document storage, the document's ordered
+texture-set index, and its stable-ID keys now use the captured allocator through
+a core `std::pmr::memory_resource`. Persistent storage inside each texture set is
+the remaining propagation step. Transient scratch allocations are intentionally
+outside the long-lived allocation contract.
 
 The Linux export surface is constrained by `cmake/exports/cybertexel.map`, macOS
 uses `cybertexel.exports`, and Windows uses `cybertexel.def`. The

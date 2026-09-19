@@ -135,8 +135,9 @@ configured severity threshold, while every C failure exposes both English prose
 and an append-only machine-readable code. Host allocator callbacks (14.7) are
 in progress: the versioned process-wide configuration now validates callback
 pairs, preserves allocator provenance on opaque documents, and reports failure
-or misalignment by stable code. Propagation through nested persistent document
-storage remains before the task is complete.
+or misalignment by stable code. The captured allocator now also backs the core
+document's ordered texture-set index and stable-ID keys through a PMR boundary;
+texture-set-owned persistent storage remains before the task is complete.
 
 ## Milestones
 

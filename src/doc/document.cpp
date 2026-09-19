@@ -165,10 +165,18 @@ TextureSetMemoryReport TextureSet::memory_report() const {
                 checked_add(channel_bytes, map_bytes, "texture-set memory report overflow")};
 }
 
+TextureDocument::TextureDocument(std::pmr::memory_resource* memory_resource)
+    : memory_resource_(memory_resource), texture_sets_(memory_resource) {
+    if (memory_resource == nullptr) {
+        throw std::invalid_argument("texture document requires a memory resource");
+    }
+}
+
 TextureSet& TextureDocument::create_texture_set(TextureSetDescriptor descriptor) {
     TextureSet texture_set(std::move(descriptor));
     const std::string id = texture_set.id();
-    const auto [found, inserted] = texture_sets_.emplace(id, std::move(texture_set));
+    const auto [found, inserted] =
+        texture_sets_.emplace(std::pmr::string(id, memory_resource_), std::move(texture_set));
     if (!inserted) {
         throw std::invalid_argument("texture-set identity is already present: " + id);
     }
@@ -221,7 +229,7 @@ std::vector<std::string> TextureDocument::texture_set_ids() const {
     result.reserve(texture_sets_.size());
     for (const auto& [id, unused] : texture_sets_) {
         static_cast<void>(unused);
-        result.push_back(id);
+        result.emplace_back(id.begin(), id.end());
     }
     return result;
 }

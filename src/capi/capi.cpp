@@ -326,6 +326,22 @@ ctex::doc::TextureSetDescriptor texture_set_descriptor(
 
 }  // namespace
 
+void* ctex_host_memory_resource::do_allocate(std::size_t bytes, std::size_t alignment) {
+    return allocate_storage(allocator_, bytes, alignment);
+}
+
+void ctex_host_memory_resource::do_deallocate(void* allocation, std::size_t bytes,
+                                              std::size_t alignment) {
+    deallocate_storage(allocator_, allocation, bytes, alignment);
+}
+
+bool ctex_host_memory_resource::do_is_equal(const std::pmr::memory_resource& other) const noexcept {
+    return this == &other;
+}
+
+ctex_document::ctex_document(ctex_allocator_state allocator_value)
+    : allocator(allocator_value), memory_resource(allocator_value), value(&memory_resource) {}
+
 extern "C" ctex_version ctex_get_version(void) {
     return {
         CTEX_VERSION_MAJOR,

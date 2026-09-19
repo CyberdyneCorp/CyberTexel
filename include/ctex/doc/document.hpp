@@ -7,6 +7,7 @@
 #include <ctex/doc/smart_mask.hpp>
 #include <map>
 #include <memory>
+#include <memory_resource>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -160,6 +161,8 @@ private:
 
 class TextureDocument {
 public:
+    explicit TextureDocument(
+        std::pmr::memory_resource* memory_resource = std::pmr::get_default_resource());
     TextureSet& create_texture_set(TextureSetDescriptor descriptor);
     std::vector<std::string> create_texture_sets_from_mesh(const mesh::MeshView& mesh,
                                                            std::string_view uv_set,
@@ -174,7 +177,8 @@ public:
     [[nodiscard]] TextureDocumentMemoryReport memory_report() const;
 
 private:
-    std::map<std::string, TextureSet, std::less<>> texture_sets_;
+    std::pmr::memory_resource* memory_resource_;
+    std::pmr::map<std::pmr::string, TextureSet, std::less<>> texture_sets_;
 };
 
 [[nodiscard]] std::string texture_set_stable_id(const TextureSetDescriptor& descriptor);

@@ -60,6 +60,17 @@ int main(void) {
         &capture,
     };
     ctex_document* document = NULL;
+    ctex_texture_set_descriptor texture_set = {
+        CTEX_TEXTURE_SET_DESCRIPTOR_CURRENT_SIZE,
+        "Body",
+        CTEX_PARTITION_SOURCE_MATERIAL,
+        "material:body-with-a-persistent-allocator-key",
+        "UV0",
+        16,
+        16,
+        8,
+    };
+    size_t successful_allocation_count = 0;
 
     if (ctex_set_allocator(&allocator) != CTEX_RESULT_SUCCESS ||
         ctex_document_create(&document) != CTEX_RESULT_SUCCESS || document == NULL ||
@@ -67,58 +78,64 @@ int main(void) {
         capture.allocation_size == 0 || capture.allocation_alignment == 0) {
         return 1;
     }
-
-    if (ctex_set_allocator(NULL) != CTEX_RESULT_SUCCESS) {
+    if (ctex_document_create_texture_set(document, &texture_set) != CTEX_RESULT_SUCCESS ||
+        capture.allocation_count <= 1) {
         return 2;
     }
-    ctex_document_destroy(document);
-    if (capture.deallocation_count != 1 || capture.deallocation_size != capture.allocation_size ||
-        capture.deallocation_alignment != capture.allocation_alignment) {
+    successful_allocation_count = capture.allocation_count;
+
+    if (ctex_set_allocator(NULL) != CTEX_RESULT_SUCCESS) {
         return 3;
+    }
+    ctex_document_destroy(document);
+    if (capture.deallocation_count != successful_allocation_count) {
+        return 4;
     }
 
     document = NULL;
     if (ctex_document_create(&document) != CTEX_RESULT_SUCCESS || document == NULL ||
-        capture.allocation_count != 1) {
-        return 4;
+        capture.allocation_count != successful_allocation_count) {
+        return 5;
     }
     ctex_document_destroy(document);
 
     allocator.deallocate = NULL;
     if (ctex_set_allocator(&allocator) != CTEX_RESULT_INVALID_ARGUMENT ||
         ctex_get_last_diagnostic_code() != CTEX_DIAGNOSTIC_NULL_ARGUMENT) {
-        return 5;
+        return 6;
     }
 
     allocator.deallocate = capture_deallocate;
     capture.fail_allocation = 1;
     if (ctex_set_allocator(&allocator) != CTEX_RESULT_SUCCESS) {
-        return 6;
+        return 7;
     }
     document = (ctex_document*)(uintptr_t)1;
     if (ctex_document_create(&document) != CTEX_RESULT_OUT_OF_MEMORY || document != NULL ||
         ctex_get_last_diagnostic_code() != CTEX_DIAGNOSTIC_ALLOCATION_FAILED ||
-        capture.allocation_count != 2 || capture.deallocation_count != 1) {
-        return 7;
+        capture.allocation_count != successful_allocation_count + 1 ||
+        capture.deallocation_count != successful_allocation_count) {
+        return 8;
     }
 
     capture.fail_allocation = 0;
     allocator.allocate = misaligned_allocate;
     allocator.deallocate = misaligned_deallocate;
     if (ctex_set_allocator(&allocator) != CTEX_RESULT_SUCCESS) {
-        return 8;
+        return 9;
     }
     document = (ctex_document*)(uintptr_t)1;
     if (ctex_document_create(&document) != CTEX_RESULT_INVALID_ARGUMENT || document != NULL ||
         ctex_get_last_diagnostic_code() != CTEX_DIAGNOSTIC_ALLOCATOR_CONTRACT_VIOLATION ||
-        capture.allocation_count != 3 || capture.deallocation_count != 2 ||
+        capture.allocation_count != successful_allocation_count + 2 ||
+        capture.deallocation_count != successful_allocation_count + 1 ||
         capture.deallocation_size != capture.allocation_size ||
         capture.deallocation_alignment != capture.allocation_alignment) {
-        return 9;
+        return 10;
     }
 
     if (ctex_set_allocator(NULL) != CTEX_RESULT_SUCCESS) {
-        return 10;
+        return 11;
     }
     return 0;
 }

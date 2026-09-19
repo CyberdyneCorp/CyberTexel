@@ -656,7 +656,9 @@ callback descriptor and
 captures its exact allocate/deallocate/user-data tuple in every new opaque
 document. Replacement is safe while older documents remain alive, null returns
 map to out-of-memory, and misaligned returns are rejected by stable code. The
-task remains open until the same allocator reaches nested persistent storage.
+captured callbacks now back the core document's ordered texture-set index and
+stable-ID keys through `std::pmr::memory_resource`; the task remains open until
+they reach persistent storage owned inside each texture set.
 
 ## 1. Foundation
 
