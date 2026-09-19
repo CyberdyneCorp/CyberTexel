@@ -96,6 +96,10 @@ Foundation implementation is in progress.
   provisional/final/committed/cancelled states, stale-revision refusal, final
   seam dilation, and byte-exact preview-to-commit publication for every channel
   storage format.
+- Bounded paint-work planning and execution from exact stamp texel footprints,
+  expanding only by seam-dilation reach, deduplicating tiles deterministically,
+  and reporting candidate visits, processed tiles, and total canvas metadata
+  without scanning the canvas grid.
 - Linear Rec. 709 working-space and sRGB transfer functions with unclamped HDR
   conversion.
 - Native and sanitizer test presets plus a registry-driven determinism gate that

@@ -66,7 +66,10 @@ The current implementation provides:
   into texture gutters and is deferred until every dirtied tile reaches stroke
   finalization. Isolated [paint preview sessions](docs/paint-preview.md) use
   copy-on-write channel storage, refuse stale commits, and publish the exact
-  finalized preview—including dilation—as the committed result.
+  finalized preview—including dilation—as the committed result. The
+  [bounded-work scheduler](docs/paint-bounded-work.md) expands exact stamp
+  footprints by that dilation radius, processes only the resulting deduplicated
+  storage tiles, and reports the full ordered tile set.
 - Sparse tiled image storage for one-to-four-channel 8-bit, 16-bit, and
   floating-point pixels, with tile-level dirty tracking and monotonic channel
   and per-tile [content revisions](docs/host-transport-revisions.md), plus

@@ -132,6 +132,9 @@ test-paint-seam-dilation: build
 test-paint-preview: build
     ctest --test-dir build/headless --output-on-failure -R '^paint-preview$'
 
+test-paint-work: build
+    ctest --test-dir build/headless --output-on-failure -R '^paint-work$'
+
 test-mesh: build
     ctest --test-dir build/headless --output-on-failure -R '^mesh-ingest$'
 
