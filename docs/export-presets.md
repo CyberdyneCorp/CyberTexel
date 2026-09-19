@@ -2,9 +2,10 @@
 
 An `ExportPreset` is data: it contains an identifier, display name, and output
 texture records. Each output names its filename suffix, four ordered RGBA
-channel tokens, output colour space, and 8-, 16-, or 32-bit channel depth. A
-host can create a new engine convention by constructing this document; no
-engine-specific branch or registration step exists in the library.
+channel tokens, output colour space, file format, and 8-, 16-, or 32-bit
+channel depth. A host can create a new engine convention by constructing this
+document; no engine-specific branch or registration step exists in the
+library.
 
 ## Canonical token vocabulary
 
@@ -44,6 +45,29 @@ diagnostic rather than a substituted neutral value.
 - `base-color` — base colour and opacity in one texture; and
 - `specular-glossiness` — derived diffuse plus specular/smoothness textures.
 
-`default_export_preset()` returns `pbr-individual`. File formats, their allowed
-bit depths, output scopes, naming, padding, dry runs, and actual encoding are
-subsequent texture-export roadmap stages.
+`default_export_preset()` returns `pbr-individual`.
+
+## Formats and channel depth
+
+Each texture record selects an `ExportImageFormat`. The supported combinations
+are explicit:
+
+| Format | 8-bit unsigned normalized | 16-bit unsigned normalized | 32-bit float |
+| --- | --- | --- | --- |
+| PNG | yes | yes | no |
+| JPEG | yes | no | no |
+| TGA | yes | no | no |
+| TIFF | yes | yes | yes |
+| OpenEXR | no | 16-bit half float | yes |
+
+`encode_texture_memory()` encodes one- through four-channel tiled images into
+caller-owned bytes. PNG output records sRGB metadata when requested. JPEG has a
+quality option from 1 through 100; when given RGBA input, JPEG necessarily
+discards alpha. TGA is lossless RLE, TIFF is uncompressed baseline
+little-endian, and OpenEXR uses uncompressed scanline storage.
+
+Both `validate_export_preset()` and the encoder reject an impossible
+format/depth pair before producing bytes. The typed diagnostic names both the
+format and requested depth. Export scopes, naming, padding, dry runs, and the
+multi-output export coordinator remain subsequent texture-export roadmap
+stages.

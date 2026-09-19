@@ -48,6 +48,14 @@ target_include_directories(ctex_lodepng SYSTEM PUBLIC "${lodepng_SOURCE_DIR}")
 target_compile_definitions(ctex_lodepng PUBLIC LODEPNG_NO_COMPILE_CPP)
 set_target_properties(ctex_lodepng PROPERTIES POSITION_INDEPENDENT_CODE ON)
 
+FetchContent_Declare(
+    stb
+    GIT_REPOSITORY https://github.com/nothings/stb.git
+    GIT_TAG 2c980bb59875b0d32144a71867fbdebb2f77cd20
+    GIT_SHALLOW FALSE
+)
+FetchContent_MakeAvailable(stb)
+
 include(cmake/CyberTexelModules.cmake)
 
 add_library(
@@ -181,10 +189,12 @@ ctex_add_module(
     SOURCES
         src/io/io.cpp
         src/io/export_preset.cpp
+        src/io/texture_encode.cpp
         src/io/project_container.cpp
         src/io/project_autosave.cpp
         src/io/standalone_asset.cpp
 )
+target_include_directories(ctex_io SYSTEM PRIVATE "${stb_SOURCE_DIR}")
 target_link_libraries(ctex_io PRIVATE ctex_lodepng Threads::Threads)
 set(
     CTEX_EXEC_SOURCES
@@ -314,6 +324,10 @@ if(BUILD_TESTING)
     ctex_configure_cpp_target(ctex_export_preset_test)
     target_link_libraries(ctex_export_preset_test PRIVATE cybertexel)
     add_test(NAME export-presets COMMAND ctex_export_preset_test)
+    add_executable(ctex_texture_encode_test tests/io/texture_encode_test.cpp)
+    ctex_configure_cpp_target(ctex_texture_encode_test)
+    target_link_libraries(ctex_texture_encode_test PRIVATE cybertexel)
+    add_test(NAME texture-export-formats COMMAND ctex_texture_encode_test)
     add_test(
         NAME project-container-determinism
         COMMAND "${CTEX_PYTHON3_EXECUTABLE}" tools/check_determinism.py project-save
@@ -1115,8 +1129,13 @@ if(BUILD_TESTING)
         project-autosave
         standalone-asset
         export-presets
+        texture-export-formats
         project-container-determinism
         PROPERTIES LABELS project-io-scenario
+    )
+    set_tests_properties(
+        texture-export-formats
+        PROPERTIES LABELS "project-io-scenario;texture-export-scenario"
     )
     set_tests_properties(
         preview-emission

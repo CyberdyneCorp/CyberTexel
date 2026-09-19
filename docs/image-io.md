@@ -22,3 +22,9 @@ Unsupported ICC profiles are reported before the automatic rule is applied.
 LodePNG is pinned for this path because it supports memory-based 8/16-bit PNG
 encoding and decoding without another runtime dependency. Its revision and
 licence are recorded in the dependency manifest and third-party notices.
+
+The texture-export path additionally encodes PNG, JPEG, TGA, TIFF and OpenEXR
+to caller-owned buffers. Its exact format/depth compatibility table and output
+semantics are documented in [Export presets and channel tokens](export-presets.md).
+JPEG and TGA use the pinned stb image writer; the baseline TIFF and uncompressed
+scanline OpenEXR writers are implemented locally.

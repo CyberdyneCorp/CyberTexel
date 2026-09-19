@@ -10,6 +10,14 @@
             "source": "https://github.com/lvandeve/lodepng"
         },
         {
+            "name": "stb",
+            "discovery_name": "stb",
+            "license": "MIT",
+            "license_file": "thirdparty/licenses/stb.txt",
+            "revision": "2c980bb59875b0d32144a71867fbdebb2f77cd20",
+            "source": "https://github.com/nothings/stb"
+        },
+        {
             "name": "Kongruent minikong",
             "discovery_name": "kong",
             "license": "Zlib",

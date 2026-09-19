@@ -96,11 +96,18 @@ struct ExportChannelSample {
 
 enum class ExportBitDepth : std::uint8_t { bits_8 = 8, bits_16 = 16, bits_32 = 32 };
 
+enum class ExportImageFormat : std::uint8_t { png, jpeg, tga, tiff, openexr };
+
+[[nodiscard]] std::string_view export_image_format_name(ExportImageFormat format);
+[[nodiscard]] bool export_format_supports_bit_depth(ExportImageFormat format,
+                                                    ExportBitDepth bit_depth) noexcept;
+
 struct ExportTexturePreset {
     std::string suffix;
     std::array<ExportChannelToken, 4> rgba;
     image::ColorSpace color_space{image::ColorSpace::linear_rec709};
     ExportBitDepth bit_depth{ExportBitDepth::bits_8};
+    ExportImageFormat format{ExportImageFormat::png};
     friend bool operator==(const ExportTexturePreset&, const ExportTexturePreset&) = default;
 };
 

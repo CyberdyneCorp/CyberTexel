@@ -130,7 +130,9 @@ The current implementation provides:
 - Data-only [texture export presets](docs/export-presets.md) with a documented
   channel-token vocabulary, exact metallic/roughness derivations, registered
   channel and named mesh-map addressing, and six built-in PBR packing
-  conventions.
+  conventions. Memory encoders cover PNG, JPEG, TGA, TIFF and OpenEXR with an
+  explicit 8/16/32-bit compatibility matrix and typed refusal of impossible
+  combinations.
 - Extensible semantic channels and a nine-channel metallic/roughness PBR preset,
   with independent precision and allocation-free disabled channels.
 - Texture-set documents derived from mesh partitions and named UVs, with stable

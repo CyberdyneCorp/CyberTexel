@@ -188,6 +188,39 @@ std::vector<ExportPreset> make_built_in_presets() {
 ExportPresetError::ExportPresetError(ExportPresetErrorCode code, std::string message)
     : std::runtime_error(std::move(message)), code_(code) {}
 
+std::string_view export_image_format_name(ExportImageFormat format) {
+    switch (format) {
+        case ExportImageFormat::png:
+            return "PNG";
+        case ExportImageFormat::jpeg:
+            return "JPEG";
+        case ExportImageFormat::tga:
+            return "TGA";
+        case ExportImageFormat::tiff:
+            return "TIFF";
+        case ExportImageFormat::openexr:
+            return "OpenEXR";
+    }
+    throw ExportPresetError(ExportPresetErrorCode::invalid_preset,
+                            "export image format is invalid");
+}
+
+bool export_format_supports_bit_depth(ExportImageFormat format, ExportBitDepth bit_depth) noexcept {
+    switch (format) {
+        case ExportImageFormat::png:
+            return bit_depth == ExportBitDepth::bits_8 || bit_depth == ExportBitDepth::bits_16;
+        case ExportImageFormat::jpeg:
+        case ExportImageFormat::tga:
+            return bit_depth == ExportBitDepth::bits_8;
+        case ExportImageFormat::tiff:
+            return bit_depth == ExportBitDepth::bits_8 || bit_depth == ExportBitDepth::bits_16 ||
+                   bit_depth == ExportBitDepth::bits_32;
+        case ExportImageFormat::openexr:
+            return bit_depth == ExportBitDepth::bits_16 || bit_depth == ExportBitDepth::bits_32;
+    }
+    return false;
+}
+
 ExportChannelToken parse_export_channel_token(std::string_view text) {
     const auto found = std::find_if(named_tokens.begin(), named_tokens.end(),
                                     [text](const auto& entry) { return entry.first == text; });
@@ -305,6 +338,20 @@ void validate_export_preset(const ExportPreset& preset) {
             texture.bit_depth != ExportBitDepth::bits_32) {
             throw ExportPresetError(ExportPresetErrorCode::invalid_preset,
                                     "export texture bit depth must be 8, 16, or 32");
+        }
+        const bool known_format =
+            texture.format == ExportImageFormat::png || texture.format == ExportImageFormat::jpeg ||
+            texture.format == ExportImageFormat::tga || texture.format == ExportImageFormat::tiff ||
+            texture.format == ExportImageFormat::openexr;
+        if (!known_format) {
+            throw ExportPresetError(ExportPresetErrorCode::invalid_preset,
+                                    "export texture format is invalid");
+        }
+        if (!export_format_supports_bit_depth(texture.format, texture.bit_depth)) {
+            throw ExportPresetError(
+                ExportPresetErrorCode::invalid_preset,
+                std::string(export_image_format_name(texture.format)) + " cannot encode " +
+                    std::to_string(static_cast<unsigned>(texture.bit_depth)) + " bits per channel");
         }
         for (const ExportChannelToken& channel : texture.rgba) {
             static_cast<void>(export_channel_token_name(channel));

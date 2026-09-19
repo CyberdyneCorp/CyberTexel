@@ -293,6 +293,9 @@ test-project-io-scenarios: build
 test-export-presets: build
     ctest --test-dir build/headless --output-on-failure -R '^export-presets$'
 
+test-texture-export-formats: build
+    ctest --test-dir build/headless --output-on-failure -R '^texture-export-formats$'
+
 test-shader-emission-scenarios: (_require "spirv-val" "SPIRV-Tools") build
     ctest --test-dir build/headless --output-on-failure -L '^shader-emission-scenario$'
 

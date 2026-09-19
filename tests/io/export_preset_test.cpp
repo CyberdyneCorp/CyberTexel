@@ -174,6 +174,8 @@ bool invalid_preset_data_is_refused() {
     invalid_color.textures.front().color_space = static_cast<ctex::image::ColorSpace>(255);
     ExportPreset invalid_depth = default_export_preset();
     invalid_depth.textures.front().bit_depth = static_cast<ExportBitDepth>(24);
+    ExportPreset invalid_format = default_export_preset();
+    invalid_format.textures.front().format = static_cast<ExportImageFormat>(255);
     return invalid_token_refused &&
            expect_error([&] { validate_export_preset(invalid_token_preset); },
                         ExportPresetErrorCode::invalid_token,
@@ -184,6 +186,9 @@ bool invalid_preset_data_is_refused() {
            expect_error([&] { validate_export_preset(invalid_depth); },
                         ExportPresetErrorCode::invalid_preset,
                         "invalid export bit depth was accepted") &&
+           expect_error([&] { validate_export_preset(invalid_format); },
+                        ExportPresetErrorCode::invalid_preset,
+                        "invalid export image format was accepted") &&
            expect_error([] { static_cast<void>(built_in_export_preset("missing")); },
                         ExportPresetErrorCode::invalid_preset,
                         "missing built-in preset did not produce a diagnostic");
