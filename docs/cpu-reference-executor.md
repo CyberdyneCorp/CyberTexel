@@ -14,6 +14,12 @@ if it supplies only shader or GPU semantics. Later feature tasks add their CPU
 operation types alongside their host pass plans; capability reporting in 7.4
 will expose that inventory rather than creating a second dispatch system.
 
+Long-running operations use the staged `CpuBoundedOperation` contract described
+in [bounded executor work](execution-control.md). It provides cooperative
+cancellation, serialized interval progress, a hard CPU-worker bound, and
+pre-allocation working-memory admission. Only fully completed staging is
+committed, so cancellation exposes no partial document mutation.
+
 `CpuReferenceExecutor` has a permanently `available` descriptor and names the
 system CPU rather than a graphics device. Selection and fallback continue to use
 the common executor registry. Actual recovery-before-fallback remains owned by
@@ -47,7 +53,8 @@ diagnostic.
 These buffers are the inputs for the depth, angle, backface, alpha, and stroke
 capsule tests introduced by the paint engine in tasks 9.7–9.9. The CPU path will
 apply those tests itself; it never consumes a host-rendered depth or UV buffer.
-The executor parity fixture and numeric tolerances arrive in tasks 7.5–7.6.
+The executor parity fixture and numeric tolerances are enforced by tasks
+7.5–7.6.
 
 Input validation rejects zero dimensions, incomplete or out-of-range triangles,
 mismatched attributes, non-finite mesh/camera data, and non-finite transformed

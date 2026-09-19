@@ -11,6 +11,11 @@ how they enter the build:
 - CMake `FetchContent_Declare` dependencies;
 - packages introduced with CMake `find_package`.
 
+CMake platform/toolchain modules that select facilities supplied by the target
+system are not shipped dependencies. `find_package(Threads)` is the current
+explicit exception: it selects the platform's standard threading linkage and
+does not fetch or contribute third-party source.
+
 Every discovered dependency must have an entry in
 `thirdparty/dependencies.json`. The entry records its SPDX licence identifier,
 source URL, immutable revision, discovery name and a repository copy of the

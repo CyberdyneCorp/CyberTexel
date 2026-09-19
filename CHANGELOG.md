@@ -46,6 +46,9 @@ Foundation implementation is in progress.
 - A committed executor corpus spanning documents, strokes, cameras, materials,
   UV rasterization, depth, coverage and all declared value classes, with a CI
   gate that names backend drift and reports unavailable executors as unmeasured.
+- Staged bounded CPU execution with cooperative cancellation, monotonic progress,
+  enforced worker limits, pre-allocation memory-ceiling refusal, and atomic
+  commit only after complete success.
 - Semantic input-colour defaults, preview-only 3D LUTs, structured precision
   warnings, promoted height accumulation and deterministic ordered dithering.
 - Slice-A memory-buffer PNG decoding and encoding with 8/16-bit preservation,

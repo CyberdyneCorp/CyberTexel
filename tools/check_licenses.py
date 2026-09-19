@@ -22,6 +22,9 @@ ALLOWED_LICENSES = {
 SOURCE_ROOTS = ("thirdparty", "vendor", "external")
 IGNORED_SOURCE_DIRECTORIES = {"licenses"}
 FLOATING_REVISIONS = {"head", "latest", "main", "master", "trunk"}
+# CMake modules that select a platform/toolchain facility rather than code that
+# can be compiled into the shipped artifact.
+PLATFORM_PACKAGES = {"threads"}
 
 
 def normalized(name: str) -> str:
@@ -71,6 +74,8 @@ def discovered_dependencies(root: Path) -> dict[str, str]:
         for pattern, kind in patterns:
             for match in pattern.finditer(text):
                 name = match.group(1)
+                if kind == "find_package" and normalized(name) in PLATFORM_PACKAGES:
+                    continue
                 discovered[normalized(name)] = f"{kind} declaration {path.relative_to(root)}"
     return discovered
 

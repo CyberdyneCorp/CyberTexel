@@ -94,6 +94,9 @@ The current implementation provides:
   with a CPU-semantics contract for every operation, homogeneous camera clipping,
   deterministic depth-tested viewport rasterization, and independent UV-space
   texel rasterization with owned depth, UV, coverage, and triangle buffers.
+- [Bounded executor work](docs/execution-control.md) with cooperative
+  cancellation, serialized progress, real CPU worker limits, pre-allocation
+  memory admission, and commit-only-on-success staging.
 - A device-free [host execution protocol](docs/host-execution.md) with explicit
   resource ownership and state, completion-token lifetime tracking, validated
   host outputs, atomic revision publication, cancellation, stale-result

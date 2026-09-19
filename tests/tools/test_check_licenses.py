@@ -59,6 +59,20 @@ class LicenceGateTests(unittest.TestCase):
 
         self.assertIn("copyleft: licence 'GPL-3.0-only' is not permitted", failures)
 
+    def test_platform_threads_are_not_reported_as_a_shipped_dependency(self) -> None:
+        root = self.make_root()
+        (root / "CMakeLists.txt").write_text(
+            "find_package(Threads REQUIRED)\nfind_package(Surprise REQUIRED)\n",
+            encoding="utf-8",
+        )
+
+        failures = CHECK_LICENSES.audit(root)
+
+        self.assertEqual(
+            failures,
+            ["untracked dependency: find_package declaration CMakeLists.txt"],
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

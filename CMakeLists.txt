@@ -8,6 +8,8 @@ endif()
 
 project(CyberTexel VERSION "${CTEX_VERSION}" LANGUAGES C CXX)
 
+find_package(Threads REQUIRED)
+
 option(CTEX_WARNINGS_AS_ERRORS "Treat compiler warnings in CyberTexel sources as errors" ON)
 option(CTEX_ENABLE_SANITIZERS "Enable address and undefined-behaviour sanitizers" OFF)
 
@@ -125,11 +127,14 @@ ctex_add_module(
     SOURCES
         src/exec/exec.cpp
         src/exec/cpu_reference.cpp
+        src/exec/cpu_execution.cpp
+        src/exec/execution_control.cpp
         src/exec/host_execution.cpp
         src/exec/emission_features.cpp
         src/exec/parity.cpp
         src/exec/parity_gate.cpp
 )
+target_link_libraries(ctex_exec PRIVATE Threads::Threads)
 ctex_add_module(capi DEPENDS image mesh pick graph emit doc paint maps xport io exec)
 
 ctex_add_library()
@@ -471,6 +476,13 @@ if(BUILD_TESTING)
     ctex_configure_cpp_target(ctex_cpu_reference_test)
     target_link_libraries(ctex_cpu_reference_test PRIVATE ctex_exec ctex_emit ctex_graph ctex_image)
     add_test(NAME executor-cpu-reference COMMAND ctex_cpu_reference_test)
+
+    add_executable(ctex_execution_control_test tests/exec/execution_control_test.cpp)
+    ctex_configure_cpp_target(ctex_execution_control_test)
+    target_link_libraries(
+        ctex_execution_control_test PRIVATE ctex_exec ctex_emit ctex_graph ctex_image
+    )
+    add_test(NAME executor-bounded-execution COMMAND ctex_execution_control_test)
 
     add_executable(ctex_host_execution_test tests/exec/host_execution_test.cpp)
     ctex_configure_cpp_target(ctex_host_execution_test)

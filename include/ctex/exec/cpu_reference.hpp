@@ -4,6 +4,7 @@
 #include <array>
 #include <cstddef>
 #include <cstdint>
+#include <ctex/exec/execution_control.hpp>
 #include <ctex/exec/executor.hpp>
 #include <limits>
 #include <span>
@@ -81,6 +82,23 @@ public:
     virtual void execute(const CpuReferenceExecutor& executor) = 0;
 };
 
+struct CpuWorkPlan {
+    std::size_t work_item_count{};
+    std::size_t shared_working_memory_bytes{};
+    std::size_t working_memory_bytes_per_worker{};
+};
+
+class CpuBoundedOperation {
+public:
+    virtual ~CpuBoundedOperation() = default;
+    [[nodiscard]] virtual std::string_view identifier() const noexcept = 0;
+    [[nodiscard]] virtual CpuWorkPlan plan() const = 0;
+    virtual void execute_work_item(const CpuReferenceExecutor& executor, std::size_t work_item,
+                                   std::span<std::byte> shared_working_memory,
+                                   std::span<std::byte> worker_working_memory) = 0;
+    virtual void commit(std::span<const std::byte> shared_working_memory) noexcept = 0;
+};
+
 struct CpuExecutionRecord {
     std::string operation;
     bool completed;
@@ -92,6 +110,8 @@ public:
 
     [[nodiscard]] const ExecutorDescriptor& descriptor() const noexcept override;
     [[nodiscard]] CpuExecutionRecord execute(CpuOperation& operation) const;
+    [[nodiscard]] ExecutionOutcome execute_bounded(CpuBoundedOperation& operation,
+                                                   ExecutionControl control = {}) const;
     [[nodiscard]] CpuViewportRaster rasterize_viewport(const CpuRasterMeshView& mesh,
                                                        const CpuRasterCamera& camera) const;
     [[nodiscard]] CpuUvRaster rasterize_uv(const CpuRasterMeshView& mesh,

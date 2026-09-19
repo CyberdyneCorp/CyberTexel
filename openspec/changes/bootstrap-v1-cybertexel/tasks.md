@@ -239,7 +239,14 @@ renderer uses the reference rasterizer and shared blend formulas. The generic
 gate measures every available executor, fails malformed or missing renderers and
 names case, channel and deviation on drift. Compiled routes without a device are
 printed as `unmeasured`, never counted as passing; the same `just gate-parity`
-command runs in CI. Cancellation, progress and execution bounds (7.7) are next.
+command runs in CI.
+Task 7.7 adds a staged bounded-work contract to the CPU executor. Operations
+declare item count plus shared and per-worker storage before execution. The
+executor refuses overflow or an exceeded ceiling before allocating work storage,
+uses no more than the requested workers, serializes monotonic interval progress,
+and polls cancellation between bounded items. Only successful completion calls
+the non-throwing commit boundary; cancelled staging is discarded and the
+document remains unchanged. The optional owned-GPU executor (7.8) is next.
 
 ## 1. Foundation
 
@@ -338,7 +345,7 @@ command runs in CI. Cancellation, progress and execution bounds (7.7) are next.
 - [x] 7.4 Device capability reporting feeding emission
 - [x] 7.5 Declared parity tolerances per bit depth and for filtered values
 - [x] 7.6 Parity fixture corpus and the CI gate, with unmeasured executors reported
-- [ ] 7.7 Cancellation, progress, worker bound, memory ceiling and its refusals
+- [x] 7.7 Cancellation, progress, worker bound, memory ceiling and its refusals
 - [ ] 7.8 Optional owned-GPU executor (first backend), behind a build flag
 - [ ] 7.9 `execution-backends` scenarios as tests
 
