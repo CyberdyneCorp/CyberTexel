@@ -4,7 +4,8 @@
 accepts timestamped 3D `StrokeInputSample` values in one or more batches and
 produces exactly one `ResolvedStroke` sequence. Paint, preview, history and
 later replay code consume its stamps; they do not independently reinterpret
-the input callbacks.
+the input callbacks. Named settings use the separately versioned
+[stroke-preset format](stroke-presets.md).
 
 ## Version 1 input contract
 

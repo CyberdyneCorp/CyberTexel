@@ -329,7 +329,12 @@ that validates version, stamp fields, instance/source/final ordinal structure
 and continuous or discrete sweep topology, then returns a field-equal copy.
 It accepts no resolution settings and invokes no reconstruction, spacing,
 mapping, stabilizer, constraint, taper, jitter or symmetry stage. Versioned
-stroke preset serialization and refusals (9.6) are next.
+stroke presets (9.6) use a canonical exact-bit text format. Schema 2 covers all
+current settings; schema 1 omits flow jitter and migrates it to the documented
+zero default. Deserialization parses the header first, transactionally validates
+the complete result, upgrades older input and names any unsupported newer
+version. Texture-space swept coverage, falloff and coordinate modes (9.7) are
+next.
 
 ## 1. Foundation
 
@@ -453,7 +458,7 @@ stroke preset serialization and refusals (9.6) are next.
 - [x] 9.3 Deterministic jitter, taper, stabilizer, constraints
 - [x] 9.4 Symmetry planes and radial symmetry, emitted within one stroke
 - [x] 9.5 Externally resolved stamp ingestion
-- [ ] 9.6 Versioned stroke presets and their refusals
+- [x] 9.6 Versioned stroke presets and their refusals
 - [ ] 9.7 Paint engine: swept coverage, falloff, coordinate modes
 - [ ] 9.8 Depth, angle and backface rejection; alpha discard
 - [ ] 9.9 Separate non-building coverage and build-up deposition formulas; batching and frame-rate fixtures

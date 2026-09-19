@@ -69,6 +69,8 @@ Foundation implementation is in progress.
   transformed coordinate frames and branch-local continuous sweep links.
 - Validated external resolved-stroke ingestion that preserves host stamps and
   sweep topology without reapplying any reconstruction or modifier stage.
+- Canonical named stroke-preset serialization with exact numeric round trips,
+  schema-1 default migration, and named refusal of newer schema versions.
 - Linear Rec. 709 working-space and sRGB transfer functions with unclamped HDR
   conversion.
 - Native and sanitizer test presets plus a registry-driven determinism gate that

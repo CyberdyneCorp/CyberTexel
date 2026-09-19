@@ -105,6 +105,9 @@ test-host-transport-scenarios: build
 test-stroke-reconstruction: build
     ctest --test-dir build/headless --output-on-failure -R '^stroke-reconstruction$'
 
+test-stroke-preset: build
+    ctest --test-dir build/headless --output-on-failure -R '^stroke-preset$'
+
 test-mesh: build
     ctest --test-dir build/headless --output-on-failure -R '^mesh-ingest$'
 
