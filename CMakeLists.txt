@@ -125,6 +125,7 @@ ctex_add_module(
         src/paint/blending.cpp
         src/paint/coverage.cpp
         src/paint/deposition.cpp
+        src/paint/masking.cpp
         src/paint/rejection.cpp
         src/paint/stroke.cpp
         src/paint/stroke_preset.cpp
@@ -338,6 +339,14 @@ if(BUILD_TESTING)
         PRIVATE ctex_paint ctex_doc ctex_emit ctex_pick ctex_mesh ctex_graph ctex_image
     )
     add_test(NAME paint-blending COMMAND ctex_paint_blending_test)
+
+    add_executable(ctex_paint_masking_test tests/paint/masking_test.cpp)
+    ctex_configure_cpp_target(ctex_paint_masking_test)
+    target_link_libraries(
+        ctex_paint_masking_test
+        PRIVATE ctex_paint ctex_doc ctex_emit ctex_pick ctex_mesh ctex_graph ctex_image
+    )
+    add_test(NAME paint-masking COMMAND ctex_paint_masking_test)
 
     add_executable(ctex_document_test tests/doc/document_test.cpp)
     ctex_configure_cpp_target(ctex_document_test)

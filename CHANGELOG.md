@@ -83,6 +83,9 @@ Foundation implementation is in progress.
 - Paint shading for all twenty shared blend modes against an immutable
   stroke-start snapshot, with transactional updates and deposition-strength
   integration that prevents within-stroke feedback.
+- Multiplicative per-texel intersection of active-layer masks, colour-ID,
+  geometry or polygon, rectangle or lasso screen, and UV-island selections,
+  applied to canonical stamp events before deposition.
 - Linear Rec. 709 working-space and sRGB transfer functions with unclamped HDR
   conversion.
 - Native and sanitizer test presets plus a registry-driven determinism gate that

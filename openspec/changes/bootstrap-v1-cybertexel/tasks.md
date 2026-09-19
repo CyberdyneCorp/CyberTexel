@@ -354,8 +354,12 @@ and repeated continuous-segment rasterization. Task 9.10 copies the channel at
 stroke start and evaluates every later shade against that immutable snapshot,
 using deposition strength and the shared canonical formula for all twenty blend
 modes. Invalid updates are transactional, while a new stroke can snapshot the
-previous result and accumulate normally. Combined masking inputs (9.11) are
-next.
+previous result and accumulate normally. Task 9.11 multiplies every active-layer
+mask and the optional colour-ID, geometry or polygon-fill, rectangle or lasso
+screen, and UV-island selections into each canonical event before deposition.
+Absent masks are identity, any zero excludes the texel, soft weights combine,
+and aggregate coverage is rebuilt from the masked events. Revision-keyed UV
+coverage, triangle and island caches (9.12) are next.
 
 ## 1. Foundation
 
@@ -484,7 +488,7 @@ next.
 - [x] 9.8 Depth, angle and backface rejection; alpha discard
 - [x] 9.9 Separate non-building coverage and build-up deposition formulas; batching and frame-rate fixtures
 - [x] 9.10 Blending against the stroke-start snapshot, all modes
-- [ ] 9.11 Masking inputs and their intersection
+- [x] 9.11 Masking inputs and their intersection
 - [ ] 9.12 Cached coverage, triangle identity and UV island maps, keyed by mesh revision
 - [ ] 9.13 UV seam dilation, extrapolating, deferred to stroke end
 - [ ] 9.14 Preview without commit, and the preview-equals-commit test

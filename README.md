@@ -56,7 +56,9 @@ The current implementation provides:
   batch, or repeated-segment rasterization. The
   [paint shading stage](docs/paint-blending.md) evaluates all twenty shared blend
   modes against an immutable stroke-start snapshot rather than partially painted
-  output.
+  output. Typed [paint masks](docs/paint-masking.md) intersect active-layer,
+  colour-ID, geometry/polygon, screen, and UV-island restrictions before those
+  canonical events enter deposition.
 - Sparse tiled image storage for one-to-four-channel 8-bit, 16-bit, and
   floating-point pixels, with tile-level dirty tracking and monotonic channel
   and per-tile [content revisions](docs/host-transport-revisions.md), plus

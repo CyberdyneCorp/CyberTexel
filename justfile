@@ -120,6 +120,9 @@ test-paint-deposition: build
 test-paint-blending: build
     ctest --test-dir build/headless --output-on-failure -R '^paint-blending$'
 
+test-paint-masking: build
+    ctest --test-dir build/headless --output-on-failure -R '^paint-masking$'
+
 test-mesh: build
     ctest --test-dir build/headless --output-on-failure -R '^mesh-ingest$'
 
