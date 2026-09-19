@@ -259,6 +259,88 @@ bool normal_conventions_are_recorded_and_canonicalized_on_read() {
                   "normal-map convention was not retained or converted to canonical OpenGL");
 }
 
+bool map_memory_is_accounted_and_host_releasable() {
+    doc::TextureDocument document;
+    doc::TextureSet& set = texture_set(document);
+    set.channels().enable("pbr.base_color");
+    const std::array colour{std::byte{10}, std::byte{20}, std::byte{30}};
+    set.channels().pixels("pbr.base_color").write_pixel(0, 0, colour);
+    const std::size_t channel_bytes = set.channels().resident_pixel_bytes();
+    MeshMapSet maps(set, fixture_mesh_revision);
+    auto ao = scalar_map(1, 1);
+    auto curvature = scalar_map(1, 1);
+    write_u8(*ao, 0, 0, 64);
+    write_u8(*curvature, 0, 0, 192);
+    const std::size_t bytes_per_map = ao->resident_pixel_bytes();
+    static_cast<void>(maps.bind({.kind = MeshMapKind::ambient_occlusion,
+                                 .texture_set_id = set.id(),
+                                 .uv_set = "paint",
+                                 .mesh_revision = fixture_mesh_revision,
+                                 .pixels = ao}));
+    static_cast<void>(maps.bind({.kind = MeshMapKind::curvature,
+                                 .texture_set_id = set.id(),
+                                 .uv_set = "paint",
+                                 .mesh_revision = fixture_mesh_revision,
+                                 .pixels = curvature}));
+    const MeshMapMemoryReport bound = maps.memory_report();
+    const doc::TextureDocumentMemoryReport document_bound = document.memory_report();
+    const MeshMapReleaseResult absent = maps.release_map(MeshMapKind::thickness);
+    const MeshMapReleaseResult one = maps.release_map(MeshMapKind::ambient_occlusion);
+    bool released_map_is_missing = false;
+    try {
+        static_cast<void>(maps.sample(MeshMapKind::ambient_occlusion, 0.5, 0.5));
+    } catch (const MissingMeshMapsError&) {
+        released_map_is_missing = true;
+    }
+    const doc::TextureDocumentMemoryReport document_after_one = document.memory_report();
+    const bool remaining_map_present = maps.contains(MeshMapKind::curvature);
+    const MeshMapReleaseResult all = maps.release_all_maps();
+    const doc::TextureDocumentMemoryReport document_after_all = document.memory_report();
+
+    bool account_lifetime_released = false;
+    {
+        MeshMapSet temporary(set, fixture_mesh_revision);
+        static_cast<void>(temporary.bind({.kind = MeshMapKind::ambient_occlusion,
+                                          .texture_set_id = set.id(),
+                                          .uv_set = "paint",
+                                          .mesh_revision = fixture_mesh_revision,
+                                          .pixels = ao}));
+        account_lifetime_released = document.memory_report().mesh_map_pixel_bytes == bytes_per_map;
+        {
+            const MeshMapSet copy = temporary;
+            account_lifetime_released =
+                account_lifetime_released && copy.size() == 1 &&
+                document.memory_report().mesh_map_pixel_bytes == bytes_per_map * 2;
+        }
+        account_lifetime_released = account_lifetime_released &&
+                                    document.memory_report().mesh_map_pixel_bytes == bytes_per_map;
+    }
+    account_lifetime_released =
+        account_lifetime_released && document.memory_report().mesh_map_pixel_bytes == 0;
+
+    return expect(bytes_per_map != 0 && bound.maps.size() == 2 &&
+                      bound.resident_pixel_bytes == bytes_per_map * 2 &&
+                      document_bound.texture_sets.size() == 1 &&
+                      document_bound.channel_pixel_bytes == channel_bytes &&
+                      document_bound.mesh_map_pixel_bytes == bytes_per_map * 2 &&
+                      document_bound.total_resident_bytes == channel_bytes + bytes_per_map * 2,
+                  "bound mesh maps were absent from map-set or document memory accounting") &&
+           expect(absent.released_maps.empty() && absent.resident_pixel_bytes_released == 0,
+                  "releasing an absent map was not idempotent") &&
+           expect(one.released_maps == std::vector<MeshMapKind>{MeshMapKind::ambient_occlusion} &&
+                      one.resident_pixel_bytes_released == bytes_per_map,
+                  "selective map release reported the wrong map or byte count") &&
+           expect(released_map_is_missing && remaining_map_present &&
+                      document_after_one.mesh_map_pixel_bytes == bytes_per_map,
+                  "selective map release was not observable in reads or accounting") &&
+           expect(all.released_maps == std::vector<MeshMapKind>{MeshMapKind::curvature} &&
+                      all.resident_pixel_bytes_released == bytes_per_map && maps.size() == 0 &&
+                      document_after_all.mesh_map_pixel_bytes == 0 &&
+                      document_after_all.total_resident_bytes == channel_bytes &&
+                      document.contains_texture_set(set.id()) && account_lifetime_released,
+                  "bulk or lifetime map release damaged the document or retained accounting");
+}
+
 bool required_maps_are_reported_without_neutral_substitution() {
     doc::TextureDocument document;
     const doc::TextureSet& set = texture_set(document);
@@ -506,6 +588,7 @@ int main() {
                    identifiers_use_nearest_sampling() &&
                    supported_storage_precisions_decode_on_read() &&
                    normal_conventions_are_recorded_and_canonicalized_on_read() &&
+                   map_memory_is_accounted_and_host_releasable() &&
                    required_maps_are_reported_without_neutral_substitution() &&
                    complete_requirements_and_direct_missing_reads_are_distinct() &&
                    mesh_revision_changes_report_retained_stale_maps() &&

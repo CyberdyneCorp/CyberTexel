@@ -105,6 +105,27 @@ struct MeshMapReadResult {
     friend bool operator==(const MeshMapReadResult&, const MeshMapReadResult&) = default;
 };
 
+struct MeshMapMemoryEntry {
+    MeshMapKind kind{};
+    std::uint32_t width{};
+    std::uint32_t height{};
+    std::size_t resident_pixel_bytes{};
+    friend bool operator==(const MeshMapMemoryEntry&, const MeshMapMemoryEntry&) = default;
+};
+
+struct MeshMapMemoryReport {
+    std::string texture_set_id;
+    std::vector<MeshMapMemoryEntry> maps;
+    std::size_t resident_pixel_bytes{};
+    friend bool operator==(const MeshMapMemoryReport&, const MeshMapMemoryReport&) = default;
+};
+
+struct MeshMapReleaseResult {
+    std::vector<MeshMapKind> released_maps;
+    std::size_t resident_pixel_bytes_released{};
+    friend bool operator==(const MeshMapReleaseResult&, const MeshMapReleaseResult&) = default;
+};
+
 struct MeshMapRequirementReport {
     std::string consumer;
     std::string texture_set_id;
@@ -153,6 +174,9 @@ public:
         const mesh::MeshBinding& mesh);
     [[nodiscard]] std::vector<MeshMapStaleness> stale_maps() const;
     [[nodiscard]] MeshMapReadResult sample(MeshMapKind kind, double u, double v) const;
+    [[nodiscard]] MeshMapMemoryReport memory_report() const;
+    [[nodiscard]] MeshMapReleaseResult release_map(MeshMapKind kind);
+    [[nodiscard]] MeshMapReleaseResult release_all_maps();
 
 private:
     std::string texture_set_id_;
@@ -160,6 +184,7 @@ private:
     std::uint32_t texture_set_width_{};
     std::uint32_t texture_set_height_{};
     mesh::MeshRevision mesh_revision_{};
+    doc::TextureSetMemoryAccount memory_account_;
     std::map<MeshMapKind, MeshMapDescriptor> maps_;
 };
 

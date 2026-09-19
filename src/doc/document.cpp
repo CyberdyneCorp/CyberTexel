@@ -1,10 +1,31 @@
 #include <ctex/doc/document.hpp>
 #include <ctex/mesh/mesh.hpp>
+#include <limits>
 #include <stdexcept>
 #include <utility>
 
 namespace ctex::doc {
+
+struct TextureSetMemoryState {
+    std::size_t mesh_map_pixel_bytes{};
+};
+
 namespace {
+
+std::size_t checked_add(std::size_t left, std::size_t right, const char* description) {
+    if (right > std::numeric_limits<std::size_t>::max() - left) {
+        throw std::overflow_error(description);
+    }
+    return left + right;
+}
+
+std::size_t& category_bytes(TextureSetMemoryState& state, TextureSetMemoryCategory category) {
+    switch (category) {
+        case TextureSetMemoryCategory::mesh_maps:
+            return state.mesh_map_pixel_bytes;
+    }
+    throw std::invalid_argument("texture-set memory category is invalid");
+}
 
 mesh::PartitionKind mesh_partition_kind(PartitionSourceKind kind) {
     switch (kind) {
@@ -55,6 +76,68 @@ PartitionSourceKind document_partition_kind(mesh::PartitionKind kind) {
 
 }  // namespace
 
+TextureSetMemoryAccount::TextureSetMemoryAccount(std::shared_ptr<TextureSetMemoryState> state,
+                                                 TextureSetMemoryCategory category)
+    : state_(std::move(state)), category_(category) {
+    if (!state_) {
+        throw std::invalid_argument("texture-set memory account requires shared state");
+    }
+    static_cast<void>(category_bytes(*state_, category_));
+}
+
+TextureSetMemoryAccount::~TextureSetMemoryAccount() { release(); }
+
+TextureSetMemoryAccount::TextureSetMemoryAccount(const TextureSetMemoryAccount& other)
+    : state_(other.state_), category_(other.category_) {
+    set_resident_bytes(other.resident_bytes_);
+}
+
+TextureSetMemoryAccount& TextureSetMemoryAccount::operator=(const TextureSetMemoryAccount& other) {
+    if (this != &other) {
+        TextureSetMemoryAccount next(other);
+        *this = std::move(next);
+    }
+    return *this;
+}
+
+TextureSetMemoryAccount::TextureSetMemoryAccount(TextureSetMemoryAccount&& other) noexcept
+    : state_(std::move(other.state_)),
+      category_(other.category_),
+      resident_bytes_(std::exchange(other.resident_bytes_, 0)) {}
+
+TextureSetMemoryAccount& TextureSetMemoryAccount::operator=(
+    TextureSetMemoryAccount&& other) noexcept {
+    if (this != &other) {
+        release();
+        state_ = std::move(other.state_);
+        category_ = other.category_;
+        resident_bytes_ = std::exchange(other.resident_bytes_, 0);
+    }
+    return *this;
+}
+
+void TextureSetMemoryAccount::set_resident_bytes(std::size_t bytes) {
+    if (!state_) {
+        throw std::logic_error("texture-set memory account has been moved from");
+    }
+    std::size_t& total = category_bytes(*state_, category_);
+    const std::size_t other_accounts = total - resident_bytes_;
+    total = checked_add(other_accounts, bytes, "texture-set memory accounting overflow");
+    resident_bytes_ = bytes;
+}
+
+void TextureSetMemoryAccount::release() noexcept {
+    if (state_) {
+        switch (category_) {
+            case TextureSetMemoryCategory::mesh_maps:
+                state_->mesh_map_pixel_bytes -= resident_bytes_;
+                break;
+        }
+        resident_bytes_ = 0;
+        state_.reset();
+    }
+}
+
 std::string texture_set_stable_id(const TextureSetDescriptor& descriptor) {
     validate_texture_set_descriptor(descriptor);
     return mesh::texture_set_stable_id(mesh_partition_kind(descriptor.partition_kind),
@@ -65,7 +148,22 @@ TextureSet::TextureSet(TextureSetDescriptor descriptor)
     : descriptor_(std::move(descriptor)),
       id_(texture_set_stable_id(descriptor_)),
       channels_(descriptor_.width, descriptor_.height, descriptor_.default_bit_depth,
-                metallic_roughness_channels()) {}
+                metallic_roughness_channels()),
+      memory_state_(std::make_shared<TextureSetMemoryState>()) {}
+
+TextureSetMemoryAccount TextureSet::create_memory_account(TextureSetMemoryCategory category) const {
+    return TextureSetMemoryAccount(memory_state_, category);
+}
+
+TextureSetMemoryReport TextureSet::memory_report() const {
+    const std::size_t channel_bytes = channels_.resident_pixel_bytes();
+    const std::size_t map_bytes = memory_state_->mesh_map_pixel_bytes;
+    return {.texture_set_id = id_,
+            .channel_pixel_bytes = channel_bytes,
+            .mesh_map_pixel_bytes = map_bytes,
+            .total_resident_bytes =
+                checked_add(channel_bytes, map_bytes, "texture-set memory report overflow")};
+}
 
 TextureSet& TextureDocument::create_texture_set(TextureSetDescriptor descriptor) {
     TextureSet texture_set(std::move(descriptor));
@@ -124,6 +222,26 @@ std::vector<std::string> TextureDocument::texture_set_ids() const {
     for (const auto& [id, unused] : texture_sets_) {
         static_cast<void>(unused);
         result.push_back(id);
+    }
+    return result;
+}
+
+TextureDocumentMemoryReport TextureDocument::memory_report() const {
+    TextureDocumentMemoryReport result;
+    result.texture_sets.reserve(texture_sets_.size());
+    for (const auto& [id, texture_set] : texture_sets_) {
+        static_cast<void>(id);
+        TextureSetMemoryReport report = texture_set.memory_report();
+        result.channel_pixel_bytes =
+            checked_add(result.channel_pixel_bytes, report.channel_pixel_bytes,
+                        "document channel memory report overflow");
+        result.mesh_map_pixel_bytes =
+            checked_add(result.mesh_map_pixel_bytes, report.mesh_map_pixel_bytes,
+                        "document mesh-map memory report overflow");
+        result.total_resident_bytes =
+            checked_add(result.total_resident_bytes, report.total_resident_bytes,
+                        "document total memory report overflow");
+        result.texture_sets.push_back(std::move(report));
     }
     return result;
 }

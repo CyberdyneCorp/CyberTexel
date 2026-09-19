@@ -2,6 +2,7 @@
 #include <cmath>
 #include <cstring>
 #include <ctex/maps/mesh_maps.hpp>
+#include <limits>
 #include <set>
 #include <stdexcept>
 #include <utility>
@@ -196,6 +197,19 @@ std::string requirement_message(std::string_view consumer, std::string_view text
     return message;
 }
 
+std::size_t resident_pixel_bytes(const std::map<MeshMapKind, MeshMapDescriptor>& maps) {
+    std::size_t total = 0;
+    for (const auto& [kind, descriptor] : maps) {
+        static_cast<void>(kind);
+        const std::size_t bytes = descriptor.pixels->resident_pixel_bytes();
+        if (bytes > std::numeric_limits<std::size_t>::max() - total) {
+            throw std::overflow_error("mesh-map resident pixel byte count overflows");
+        }
+        total += bytes;
+    }
+    return total;
+}
+
 }  // namespace
 
 std::string_view mesh_map_name(MeshMapKind kind) {
@@ -269,7 +283,8 @@ MeshMapSet::MeshMapSet(const doc::TextureSet& texture_set, mesh::MeshRevision me
       uv_set_(texture_set.descriptor().uv_set),
       texture_set_width_(texture_set.descriptor().width),
       texture_set_height_(texture_set.descriptor().height),
-      mesh_revision_(mesh_revision) {
+      mesh_revision_(mesh_revision),
+      memory_account_(texture_set.create_memory_account(doc::TextureSetMemoryCategory::mesh_maps)) {
     if (mesh_revision_ == 0) {
         throw std::invalid_argument("mesh map set requires a source mesh revision");
     }
@@ -294,7 +309,10 @@ MeshMapBindResult MeshMapSet::bind(MeshMapDescriptor descriptor) {
     const MeshMapKind kind = descriptor.kind;
     const bool replaced = maps_.contains(kind);
     const auto stale = staleness(descriptor, mesh_revision_);
-    maps_.insert_or_assign(kind, std::move(descriptor));
+    auto next_maps = maps_;
+    next_maps.insert_or_assign(kind, std::move(descriptor));
+    memory_account_.set_resident_bytes(resident_pixel_bytes(next_maps));
+    maps_.swap(next_maps);
     return {.replaced_existing = replaced,
             .resolution_mismatch = std::move(mismatch),
             .staleness = stale};
@@ -397,6 +415,41 @@ MeshMapReadResult MeshMapSet::sample(MeshMapKind kind, double u, double v) const
                                                            : bilinear_sample(descriptor, x, y);
     return {.sample = convert_normal_convention(descriptor, filtered),
             .staleness = staleness(descriptor, mesh_revision_)};
+}
+
+MeshMapMemoryReport MeshMapSet::memory_report() const {
+    MeshMapMemoryReport result{.texture_set_id = texture_set_id_,
+                               .maps = {},
+                               .resident_pixel_bytes = memory_account_.resident_bytes()};
+    result.maps.reserve(maps_.size());
+    for (const auto& [kind, descriptor] : maps_) {
+        result.maps.push_back({.kind = kind,
+                               .width = descriptor.pixels->width(),
+                               .height = descriptor.pixels->height(),
+                               .resident_pixel_bytes = descriptor.pixels->resident_pixel_bytes()});
+    }
+    return result;
+}
+
+MeshMapReleaseResult MeshMapSet::release_map(MeshMapKind kind) {
+    static_cast<void>(mesh_map_name(kind));
+    const auto found = maps_.find(kind);
+    if (found == maps_.end()) {
+        return {};
+    }
+    const std::size_t before = memory_account_.resident_bytes();
+    maps_.erase(found);
+    const std::size_t after = resident_pixel_bytes(maps_);
+    memory_account_.set_resident_bytes(after);
+    return {.released_maps = {kind}, .resident_pixel_bytes_released = before - after};
+}
+
+MeshMapReleaseResult MeshMapSet::release_all_maps() {
+    MeshMapReleaseResult result{.released_maps = bound_maps(),
+                                .resident_pixel_bytes_released = memory_account_.resident_bytes()};
+    maps_.clear();
+    memory_account_.set_resident_bytes(0);
+    return result;
 }
 
 }  // namespace ctex::maps

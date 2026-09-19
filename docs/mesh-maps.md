@@ -132,6 +132,24 @@ parameters through both the CPU route and an independent portable-host formula,
 then uses the standard filtered floating-point executor tolerance to detect
 drift.
 
+## Memory accounting and release
+
+`MeshMapSet::memory_report` lists every bound map's dimensions and resident tile
+pixel bytes. Binding and replacement update a texture-set memory account
+transactionally, so `TextureSet::memory_report` and
+`TextureDocument::memory_report` separate channel pixels from mesh-map pixels
+and also provide their combined resident total. Multiple live map sets for one
+texture set contribute independently, and destroying a map set removes its
+account automatically.
+
+`release_map` is an idempotent selective release; `release_all_maps` returns the
+stable list of every binding removed. Both report the resident bytes removed
+from document accounting. Release drops only the library's bindings: the
+texture document, texture set and channel pixels remain valid. A later consumer
+of a released map receives the normal structured missing-map error rather than
+a dangling read or neutral value. Pixel storage is treated as immutable while
+bound, matching the `shared_ptr<const TiledImage>` binding contract.
+
 ## Bake-provider seam
 
 `BakeProvider` is an optional synchronous callback table with an opaque context,

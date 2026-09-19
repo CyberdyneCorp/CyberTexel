@@ -128,7 +128,8 @@ The current implementation provides:
   external strided-buffer import with explicit channel meaning and colour space,
   recorded OpenGL/DirectX normal conventions normalized on read, and eight
   built-in mask generators with queryable map requirements, bounded parameters,
-  clamp reports, and cross-executor parity fixtures.
+  clamp reports, cross-executor parity fixtures, document-level memory
+  accounting, and host-driven selective or bulk release.
 - Perspective and orthographic ray picking, ordered occlusion, configurable
   backface policy, inverse UV picking, surface snapping, region selection,
   deterministic shared-boundary ownership, and bounded cancellable batches.

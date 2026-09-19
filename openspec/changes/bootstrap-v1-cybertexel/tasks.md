@@ -567,6 +567,14 @@ with bounded dirt curvature weight, edge threshold, and scratch scale/width.
 Repeated CPU evaluation is byte-stable, while an independent portable-host
 formula for all eight generators is checked against the CPU result through the
 declared filtered floating-point executor parity tolerance.
+Mesh-map memory ownership (11.9) tracks each live map set through a generic
+texture-set memory account, keeping the document module independent of maps.
+Map-set, texture-set and document reports expose resident map pixels separately
+from channel pixels and as a combined total. Binding and replacement update the
+account transactionally; selective and bulk host release name removed maps and
+bytes, cause subsequent consumers to receive the existing missing-map report,
+and leave the texture document and its channel pixels intact. Account lifetime
+also removes its contribution automatically.
 
 ## 1. Foundation
 
@@ -729,7 +737,7 @@ declared filtered floating-point executor parity tolerance.
 - [x] 11.6 Normal map convention recording and conversion on read
 - [x] 11.7 Generators: AO, curvature, thickness, position gradient, direction, dirt, edge wear, scratches
 - [x] 11.8 Generator parameter validation and cross-executor determinism
-- [ ] 11.9 Map memory accounting and host-driven release
+- [x] 11.9 Map memory accounting and host-driven release
 - [ ] 11.10 CyberRemesherAndUV provider binding, as an example rather than a dependency
 - [ ] 11.11 `mesh-maps` scenarios as tests
 - [ ] 11.12 Tangent-frame descriptors, supplied/generated tangent policy, normal-map basis validation and mirrored handedness tests
