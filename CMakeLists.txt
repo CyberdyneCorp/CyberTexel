@@ -85,6 +85,7 @@ ctex_add_module(
         src/image/color.cpp
         src/image/color_policy.cpp
         src/image/cube_lut.cpp
+        src/image/seam_dilation.cpp
 )
 ctex_add_module(mesh)
 ctex_add_module(
@@ -191,6 +192,7 @@ ctex_add_module(
         src/io/export_preset.cpp
         src/io/export_plan.cpp
         src/io/texture_encode.cpp
+        src/io/texture_export.cpp
         src/io/project_container.cpp
         src/io/project_autosave.cpp
         src/io/standalone_asset.cpp
@@ -333,6 +335,30 @@ if(BUILD_TESTING)
     ctex_configure_cpp_target(ctex_export_plan_test)
     target_link_libraries(ctex_export_plan_test PRIVATE cybertexel)
     add_test(NAME texture-export-plan COMMAND ctex_export_plan_test)
+    add_executable(ctex_texture_export_test tests/io/texture_export_test.cpp)
+    ctex_configure_cpp_target(ctex_texture_export_test)
+    target_link_libraries(ctex_texture_export_test PRIVATE cybertexel)
+    add_test(NAME texture-export-execution COMMAND ctex_texture_export_test)
+    set(CTEX_TEXTURE_EXPORT_REPORT "${CMAKE_CURRENT_BINARY_DIR}/texture-export-report.json")
+    add_test(
+        NAME texture-export-report-generate
+        COMMAND ctex_texture_export_test --write-report "${CTEX_TEXTURE_EXPORT_REPORT}"
+    )
+    add_test(
+        NAME texture-export-report-json
+        COMMAND
+            "${CTEX_PYTHON3_EXECUTABLE}"
+            "${PROJECT_SOURCE_DIR}/tests/tools/check_texture_export_report.py"
+            "${CTEX_TEXTURE_EXPORT_REPORT}"
+    )
+    set_tests_properties(texture-export-report-json PROPERTIES DEPENDS texture-export-report-generate)
+    add_test(
+        NAME texture-export-determinism
+        COMMAND "${CTEX_PYTHON3_EXECUTABLE}" tools/check_determinism.py texture-export
+    )
+    set_tests_properties(
+        texture-export-determinism PROPERTIES WORKING_DIRECTORY "${PROJECT_SOURCE_DIR}"
+    )
     add_test(
         NAME project-container-determinism
         COMMAND "${CTEX_PYTHON3_EXECUTABLE}" tools/check_determinism.py project-save
@@ -1136,11 +1162,17 @@ if(BUILD_TESTING)
         export-presets
         texture-export-formats
         texture-export-plan
+        texture-export-execution
+        texture-export-report-generate
+        texture-export-report-json
+        texture-export-determinism
         project-container-determinism
         PROPERTIES LABELS project-io-scenario
     )
     set_tests_properties(
-        texture-export-formats texture-export-plan
+        texture-export-formats texture-export-plan texture-export-execution
+        texture-export-report-generate texture-export-report-json
+        texture-export-determinism
         PROPERTIES LABELS "project-io-scenario;texture-export-scenario"
     )
     set_tests_properties(

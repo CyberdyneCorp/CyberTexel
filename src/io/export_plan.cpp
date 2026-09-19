@@ -251,6 +251,20 @@ std::vector<ScopeUnit> make_scope_units(
     plan_error(ExportPlanErrorCode::invalid_scope, "export spatial scope is invalid");
 }
 
+void apply_output_resolution(std::vector<ScopeUnit>& units, const ExportPlanRequest& request) {
+    if (!request.output_resolution.has_value()) {
+        return;
+    }
+    if (request.output_resolution->width == 0 || request.output_resolution->height == 0) {
+        plan_error(ExportPlanErrorCode::invalid_scope,
+                   "export resolution dimensions must both be non-zero");
+    }
+    for (ScopeUnit& unit : units) {
+        unit.width = request.output_resolution->width;
+        unit.height = request.output_resolution->height;
+    }
+}
+
 bool effectively_visible(const ExportLayerSource& layer, const LayerLookup& lookup) {
     const ExportLayerSource* current = &layer;
     while (current != nullptr) {
@@ -605,7 +619,8 @@ std::vector<PlannedTextureExport> plan_texture_export(const ExportSourceCatalogu
     const std::vector<const ExportTextureSetSource*> texture_sets =
         select_texture_sets(catalogue, request, lookup);
     validate_request_layers(texture_sets, request);
-    const std::vector<ScopeUnit> units = make_scope_units(catalogue, request, texture_sets, lookup);
+    std::vector<ScopeUnit> units = make_scope_units(catalogue, request, texture_sets, lookup);
+    apply_output_resolution(units, request);
 
     std::map<std::string, std::string, std::less<>> paths;
     std::vector<PlannedTextureExport> result;

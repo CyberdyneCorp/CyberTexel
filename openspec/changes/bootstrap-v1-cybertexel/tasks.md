@@ -596,6 +596,13 @@ tile is independently zlib-compressed; unallocated tiles consume no records,
 and snapshot/restore helpers round-trip `TiledImage` pixels and layout. The
 project-save determinism registry now compares complete sparse container bytes
 across two clean runs.
+Task 12.10 completes the multi-output texture-export coordinator: independent
+bilinear output resolution, the paint engine's shared extrapolating UV padding,
+dry-run size manifests, deterministic JSON reports, per-output progress and
+cancellation, registered data-channel handling, and self-describing encoded
+buffers delivered without filesystem I/O. The determinism registry now compares
+both an encoded texture and its report. The consolidated project-I/O and
+texture-export scenario audit (12.11) is next.
 
 ## 1. Foundation
 
@@ -775,7 +782,7 @@ across two clean runs.
 - [x] 12.7 Export presets: token vocabulary, derived tokens, built-in preset set
 - [x] 12.8 Export formats, bit depths, and the refusal of impossible combinations
 - [x] 12.9 Export scopes, layer scopes, filename pattern and collision refusal
-- [ ] 12.10 Padding, export resolution, dry run, machine-readable report, in-memory export
+- [x] 12.10 Padding, export resolution, dry run, machine-readable report, in-memory export
 - [ ] 12.11 `project-io` and `texture-export` scenarios as tests
 
 ## 13. Smart materials

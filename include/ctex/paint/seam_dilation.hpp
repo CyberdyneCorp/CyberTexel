@@ -4,6 +4,7 @@
 #include <compare>
 #include <cstddef>
 #include <cstdint>
+#include <ctex/image/seam_dilation.hpp>
 #include <ctex/paint/parameters.hpp>
 #include <memory>
 #include <span>
@@ -11,21 +12,15 @@
 
 namespace ctex::paint {
 
-inline constexpr std::uint32_t maximum_seam_dilation_radius = 4'096;
+inline constexpr std::uint32_t maximum_seam_dilation_radius = image::maximum_uv_dilation_radius;
 inline constexpr ToolParameterDescriptor seam_dilation_radius_parameter{
     "seam_dilation.radius", 2.0, 0.0, maximum_seam_dilation_radius};
-inline constexpr std::uint32_t default_seam_dilation_radius =
-    static_cast<std::uint32_t>(seam_dilation_radius_parameter.default_value);
+inline constexpr std::uint32_t default_seam_dilation_radius = image::default_uv_dilation_radius;
 
 [[nodiscard]] std::uint32_t resolve_seam_dilation_radius(std::uint32_t requested,
                                                          ToolParameterReport& report);
 
-struct SeamDilationRaster {
-    std::uint32_t width{};
-    std::uint32_t height{};
-    std::uint8_t component_count{};
-    std::vector<double> pixels;
-};
+using SeamDilationRaster = image::SeamDilationRaster;
 
 struct SeamDilationResult {
     SeamDilationRaster raster;

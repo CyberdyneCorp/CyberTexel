@@ -76,7 +76,13 @@
         {
             "name": "texture-export",
             "task": "12.10",
-            "cases": []
+            "cases": [
+                {
+                    "name": "encoded texture and machine-readable report",
+                    "command": ["build/headless/ctex_texture_export_test", "--write-determinism"],
+                    "outputs": ["texture-export.png", "texture-export-report.json"]
+                }
+            ]
         }
     ]
 }

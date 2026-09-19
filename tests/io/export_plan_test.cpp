@@ -203,9 +203,17 @@ bool invalid_scope_and_hierarchy_are_named() {
             static_cast<void>(plan_texture_export(catalogue(), one_texture_preset(), no_selection));
         },
         ExportPlanErrorCode::invalid_scope, "at least one");
+    ExportPlanRequest zero_resolution;
+    zero_resolution.output_resolution = ExportResolution{0, 1024};
+    const bool zero_resolution_refused = expect_error(
+        [&] {
+            static_cast<void>(
+                plan_texture_export(catalogue(), one_texture_preset(), zero_resolution));
+        },
+        ExportPlanErrorCode::invalid_scope, "non-zero");
     ExportSourceCatalogue cyclic = catalogue();
     cyclic.texture_sets.front().layers.front().parent_identifier = "materials";
-    return selection_refused &&
+    return selection_refused && zero_resolution_refused &&
            expect_error(
                [&] { static_cast<void>(plan_texture_export(cyclic, one_texture_preset())); },
                ExportPlanErrorCode::invalid_catalogue, "cycle");

@@ -134,7 +134,10 @@ The current implementation provides:
   explicit 8/16/32-bit compatibility matrix and typed refusal of impossible
   combinations. Pure [export planning](docs/export-planning.md) composes
   texture-set, UDIM, atlas, and layer scopes with predictable filename tokens
-  and preflight collision refusal.
+  and preflight collision refusal. [Texture export execution](docs/texture-export.md)
+  adds bilinear output sizing, shared extrapolating UV padding, dry-run and JSON
+  manifests, cancellable progress, and self-describing in-memory encoded
+  buffers.
 - Extensible semantic channels and a nine-channel metallic/roughness PBR preset,
   with independent precision and allocation-free disabled channels.
 - Texture-set documents derived from mesh partitions and named UVs, with stable

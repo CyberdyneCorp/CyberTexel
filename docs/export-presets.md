@@ -70,5 +70,6 @@ Both `validate_export_preset()` and the encoder reject an impossible
 format/depth pair before producing bytes. The typed diagnostic names both the
 format and requested depth. [Texture export planning](export-planning.md)
 defines texture-set, UDIM, atlas, and layer scopes plus collision-safe filename
-patterns. Padding, dry runs, and the multi-output export coordinator remain
-subsequent texture-export roadmap stages.
+patterns. [Texture export execution](texture-export.md) adds independent output
+resolution, shared gradient padding, dry-run and JSON reports, progress,
+cancellation, and caller-owned encoded buffers.

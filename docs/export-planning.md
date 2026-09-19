@@ -24,6 +24,11 @@ The planner records all contributing stable texture-set identifiers. Atlas
 outputs use the atlas dimensions and identity; texture-set and UDIM outputs use
 the source set's dimensions.
 
+An optional output resolution overrides those working or atlas dimensions for
+every scope unit before filenames are expanded. Both dimensions must be
+non-zero. The execution stage documents the pixel-centred bilinear resampling
+used to produce those dimensions.
+
 ## Layer scopes
 
 Layer scope composes with every texture and spatial scope:

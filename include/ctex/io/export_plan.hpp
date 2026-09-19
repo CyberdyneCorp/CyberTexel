@@ -56,12 +56,19 @@ struct ExportSourceCatalogue {
     friend bool operator==(const ExportSourceCatalogue&, const ExportSourceCatalogue&) = default;
 };
 
+struct ExportResolution {
+    std::uint32_t width{};
+    std::uint32_t height{};
+    friend bool operator==(ExportResolution, ExportResolution) noexcept = default;
+};
+
 struct ExportPlanRequest {
     ExportTextureSetSelection texture_set_selection{ExportTextureSetSelection::all};
     std::vector<std::string> selected_texture_set_identifiers;
     ExportSpatialScope spatial_scope{ExportSpatialScope::texture_set};
     ExportLayerScope layer_scope{ExportLayerScope::flatten_visible};
     std::map<std::string, std::vector<std::string>, std::less<>> selected_layer_identifiers;
+    std::optional<ExportResolution> output_resolution;
     std::string filename_pattern{default_export_filename_pattern};
     friend bool operator==(const ExportPlanRequest&, const ExportPlanRequest&) = default;
 };
