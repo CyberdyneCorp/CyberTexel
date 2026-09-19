@@ -45,7 +45,8 @@
     {"name": "smart-materials", "kind": "runtime", "requirements": []},
     {"name": "stroke-model", "kind": "runtime", "requirements": []},
     {"name": "texture-document", "kind": "runtime", "requirements": [
-      {"requirement": "Document and texture sets", "symbols": ["ctex_document_create", "ctex_document_create_texture_set", "ctex_document_get_texture_set_ids"]}
+      {"requirement": "Document and texture sets", "symbols": ["ctex_document_create", "ctex_document_create_texture_set", "ctex_document_get_texture_set_ids"]},
+      {"requirement": "Channel set", "symbols": ["ctex_texture_set_get_channel_ids", "ctex_texture_set_register_channel", "ctex_texture_set_set_channel_enabled", "ctex_texture_set_get_channel_info", "ctex_texture_set_get_memory_report"]}
     ]},
     {"name": "texture-export", "kind": "runtime", "requirements": []}
   ]

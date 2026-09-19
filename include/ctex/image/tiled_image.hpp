@@ -6,6 +6,7 @@
 #include <ctex/image/pixel_format.hpp>
 #include <map>
 #include <memory>
+#include <memory_resource>
 #include <span>
 #include <vector>
 
@@ -15,7 +16,8 @@ inline constexpr std::uint32_t default_tile_size = 64;
 using Revision = std::uint64_t;
 using RevisionEpoch = std::uint64_t;
 using Generation = std::uint64_t;
-using TileStorageHandle = std::shared_ptr<const std::vector<std::byte>>;
+using TileStorage = std::pmr::vector<std::byte>;
+using TileStorageHandle = std::shared_ptr<const TileStorage>;
 
 struct RevisionCursor {
     RevisionEpoch epoch{};
@@ -46,7 +48,12 @@ class TiledImage {
 public:
     TiledImage(std::uint32_t width, std::uint32_t height, PixelFormat format,
                std::uint32_t tile_size = default_tile_size,
-               std::span<const std::byte> clear_pixel = {});
+               std::span<const std::byte> clear_pixel = {},
+               std::pmr::memory_resource* memory_resource = std::pmr::get_default_resource());
+    TiledImage(const TiledImage& other);
+    TiledImage& operator=(const TiledImage& other);
+    TiledImage(TiledImage&& other) noexcept = default;
+    TiledImage& operator=(TiledImage&& other) noexcept;
 
     [[nodiscard]] std::uint32_t width() const noexcept { return width_; }
     [[nodiscard]] std::uint32_t height() const noexcept { return height_; }
@@ -81,7 +88,7 @@ public:
 private:
     [[nodiscard]] std::size_t tile_index(TileCoordinate tile) const;
     [[nodiscard]] std::size_t pixel_offset(std::uint32_t x, std::uint32_t y) const noexcept;
-    [[nodiscard]] std::vector<std::byte>& allocate_tile(std::size_t index);
+    [[nodiscard]] TileStorage& allocate_tile(std::size_t index);
     void begin_new_revision_epoch() noexcept;
 
     std::uint32_t width_;
@@ -92,15 +99,16 @@ private:
     PixelFormat format_;
     std::size_t pixel_bytes_;
     std::size_t tile_bytes_;
-    std::vector<std::byte> clear_pixel_;
-    std::vector<std::shared_ptr<std::vector<std::byte>>> tiles_;
-    std::vector<TileCoordinate> allocated_tiles_;
-    std::vector<bool> dirty_;
+    std::pmr::memory_resource* memory_resource_;
+    std::pmr::vector<std::byte> clear_pixel_;
+    std::pmr::vector<std::shared_ptr<TileStorage>> tiles_;
+    std::pmr::vector<TileCoordinate> allocated_tiles_;
+    std::pmr::vector<bool> dirty_;
     RevisionEpoch revision_epoch_{1};
     Revision revision_{};
-    std::vector<Revision> tile_revisions_;
-    std::vector<Generation> tile_generations_;
-    std::map<Revision, TileCoordinate> changed_tiles_by_revision_;
+    std::pmr::vector<Revision> tile_revisions_;
+    std::pmr::vector<Generation> tile_generations_;
+    std::pmr::map<Revision, TileCoordinate> changed_tiles_by_revision_;
 };
 
 }  // namespace ctex::image

@@ -36,6 +36,27 @@ prefix contain another value. Current callers use
 as `CTEX_TEXTURE_SET_DESCRIPTOR_V1_SIZE`. Descriptor strings are borrowed for
 the duration of `ctex_document_create_texture_set` and copied into the document.
 
+## Texture-set channels
+
+Every new texture set registers the nine metallic/roughness preset channels but
+leaves them disabled. `ctex_texture_set_get_channel_ids` enumerates their stable
+semantic identifiers with the same packed two-call buffer contract used for
+texture-set identities. `ctex_texture_set_register_channel` adds an extensible
+descriptor without imposing a fixed channel-slot limit. Its semantic ID,
+component count, scalar representation, preferred precision, default value,
+colour/data classification, blending policy, export mapping and evaluable flag
+are copied into document-owned storage.
+
+`ctex_texture_set_set_channel_enabled` enables or disables one registered
+channel. A zero precision override selects the texture-set default; 8, 16 or 32
+selects an explicit per-channel precision. Disabled channels have no image
+storage. `ctex_texture_set_get_channel_info` returns the complete numeric
+descriptor and current enabled/storage state while copying the export mapping
+into a caller-owned buffer. `ctex_texture_set_get_memory_report` reports enabled
+channel count and resident channel, mesh-map and total bytes. Enabled constant
+channels remain sparse and therefore report zero resident pixel bytes until a
+write materializes a tile.
+
 ## ABI version and compatibility
 
 `ctex_get_abi_version` is safe before any handle exists and returns the major,
@@ -76,7 +97,7 @@ The contract is stated per entry-point family:
 | `ctex_set_allocator` | Process-safe process-wide default for subsequently created objects; each object retains its creating configuration, and the host keeps its user data alive through destruction |
 | `ctex_document_create` | Process-safe; each successful call creates independent state |
 | `ctex_document_destroy` | The caller ensures no other call is using that handle; distinct handles may be destroyed concurrently |
-| `ctex_document_create_texture_set`, `ctex_document_get_texture_set_ids` | Calls on distinct document handles are safe concurrently; every call on the same document handle must be externally synchronized, including read-only calls |
+| `ctex_document_create_texture_set`, `ctex_document_get_texture_set_ids`, `ctex_texture_set_*` | Calls on distinct document handles are safe concurrently; every call on the same document handle must be externally synchronized, including read-only calls |
 | `ctex_get_last_result`, `ctex_get_last_diagnostic_code`, `ctex_get_last_diagnostic` | Thread-local; concurrent threads never observe or replace one another's diagnostic state |
 
 A handle may move between threads while idle. CyberTexel does not attach thread
@@ -135,12 +156,14 @@ Opaque document storage and every persistent allocation reachable through the
 current C surface use the captured allocator through a core
 `std::pmr::memory_resource`. This includes the ordered texture-set index and
 keys, texture-set identity and descriptor strings, shared accounting state,
-preset-vector capacity, and channel descriptor/map storage. Native C++ callers
-use the standard default resource unless they provide another one. Temporary
-conversion and scratch allocations are intentionally outside the long-lived
-allocation contract. Any future C entry point that creates persistent state must
-propagate the owning document's resource; allocating such state from the process
-default is a contract violation.
+preset-vector capacity, channel descriptor/map storage, and tiled channel-image
+metadata and pixels. Copy-on-write image versions retain that resource across
+copy and move publication. Native C++ callers use the standard default resource
+unless they provide another one. Temporary conversion and scratch allocations
+are intentionally outside the long-lived allocation contract. Any future C
+entry point that creates persistent state must propagate the owning document's
+resource; allocating such state from the process default is a contract
+violation.
 
 The Linux export surface is constrained by `cmake/exports/cybertexel.map`, macOS
 uses `cybertexel.exports`, and Windows uses `cybertexel.def`. The

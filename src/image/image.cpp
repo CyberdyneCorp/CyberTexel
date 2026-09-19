@@ -2,7 +2,9 @@
 #include <array>
 #include <ctex/image/tiled_image.hpp>
 #include <limits>
+#include <new>
 #include <stdexcept>
+#include <utility>
 
 namespace ctex::image {
 namespace {
@@ -16,6 +18,13 @@ std::size_t checked_multiply(std::size_t left, std::size_t right, const char* de
 
 std::uint64_t row_major_key(TileCoordinate coordinate) noexcept {
     return (static_cast<std::uint64_t>(coordinate.y) << 32U) | coordinate.x;
+}
+
+std::pmr::memory_resource* require_memory_resource(std::pmr::memory_resource* resource) {
+    if (resource == nullptr) {
+        throw std::invalid_argument("tiled image requires a memory resource");
+    }
+    return resource;
 }
 
 void radix_sort_row_major(std::vector<TileCoordinate>& coordinates) {
@@ -44,7 +53,8 @@ void radix_sort_row_major(std::vector<TileCoordinate>& coordinates) {
 }  // namespace
 
 TiledImage::TiledImage(std::uint32_t width, std::uint32_t height, PixelFormat format,
-                       std::uint32_t tile_size, std::span<const std::byte> clear_pixel)
+                       std::uint32_t tile_size, std::span<const std::byte> clear_pixel,
+                       std::pmr::memory_resource* memory_resource)
     : width_(width),
       height_(height),
       tile_size_(tile_size),
@@ -52,7 +62,15 @@ TiledImage::TiledImage(std::uint32_t width, std::uint32_t height, PixelFormat fo
       tile_rows_(0),
       format_(format),
       pixel_bytes_(format.bytes_per_pixel()),
-      tile_bytes_(0) {
+      tile_bytes_(0),
+      memory_resource_(require_memory_resource(memory_resource)),
+      clear_pixel_(memory_resource_),
+      tiles_(memory_resource_),
+      allocated_tiles_(memory_resource_),
+      dirty_(memory_resource_),
+      tile_revisions_(memory_resource_),
+      tile_generations_(memory_resource_),
+      changed_tiles_by_revision_(memory_resource_) {
     if (width == 0 || height == 0) {
         throw std::invalid_argument("image dimensions must be non-zero");
     }
@@ -81,6 +99,42 @@ TiledImage::TiledImage(std::uint32_t width, std::uint32_t height, PixelFormat fo
     dirty_.resize(tile_count, false);
     tile_revisions_.resize(tile_count, 0);
     tile_generations_.resize(tile_count, 0);
+}
+
+TiledImage::TiledImage(const TiledImage& other)
+    : width_(other.width_),
+      height_(other.height_),
+      tile_size_(other.tile_size_),
+      tile_columns_(other.tile_columns_),
+      tile_rows_(other.tile_rows_),
+      format_(other.format_),
+      pixel_bytes_(other.pixel_bytes_),
+      tile_bytes_(other.tile_bytes_),
+      memory_resource_(other.memory_resource_),
+      clear_pixel_(other.clear_pixel_, memory_resource_),
+      tiles_(other.tiles_, memory_resource_),
+      allocated_tiles_(other.allocated_tiles_, memory_resource_),
+      dirty_(other.dirty_, memory_resource_),
+      revision_epoch_(other.revision_epoch_),
+      revision_(other.revision_),
+      tile_revisions_(other.tile_revisions_, memory_resource_),
+      tile_generations_(other.tile_generations_, memory_resource_),
+      changed_tiles_by_revision_(other.changed_tiles_by_revision_, memory_resource_) {}
+
+TiledImage& TiledImage::operator=(const TiledImage& other) {
+    if (this != &other) {
+        TiledImage replacement(other);
+        *this = std::move(replacement);
+    }
+    return *this;
+}
+
+TiledImage& TiledImage::operator=(TiledImage&& other) noexcept {
+    if (this != &other) {
+        this->~TiledImage();
+        ::new (this) TiledImage(std::move(other));
+    }
+    return *this;
 }
 
 std::size_t TiledImage::resident_pixel_bytes() const noexcept {
@@ -116,7 +170,7 @@ TileStorageHandle TiledImage::pin_tile_storage(TileCoordinate tile) const {
 }
 
 std::vector<TileCoordinate> TiledImage::allocated_tiles() const {
-    std::vector<TileCoordinate> result = allocated_tiles_;
+    std::vector<TileCoordinate> result(allocated_tiles_.begin(), allocated_tiles_.end());
     radix_sort_row_major(result);
     return result;
 }
@@ -187,7 +241,7 @@ void TiledImage::write_pixel(std::uint32_t x, std::uint32_t y, std::span<const s
     }
     auto& tile = allocate_tile(index);
     if (revision_exhausted) {
-        std::map<Revision, TileCoordinate> next_index;
+        std::pmr::map<Revision, TileCoordinate> next_index(memory_resource_);
         next_index.emplace(1, coordinate);
         begin_new_revision_epoch();
         changed_tiles_by_revision_.swap(next_index);
@@ -234,16 +288,20 @@ std::size_t TiledImage::pixel_offset(std::uint32_t x, std::uint32_t y) const noe
     return ((local_y * tile_size_) + local_x) * pixel_bytes_;
 }
 
-std::vector<std::byte>& TiledImage::allocate_tile(std::size_t index) {
+TileStorage& TiledImage::allocate_tile(std::size_t index) {
     auto& tile = tiles_[index];
     if (tile && tile.unique()) {
         return *tile;
     }
+    const std::pmr::polymorphic_allocator<TileStorage> allocator(memory_resource_);
     if (tile) {
-        tile = std::make_shared<std::vector<std::byte>>(*tile);
+        auto replacement = std::allocate_shared<TileStorage>(allocator);
+        replacement->assign(tile->begin(), tile->end());
+        tile = std::move(replacement);
         return *tile;
     }
-    auto allocation = std::make_shared<std::vector<std::byte>>(tile_bytes_);
+    auto allocation = std::allocate_shared<TileStorage>(allocator);
+    allocation->resize(tile_bytes_);
     for (std::size_t offset = 0; offset < tile_bytes_; offset += pixel_bytes_) {
         std::copy(clear_pixel_.begin(), clear_pixel_.end(), allocation->begin() + offset);
     }

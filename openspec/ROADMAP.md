@@ -138,9 +138,12 @@ failure or misalignment by stable code. A core PMR boundary routes every
 persistent allocation reachable through the current C surface, including the
 document index, texture-set identity and descriptor fields, shared state and
 channel metadata. Full-surface coverage (14.8) now has a requirement-granular
-manifest and tested checker over all 24 capabilities. It correctly remains red,
-naming the 239 runtime requirements that still lack C entry points; those gaps
-must be implemented before the task can close.
+manifest and tested checker over all 24 capabilities. The first full-surface
+slice exposes texture-set channel enumeration, extensible descriptors,
+enablement, per-channel precision and memory reporting to C hosts while routing
+persistent tiled storage through the captured allocator. The gate correctly
+remains red, naming the 238 runtime requirements that still lack C entry points;
+those gaps must be implemented before the task can close.
 
 ## Milestones
 

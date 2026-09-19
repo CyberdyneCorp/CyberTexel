@@ -66,7 +66,7 @@ public:
 private:
     struct ChannelEntry {
         ChannelDescriptor descriptor;
-        std::unique_ptr<image::TiledImage> pixels;
+        std::shared_ptr<image::TiledImage> pixels;
     };
 
     [[nodiscard]] ChannelEntry& entry(std::string_view semantic_id);

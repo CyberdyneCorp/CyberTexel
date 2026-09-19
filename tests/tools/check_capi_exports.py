@@ -16,6 +16,11 @@ EXPECTED = {
     "ctex_get_last_diagnostic",
     "ctex_get_last_result",
     "ctex_get_version",
+    "ctex_texture_set_get_channel_ids",
+    "ctex_texture_set_get_channel_info",
+    "ctex_texture_set_get_memory_report",
+    "ctex_texture_set_register_channel",
+    "ctex_texture_set_set_channel_enabled",
 }
 
 

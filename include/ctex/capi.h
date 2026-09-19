@@ -47,7 +47,15 @@ typedef enum ctex_diagnostic_code {
     CTEX_DIAGNOSTIC_INVALID_TEXTURE_SET_RESOLUTION = 11,
     CTEX_DIAGNOSTIC_INVALID_TEXTURE_SET_BIT_DEPTH = 12,
     CTEX_DIAGNOSTIC_DUPLICATE_TEXTURE_SET = 13,
-    CTEX_DIAGNOSTIC_ALLOCATOR_CONTRACT_VIOLATION = 14
+    CTEX_DIAGNOSTIC_ALLOCATOR_CONTRACT_VIOLATION = 14,
+    CTEX_DIAGNOSTIC_MISSING_TEXTURE_SET = 15,
+    CTEX_DIAGNOSTIC_EMPTY_CHANNEL_SEMANTIC_ID = 16,
+    CTEX_DIAGNOSTIC_EMPTY_CHANNEL_EXPORT_MAPPING = 17,
+    CTEX_DIAGNOSTIC_INVALID_CHANNEL_COMPONENT_COUNT = 18,
+    CTEX_DIAGNOSTIC_INVALID_CHANNEL_DEFAULT_VALUE_COUNT = 19,
+    CTEX_DIAGNOSTIC_INVALID_CHANNEL_BIT_DEPTH = 20,
+    CTEX_DIAGNOSTIC_DUPLICATE_CHANNEL = 21,
+    CTEX_DIAGNOSTIC_MISSING_CHANNEL = 22
 } ctex_diagnostic_code;
 
 typedef enum ctex_log_severity {
@@ -110,6 +118,69 @@ typedef struct ctex_texture_set_descriptor {
     ((uint32_t)offsetof(ctex_texture_set_descriptor, default_bit_depth))
 #define CTEX_TEXTURE_SET_DESCRIPTOR_CURRENT_SIZE ((uint32_t)sizeof(ctex_texture_set_descriptor))
 
+typedef enum ctex_scalar_representation {
+    CTEX_SCALAR_REPRESENTATION_UNSIGNED_NORMALIZED = 0,
+    CTEX_SCALAR_REPRESENTATION_FLOATING_POINT = 1
+} ctex_scalar_representation;
+
+typedef enum ctex_channel_classification {
+    CTEX_CHANNEL_CLASSIFICATION_COLOR = 0,
+    CTEX_CHANNEL_CLASSIFICATION_DATA = 1
+} ctex_channel_classification;
+
+typedef enum ctex_blending_policy {
+    CTEX_BLENDING_POLICY_COLOR = 0,
+    CTEX_BLENDING_POLICY_SCALAR = 1,
+    CTEX_BLENDING_POLICY_NORMAL_VECTOR = 2,
+    CTEX_BLENDING_POLICY_ADDITIVE = 3
+} ctex_blending_policy;
+
+typedef struct ctex_channel_descriptor {
+    uint32_t size;
+    const char* semantic_id;
+    uint32_t component_count;
+    uint32_t scalar_representation;
+    uint32_t preferred_bit_depth;
+    double default_value[4];
+    uint32_t default_value_count;
+    uint32_t classification;
+    uint32_t blending_policy;
+    const char* export_mapping;
+    uint32_t evaluable;
+} ctex_channel_descriptor;
+
+#define CTEX_CHANNEL_DESCRIPTOR_V1_SIZE ((uint32_t)sizeof(ctex_channel_descriptor))
+#define CTEX_CHANNEL_DESCRIPTOR_CURRENT_SIZE ((uint32_t)sizeof(ctex_channel_descriptor))
+
+typedef struct ctex_channel_info {
+    uint32_t size;
+    uint32_t component_count;
+    uint32_t scalar_representation;
+    uint32_t preferred_bit_depth;
+    double default_value[4];
+    uint32_t default_value_count;
+    uint32_t classification;
+    uint32_t blending_policy;
+    uint32_t evaluable;
+    uint32_t enabled;
+    uint32_t storage_bit_depth;
+} ctex_channel_info;
+
+#define CTEX_CHANNEL_INFO_V1_SIZE ((uint32_t)sizeof(ctex_channel_info))
+#define CTEX_CHANNEL_INFO_CURRENT_SIZE ((uint32_t)sizeof(ctex_channel_info))
+
+typedef struct ctex_texture_set_memory_report {
+    uint32_t size;
+    size_t enabled_channel_count;
+    size_t channel_pixel_bytes;
+    size_t mesh_map_pixel_bytes;
+    size_t total_resident_bytes;
+} ctex_texture_set_memory_report;
+
+#define CTEX_TEXTURE_SET_MEMORY_REPORT_V1_SIZE ((uint32_t)sizeof(ctex_texture_set_memory_report))
+#define CTEX_TEXTURE_SET_MEMORY_REPORT_CURRENT_SIZE \
+    ((uint32_t)sizeof(ctex_texture_set_memory_report))
+
 typedef struct ctex_version {
     uint32_t major;
     uint32_t minor;
@@ -146,6 +217,24 @@ CTEX_API ctex_result ctex_document_get_texture_set_ids(const ctex_document* docu
                                                        size_t buffer_size,
                                                        size_t* out_required_size,
                                                        size_t* out_count);
+CTEX_API ctex_result ctex_texture_set_get_channel_ids(const ctex_document* document,
+                                                      const char* texture_set_id, char* buffer,
+                                                      size_t buffer_size, size_t* out_required_size,
+                                                      size_t* out_count);
+CTEX_API ctex_result ctex_texture_set_register_channel(ctex_document* document,
+                                                       const char* texture_set_id,
+                                                       const ctex_channel_descriptor* descriptor);
+CTEX_API ctex_result ctex_texture_set_set_channel_enabled(ctex_document* document,
+                                                          const char* texture_set_id,
+                                                          const char* semantic_id, uint32_t enabled,
+                                                          uint32_t bit_depth_override);
+CTEX_API ctex_result ctex_texture_set_get_channel_info(
+    const ctex_document* document, const char* texture_set_id, const char* semantic_id,
+    ctex_channel_info* out_info, char* export_mapping_buffer, size_t export_mapping_buffer_size,
+    size_t* out_required_export_mapping_size);
+CTEX_API ctex_result ctex_texture_set_get_memory_report(const ctex_document* document,
+                                                        const char* texture_set_id,
+                                                        ctex_texture_set_memory_report* out_report);
 
 /*
  * Diagnostics are local to the calling thread. The returned pointer is owned by

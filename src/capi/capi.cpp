@@ -1,12 +1,14 @@
 #include <ctex/capi.h>
 #include <ctex/version.h>
 
+#include <algorithm>
 #include <cstdio>
 #include <cstring>
 #include <exception>
 #include <limits>
 #include <mutex>
 #include <new>
+#include <optional>
 #include <stdexcept>
 #include <string>
 #include <utility>
@@ -243,6 +245,184 @@ std::size_t texture_set_id_buffer_size(const std::vector<std::string>& identifie
     return required_size;
 }
 
+void validate_string_buffer(char* buffer, std::size_t buffer_size, std::size_t required_size) {
+    if (buffer == nullptr && buffer_size != 0) {
+        throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                       "buffer=null with nonzero buffer_size");
+    }
+    if (buffer != nullptr && buffer_size < required_size) {
+        throw_boundary(CTEX_RESULT_BUFFER_TOO_SMALL, CTEX_DIAGNOSTIC_BUFFER_TOO_SMALL,
+                       "buffer_size=" + std::to_string(buffer_size) +
+                           " required_size=" + std::to_string(required_size));
+    }
+}
+
+void copy_packed_strings(const std::vector<std::string>& values, char* buffer) {
+    std::size_t offset = 0;
+    for (const std::string& value : values) {
+        const std::size_t entry_size = value.size() + 1;
+        std::memcpy(buffer + offset, value.c_str(), entry_size);
+        offset += entry_size;
+    }
+}
+
+template <typename Document>
+decltype(auto) require_texture_set(Document& document, const char* texture_set_id) {
+    if (texture_set_id == nullptr) {
+        throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                       "texture_set_id=null");
+    }
+    if (texture_set_id[0] == '\0') {
+        throw_boundary(CTEX_RESULT_MISSING_RESOURCE, CTEX_DIAGNOSTIC_MISSING_TEXTURE_SET,
+                       "texture_set_id is empty");
+    }
+    if (!document.value.contains_texture_set(texture_set_id)) {
+        throw_boundary(CTEX_RESULT_MISSING_RESOURCE, CTEX_DIAGNOSTIC_MISSING_TEXTURE_SET,
+                       "texture-set identity is not present: " + std::string(texture_set_id));
+    }
+    return document.value.texture_set(texture_set_id);
+}
+
+void require_semantic_id(const char* semantic_id) {
+    if (semantic_id == nullptr) {
+        throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                       "semantic_id=null");
+    }
+    if (semantic_id[0] == '\0') {
+        throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_EMPTY_CHANNEL_SEMANTIC_ID,
+                       "semantic_id is empty");
+    }
+}
+
+bool channel_exists(const ctex::doc::TextureChannels& channels, std::string_view semantic_id) {
+    const std::vector<std::string> identifiers = channels.semantic_ids();
+    return std::find(identifiers.begin(), identifiers.end(), semantic_id) != identifiers.end();
+}
+
+const ctex::doc::ChannelDescriptor& require_channel(const ctex::doc::TextureChannels& channels,
+                                                    const char* semantic_id) {
+    require_semantic_id(semantic_id);
+    if (!channel_exists(channels, semantic_id)) {
+        throw_boundary(
+            CTEX_RESULT_MISSING_RESOURCE, CTEX_DIAGNOSTIC_MISSING_CHANNEL,
+            "channel semantic identifier is not registered: " + std::string(semantic_id));
+    }
+    return channels.descriptor(semantic_id);
+}
+
+ctex::doc::ScalarRepresentation scalar_representation(std::uint32_t value) {
+    switch (value) {
+        case CTEX_SCALAR_REPRESENTATION_UNSIGNED_NORMALIZED:
+            return ctex::doc::ScalarRepresentation::unsigned_normalized;
+        case CTEX_SCALAR_REPRESENTATION_FLOATING_POINT:
+            return ctex::doc::ScalarRepresentation::floating_point;
+    }
+    throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_INVALID_ENUM_VALUE,
+                   "scalar_representation=" + std::to_string(value));
+}
+
+ctex::doc::ChannelClassification channel_classification(std::uint32_t value) {
+    switch (value) {
+        case CTEX_CHANNEL_CLASSIFICATION_COLOR:
+            return ctex::doc::ChannelClassification::color;
+        case CTEX_CHANNEL_CLASSIFICATION_DATA:
+            return ctex::doc::ChannelClassification::data;
+    }
+    throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_INVALID_ENUM_VALUE,
+                   "classification=" + std::to_string(value));
+}
+
+ctex::doc::BlendingPolicy blending_policy(std::uint32_t value) {
+    switch (value) {
+        case CTEX_BLENDING_POLICY_COLOR:
+            return ctex::doc::BlendingPolicy::color;
+        case CTEX_BLENDING_POLICY_SCALAR:
+            return ctex::doc::BlendingPolicy::scalar;
+        case CTEX_BLENDING_POLICY_NORMAL_VECTOR:
+            return ctex::doc::BlendingPolicy::normal_vector;
+        case CTEX_BLENDING_POLICY_ADDITIVE:
+            return ctex::doc::BlendingPolicy::additive;
+    }
+    throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_INVALID_ENUM_VALUE,
+                   "blending_policy=" + std::to_string(value));
+}
+
+bool valid_channel_bit_depth(std::uint32_t value) noexcept {
+    return value == 8 || value == 16 || value == 32;
+}
+
+void validate_channel_descriptor(const ctex_channel_descriptor& descriptor) {
+    if (descriptor.size < CTEX_CHANNEL_DESCRIPTOR_V1_SIZE ||
+        descriptor.size > CTEX_CHANNEL_DESCRIPTOR_CURRENT_SIZE) {
+        throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_INVALID_DESCRIPTOR_SIZE,
+                       "descriptor.size=" + std::to_string(descriptor.size) + " expected_size=" +
+                           std::to_string(CTEX_CHANNEL_DESCRIPTOR_CURRENT_SIZE));
+    }
+    require_semantic_id(descriptor.semantic_id);
+    if (descriptor.export_mapping == nullptr) {
+        throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                       "descriptor.export_mapping=null");
+    }
+    if (descriptor.export_mapping[0] == '\0') {
+        throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_EMPTY_CHANNEL_EXPORT_MAPPING,
+                       "descriptor.export_mapping is empty");
+    }
+    if (descriptor.component_count == 0 || descriptor.component_count > 4) {
+        throw_boundary(CTEX_RESULT_INVALID_ARGUMENT,
+                       CTEX_DIAGNOSTIC_INVALID_CHANNEL_COMPONENT_COUNT,
+                       "descriptor.component_count=" + std::to_string(descriptor.component_count));
+    }
+    if (descriptor.default_value_count != descriptor.component_count) {
+        throw_boundary(
+            CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_INVALID_CHANNEL_DEFAULT_VALUE_COUNT,
+            "descriptor.default_value_count=" + std::to_string(descriptor.default_value_count) +
+                " component_count=" + std::to_string(descriptor.component_count));
+    }
+    if (!valid_channel_bit_depth(descriptor.preferred_bit_depth) ||
+        (descriptor.scalar_representation == CTEX_SCALAR_REPRESENTATION_FLOATING_POINT &&
+         descriptor.preferred_bit_depth != 32)) {
+        throw_boundary(
+            CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_INVALID_CHANNEL_BIT_DEPTH,
+            "descriptor.preferred_bit_depth=" + std::to_string(descriptor.preferred_bit_depth));
+    }
+    if (descriptor.evaluable > 1) {
+        throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_INVALID_DESCRIPTOR_VALUE,
+                       "descriptor.evaluable=" + std::to_string(descriptor.evaluable));
+    }
+}
+
+ctex::doc::ChannelDescriptor channel_descriptor(const ctex_channel_descriptor& descriptor) {
+    validate_channel_descriptor(descriptor);
+    return {
+        .semantic_id = descriptor.semantic_id,
+        .component_count = static_cast<std::uint8_t>(descriptor.component_count),
+        .scalar_representation = scalar_representation(descriptor.scalar_representation),
+        .preferred_bit_depth = static_cast<std::uint8_t>(descriptor.preferred_bit_depth),
+        .default_value = std::pmr::vector<double>(
+            descriptor.default_value, descriptor.default_value + descriptor.default_value_count),
+        .classification = channel_classification(descriptor.classification),
+        .blending_policy = blending_policy(descriptor.blending_policy),
+        .export_mapping = descriptor.export_mapping,
+        .evaluable = descriptor.evaluable != 0,
+    };
+}
+
+std::uint32_t storage_bit_depth(const ctex::doc::TextureChannels& channels,
+                                std::string_view semantic_id) {
+    if (!channels.is_enabled(semantic_id)) {
+        return 0;
+    }
+    switch (channels.pixels(semantic_id).format().channel_type) {
+        case ctex::image::ChannelType::uint8_unorm:
+            return 8;
+        case ctex::image::ChannelType::uint16_unorm:
+            return 16;
+        case ctex::image::ChannelType::float32:
+            return 32;
+    }
+    throw std::logic_error("channel has an unknown storage type");
+}
+
 ctex::doc::PartitionSourceKind partition_source_kind(std::uint32_t kind) {
     switch (kind) {
         case CTEX_PARTITION_SOURCE_MATERIAL:
@@ -429,18 +609,163 @@ extern "C" ctex_result ctex_document_get_texture_set_ids(const ctex_document* do
         if (buffer == nullptr) {
             return;
         }
-        if (buffer_size < required_size) {
-            throw_boundary(CTEX_RESULT_BUFFER_TOO_SMALL, CTEX_DIAGNOSTIC_BUFFER_TOO_SMALL,
-                           "buffer_size=" + std::to_string(buffer_size) +
-                               " required_size=" + std::to_string(required_size));
-        }
+        validate_string_buffer(buffer, buffer_size, required_size);
+        copy_packed_strings(identifiers, buffer);
+    });
+}
 
-        std::size_t offset = 0;
-        for (const std::string& identifier : identifiers) {
-            const std::size_t entry_size = identifier.size() + 1;
-            std::memcpy(buffer + offset, identifier.c_str(), entry_size);
-            offset += entry_size;
+extern "C" ctex_result ctex_texture_set_get_channel_ids(const ctex_document* document,
+                                                        const char* texture_set_id, char* buffer,
+                                                        std::size_t buffer_size,
+                                                        std::size_t* out_required_size,
+                                                        std::size_t* out_count) {
+    return call_boundary("ctex_texture_set_get_channel_ids", [&] {
+        if (document == nullptr) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                           "document=null");
         }
+        if (out_required_size == nullptr) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                           "out_required_size=null");
+        }
+        const ctex::doc::TextureSet& texture_set = require_texture_set(*document, texture_set_id);
+        const std::vector<std::string> identifiers = texture_set.channels().semantic_ids();
+        const std::size_t required_size = texture_set_id_buffer_size(identifiers);
+        *out_required_size = required_size;
+        if (out_count != nullptr) {
+            *out_count = identifiers.size();
+        }
+        validate_string_buffer(buffer, buffer_size, required_size);
+        if (buffer != nullptr) {
+            copy_packed_strings(identifiers, buffer);
+        }
+    });
+}
+
+extern "C" ctex_result ctex_texture_set_register_channel(
+    ctex_document* document, const char* texture_set_id,
+    const ctex_channel_descriptor* descriptor) {
+    return call_boundary("ctex_texture_set_register_channel", [&] {
+        if (document == nullptr || descriptor == nullptr) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                           document == nullptr ? "document=null" : "descriptor=null");
+        }
+        ctex::doc::TextureSet& texture_set = require_texture_set(*document, texture_set_id);
+        ctex::doc::ChannelDescriptor converted = channel_descriptor(*descriptor);
+        if (channel_exists(texture_set.channels(), converted.semantic_id)) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_DUPLICATE_CHANNEL,
+                           "channel semantic identifier is already registered: " +
+                               std::string(converted.semantic_id));
+        }
+        texture_set.channels().register_descriptor(std::move(converted));
+    });
+}
+
+extern "C" ctex_result ctex_texture_set_set_channel_enabled(ctex_document* document,
+                                                            const char* texture_set_id,
+                                                            const char* semantic_id,
+                                                            std::uint32_t enabled,
+                                                            std::uint32_t bit_depth_override) {
+    return call_boundary("ctex_texture_set_set_channel_enabled", [&] {
+        if (document == nullptr) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                           "document=null");
+        }
+        if (enabled > 1) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_INVALID_DESCRIPTOR_VALUE,
+                           "enabled=" + std::to_string(enabled));
+        }
+        if (bit_depth_override != 0 && !valid_channel_bit_depth(bit_depth_override)) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_INVALID_CHANNEL_BIT_DEPTH,
+                           "bit_depth_override=" + std::to_string(bit_depth_override));
+        }
+        ctex::doc::TextureSet& texture_set = require_texture_set(*document, texture_set_id);
+        const ctex::doc::ChannelDescriptor& descriptor =
+            require_channel(texture_set.channels(), semantic_id);
+        if (enabled == 0) {
+            texture_set.channels().disable(semantic_id);
+            return;
+        }
+        if (descriptor.scalar_representation == ctex::doc::ScalarRepresentation::floating_point &&
+            bit_depth_override != 0 && bit_depth_override != 32) {
+            throw_boundary(
+                CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_INVALID_CHANNEL_BIT_DEPTH,
+                "floating-point channel bit_depth_override=" + std::to_string(bit_depth_override));
+        }
+        const std::optional<std::uint8_t> override =
+            bit_depth_override == 0
+                ? std::nullopt
+                : std::optional<std::uint8_t>(static_cast<std::uint8_t>(bit_depth_override));
+        texture_set.channels().enable(semantic_id, override);
+    });
+}
+
+extern "C" ctex_result ctex_texture_set_get_channel_info(
+    const ctex_document* document, const char* texture_set_id, const char* semantic_id,
+    ctex_channel_info* out_info, char* export_mapping_buffer,
+    std::size_t export_mapping_buffer_size, std::size_t* out_required_export_mapping_size) {
+    return call_boundary("ctex_texture_set_get_channel_info", [&] {
+        if (document == nullptr || out_info == nullptr ||
+            out_required_export_mapping_size == nullptr) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                           "document, out_info and out_required_export_mapping_size are required");
+        }
+        if (out_info->size < CTEX_CHANNEL_INFO_V1_SIZE ||
+            out_info->size > CTEX_CHANNEL_INFO_CURRENT_SIZE) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_INVALID_DESCRIPTOR_SIZE,
+                           "out_info.size=" + std::to_string(out_info->size) +
+                               " expected_size=" + std::to_string(CTEX_CHANNEL_INFO_CURRENT_SIZE));
+        }
+        const ctex::doc::TextureSet& texture_set = require_texture_set(*document, texture_set_id);
+        const ctex::doc::TextureChannels& channels = texture_set.channels();
+        const ctex::doc::ChannelDescriptor& descriptor = require_channel(channels, semantic_id);
+        const std::size_t required_size = descriptor.export_mapping.size() + 1;
+        *out_required_export_mapping_size = required_size;
+        validate_string_buffer(export_mapping_buffer, export_mapping_buffer_size, required_size);
+        if (export_mapping_buffer != nullptr) {
+            std::memcpy(export_mapping_buffer, descriptor.export_mapping.c_str(), required_size);
+        }
+        ctex_channel_info result{};
+        result.size = CTEX_CHANNEL_INFO_CURRENT_SIZE;
+        result.component_count = descriptor.component_count;
+        result.scalar_representation = static_cast<std::uint32_t>(descriptor.scalar_representation);
+        result.preferred_bit_depth = descriptor.preferred_bit_depth;
+        std::copy(descriptor.default_value.begin(), descriptor.default_value.end(),
+                  result.default_value);
+        result.default_value_count = descriptor.default_value.size();
+        result.classification = static_cast<std::uint32_t>(descriptor.classification);
+        result.blending_policy = static_cast<std::uint32_t>(descriptor.blending_policy);
+        result.evaluable = descriptor.evaluable ? 1U : 0U;
+        result.enabled = channels.is_enabled(semantic_id) ? 1U : 0U;
+        result.storage_bit_depth = storage_bit_depth(channels, semantic_id);
+        *out_info = result;
+    });
+}
+
+extern "C" ctex_result ctex_texture_set_get_memory_report(
+    const ctex_document* document, const char* texture_set_id,
+    ctex_texture_set_memory_report* out_report) {
+    return call_boundary("ctex_texture_set_get_memory_report", [&] {
+        if (document == nullptr || out_report == nullptr) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                           document == nullptr ? "document=null" : "out_report=null");
+        }
+        if (out_report->size < CTEX_TEXTURE_SET_MEMORY_REPORT_V1_SIZE ||
+            out_report->size > CTEX_TEXTURE_SET_MEMORY_REPORT_CURRENT_SIZE) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_INVALID_DESCRIPTOR_SIZE,
+                           "out_report.size=" + std::to_string(out_report->size) +
+                               " expected_size=" +
+                               std::to_string(CTEX_TEXTURE_SET_MEMORY_REPORT_CURRENT_SIZE));
+        }
+        const ctex::doc::TextureSet& texture_set = require_texture_set(*document, texture_set_id);
+        const ctex::doc::TextureSetMemoryReport report = texture_set.memory_report();
+        *out_report = {
+            .size = CTEX_TEXTURE_SET_MEMORY_REPORT_CURRENT_SIZE,
+            .enabled_channel_count = texture_set.channels().enabled_channel_count(),
+            .channel_pixel_bytes = report.channel_pixel_bytes,
+            .mesh_map_pixel_bytes = report.mesh_map_pixel_bytes,
+            .total_resident_bytes = report.total_resident_bytes,
+        };
     });
 }
 

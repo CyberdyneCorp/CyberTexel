@@ -664,8 +664,12 @@ Task 14.8 has begun with a manifest containing every one of the 24 OpenSpec
 capabilities and a checker that compares exact requirement titles with declared
 `ctex_*` symbols. Non-runtime capabilities require a rationale and repository
 evidence, while runtime capabilities require symbols for every requirement. The
-gate currently refuses 239 unmapped runtime requirements by name and remains
-outside the green aggregate until those entry points exist.
+first implementation slice makes the complete texture-set channel contract
+reachable from C: built-in and extensible descriptors, enumeration, enablement,
+precision overrides, descriptor inspection and memory reporting. Its persistent
+tiled metadata and pixel storage preserve the document allocator. The gate now
+refuses 238 unmapped runtime requirements by name and remains outside the green
+aggregate until those entry points exist.
 
 ## 1. Foundation
 

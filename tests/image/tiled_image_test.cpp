@@ -6,6 +6,7 @@
 #include <ctex/image/tiled_image.hpp>
 #include <exception>
 #include <iostream>
+#include <memory_resource>
 #include <span>
 #include <stdexcept>
 #include <string_view>
@@ -18,6 +19,27 @@ using ctex::image::ChannelType;
 using ctex::image::PixelFormat;
 using ctex::image::TileCoordinate;
 using ctex::image::TiledImage;
+
+class CountingResource final : public std::pmr::memory_resource {
+public:
+    std::size_t allocations{};
+    std::size_t deallocations{};
+
+private:
+    void* do_allocate(std::size_t bytes, std::size_t alignment) override {
+        ++allocations;
+        return std::pmr::new_delete_resource()->allocate(bytes, alignment);
+    }
+
+    void do_deallocate(void* allocation, std::size_t bytes, std::size_t alignment) override {
+        ++deallocations;
+        std::pmr::new_delete_resource()->deallocate(allocation, bytes, alignment);
+    }
+
+    bool do_is_equal(const std::pmr::memory_resource& other) const noexcept override {
+        return this == &other;
+    }
+};
 
 bool expect(bool condition, std::string_view message) {
     if (!condition) {
@@ -111,6 +133,28 @@ bool test_pinned_tile_storage_is_copy_on_write() {
                   "old pinned storage was double-counted as current image residency");
 }
 
+bool test_persistent_storage_uses_supplied_resource() {
+    CountingResource resource;
+    {
+        TiledImage image(65, 65, PixelFormat{ChannelType::uint8_unorm, 1}, 64, {}, &resource);
+        const std::size_t metadata_allocations = resource.allocations;
+        image.write_pixel(0, 0, std::array{std::byte{1}});
+        const std::size_t tile_allocations = resource.allocations;
+        TiledImage copied = image;
+        TiledImage moved(1, 1, PixelFormat{ChannelType::uint8_unorm, 1});
+        moved = std::move(copied);
+        if (!expect(metadata_allocations > 0, "image metadata bypassed its memory resource") ||
+            !expect(tile_allocations > metadata_allocations,
+                    "tile storage bypassed its memory resource") ||
+            !expect(resource.allocations > tile_allocations,
+                    "image copy metadata bypassed its memory resource")) {
+            return false;
+        }
+    }
+    return expect(resource.allocations == resource.deallocations,
+                  "image storage was not returned to its memory resource");
+}
+
 bool test_validation() {
     bool passed = true;
     passed &= expect_throws<std::invalid_argument>(
@@ -125,6 +169,9 @@ bool test_validation() {
             static_cast<void>(image.read_pixel(1, 0));
         },
         "out-of-range pixel was accepted");
+    passed &= expect_throws<std::invalid_argument>(
+        [] { TiledImage image(1, 1, PixelFormat{ChannelType::uint8_unorm, 1}, 1, {}, nullptr); },
+        "null memory resource was accepted");
     return passed;
 }
 
@@ -132,7 +179,8 @@ bool test_validation() {
 
 int main() {
     return test_formats_preserve_bytes() && test_sparse_clear_and_dirty_tracking() &&
-                   test_pinned_tile_storage_is_copy_on_write() && test_validation()
+                   test_pinned_tile_storage_is_copy_on_write() &&
+                   test_persistent_storage_uses_supplied_resource() && test_validation()
                ? 0
                : 1;
 }

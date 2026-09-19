@@ -10,3 +10,8 @@ EXPORTS
     ctex_get_version
     ctex_set_allocator
     ctex_set_log_sink
+    ctex_texture_set_get_channel_ids
+    ctex_texture_set_get_channel_info
+    ctex_texture_set_get_memory_report
+    ctex_texture_set_register_channel
+    ctex_texture_set_set_channel_enabled

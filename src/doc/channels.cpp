@@ -188,9 +188,10 @@ void TextureChannels::enable(std::string_view semantic_id,
     const image::ChannelType type =
         channel_type(channel.descriptor.scalar_representation, bit_depth);
     const std::vector<std::byte> clear_pixel = encode_clear_pixel(channel.descriptor, bit_depth);
-    channel.pixels = std::make_unique<image::TiledImage>(
-        width_, height_, image::PixelFormat{type, channel.descriptor.component_count},
-        image::default_tile_size, clear_pixel);
+    channel.pixels = std::allocate_shared<image::TiledImage>(
+        std::pmr::polymorphic_allocator<image::TiledImage>(memory_resource_), width_, height_,
+        image::PixelFormat{type, channel.descriptor.component_count}, image::default_tile_size,
+        clear_pixel, memory_resource_);
 }
 
 void TextureChannels::disable(std::string_view semantic_id) noexcept {
