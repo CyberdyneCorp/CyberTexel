@@ -4,6 +4,8 @@
 #include <cstddef>
 #include <cstdint>
 #include <ctex/xport/delta.hpp>
+#include <ctex/xport/format.hpp>
+#include <optional>
 #include <span>
 #include <string>
 #include <string_view>
@@ -37,6 +39,10 @@ struct TileMemoryLayout {
 [[nodiscard]] TileMemoryLayout tile_memory_layout(const doc::TextureChannels& channels,
                                                   std::string_view semantic_id,
                                                   image::TileCoordinate coordinate);
+[[nodiscard]] TileMemoryLayout tile_memory_layout(const doc::TextureChannels& channels,
+                                                  std::string_view semantic_id,
+                                                  image::TileCoordinate coordinate,
+                                                  const ReadbackFormatSelection& format);
 
 struct TileReadbackDestination {
     TileVersion version;
@@ -60,7 +66,14 @@ public:
     [[nodiscard]] static TileReadback begin_cpu(
         const doc::TextureChannels& channels, std::string_view semantic_id,
         doc::ChannelRevisionCursor cursor, std::span<const TileReadbackDestination> destinations);
+    [[nodiscard]] static TileReadback begin_cpu(
+        const doc::TextureChannels& channels, std::string_view semantic_id,
+        doc::ChannelRevisionCursor cursor, const ReadbackFormatSelection& format,
+        std::span<const TileReadbackDestination> destinations);
     [[nodiscard]] static TileReadback begin_host(
+        std::span<const TileReadbackDestination> destinations);
+    [[nodiscard]] static TileReadback begin_host(
+        const ReadbackFormatSelection& format,
         std::span<const TileReadbackDestination> destinations);
 
     [[nodiscard]] TileReadbackStatus status() const noexcept { return status_; }
@@ -69,6 +82,9 @@ public:
     }
     [[nodiscard]] const std::string& detail() const noexcept { return detail_; }
     [[nodiscard]] std::size_t tile_count() const noexcept { return destinations_.size(); }
+    [[nodiscard]] const std::optional<ReadbackFormatSelection>& format_selection() const noexcept {
+        return format_selection_;
+    }
 
     [[nodiscard]] bool cancel() noexcept;
     [[nodiscard]] bool complete_host(std::span<const HostTileCompletion> completed_tiles);
@@ -76,12 +92,14 @@ public:
 
 private:
     TileReadback(std::vector<TileReadbackDestination> destinations, TileReadbackStatus status,
-                 std::string detail);
-    [[nodiscard]] static TileReadback failed(std::string detail);
+                 std::string detail, std::optional<ReadbackFormatSelection> format_selection = {});
+    [[nodiscard]] static TileReadback failed(
+        std::string detail, std::optional<ReadbackFormatSelection> format_selection = {});
 
     std::vector<TileReadbackDestination> destinations_;
     TileReadbackStatus status_{};
     std::string detail_;
+    std::optional<ReadbackFormatSelection> format_selection_;
 };
 
 }  // namespace ctex::xport

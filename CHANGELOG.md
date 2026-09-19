@@ -39,6 +39,9 @@ Foundation implementation is in progress.
 - Stable tile payload descriptors declaring visible dimensions, row pitch,
   interleaved channel order, component representation and separate per-tile
   buffers, with direct texture upload requiring no intermediate repack.
+- Host-ordered tile readback format negotiation with explicit exact-only or
+  conversion-enabled policy, reported conversions across 8/16-bit UNORM and
+  float components, and an explicit no-common-format result.
 - Linear Rec. 709 working-space and sRGB transfer functions with unclamped HDR
   conversion.
 - Native and sanitizer test presets plus a registry-driven determinism gate that

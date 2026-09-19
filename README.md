@@ -40,7 +40,7 @@ The current implementation provides:
   epoch-qualified coalesced delta queries carrying residency and generation
   metadata, explicit full-resynchronization signaling, and asynchronous named
   tile readback into caller-owned buffers with a declared direct-upload memory
-  layout.
+  layout and host-controlled format negotiation.
 - Linear Rec. 709 and sRGB colour transforms, semantic input policies,
   preview-only 3D LUTs, ordered dithering, and promoted-precision operations.
 - Memory-buffer PNG decoding and encoding with 8/16-bit preservation,

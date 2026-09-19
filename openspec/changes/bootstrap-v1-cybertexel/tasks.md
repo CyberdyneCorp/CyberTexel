@@ -276,7 +276,11 @@ row pitch, pixel stride, interleaved R/RG/RGB/RGBA order, native component type
 and byte order, and separate per-tile caller buffers are carried on requests
 and host completions. The direct-upload scenario proves the same buffer can
 feed a texture upload without repacking. Host-selected format negotiation (8.6)
-is next, while the change-proportional index remains task 8.8.
+accepts an ordered host format list and an exact-only or conversion-enabled
+policy. It reports the selected source, output and conversion, supports every
+8/16-bit UNORM and float component pairing without changing channel count, and
+reports invalid declarations or no common format explicitly. Snapshot pinning
+(8.7) is next, while the change-proportional index remains task 8.8.
 
 ## 1. Foundation
 
@@ -386,7 +390,7 @@ is next, while the change-proportional index remains task 8.8.
 - [x] 8.3 Stale-revision detection and the full-resynchronization signal
 - [x] 8.4 Explicit asynchronous tile readback into caller-owned buffers; no implicit readback on delta queries
 - [x] 8.5 Declared, stable memory layout; direct-upload test
-- [ ] 8.6 Format negotiation and the host-owned conversion decision
+- [x] 8.6 Format negotiation and the host-owned conversion decision
 - [ ] 8.7 Releasable, budgeted snapshot tokens pin resource versions between query and readback
 - [ ] 8.8 Delta query cost independent of document tile count
 - [ ] 8.9 Preview transport through the same mechanism

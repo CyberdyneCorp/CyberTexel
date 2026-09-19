@@ -87,6 +87,9 @@ test-host-transport-readback: build
 test-host-transport-layout: build
     ctest --test-dir build/headless --output-on-failure -R '^host-transport-layout$'
 
+test-host-transport-format: build
+    ctest --test-dir build/headless --output-on-failure -R '^host-transport-format$'
+
 test-mesh: build
     ctest --test-dir build/headless --output-on-failure -R '^mesh-ingest$'
 

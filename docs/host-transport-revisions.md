@@ -71,7 +71,32 @@ host pass each completed buffer and its declared row pitch directly to a
 texture-upload API without rearranging pixels.
 
 Readback is never triggered by revision or delta queries. Format negotiation
-and host-selected conversion are task 8.6; this contract exposes the channel's
-current native format without silently converting it. Until snapshot tokens
-land in task 8.7, CPU readback requires the current cursor and fails rather than
-reading a stale version.
+does not run implicitly: without a selection, this contract exposes the
+channel's current native format. Until snapshot tokens land in task 8.7, CPU
+readback requires the current cursor and fails rather than reading a stale
+version.
+
+## Host-controlled format negotiation
+
+`negotiate_readback_format` takes the channel's source `PixelFormat`, an ordered
+list of formats accepted by the host, and one of two policies. `exact_only`
+refuses any conversion. `allow_conversion` selects the first compatible entry,
+so the host's list order is also its preference order. A successful result
+reports the source format, selected output format, and named
+`ReadbackConversion`; failure distinguishes an invalid declaration from
+`no_common_format`.
+
+Negotiation never changes the component count or channel order. It supports all
+pairs of the library's `uint8_unorm`, `uint16_unorm`, and `float32` component
+types. UNORM values convert through their normalized value. Conversion to UNORM
+clamps to `[0, 1]`, maps NaN to zero, and rounds to the nearest integer;
+conversion to float produces the normalized floating-point value. Multi-byte
+components retain the declared native byte order.
+
+The caller passes the returned `ReadbackFormatSelection` to both
+`tile_memory_layout` and the CPU or host-device `TileReadback` factory. The
+operation exposes that effective choice through `format_selection()` and
+rejects a forged selection, a selection for another channel format, or a
+destination layout that differs from the selected output. Thus a conversion can
+happen only after the host opts in, and the operation and resulting layout both
+report the format that was actually delivered.
