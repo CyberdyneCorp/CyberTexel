@@ -68,7 +68,8 @@ typedef enum ctex_diagnostic_code {
     CTEX_DIAGNOSTIC_INVALID_IMAGE_DATA = 32,
     CTEX_DIAGNOSTIC_IMAGE_LIMIT_EXCEEDED = 33,
     CTEX_DIAGNOSTIC_UNSUPPORTED_IMAGE_COMBINATION = 34,
-    CTEX_DIAGNOSTIC_IMAGE_ENCODING_FAILED = 35
+    CTEX_DIAGNOSTIC_IMAGE_ENCODING_FAILED = 35,
+    CTEX_DIAGNOSTIC_INVALID_STROKE = 36
 } ctex_diagnostic_code;
 
 typedef enum ctex_log_severity {
@@ -138,6 +139,212 @@ typedef struct ctex_vec4f {
     float z;
     float w;
 } ctex_vec4f;
+
+typedef struct ctex_vec2d {
+    double x;
+    double y;
+} ctex_vec2d;
+
+typedef struct ctex_vec3d {
+    double x;
+    double y;
+    double z;
+} ctex_vec3d;
+
+typedef struct ctex_stroke_frame {
+    ctex_vec3d tangent;
+    ctex_vec3d bitangent;
+    ctex_vec3d normal;
+} ctex_stroke_frame;
+
+typedef struct ctex_stroke_input_sample {
+    uint32_t size;
+    ctex_vec3d position;
+    ctex_stroke_frame frame;
+    uint64_t timestamp_nanoseconds;
+    uint32_t has_pressure;
+    double pressure;
+    ctex_vec2d tilt;
+} ctex_stroke_input_sample;
+
+#define CTEX_STROKE_INPUT_SAMPLE_V1_SIZE ((uint32_t)sizeof(ctex_stroke_input_sample))
+#define CTEX_STROKE_INPUT_SAMPLE_CURRENT_SIZE ((uint32_t)sizeof(ctex_stroke_input_sample))
+
+typedef enum ctex_stroke_tip_mode {
+    CTEX_STROKE_TIP_CONTINUOUS_SWEEP = 0,
+    CTEX_STROKE_TIP_DISCRETE_ALPHA = 1
+} ctex_stroke_tip_mode;
+
+typedef struct ctex_response_curve_point {
+    double input;
+    double output;
+} ctex_response_curve_point;
+
+typedef struct ctex_response_mapping_descriptor {
+    uint32_t size;
+    uint32_t enabled;
+    const ctex_response_curve_point* points;
+    size_t point_count;
+    double minimum_output;
+    double maximum_output;
+} ctex_response_mapping_descriptor;
+
+#define CTEX_RESPONSE_MAPPING_DESCRIPTOR_V1_SIZE \
+    ((uint32_t)sizeof(ctex_response_mapping_descriptor))
+#define CTEX_RESPONSE_MAPPING_DESCRIPTOR_CURRENT_SIZE \
+    ((uint32_t)sizeof(ctex_response_mapping_descriptor))
+
+typedef struct ctex_stroke_stabilizer_descriptor {
+    uint32_t size;
+    double radius;
+    double time_constant_seconds;
+} ctex_stroke_stabilizer_descriptor;
+
+#define CTEX_STROKE_STABILIZER_DESCRIPTOR_V1_SIZE \
+    ((uint32_t)sizeof(ctex_stroke_stabilizer_descriptor))
+#define CTEX_STROKE_STABILIZER_DESCRIPTOR_CURRENT_SIZE \
+    ((uint32_t)sizeof(ctex_stroke_stabilizer_descriptor))
+
+typedef struct ctex_stroke_jitter_descriptor {
+    uint32_t size;
+    uint64_t seed;
+    double position_fraction;
+    double radius_fraction;
+    double rotation_radians;
+    double opacity;
+    double flow;
+} ctex_stroke_jitter_descriptor;
+
+#define CTEX_STROKE_JITTER_DESCRIPTOR_V1_SIZE ((uint32_t)sizeof(ctex_stroke_jitter_descriptor))
+#define CTEX_STROKE_JITTER_DESCRIPTOR_CURRENT_SIZE ((uint32_t)sizeof(ctex_stroke_jitter_descriptor))
+
+typedef enum ctex_stroke_taper_unit {
+    CTEX_STROKE_TAPER_NONE = 0,
+    CTEX_STROKE_TAPER_STAMP_COUNT = 1,
+    CTEX_STROKE_TAPER_DISTANCE = 2
+} ctex_stroke_taper_unit;
+
+typedef struct ctex_stroke_taper_span_descriptor {
+    uint32_t size;
+    uint32_t unit;
+    double extent;
+} ctex_stroke_taper_span_descriptor;
+
+#define CTEX_STROKE_TAPER_SPAN_DESCRIPTOR_V1_SIZE \
+    ((uint32_t)sizeof(ctex_stroke_taper_span_descriptor))
+#define CTEX_STROKE_TAPER_SPAN_DESCRIPTOR_CURRENT_SIZE \
+    ((uint32_t)sizeof(ctex_stroke_taper_span_descriptor))
+
+typedef struct ctex_stroke_taper_descriptor {
+    uint32_t size;
+    ctex_stroke_taper_span_descriptor entry;
+    ctex_stroke_taper_span_descriptor exit;
+    double floor;
+    uint32_t affect_radius;
+    uint32_t affect_opacity;
+} ctex_stroke_taper_descriptor;
+
+#define CTEX_STROKE_TAPER_DESCRIPTOR_V1_SIZE ((uint32_t)sizeof(ctex_stroke_taper_descriptor))
+#define CTEX_STROKE_TAPER_DESCRIPTOR_CURRENT_SIZE ((uint32_t)sizeof(ctex_stroke_taper_descriptor))
+
+typedef enum ctex_stroke_constraint_mode {
+    CTEX_STROKE_CONSTRAINT_NONE = 0,
+    CTEX_STROKE_CONSTRAINT_STRAIGHT_LINE = 1,
+    CTEX_STROKE_CONSTRAINT_DOMINANT_AXIS = 2,
+    CTEX_STROKE_CONSTRAINT_GRID = 3
+} ctex_stroke_constraint_mode;
+
+typedef struct ctex_stroke_constraint_descriptor {
+    uint32_t size;
+    uint32_t mode;
+    double grid_step;
+} ctex_stroke_constraint_descriptor;
+
+#define CTEX_STROKE_CONSTRAINT_DESCRIPTOR_V1_SIZE \
+    ((uint32_t)sizeof(ctex_stroke_constraint_descriptor))
+#define CTEX_STROKE_CONSTRAINT_DESCRIPTOR_CURRENT_SIZE \
+    ((uint32_t)sizeof(ctex_stroke_constraint_descriptor))
+
+typedef enum ctex_stroke_symmetry_axis {
+    CTEX_STROKE_SYMMETRY_AXIS_X = 0,
+    CTEX_STROKE_SYMMETRY_AXIS_Y = 1,
+    CTEX_STROKE_SYMMETRY_AXIS_Z = 2
+} ctex_stroke_symmetry_axis;
+
+typedef struct ctex_stroke_symmetry_descriptor {
+    uint32_t size;
+    uint32_t mirror_x;
+    uint32_t mirror_y;
+    uint32_t mirror_z;
+    uint32_t radial_count;
+    uint32_t radial_axis;
+} ctex_stroke_symmetry_descriptor;
+
+#define CTEX_STROKE_SYMMETRY_DESCRIPTOR_V1_SIZE ((uint32_t)sizeof(ctex_stroke_symmetry_descriptor))
+#define CTEX_STROKE_SYMMETRY_DESCRIPTOR_CURRENT_SIZE \
+    ((uint32_t)sizeof(ctex_stroke_symmetry_descriptor))
+
+typedef struct ctex_stroke_settings_descriptor {
+    uint32_t size;
+    uint32_t reconstruction_version;
+    uint32_t tip_mode;
+    double spacing_fraction;
+    double radius;
+    double opacity;
+    double hardness;
+    double rotation_radians;
+    double elongation;
+    double flow;
+    const char* tip_resource_identity;
+    ctex_stroke_stabilizer_descriptor stabilizer;
+    ctex_response_mapping_descriptor pressure_radius;
+    ctex_response_mapping_descriptor pressure_opacity;
+    ctex_response_mapping_descriptor pressure_hardness;
+    ctex_response_mapping_descriptor pressure_flow;
+    ctex_response_mapping_descriptor pressure_rotation;
+    ctex_response_mapping_descriptor tilt_rotation;
+    ctex_response_mapping_descriptor tilt_elongation;
+    ctex_stroke_jitter_descriptor jitter;
+    ctex_stroke_taper_descriptor taper;
+    ctex_stroke_constraint_descriptor constraint;
+    ctex_stroke_symmetry_descriptor symmetry;
+} ctex_stroke_settings_descriptor;
+
+#define CTEX_STROKE_SETTINGS_DESCRIPTOR_V1_SIZE ((uint32_t)sizeof(ctex_stroke_settings_descriptor))
+#define CTEX_STROKE_SETTINGS_DESCRIPTOR_CURRENT_SIZE \
+    ((uint32_t)sizeof(ctex_stroke_settings_descriptor))
+
+typedef struct ctex_resolved_stamp {
+    ctex_vec3d position;
+    ctex_stroke_frame frame;
+    double radius;
+    double opacity;
+    double hardness;
+    double rotation_radians;
+    double elongation;
+    double flow;
+    const char* tip_resource_identity;
+    uint64_t source_ordinal;
+    uint64_t symmetry_instance;
+    uint64_t ordinal;
+} ctex_resolved_stamp;
+
+typedef struct ctex_swept_segment {
+    uint64_t start_stamp_ordinal;
+    uint64_t end_stamp_ordinal;
+} ctex_swept_segment;
+
+typedef struct ctex_resolved_stroke_info {
+    uint32_t size;
+    uint32_t reconstruction_version;
+    uint32_t tip_mode;
+    uint64_t symmetry_instance_count;
+    size_t stamp_count;
+    size_t swept_segment_count;
+} ctex_resolved_stroke_info;
+
+#define CTEX_RESOLVED_STROKE_INFO_V1_SIZE ((uint32_t)sizeof(ctex_resolved_stroke_info))
+#define CTEX_RESOLVED_STROKE_INFO_CURRENT_SIZE ((uint32_t)sizeof(ctex_resolved_stroke_info))
 
 typedef struct ctex_uv_set_descriptor {
     uint32_t size;
@@ -455,6 +662,25 @@ CTEX_API ctex_result ctex_image_encode_memory(const void* pixels, size_t pixel_b
                                               const ctex_image_encode_descriptor* descriptor,
                                               void* encoded_buffer, size_t encoded_buffer_size,
                                               size_t* out_required_size);
+
+/*
+ * Initializes the current stroke settings descriptor to the canonical defaults.
+ * Response mappings use their built-in linear curve while points is NULL and
+ * point_count is zero. Callers may replace any mapping with borrowed points.
+ */
+CTEX_API ctex_result ctex_stroke_settings_init(ctex_stroke_settings_descriptor* out_settings);
+
+/*
+ * Resolves borrowed timestamped input samples into ordered stamps and optional
+ * swept segments. Pass NULL arrays with zero capacities to query the exact
+ * counts. On success, each stamp's tip_resource_identity points to the string
+ * borrowed from settings and remains valid for the same duration.
+ */
+CTEX_API ctex_result ctex_stroke_resolve(
+    const ctex_stroke_settings_descriptor* settings, const ctex_stroke_input_sample* samples,
+    size_t sample_count, ctex_resolved_stroke_info* out_info, ctex_resolved_stamp* stamps,
+    size_t stamp_capacity, size_t* out_stamp_count, ctex_swept_segment* swept_segments,
+    size_t swept_segment_capacity, size_t* out_swept_segment_count);
 
 /*
  * Installs one process-wide sink. Pass NULL to uninstall it. The callback can

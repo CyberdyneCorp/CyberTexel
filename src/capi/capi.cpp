@@ -8,6 +8,7 @@
 #include <ctex/image/color_policy.hpp>
 #include <ctex/io/image_io.hpp>
 #include <ctex/io/texture_encode.hpp>
+#include <ctex/paint/stroke.hpp>
 #include <exception>
 #include <iterator>
 #include <limits>
@@ -1028,6 +1029,273 @@ void create_texture_sets_from_mesh(ctex_document& document, const ctex_mesh& mes
                                                                    default_bit_depth));
 }
 
+void validate_flag(std::uint32_t value, std::string_view name) {
+    if (value > 1) {
+        throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_INVALID_STROKE,
+                       std::string(name) + "=" + std::to_string(value));
+    }
+}
+
+ctex::paint::Vec3d stroke_vec(ctex_vec3d value) { return {value.x, value.y, value.z}; }
+
+ctex::paint::StrokeFrame stroke_frame(ctex_stroke_frame value) {
+    return {
+        .tangent = stroke_vec(value.tangent),
+        .bitangent = stroke_vec(value.bitangent),
+        .normal = stroke_vec(value.normal),
+    };
+}
+
+ctex::paint::ResponseMapping stroke_mapping(const ctex_response_mapping_descriptor& descriptor,
+                                            std::string_view name) {
+    validate_structure_size(descriptor.size, CTEX_RESPONSE_MAPPING_DESCRIPTOR_V1_SIZE,
+                            CTEX_RESPONSE_MAPPING_DESCRIPTOR_CURRENT_SIZE,
+                            std::string(name) + ".size");
+    validate_flag(descriptor.enabled, std::string(name) + ".enabled");
+    if (descriptor.points == nullptr && descriptor.point_count != 0) {
+        throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                       std::string(name) + ".points=null with nonzero point_count");
+    }
+    ctex::paint::ResponseCurve curve;
+    if (descriptor.point_count != 0) {
+        curve.points.clear();
+        curve.points.reserve(descriptor.point_count);
+        for (std::size_t index = 0; index < descriptor.point_count; ++index) {
+            curve.points.push_back(
+                {descriptor.points[index].input, descriptor.points[index].output});
+        }
+    }
+    return {
+        .enabled = descriptor.enabled != 0,
+        .curve = std::move(curve),
+        .minimum_output = descriptor.minimum_output,
+        .maximum_output = descriptor.maximum_output,
+    };
+}
+
+ctex::paint::TaperSpan stroke_taper_span(const ctex_stroke_taper_span_descriptor& descriptor,
+                                         std::string_view name) {
+    validate_structure_size(descriptor.size, CTEX_STROKE_TAPER_SPAN_DESCRIPTOR_V1_SIZE,
+                            CTEX_STROKE_TAPER_SPAN_DESCRIPTOR_CURRENT_SIZE,
+                            std::string(name) + ".size");
+    return {
+        .unit = static_cast<ctex::paint::TaperUnit>(descriptor.unit),
+        .extent = descriptor.extent,
+    };
+}
+
+ctex::paint::StrokeSettings stroke_settings(const ctex_stroke_settings_descriptor& descriptor) {
+    validate_structure_size(descriptor.size, CTEX_STROKE_SETTINGS_DESCRIPTOR_V1_SIZE,
+                            CTEX_STROKE_SETTINGS_DESCRIPTOR_CURRENT_SIZE, "settings.size");
+    if (descriptor.tip_resource_identity == nullptr) {
+        throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                       "settings.tip_resource_identity=null");
+    }
+    validate_structure_size(descriptor.stabilizer.size, CTEX_STROKE_STABILIZER_DESCRIPTOR_V1_SIZE,
+                            CTEX_STROKE_STABILIZER_DESCRIPTOR_CURRENT_SIZE,
+                            "settings.stabilizer.size");
+    validate_structure_size(descriptor.jitter.size, CTEX_STROKE_JITTER_DESCRIPTOR_V1_SIZE,
+                            CTEX_STROKE_JITTER_DESCRIPTOR_CURRENT_SIZE, "settings.jitter.size");
+    validate_structure_size(descriptor.taper.size, CTEX_STROKE_TAPER_DESCRIPTOR_V1_SIZE,
+                            CTEX_STROKE_TAPER_DESCRIPTOR_CURRENT_SIZE, "settings.taper.size");
+    validate_structure_size(descriptor.constraint.size, CTEX_STROKE_CONSTRAINT_DESCRIPTOR_V1_SIZE,
+                            CTEX_STROKE_CONSTRAINT_DESCRIPTOR_CURRENT_SIZE,
+                            "settings.constraint.size");
+    validate_structure_size(descriptor.symmetry.size, CTEX_STROKE_SYMMETRY_DESCRIPTOR_V1_SIZE,
+                            CTEX_STROKE_SYMMETRY_DESCRIPTOR_CURRENT_SIZE, "settings.symmetry.size");
+    validate_flag(descriptor.taper.affect_radius, "settings.taper.affect_radius");
+    validate_flag(descriptor.taper.affect_opacity, "settings.taper.affect_opacity");
+    validate_flag(descriptor.symmetry.mirror_x, "settings.symmetry.mirror_x");
+    validate_flag(descriptor.symmetry.mirror_y, "settings.symmetry.mirror_y");
+    validate_flag(descriptor.symmetry.mirror_z, "settings.symmetry.mirror_z");
+    return {
+        .reconstruction_version = descriptor.reconstruction_version,
+        .tip_mode = static_cast<ctex::paint::TipMode>(descriptor.tip_mode),
+        .spacing_fraction = descriptor.spacing_fraction,
+        .radius = descriptor.radius,
+        .opacity = descriptor.opacity,
+        .hardness = descriptor.hardness,
+        .rotation_radians = descriptor.rotation_radians,
+        .elongation = descriptor.elongation,
+        .flow = descriptor.flow,
+        .tip_resource_identity = descriptor.tip_resource_identity,
+        .stabilizer = {.radius = descriptor.stabilizer.radius,
+                       .time_constant_seconds = descriptor.stabilizer.time_constant_seconds},
+        .input_mapping =
+            {
+                .pressure_radius = stroke_mapping(descriptor.pressure_radius, "pressure_radius"),
+                .pressure_opacity = stroke_mapping(descriptor.pressure_opacity, "pressure_opacity"),
+                .pressure_hardness =
+                    stroke_mapping(descriptor.pressure_hardness, "pressure_hardness"),
+                .pressure_flow = stroke_mapping(descriptor.pressure_flow, "pressure_flow"),
+                .pressure_rotation =
+                    stroke_mapping(descriptor.pressure_rotation, "pressure_rotation"),
+                .tilt_rotation = stroke_mapping(descriptor.tilt_rotation, "tilt_rotation"),
+                .tilt_elongation = stroke_mapping(descriptor.tilt_elongation, "tilt_elongation"),
+            },
+        .jitter = {.seed = descriptor.jitter.seed,
+                   .position_fraction = descriptor.jitter.position_fraction,
+                   .radius_fraction = descriptor.jitter.radius_fraction,
+                   .rotation_radians = descriptor.jitter.rotation_radians,
+                   .opacity = descriptor.jitter.opacity,
+                   .flow = descriptor.jitter.flow},
+        .taper = {.entry = stroke_taper_span(descriptor.taper.entry, "taper.entry"),
+                  .exit = stroke_taper_span(descriptor.taper.exit, "taper.exit"),
+                  .floor = descriptor.taper.floor,
+                  .affect_radius = descriptor.taper.affect_radius != 0,
+                  .affect_opacity = descriptor.taper.affect_opacity != 0},
+        .constraint =
+            {
+                .mode = static_cast<ctex::paint::ConstraintMode>(descriptor.constraint.mode),
+                .grid_step = descriptor.constraint.grid_step,
+            },
+        .symmetry =
+            {
+                .mirror_x = descriptor.symmetry.mirror_x != 0,
+                .mirror_y = descriptor.symmetry.mirror_y != 0,
+                .mirror_z = descriptor.symmetry.mirror_z != 0,
+                .radial_count = descriptor.symmetry.radial_count,
+                .radial_axis =
+                    static_cast<ctex::paint::SymmetryAxis>(descriptor.symmetry.radial_axis),
+            },
+    };
+}
+
+std::vector<ctex::paint::StrokeInputSample> stroke_samples(const ctex_stroke_input_sample* samples,
+                                                           std::size_t sample_count) {
+    if (samples == nullptr && sample_count != 0) {
+        throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                       "samples=null with nonzero sample_count");
+    }
+    std::vector<ctex::paint::StrokeInputSample> converted;
+    converted.reserve(sample_count);
+    for (std::size_t index = 0; index < sample_count; ++index) {
+        validate_structure_size(samples[index].size, CTEX_STROKE_INPUT_SAMPLE_V1_SIZE,
+                                CTEX_STROKE_INPUT_SAMPLE_CURRENT_SIZE,
+                                "samples[" + std::to_string(index) + "].size");
+        validate_flag(samples[index].has_pressure,
+                      "samples[" + std::to_string(index) + "].has_pressure");
+        converted.push_back({
+            .position = stroke_vec(samples[index].position),
+            .frame = stroke_frame(samples[index].frame),
+            .timestamp_nanoseconds = samples[index].timestamp_nanoseconds,
+            .pressure = samples[index].has_pressure != 0
+                            ? std::optional<double>(samples[index].pressure)
+                            : std::nullopt,
+            .tilt = {samples[index].tilt.x, samples[index].tilt.y},
+        });
+    }
+    return converted;
+}
+
+void validate_output_array(const void* output, std::size_t capacity, std::size_t required,
+                           std::string_view name) {
+    if (output == nullptr && capacity != 0) {
+        throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                       std::string(name) + "=null with nonzero capacity");
+    }
+    if (output != nullptr && capacity < required) {
+        throw_boundary(CTEX_RESULT_BUFFER_TOO_SMALL, CTEX_DIAGNOSTIC_BUFFER_TOO_SMALL,
+                       std::string(name) + " capacity=" + std::to_string(capacity) +
+                           " required=" + std::to_string(required));
+    }
+}
+
+ctex_vec3d capi_vec(ctex::paint::Vec3d value) { return {value.x, value.y, value.z}; }
+
+ctex_stroke_frame capi_frame(ctex::paint::StrokeFrame value) {
+    return {
+        .tangent = capi_vec(value.tangent),
+        .bitangent = capi_vec(value.bitangent),
+        .normal = capi_vec(value.normal),
+    };
+}
+
+ctex_resolved_stamp capi_stamp(const ctex::paint::Stamp& stamp, const char* tip_identity) {
+    return {
+        .position = capi_vec(stamp.position),
+        .frame = capi_frame(stamp.frame),
+        .radius = stamp.radius,
+        .opacity = stamp.opacity,
+        .hardness = stamp.hardness,
+        .rotation_radians = stamp.rotation_radians,
+        .elongation = stamp.elongation,
+        .flow = stamp.flow,
+        .tip_resource_identity = tip_identity,
+        .source_ordinal = stamp.source_ordinal,
+        .symmetry_instance = stamp.symmetry_instance,
+        .ordinal = stamp.ordinal,
+    };
+}
+
+ctex_response_mapping_descriptor capi_mapping(const ctex::paint::ResponseMapping& mapping) {
+    return {
+        .size = CTEX_RESPONSE_MAPPING_DESCRIPTOR_CURRENT_SIZE,
+        .enabled = mapping.enabled ? 1U : 0U,
+        .points = nullptr,
+        .point_count = 0,
+        .minimum_output = mapping.minimum_output,
+        .maximum_output = mapping.maximum_output,
+    };
+}
+
+ctex_stroke_taper_span_descriptor capi_taper_span(ctex::paint::TaperSpan span) {
+    return {
+        .size = CTEX_STROKE_TAPER_SPAN_DESCRIPTOR_CURRENT_SIZE,
+        .unit = static_cast<std::uint32_t>(span.unit),
+        .extent = span.extent,
+    };
+}
+
+ctex_stroke_settings_descriptor default_stroke_settings() {
+    const ctex::paint::StrokeSettings settings;
+    return {
+        .size = CTEX_STROKE_SETTINGS_DESCRIPTOR_CURRENT_SIZE,
+        .reconstruction_version = settings.reconstruction_version,
+        .tip_mode = static_cast<std::uint32_t>(settings.tip_mode),
+        .spacing_fraction = settings.spacing_fraction,
+        .radius = settings.radius,
+        .opacity = settings.opacity,
+        .hardness = settings.hardness,
+        .rotation_radians = settings.rotation_radians,
+        .elongation = settings.elongation,
+        .flow = settings.flow,
+        .tip_resource_identity = "builtin.circle",
+        .stabilizer = {.size = CTEX_STROKE_STABILIZER_DESCRIPTOR_CURRENT_SIZE,
+                       .radius = settings.stabilizer.radius,
+                       .time_constant_seconds = settings.stabilizer.time_constant_seconds},
+        .pressure_radius = capi_mapping(settings.input_mapping.pressure_radius),
+        .pressure_opacity = capi_mapping(settings.input_mapping.pressure_opacity),
+        .pressure_hardness = capi_mapping(settings.input_mapping.pressure_hardness),
+        .pressure_flow = capi_mapping(settings.input_mapping.pressure_flow),
+        .pressure_rotation = capi_mapping(settings.input_mapping.pressure_rotation),
+        .tilt_rotation = capi_mapping(settings.input_mapping.tilt_rotation),
+        .tilt_elongation = capi_mapping(settings.input_mapping.tilt_elongation),
+        .jitter = {.size = CTEX_STROKE_JITTER_DESCRIPTOR_CURRENT_SIZE,
+                   .seed = settings.jitter.seed,
+                   .position_fraction = settings.jitter.position_fraction,
+                   .radius_fraction = settings.jitter.radius_fraction,
+                   .rotation_radians = settings.jitter.rotation_radians,
+                   .opacity = settings.jitter.opacity,
+                   .flow = settings.jitter.flow},
+        .taper = {.size = CTEX_STROKE_TAPER_DESCRIPTOR_CURRENT_SIZE,
+                  .entry = capi_taper_span(settings.taper.entry),
+                  .exit = capi_taper_span(settings.taper.exit),
+                  .floor = settings.taper.floor,
+                  .affect_radius = settings.taper.affect_radius ? 1U : 0U,
+                  .affect_opacity = settings.taper.affect_opacity ? 1U : 0U},
+        .constraint = {.size = CTEX_STROKE_CONSTRAINT_DESCRIPTOR_CURRENT_SIZE,
+                       .mode = static_cast<std::uint32_t>(settings.constraint.mode),
+                       .grid_step = settings.constraint.grid_step},
+        .symmetry = {.size = CTEX_STROKE_SYMMETRY_DESCRIPTOR_CURRENT_SIZE,
+                     .mirror_x = settings.symmetry.mirror_x ? 1U : 0U,
+                     .mirror_y = settings.symmetry.mirror_y ? 1U : 0U,
+                     .mirror_z = settings.symmetry.mirror_z ? 1U : 0U,
+                     .radial_count = settings.symmetry.radial_count,
+                     .radial_axis = static_cast<std::uint32_t>(settings.symmetry.radial_axis)},
+    };
+}
+
 }  // namespace
 
 void* ctex_host_memory_resource::do_allocate(std::size_t bytes, std::size_t alignment) {
@@ -1466,6 +1734,69 @@ extern "C" ctex_result ctex_image_encode_memory(const void* pixels, std::size_t 
                                encoded.size());
         if (encoded_buffer != nullptr) {
             std::memcpy(encoded_buffer, encoded.data(), encoded.size());
+        }
+    });
+}
+
+extern "C" ctex_result ctex_stroke_settings_init(ctex_stroke_settings_descriptor* out_settings) {
+    return call_boundary("ctex_stroke_settings_init", [&] {
+        if (out_settings == nullptr) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                           "out_settings=null");
+        }
+        *out_settings = default_stroke_settings();
+    });
+}
+
+extern "C" ctex_result ctex_stroke_resolve(
+    const ctex_stroke_settings_descriptor* settings, const ctex_stroke_input_sample* samples,
+    std::size_t sample_count, ctex_resolved_stroke_info* out_info, ctex_resolved_stamp* stamps,
+    std::size_t stamp_capacity, std::size_t* out_stamp_count, ctex_swept_segment* swept_segments,
+    std::size_t swept_segment_capacity, std::size_t* out_swept_segment_count) {
+    return call_boundary("ctex_stroke_resolve", [&] {
+        if (settings == nullptr || out_info == nullptr || out_stamp_count == nullptr ||
+            out_swept_segment_count == nullptr) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                           "settings, out_info and output counts are required");
+        }
+        validate_structure_size(out_info->size, CTEX_RESOLVED_STROKE_INFO_V1_SIZE,
+                                CTEX_RESOLVED_STROKE_INFO_CURRENT_SIZE, "out_info.size");
+        try {
+            ctex::paint::StrokeResolver resolver(stroke_settings(*settings));
+            const std::vector<ctex::paint::StrokeInputSample> converted =
+                stroke_samples(samples, sample_count);
+            resolver.append_samples(converted);
+            const ctex::paint::ResolvedStroke resolved = resolver.resolve();
+
+            *out_stamp_count = resolved.stamps.size();
+            *out_swept_segment_count = resolved.swept_segments.size();
+            *out_info = {
+                .size = CTEX_RESOLVED_STROKE_INFO_CURRENT_SIZE,
+                .reconstruction_version = resolved.reconstruction_version,
+                .tip_mode = static_cast<std::uint32_t>(resolved.tip_mode),
+                .symmetry_instance_count = resolved.symmetry_instance_count,
+                .stamp_count = resolved.stamps.size(),
+                .swept_segment_count = resolved.swept_segments.size(),
+            };
+            validate_output_array(stamps, stamp_capacity, resolved.stamps.size(), "stamps");
+            validate_output_array(swept_segments, swept_segment_capacity,
+                                  resolved.swept_segments.size(), "swept_segments");
+            if (stamps != nullptr) {
+                std::transform(resolved.stamps.begin(), resolved.stamps.end(), stamps,
+                               [&](const ctex::paint::Stamp& stamp) {
+                                   return capi_stamp(stamp, settings->tip_resource_identity);
+                               });
+            }
+            if (swept_segments != nullptr) {
+                std::transform(resolved.swept_segments.begin(), resolved.swept_segments.end(),
+                               swept_segments, [](ctex::paint::SweptSegment segment) {
+                                   return ctex_swept_segment{segment.start_stamp_ordinal,
+                                                             segment.end_stamp_ordinal};
+                               });
+            }
+        } catch (const ctex::paint::StrokeResolutionError& error) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_INVALID_STROKE,
+                           error.what());
         }
     });
 }

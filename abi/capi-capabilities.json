@@ -66,7 +66,19 @@
     {"name": "resource-residency", "kind": "runtime", "requirements": []},
     {"name": "shader-emission", "kind": "runtime", "requirements": []},
     {"name": "smart-materials", "kind": "runtime", "requirements": []},
-    {"name": "stroke-model", "kind": "runtime", "requirements": []},
+    {"name": "stroke-model", "kind": "runtime", "requirements": [
+      {"requirement": "A stroke resolves to ordered stamps", "symbols": ["ctex_stroke_settings_init", "ctex_stroke_resolve"]},
+      {"requirement": "Spacing", "symbols": ["ctex_stroke_settings_init", "ctex_stroke_resolve"]},
+      {"requirement": "Continuous coverage between stamps", "symbols": ["ctex_stroke_resolve"]},
+      {"requirement": "Pressure and tilt response", "symbols": ["ctex_stroke_settings_init", "ctex_stroke_resolve"]},
+      {"requirement": "Deterministic jitter", "symbols": ["ctex_stroke_settings_init", "ctex_stroke_resolve"]},
+      {"requirement": "Taper", "symbols": ["ctex_stroke_settings_init", "ctex_stroke_resolve"]},
+      {"requirement": "Stabilizer", "symbols": ["ctex_stroke_settings_init", "ctex_stroke_resolve"]},
+      {"requirement": "Constraints", "symbols": ["ctex_stroke_settings_init", "ctex_stroke_resolve"]},
+      {"requirement": "Symmetry planes", "symbols": ["ctex_stroke_settings_init", "ctex_stroke_resolve"]},
+      {"requirement": "Continuous and discrete tip modes", "symbols": ["ctex_stroke_settings_init", "ctex_stroke_resolve"]},
+      {"requirement": "Input reconstruction limits", "symbols": ["ctex_stroke_resolve"]}
+    ]},
     {"name": "texture-document", "kind": "runtime", "requirements": [
       {"requirement": "Document and texture sets", "symbols": ["ctex_document_create", "ctex_document_create_texture_set", "ctex_document_get_texture_set_ids"]},
       {"requirement": "Channel set", "symbols": ["ctex_texture_set_get_channel_ids", "ctex_texture_set_register_channel", "ctex_texture_set_set_channel_enabled", "ctex_texture_set_get_channel_info", "ctex_texture_set_get_memory_report"]}

@@ -360,6 +360,10 @@ if(BUILD_TESTING)
         ctex_configure_c_target(ctex_capi_image_io_test)
         target_link_libraries(ctex_capi_image_io_test PRIVATE cybertexel_c)
         add_test(NAME c-abi-image-io COMMAND ctex_capi_image_io_test)
+        add_executable(ctex_capi_stroke_test tests/capi/stroke_test.c)
+        ctex_configure_c_target(ctex_capi_stroke_test)
+        target_link_libraries(ctex_capi_stroke_test PRIVATE cybertexel_c)
+        add_test(NAME c-abi-stroke-resolution COMMAND ctex_capi_stroke_test)
         if(UNIX AND NOT APPLE)
             add_test(
                 NAME c-abi-export-surface

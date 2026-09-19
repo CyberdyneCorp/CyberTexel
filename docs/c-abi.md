@@ -143,6 +143,33 @@ floating-point input. PNG supports 8/16-bit output, JPEG and TGA support 8-bit,
 TIFF supports 8/16/32-bit, and OpenEXR supports 16/32-bit. Unsupported pairs are
 refused with a stable diagnostic that names both the format and bit depth.
 
+## Stroke reconstruction
+
+`ctex_stroke_settings_init` produces the complete canonical default settings,
+including the default linear response curves. A caller can then configure tip
+mode, spacing, base stamp properties, stabilizer, independent pressure and tilt
+response mappings, deterministic jitter, entry and exit taper, path constraints,
+and mirror or radial symmetry. A mapping with a null points pointer and zero
+count uses the canonical linear curve; custom curve points are borrowed for the
+duration of resolution.
+
+`ctex_stroke_resolve` accepts timestamped object-space samples and emits the
+canonical ordered stamp sequence plus swept segments for continuous tips. It is
+stateless and deterministic: callers use null arrays and zero capacities to
+query both output counts, then supply caller-owned arrays. No array is modified
+when either capacity is too small. Each returned stamp refers to the settings'
+borrowed tip-resource string, so that string must remain alive while the result
+is consumed.
+
+Sample and settings structures are versioned. Pressure presence is explicit, so
+mouse input is distinct from zero pen pressure. Frames, resolved stamp
+properties, source and symmetry ordinals, reconstruction version, tip mode and
+symmetry-instance count are all preserved at the boundary. Invalid curves,
+frames, enum values, timestamps and reconstruction versions return
+`CTEX_DIAGNOSTIC_INVALID_STROKE` without partial array output. The interpolation,
+timestamp and fixed-grid rules remain defined by
+[`stroke-reconstruction.md`](stroke-reconstruction.md).
+
 ## ABI version and compatibility
 
 `ctex_get_abi_version` is safe before any handle exists and returns the major,
@@ -180,7 +207,7 @@ The contract is stated per entry-point family:
 | --- | --- |
 | `ctex_get_version`, `ctex_get_abi_version` | Process-safe and callable concurrently from any thread |
 | `ctex_get_working_color_space`, `ctex_color_space_get_name`, `ctex_channel_get_color_policy`, `ctex_channel_get_bit_depth_warning`, `ctex_resolve_input_color_space`, `ctex_color_convert`, `ctex_color_input_to_working`, `ctex_accumulate_height`, `ctex_quantize_unorm8` | Stateless, process-safe and callable concurrently from any thread |
-| `ctex_image_decode_memory`, `ctex_image_encode_memory` | Stateless and safe to call concurrently; inputs are borrowed only for the call and outputs are caller-owned |
+| `ctex_image_decode_memory`, `ctex_image_encode_memory`, `ctex_stroke_settings_init`, `ctex_stroke_resolve` | Stateless and safe to call concurrently; inputs are borrowed only for the call and outputs are caller-owned |
 | `ctex_cube_lut_create` | Process-safe; each successful call creates independent immutable state and captures the active allocator |
 | `ctex_cube_lut_apply_preview` | Safe to call concurrently, including against the same immutable LUT handle |
 | `ctex_cube_lut_destroy` | The caller ensures no application call is using that handle; distinct handles may be destroyed concurrently |
