@@ -4,6 +4,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <ctex/doc/channels.hpp>
+#include <ctex/doc/smart_mask.hpp>
 #include <map>
 #include <memory>
 #include <string>
@@ -35,6 +36,49 @@ struct TextureDocumentMemoryReport {
     std::size_t total_resident_bytes{};
     friend bool operator==(const TextureDocumentMemoryReport&,
                            const TextureDocumentMemoryReport&) = default;
+};
+
+enum class AppliedPresetKind : std::uint8_t { smart_material, smart_mask };
+
+struct AppliedPresetOrigin {
+    std::string preset_identifier;
+    std::uint32_t schema_version{};
+    friend bool operator==(const AppliedPresetOrigin&, const AppliedPresetOrigin&) = default;
+};
+
+struct AppliedPresetParameterValue {
+    std::string parameter_identifier;
+    graph::SocketValue value;
+    friend bool operator==(const AppliedPresetParameterValue&,
+                           const AppliedPresetParameterValue&) = default;
+};
+
+struct AppliedPresetApplication {
+    std::string identifier;
+    AppliedPresetKind kind{AppliedPresetKind::smart_material};
+    std::string target_entry_identifier;
+    AppliedPresetOrigin origin;
+    SmartMaterialPreset fragment;
+    std::vector<AppliedPresetParameterValue> parameter_values;
+    friend bool operator==(const AppliedPresetApplication&,
+                           const AppliedPresetApplication&) = default;
+};
+
+struct PresetApplicationReport {
+    std::string application_identifier;
+    AppliedPresetOrigin origin;
+    std::vector<std::string> entry_identifiers;
+    SmartMaterialContentReport content;
+    friend bool operator==(const PresetApplicationReport&,
+                           const PresetApplicationReport&) = default;
+};
+
+struct PresetApplicationUndoReport {
+    bool removed{};
+    std::string application_identifier;
+    std::vector<std::string> entry_identifiers;
+    friend bool operator==(const PresetApplicationUndoReport&,
+                           const PresetApplicationUndoReport&) = default;
 };
 
 class TextureSetMemoryAccount {
@@ -82,12 +126,36 @@ public:
     [[nodiscard]] TextureSetMemoryAccount create_memory_account(
         TextureSetMemoryCategory category) const;
     [[nodiscard]] TextureSetMemoryReport memory_report() const;
+    [[nodiscard]] PresetApplicationReport apply_smart_material(const SmartMaterialPreset& preset,
+                                                               std::string application_identifier);
+    [[nodiscard]] PresetApplicationReport apply_smart_mask(
+        const SmartMaskPreset& preset, std::string application_identifier,
+        std::string_view target_entry_identifier);
+    [[nodiscard]] SmartMaterialParameterUpdate set_applied_preset_parameter_value(
+        std::string_view application_identifier, std::string_view parameter_identifier,
+        graph::SocketValue value);
+    [[nodiscard]] PresetApplicationUndoReport undo_last_preset_application();
+    [[nodiscard]] std::size_t preset_application_count() const noexcept {
+        return preset_applications_.size();
+    }
+    [[nodiscard]] std::size_t preset_undo_step_count() const noexcept {
+        return preset_applications_.size();
+    }
+    [[nodiscard]] const std::vector<AppliedPresetApplication>& preset_applications()
+        const noexcept {
+        return preset_applications_;
+    }
+    [[nodiscard]] const SmartMaterialEntry& applied_entry(std::string_view entry_identifier) const;
+    void replace_applied_entry(std::string_view entry_identifier, SmartMaterialEntry replacement);
+    [[nodiscard]] const AppliedPresetOrigin& applied_entry_origin(
+        std::string_view entry_identifier) const;
 
 private:
     TextureSetDescriptor descriptor_;
     std::string id_;
     TextureChannels channels_;
     std::shared_ptr<TextureSetMemoryState> memory_state_;
+    std::vector<AppliedPresetApplication> preset_applications_;
 };
 
 class TextureDocument {

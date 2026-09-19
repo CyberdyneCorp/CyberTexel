@@ -25,7 +25,8 @@ entry explicitly declares `derived` or `model_specific` content:
 Model-specific content cannot be attached to a group, filter or generator, and
 its byte count must exactly match its declared dimensions and format. This
 prevents cached generator output from being mistaken for portable authored
-pixels. Application is added by task 13.9.
+pixels. [Preset application](preset-application.md) deep-copies both forms into
+an independently editable texture-set fragment.
 
 ## Content report
 
@@ -33,8 +34,8 @@ pixels. Application is added by task 13.9.
 including its content kind, pixel-payload count and stored byte count. It also
 reports aggregate derived and model-specific entry counts and the total stored
 model-specific bytes. A host can therefore warn that painted content was made
-for another model before applying it. The application report added in task
-13.9 will carry this information into the one-step application operation.
+for another model before applying it. The one-step application report carries
+the same ordered content evidence into the instantiated fragment.
 
 ## Exposed parameters
 

@@ -27,5 +27,7 @@ then publishes it atomically. Editing one instance therefore cannot change the
 source preset or another instance created from it. Missing, mistyped and
 out-of-range parameters leave the instance unchanged.
 
-This task defines reusable masks and independent instance state. Inserting the
-instance into the document as one undoable operation remains part of task 13.9.
+[`TextureSet::apply_smart_mask()`](preset-application.md) inserts that independent
+instance against an applied layer or group. It records the outer mask origin,
+publishes no partial state on refusal, and is removed as one undo step without
+removing its target.

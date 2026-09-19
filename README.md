@@ -179,6 +179,9 @@ The current implementation provides:
 - Reusable [smart masks](docs/smart-masks.md) package derived mask, generator
   and filter graphs for layers or groups; every instance gets independent,
   typed parameter state without mutating the preset or sibling instances.
+  [Preset application](docs/preset-application.md) deep-copies material and mask
+  fragments into editable texture-set entries, records per-entry origin and
+  model-specific content evidence, and removes any-size fragments in one undo.
 - A unified [preset shelf library](docs/preset-library.md) enumerates materials,
   smart materials, smart masks, brushes, stroke presets, generators, and export
   presets with stable identities, metadata, sorted tags, embedded thumbnails,
