@@ -27,5 +27,6 @@ adding another pass. `provisional_preview` exposes those undilated pixels with
 the explicit `provisional` state. `finish` processes every staged tile once,
 marks the output `final`, and is idempotent so a repeated finalization request
 returns the same result without another pass. No tile can be staged afterward.
-This final output is the input that preview/commit parity will share in roadmap
-task 9.14.
+This final output is shared by the
+[paint preview and commit path](paint-preview.md), so dilation is included in
+preview-to-commit parity.

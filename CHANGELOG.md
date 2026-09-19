@@ -92,6 +92,10 @@ Foundation implementation is in progress.
 - Channel-agnostic UV seam dilation with a configurable two-texel default,
   directional gradient extrapolation, explicit thin-island fallback reporting,
   and idempotent stroke-end processing across every staged UV tile.
+- Copy-on-write in-flight paint previews over document channels, with explicit
+  provisional/final/committed/cancelled states, stale-revision refusal, final
+  seam dilation, and byte-exact preview-to-commit publication for every channel
+  storage format.
 - Linear Rec. 709 working-space and sRGB transfer functions with unclamped HDR
   conversion.
 - Native and sanitizer test presets plus a registry-driven determinism gate that

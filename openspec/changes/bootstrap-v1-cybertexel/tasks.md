@@ -373,7 +373,13 @@ zero disables the operation; thin regions with no interior gradient use a
 reported zero-gradient extrapolation. A stroke coordinator retains the latest
 version of every dirtied UV tile across frames, identifies intermediate output
 as provisional, and runs one idempotent final pass over all staged tiles.
-Preview without commit and final preview-to-commit equality (9.14) are next.
+Preview without commit (9.14) uses a copy-on-write image derived from the
+document channel and keeps provisional, final, committed and cancelled states
+explicit. Finalization runs seam dilation before freezing the preview. Commit
+requires the original channel object and revision, refuses a stale document,
+and publishes a pre-copied image whose tile payloads are byte-identical to the
+final preview across 8-bit UNORM, 16-bit UNORM and float storage. Bounded paint
+work reporting (9.15) is next.
 
 ## 1. Foundation
 
@@ -505,7 +511,7 @@ Preview without commit and final preview-to-commit equality (9.14) are next.
 - [x] 9.11 Masking inputs and their intersection
 - [x] 9.12 Cached coverage, triangle identity and UV island maps, keyed by mesh revision
 - [x] 9.13 UV seam dilation, extrapolating, deferred to stroke end
-- [ ] 9.14 Preview without commit, and the preview-equals-commit test
+- [x] 9.14 Preview without commit, and the preview-equals-commit test
 - [ ] 9.15 Bounded work reporting
 - [ ] 9.16 `stroke-model` and `paint-engine` scenarios as tests
 - [ ] 9.17 Seam adjacency, tangent-aware filters and derivatives, mip/gutter limits, mirrored-UV and minification fixtures

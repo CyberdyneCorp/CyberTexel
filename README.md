@@ -64,7 +64,9 @@ The current implementation provides:
   invalidates them on mesh replacement or UV-set changes. Configurable
   [UV seam dilation](docs/paint-seam-dilation.md) extends directional gradients
   into texture gutters and is deferred until every dirtied tile reaches stroke
-  finalization.
+  finalization. Isolated [paint preview sessions](docs/paint-preview.md) use
+  copy-on-write channel storage, refuse stale commits, and publish the exact
+  finalized preview—including dilation—as the committed result.
 - Sparse tiled image storage for one-to-four-channel 8-bit, 16-bit, and
   floating-point pixels, with tile-level dirty tracking and monotonic channel
   and per-tile [content revisions](docs/host-transport-revisions.md), plus

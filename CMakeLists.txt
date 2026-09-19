@@ -126,6 +126,7 @@ ctex_add_module(
         src/paint/coverage.cpp
         src/paint/deposition.cpp
         src/paint/masking.cpp
+        src/paint/preview.cpp
         src/paint/rejection.cpp
         src/paint/seam_dilation.cpp
         src/paint/surface_cache.cpp
@@ -365,6 +366,14 @@ if(BUILD_TESTING)
         PRIVATE ctex_paint ctex_doc ctex_emit ctex_pick ctex_mesh ctex_graph ctex_image
     )
     add_test(NAME paint-seam-dilation COMMAND ctex_paint_seam_dilation_test)
+
+    add_executable(ctex_paint_preview_test tests/paint/preview_test.cpp)
+    ctex_configure_cpp_target(ctex_paint_preview_test)
+    target_link_libraries(
+        ctex_paint_preview_test
+        PRIVATE ctex_paint ctex_doc ctex_emit ctex_pick ctex_mesh ctex_graph ctex_image
+    )
+    add_test(NAME paint-preview COMMAND ctex_paint_preview_test)
 
     add_executable(ctex_document_test tests/doc/document_test.cpp)
     ctex_configure_cpp_target(ctex_document_test)
