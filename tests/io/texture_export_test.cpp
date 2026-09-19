@@ -170,9 +170,12 @@ bool dry_run_reports_every_output_without_sampling() {
                   "machine-readable report omitted required fields");
 }
 
-bool cancellation_keeps_only_complete_buffers() {
+bool cancellation_after_eight_of_twenty_keeps_only_complete_buffers() {
     ExportPreset preset = one_texture_preset();
-    preset.textures.push_back(texture("_Second", {"roughness", "metallic", "occlusion", "1.0"}));
+    for (std::size_t index = 1; index < 20; ++index) {
+        preset.textures.push_back(texture("_Output" + std::to_string(index),
+                                          {"roughness", "metallic", "occlusion", "1.0"}));
+    }
     TextureExportOptions options;
     options.plan.output_resolution = ExportResolution{1, 1};
     options.padding_radius = 0;
@@ -180,12 +183,67 @@ bool cancellation_keeps_only_complete_buffers() {
     const TextureExportResult result = export_textures_to_memory(
         catalogue(), preset, options,
         [](const PlannedTextureExport&) { return gradient_source(1, 1); },
-        [&](const TextureExportProgress&) { ++completed; }, [&] { return completed == 1; });
-    return expect(result.report.cancelled && result.buffers.size() == 1 && completed == 1,
+        [&](const TextureExportProgress&) { ++completed; }, [&] { return completed == 8; });
+    const bool completed_states =
+        std::all_of(result.report.outputs.begin(), result.report.outputs.begin() + 8,
+                    [](const auto& output) { return output.state == ExportReportState::encoded; });
+    const bool unstarted_states = std::all_of(
+        result.report.outputs.begin() + 8, result.report.outputs.end(),
+        [](const auto& output) { return output.state == ExportReportState::not_started; });
+    return expect(result.report.cancelled && result.buffers.size() == 8 && completed == 8,
                   "cancelled export retained a partial output or ignored cancellation") &&
-           expect(result.report.outputs[0].state == ExportReportState::encoded &&
-                      result.report.outputs[1].state == ExportReportState::not_started,
+           expect(result.report.outputs.size() == 20 && completed_states && unstarted_states,
                   "cancelled report did not distinguish complete and unstarted outputs");
+}
+
+bool packed_and_derived_presets_encode_their_declared_slots() {
+    TextureExportOptions options;
+    options.plan.output_resolution = ExportResolution{1, 1};
+    options.padding_radius = 0;
+    const auto provider = [](const PlannedTextureExport&) {
+        ExportPixelSource source;
+        source.width = 1;
+        source.height = 1;
+        source.sample = [](std::uint32_t, std::uint32_t) {
+            ExportChannelSample sample;
+            sample.base_color = {0.8, 0.4, 0.2};
+            sample.roughness = 0.25;
+            sample.metallic = 0.75;
+            sample.occlusion = 0.5;
+            return sample;
+        };
+        return source;
+    };
+
+    const TextureExportResult orm = export_textures_to_memory(
+        catalogue(), built_in_export_preset("occlusion-roughness-metallic"), options, provider);
+    if (!expect(orm.buffers.size() == 1, "packed ORM export did not produce one texture")) {
+        return false;
+    }
+    const auto orm_pixels =
+        decode_image_memory({.bytes = orm.buffers.front().bytes, .source_name = "orm.png"});
+    const bool packed =
+        std::abs(static_cast<int>(channel(orm_pixels.pixels, 0, 0, 0)) - 128) <= 1 &&
+        std::abs(static_cast<int>(channel(orm_pixels.pixels, 0, 0, 1)) - 64) <= 1 &&
+        std::abs(static_cast<int>(channel(orm_pixels.pixels, 0, 0, 2)) - 191) <= 1;
+
+    const TextureExportResult specular = export_textures_to_memory(
+        catalogue(), built_in_export_preset("specular-glossiness"), options, provider);
+    if (!expect(specular.buffers.size() == 2,
+                "specular-glossiness export did not produce two textures")) {
+        return false;
+    }
+    const auto diffuse_pixels =
+        decode_image_memory({.bytes = specular.buffers[0].bytes, .source_name = "diffuse.png"});
+    const auto specular_pixels =
+        decode_image_memory({.bytes = specular.buffers[1].bytes, .source_name = "specular.png"});
+    const bool derived =
+        std::abs(static_cast<int>(channel(diffuse_pixels.pixels, 0, 0, 0)) - 124) <= 1 &&
+        std::abs(static_cast<int>(channel(specular_pixels.pixels, 0, 0, 0)) - 205) <= 1 &&
+        std::abs(static_cast<int>(channel(specular_pixels.pixels, 0, 0, 3)) - 191) <= 1;
+    return expect(packed, "packed ORM export did not place occlusion, roughness, and metallic") &&
+           expect(derived,
+                  "specular-glossiness export did not encode its derived diffuse and specular");
 }
 
 bool registered_data_channels_skip_color_transfer() {
@@ -277,7 +335,8 @@ int main(int argc, char** argv) {
     return export_resolution_uses_documented_bilinear_filter() &&
                    padding_reuses_gradient_extrapolation() &&
                    dry_run_reports_every_output_without_sampling() &&
-                   cancellation_keeps_only_complete_buffers() &&
+                   cancellation_after_eight_of_twenty_keeps_only_complete_buffers() &&
+                   packed_and_derived_presets_encode_their_declared_slots() &&
                    registered_data_channels_skip_color_transfer() && jpeg_quality_is_reported()
                ? 0
                : 1;

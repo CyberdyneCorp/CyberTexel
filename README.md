@@ -227,7 +227,8 @@ The current implementation provides:
   [material-graph](docs/material-graph-scenarios.md),
   [shader-emission](docs/shader-emission-scenarios.md),
   [execution-backend](docs/execution-backend-scenarios.md), and
-  [host-transport](docs/host-transport-scenarios.md), plus combined
+  [host-transport](docs/host-transport-scenarios.md),
+  [project-I/O and texture-export](docs/io-scenarios.md), plus combined
   [stroke-model and paint-engine](docs/paint-scenarios.md) scenario suites.
 
 The remaining paint tools, editable layer document, project IO, host-transport

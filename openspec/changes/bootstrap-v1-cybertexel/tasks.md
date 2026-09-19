@@ -603,6 +603,14 @@ cancellation, registered data-channel handling, and self-describing encoded
 buffers delivered without filesystem I/O. The determinism registry now compares
 both an encoded texture and its report. The consolidated project-I/O and
 texture-export scenario audit (12.11) is next.
+Task 12.11 maps all seventeen project-I/O and sixteen texture-export scenarios
+to executable evidence. A matrix gate compares those exact scenario names with
+OpenSpec and rejects missing, duplicate or unknown CTest evidence. The export
+suite now exercises packed ORM and derived specular/glossiness output end to
+end and the specified cancellation point after eight of twenty outputs. The
+project suite includes missing-mesh identity evidence and records remaining
+cross-capability dependencies without presenting them as complete. Smart
+material serialization (13.1) is next.
 
 ## 1. Foundation
 
@@ -783,7 +791,7 @@ texture-export scenario audit (12.11) is next.
 - [x] 12.8 Export formats, bit depths, and the refusal of impossible combinations
 - [x] 12.9 Export scopes, layer scopes, filename pattern and collision refusal
 - [x] 12.10 Padding, export resolution, dry run, machine-readable report, in-memory export
-- [ ] 12.11 `project-io` and `texture-export` scenarios as tests
+- [x] 12.11 `project-io` and `texture-export` scenarios as tests
 
 ## 13. Smart materials
 

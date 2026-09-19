@@ -23,7 +23,7 @@ subset. The labeled shader-emission and project-I/O scenario suites use this
 mode so unrelated later categories do not substitute for, or block, their
 reproducibility coverage.
 
-The texture-export category deliberately remains red until its owning task
-registers real outputs. An empty category is reported by name and task rather
-than counted as a pass. Project-save now writes a versioned sparse container
-twice and compares the complete binary output.
+The project-save category writes a versioned sparse container twice and compares
+the complete binary output. The texture-export category likewise compares both
+an encoded texture and its machine-readable report. Empty categories are still
+rejected by name and owning task rather than counted as a pass.

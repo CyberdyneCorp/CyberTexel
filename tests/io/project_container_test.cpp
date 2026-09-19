@@ -240,6 +240,10 @@ bool resources_round_trip_and_resolve_without_blocking_open() {
          .kind = "mesh",
          .relative_path = "meshes/source.glb",
          .packed_bytes = std::vector<std::byte>{std::byte{'g'}, std::byte{'l'}, std::byte{'b'}}},
+        {.identifier = "mesh/moved",
+         .kind = "mesh",
+         .relative_path = "meshes/moved.glb",
+         .packed_bytes = std::nullopt},
     };
     const ProjectContainerReadResult opened =
         read_project_container(write_project_container(container));
@@ -250,9 +254,9 @@ bool resources_round_trip_and_resolve_without_blocking_open() {
     return expect(opened.container.resources == container.resources &&
                       opened.report.unknown_parts.empty(),
                   "project resources did not round-trip losslessly") &&
-           expect(resolution.resources.size() == 4 && !resolution.complete() &&
+           expect(resolution.resources.size() == 5 && !resolution.complete() &&
                       resolution.missing_identifiers ==
-                          std::vector<std::string>{"maps/ambient-occlusion"},
+                          std::vector<std::string>{"maps/ambient-occlusion", "mesh/moved"},
                   "missing referenced project resource was not reported by identity") &&
            expect(resolution.resources[0].status == ProjectResourceStatus::referenced &&
                       resolution.resources[0].bytes ==
@@ -261,7 +265,8 @@ bool resources_round_trip_and_resolve_without_blocking_open() {
            expect(resolution.resources[1].status == ProjectResourceStatus::packed &&
                       resolution.resources[1].bytes == *container.resources[1].packed_bytes &&
                       resolution.resources[2].status == ProjectResourceStatus::missing &&
-                      resolution.resources[3].status == ProjectResourceStatus::packed,
+                      resolution.resources[3].status == ProjectResourceStatus::packed &&
+                      resolution.resources[4].status == ProjectResourceStatus::missing,
                   "packed or missing project resource status is incorrect");
 }
 

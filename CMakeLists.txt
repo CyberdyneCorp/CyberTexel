@@ -360,6 +360,11 @@ if(BUILD_TESTING)
         texture-export-determinism PROPERTIES WORKING_DIRECTORY "${PROJECT_SOURCE_DIR}"
     )
     add_test(
+        NAME io-scenario-matrix
+        COMMAND "${CTEX_PYTHON3_EXECUTABLE}" tests/tools/check_io_scenario_matrix.py
+    )
+    set_tests_properties(io-scenario-matrix PROPERTIES WORKING_DIRECTORY "${PROJECT_SOURCE_DIR}")
+    add_test(
         NAME project-container-determinism
         COMMAND "${CTEX_PYTHON3_EXECUTABLE}" tools/check_determinism.py project-save
     )
@@ -1166,6 +1171,7 @@ if(BUILD_TESTING)
         texture-export-report-generate
         texture-export-report-json
         texture-export-determinism
+        io-scenario-matrix
         project-container-determinism
         PROPERTIES LABELS project-io-scenario
     )
@@ -1173,10 +1179,15 @@ if(BUILD_TESTING)
         texture-export-formats texture-export-plan texture-export-execution
         texture-export-report-generate texture-export-report-json
         texture-export-determinism
+        io-scenario-matrix
         PROPERTIES LABELS "project-io-scenario;texture-export-scenario"
     )
     set_tests_properties(
         preview-emission
         PROPERTIES LABELS "shader-emission-scenario;mesh-maps-scenario"
+    )
+    set_property(
+        TEST version-consistency mesh-maps
+        APPEND PROPERTY LABELS project-io-scenario
     )
 endif()

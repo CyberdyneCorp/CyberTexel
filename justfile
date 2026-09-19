@@ -290,6 +290,9 @@ test-mesh-map-scenarios: build
 test-project-io-scenarios: build
     ctest --test-dir build/headless --output-on-failure -L '^project-io-scenario$'
 
+test-texture-export-scenarios: build
+    ctest --test-dir build/headless --output-on-failure -L '^texture-export-scenario$'
+
 test-export-presets: build
     ctest --test-dir build/headless --output-on-failure -R '^export-presets$'
 
