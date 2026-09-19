@@ -49,6 +49,24 @@ StrokeInputSample sample_with_input(double x, std::uint64_t timestamp_nanosecond
     return result;
 }
 
+Stamp host_stamp(double x, std::uint64_t source_ordinal, std::uint64_t symmetry_instance,
+                 std::uint64_t ordinal) {
+    return {
+        .position = {x, 2.0, -3.0},
+        .frame = {},
+        .radius = 2.5,
+        .opacity = 0.35,
+        .hardness = 0.65,
+        .rotation_radians = 0.75,
+        .elongation = 1.25,
+        .flow = 0.45,
+        .tip_resource_identity = "host.custom-tip",
+        .source_ordinal = source_ordinal,
+        .symmetry_instance = symmetry_instance,
+        .ordinal = ordinal,
+    };
+}
+
 ResolvedStroke resolve(StrokeSettings settings, std::span<const StrokeInputSample> samples) {
     StrokeResolver resolver(std::move(settings));
     resolver.append_samples(samples);
@@ -435,9 +453,12 @@ bool symmetry_sweeps_never_connect_instances() {
     settings.symmetry.mirror_x = true;
     const std::array samples{sample(1.0, 0), sample(3.0, 2'000'000)};
     const ResolvedStroke stroke = resolve(settings, samples);
+    const ResolvedStroke externally_ingested = ingest_resolved_stroke(stroke);
     return expect(stroke.symmetry_instance_count == 2 && stroke.stamps.size() == 6 &&
                       stroke.swept_segments.size() == 4,
                   "mirror expansion emitted the wrong stamp or sweep count") &&
+           expect(externally_ingested == stroke,
+                  "valid multi-instance external stroke was not preserved") &&
            expect(stroke.swept_segments[0] == SweptSegment{0, 1} &&
                       stroke.swept_segments[1] == SweptSegment{1, 2} &&
                       stroke.swept_segments[2] == SweptSegment{3, 4} &&
@@ -465,6 +486,71 @@ bool mirror_and_radial_symmetry_form_a_cartesian_product() {
                       stroke.stamps.back().symmetry_instance == 11 &&
                       stroke.stamps.back().ordinal == 11,
                   "combined symmetry ordering or identity instance was unstable");
+}
+
+bool external_resolved_strokes_bypass_every_resolver_modifier() {
+    const ResolvedStroke host{
+        .reconstruction_version = canonical_stroke_reconstruction_version,
+        .tip_mode = TipMode::continuous_sweep,
+        .symmetry_instance_count = 1,
+        .stamps = {host_stamp(0.0, 0, 0, 0), host_stamp(100.0, 1, 0, 1)},
+        .swept_segments = {{0, 1}},
+    };
+    const ResolvedStroke ingested = ingest_resolved_stroke(host);
+    return expect(ingested == host,
+                  "external resolved stamps were reinterpreted during ingestion") &&
+           expect(ingested.stamps.size() == 2 && ingested.stamps[1].position.x == 100.0 &&
+                      ingested.stamps[0].radius == 2.5 && ingested.stamps[0].opacity == 0.35,
+                  "external ingestion applied spacing, mapping, taper, jitter, or constraints");
+}
+
+bool external_discrete_stamps_preserve_visible_separation() {
+    const ResolvedStroke host{
+        .reconstruction_version = canonical_stroke_reconstruction_version,
+        .tip_mode = TipMode::discrete_alpha,
+        .symmetry_instance_count = 1,
+        .stamps = {host_stamp(-20.0, 0, 0, 0), host_stamp(20.0, 1, 0, 1)},
+        .swept_segments = {},
+    };
+    const ResolvedStroke ingested = ingest_resolved_stroke(host);
+    return expect(ingested == host && ingested.swept_segments.empty(),
+                  "external discrete-alpha stamps gained implicit coverage");
+}
+
+bool malformed_external_strokes_are_rejected_without_mutation() {
+    const ResolvedStroke valid{
+        .reconstruction_version = canonical_stroke_reconstruction_version,
+        .tip_mode = TipMode::continuous_sweep,
+        .symmetry_instance_count = 1,
+        .stamps = {host_stamp(0.0, 0, 0, 0), host_stamp(1.0, 1, 0, 1)},
+        .swept_segments = {{0, 1}},
+    };
+    const auto rejected = [](const ResolvedStroke& stroke) {
+        try {
+            static_cast<void>(ingest_resolved_stroke(stroke));
+        } catch (const StrokeResolutionError&) {
+            return true;
+        }
+        return false;
+    };
+
+    ResolvedStroke wrong_ordinal = valid;
+    wrong_ordinal.stamps[1].ordinal = 7;
+    ResolvedStroke invalid_frame = valid;
+    invalid_frame.stamps[0].frame.tangent = {2.0, 0.0, 0.0};
+    ResolvedStroke missing_sweep = valid;
+    missing_sweep.swept_segments.clear();
+    ResolvedStroke future = valid;
+    future.reconstruction_version = canonical_stroke_reconstruction_version + 1;
+    ResolvedStroke discrete_with_sweep = valid;
+    discrete_with_sweep.tip_mode = TipMode::discrete_alpha;
+
+    return expect(rejected(wrong_ordinal) && rejected(invalid_frame) && rejected(missing_sweep) &&
+                      rejected(future) && rejected(discrete_with_sweep),
+                  "a malformed external resolved stroke was accepted") &&
+           expect(valid.stamps[1].ordinal == 1 &&
+                      valid.swept_segments == std::vector{SweptSegment{0, 1}},
+                  "failed external ingestion mutated the caller's stroke");
 }
 
 bool spacing_contract_has_versioned_defaults_and_bounds() {
@@ -641,6 +727,9 @@ int main() {
                    radial_symmetry_supports_each_object_axis() &&
                    symmetry_sweeps_never_connect_instances() &&
                    mirror_and_radial_symmetry_form_a_cartesian_product() &&
+                   external_resolved_strokes_bypass_every_resolver_modifier() &&
+                   external_discrete_stamps_preserve_visible_separation() &&
+                   malformed_external_strokes_are_rejected_without_mutation() &&
                    spacing_contract_has_versioned_defaults_and_bounds() &&
                    invalid_input_is_rejected_without_partial_resolution()
                ? 0

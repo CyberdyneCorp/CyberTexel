@@ -324,7 +324,12 @@ symmetry after all modifiers: any subset of object-origin X/Y/Z mirrors forms a
 Cartesian product with evenly spaced radial copies around a selected axis.
 Every copy transforms the complete coordinate frame, retains its source
 ordinal, receives stable instance/final ordinals and has sweep links confined
-to its own branch. Externally resolved stamp ingestion (9.5) is next.
+to its own branch. Task 9.5 adds a separate external resolved-stroke boundary
+that validates version, stamp fields, instance/source/final ordinal structure
+and continuous or discrete sweep topology, then returns a field-equal copy.
+It accepts no resolution settings and invokes no reconstruction, spacing,
+mapping, stabilizer, constraint, taper, jitter or symmetry stage. Versioned
+stroke preset serialization and refusals (9.6) are next.
 
 ## 1. Foundation
 
@@ -447,7 +452,7 @@ to its own branch. Externally resolved stamp ingestion (9.5) is next.
 - [x] 9.2 Pressure and tilt mapping with response curves; no-pressure devices at full pressure
 - [x] 9.3 Deterministic jitter, taper, stabilizer, constraints
 - [x] 9.4 Symmetry planes and radial symmetry, emitted within one stroke
-- [ ] 9.5 Externally resolved stamp ingestion
+- [x] 9.5 Externally resolved stamp ingestion
 - [ ] 9.6 Versioned stroke presets and their refusals
 - [ ] 9.7 Paint engine: swept coverage, falloff, coordinate modes
 - [ ] 9.8 Depth, angle and backface rejection; alpha discard

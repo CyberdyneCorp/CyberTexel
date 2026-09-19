@@ -185,6 +185,8 @@ struct ResolvedStroke {
     friend bool operator==(const ResolvedStroke&, const ResolvedStroke&) = default;
 };
 
+[[nodiscard]] ResolvedStroke ingest_resolved_stroke(const ResolvedStroke& stroke);
+
 class StrokeResolutionError final : public std::invalid_argument {
 public:
     using std::invalid_argument::invalid_argument;

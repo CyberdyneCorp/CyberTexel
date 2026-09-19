@@ -711,7 +711,107 @@ ResolvedStroke expand_symmetry(const ResolvedStroke& source, SymmetrySettings sy
     return output;
 }
 
+bool valid_external_frame(StrokeFrame frame) {
+    const double tangent_length = length(frame.tangent);
+    const double bitangent_length = length(frame.bitangent);
+    const double normal_length = length(frame.normal);
+    return finite(frame.tangent) && finite(frame.bitangent) && finite(frame.normal) &&
+           std::abs(tangent_length - 1.0) <= stroke_position_tolerance &&
+           std::abs(bitangent_length - 1.0) <= stroke_position_tolerance &&
+           std::abs(normal_length - 1.0) <= stroke_position_tolerance &&
+           std::abs(dot(frame.tangent, frame.bitangent)) <= stroke_position_tolerance &&
+           std::abs(dot(frame.tangent, frame.normal)) <= stroke_position_tolerance &&
+           std::abs(dot(frame.bitangent, frame.normal)) <= stroke_position_tolerance;
+}
+
+void validate_external_stamp(const Stamp& stamp, std::size_t index,
+                             std::uint64_t symmetry_instance_count) {
+    if (stamp.ordinal != index || stamp.source_ordinal > index ||
+        stamp.symmetry_instance >= symmetry_instance_count || !finite(stamp.position) ||
+        !valid_external_frame(stamp.frame) || !finite(stamp.radius) || stamp.radius < 0.0 ||
+        !finite(stamp.opacity) || stamp.opacity < 0.0 || stamp.opacity > 1.0 ||
+        !finite(stamp.hardness) || stamp.hardness < 0.0 || stamp.hardness > 1.0 ||
+        !finite(stamp.rotation_radians) || !finite(stamp.elongation) || stamp.elongation <= 0.0 ||
+        !finite(stamp.flow) || stamp.flow < 0.0 || stamp.flow > 1.0 ||
+        stamp.tip_resource_identity.empty()) {
+        throw StrokeResolutionError("external resolved stamp " + std::to_string(index) +
+                                    " is invalid");
+    }
+}
+
+void validate_external_order(std::span<const Stamp> stamps, std::uint64_t symmetry_instance_count) {
+    if (stamps.front().symmetry_instance != 0 || stamps.front().source_ordinal != 0) {
+        throw StrokeResolutionError(
+            "external resolved stamps must begin with instance and source zero");
+    }
+    for (std::size_t index = 1; index < stamps.size(); ++index) {
+        const Stamp& previous = stamps[index - 1];
+        const Stamp& current = stamps[index];
+        const bool continues_instance = current.symmetry_instance == previous.symmetry_instance &&
+                                        current.source_ordinal == previous.source_ordinal + 1;
+        const bool starts_instance = current.symmetry_instance == previous.symmetry_instance + 1 &&
+                                     current.source_ordinal == 0;
+        if (!continues_instance && !starts_instance) {
+            throw StrokeResolutionError(
+                "external resolved stamps require contiguous instances and source ordinals");
+        }
+    }
+    if (stamps.back().symmetry_instance + 1 != symmetry_instance_count) {
+        throw StrokeResolutionError("external resolved symmetry instance count is inconsistent");
+    }
+}
+
+void validate_external_sweeps(const ResolvedStroke& stroke) {
+    if (stroke.tip_mode == TipMode::discrete_alpha) {
+        if (!stroke.swept_segments.empty()) {
+            throw StrokeResolutionError("external discrete-alpha stroke cannot contain sweeps");
+        }
+        return;
+    }
+    std::size_t segment_index = 0;
+    for (std::size_t stamp_index = 1; stamp_index < stroke.stamps.size(); ++stamp_index) {
+        if (stroke.stamps[stamp_index].symmetry_instance !=
+            stroke.stamps[stamp_index - 1].symmetry_instance) {
+            continue;
+        }
+        const SweptSegment expected{stamp_index - 1, stamp_index};
+        if (segment_index >= stroke.swept_segments.size() ||
+            stroke.swept_segments[segment_index] != expected) {
+            throw StrokeResolutionError(
+                "external continuous stroke requires one ordered sweep per adjacent source pair");
+        }
+        ++segment_index;
+    }
+    if (segment_index != stroke.swept_segments.size()) {
+        throw StrokeResolutionError("external continuous stroke contains an extra sweep");
+    }
+}
+
+void validate_external_resolved_stroke(const ResolvedStroke& stroke) {
+    if (stroke.reconstruction_version != canonical_stroke_reconstruction_version) {
+        throw StrokeResolutionError("unsupported external resolved stroke version " +
+                                    std::to_string(stroke.reconstruction_version));
+    }
+    if (stroke.tip_mode != TipMode::continuous_sweep &&
+        stroke.tip_mode != TipMode::discrete_alpha) {
+        throw StrokeResolutionError("external resolved stroke tip mode is invalid");
+    }
+    if (stroke.symmetry_instance_count == 0 || stroke.stamps.empty()) {
+        throw StrokeResolutionError("external resolved stroke must contain stamps and an instance");
+    }
+    for (std::size_t index = 0; index < stroke.stamps.size(); ++index) {
+        validate_external_stamp(stroke.stamps[index], index, stroke.symmetry_instance_count);
+    }
+    validate_external_order(stroke.stamps, stroke.symmetry_instance_count);
+    validate_external_sweeps(stroke);
+}
+
 }  // namespace
+
+ResolvedStroke ingest_resolved_stroke(const ResolvedStroke& stroke) {
+    validate_external_resolved_stroke(stroke);
+    return stroke;
+}
 
 StrokeResolver::StrokeResolver(StrokeSettings settings) : settings_(std::move(settings)) {
     validate_settings(settings_);

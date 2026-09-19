@@ -40,7 +40,8 @@ The current implementation provides:
   continuous sweep links, separated discrete-alpha tip events, and independent
   pressure/tilt response curves, deterministic jitter, entry/exit taper, and
   straight-line, dominant-axis, and grid constraints, plus object-plane and
-  radial symmetry within one resolved stroke.
+  radial symmetry within one resolved stroke. Hosts with their own stroke
+  engine can ingest validated resolved stamps without reapplying modifiers.
 - Sparse tiled image storage for one-to-four-channel 8-bit, 16-bit, and
   floating-point pixels, with tile-level dirty tracking and monotonic channel
   and per-tile [content revisions](docs/host-transport-revisions.md), plus

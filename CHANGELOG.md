@@ -67,6 +67,8 @@ Foundation implementation is in progress.
   taper, and straight-line, dominant-axis, and grid stroke constraints.
 - Object-space X/Y/Z mirror planes and selectable-axis radial symmetry, with
   transformed coordinate frames and branch-local continuous sweep links.
+- Validated external resolved-stroke ingestion that preserves host stamps and
+  sweep topology without reapplying any reconstruction or modifier stage.
 - Linear Rec. 709 working-space and sRGB transfer functions with unclamped HDR
   conversion.
 - Native and sanitizer test presets plus a registry-driven determinism gate that

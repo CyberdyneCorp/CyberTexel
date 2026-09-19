@@ -148,6 +148,31 @@ product. Continuous sweep links are duplicated inside each instance and never
 connect two instances. All instances remain in one `ResolvedStroke`, allowing a
 document integration to record them as one history operation.
 
+## Externally resolved strokes
+
+`ingest_resolved_stroke` is the host-owned stroke-engine route. It accepts a
+`const ResolvedStroke&`, validates only the resolved contract, and returns a
+field-for-field equal copy. It has no `StrokeSettings` argument and never runs
+sample reconstruction, spacing, pressure or tilt mapping, stabilization,
+constraints, taper, jitter, or symmetry. Rejection therefore leaves the
+caller's value unchanged.
+
+The boundary accepts the current resolved-stroke version, a known tip mode, at
+least one stamp and at least one symmetry instance. Final ordinals must equal
+vector indices. Instances are contiguous and instance-major from zero;
+pre-symmetry source ordinals are contiguous from zero within each instance.
+Every reported instance must be present. Stamp numbers must be finite, radius
+may be zero but not negative, opacity/hardness/flow remain normalized,
+elongation stays positive, tip identity is non-empty, and frame axes are unit
+and mutually orthogonal within the version-1 positional tolerance. Either frame
+handedness is accepted so reflected frames remain valid.
+
+A continuous external stroke supplies exactly one ordered sweep for every
+adjacent source pair within each instance and none between instances. A
+discrete-alpha stroke supplies no sweeps. These checks prevent malformed
+topology; they never add, remove, reorder, normalize, or otherwise reinterpret
+valid host stamps.
+
 In `continuous_sweep` mode every pair of consecutive stamps has a
 `SweptSegment`. A final endpoint stamp closes any residual shorter-than-spacing
 path before post-placement modifiers, and sweep links then connect the final
