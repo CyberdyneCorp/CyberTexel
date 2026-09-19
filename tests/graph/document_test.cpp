@@ -1,6 +1,7 @@
 #include <array>
 #include <ctex/graph/document.hpp>
 #include <iostream>
+#include <limits>
 #include <stdexcept>
 #include <string_view>
 
@@ -101,6 +102,38 @@ bool clones_are_independent_and_comparable() {
                   "mutating a clone changed the source graph");
 }
 
+bool property_updates_preserve_type_and_finiteness() {
+    ctex::graph::GraphDocument graph(output_node());
+    const ctex::graph::NodeId source = graph.add_node(source_node());
+    graph.set_property_value(source, "seed", 7.0);
+    const std::string after_valid_update = ctex::graph::serialize_graph(graph);
+
+    bool wrong_type_refused = false;
+    bool non_finite_refused = false;
+    bool missing_refused = false;
+    try {
+        graph.set_property_value(source, "seed", std::string("wrong"));
+    } catch (const std::invalid_argument&) {
+        wrong_type_refused = true;
+    }
+    try {
+        graph.set_property_value(source, "seed", std::numeric_limits<double>::infinity());
+    } catch (const std::invalid_argument&) {
+        non_finite_refused = true;
+    }
+    try {
+        graph.set_property_value(source, "missing", 1.0);
+    } catch (const std::out_of_range&) {
+        missing_refused = true;
+    }
+    return expect(std::get<double>(graph.node(source).properties.front().value) == 7.0,
+                  "graph property update did not publish its valid value") &&
+           expect(wrong_type_refused && non_finite_refused && missing_refused,
+                  "graph property update accepted an invalid target or value") &&
+           expect(ctex::graph::serialize_graph(graph) == after_valid_update,
+                  "refused graph property update changed the document");
+}
+
 bool output_and_node_id_invariants_are_preserved() {
     ctex::graph::GraphDocument graph(output_node());
     const ctex::graph::NodeId first = graph.add_node(source_node());
@@ -183,6 +216,7 @@ bool interface_updates_validate_before_preserving_values() {
 int main() {
     return round_trip_preserves_the_complete_document() &&
                    clones_are_independent_and_comparable() &&
+                   property_updates_preserve_type_and_finiteness() &&
                    output_and_node_id_invariants_are_preserved() &&
                    links_require_declared_socket_endpoints() &&
                    malformed_serialization_is_refused() &&

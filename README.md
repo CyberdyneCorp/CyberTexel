@@ -172,7 +172,8 @@ The current implementation provides:
   preserves ordered layer, group, mask, filter and generator fragments with
   embedded graphs and typed, ranged, display-grouped exposed parameters. It
   keeps derived content definition-only while preserving and reporting
-  model-specific painted pixels.
+  model-specific painted pixels, and one atomic parameter update can drive
+  input sockets and node properties across multiple entries.
 - An isolated [Kong shader compiler context](docs/kong-backend.md) that compiles
   Kong source deterministically to WGSL, MSL, binary SPIR-V, or HLSL, supports
   concurrent independent targets, and reports unsupported requests explicitly.

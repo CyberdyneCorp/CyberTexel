@@ -5,7 +5,9 @@
 #include <ctex/doc/smart_material.hpp>
 #include <limits>
 #include <map>
+#include <set>
 #include <span>
+#include <tuple>
 #include <type_traits>
 #include <utility>
 
@@ -238,6 +240,17 @@ bool component_in_range(const graph::SocketValue& value, double minimum, double 
     return false;
 }
 
+bool parameter_value_is_valid(const ExposedSmartMaterialParameter& parameter,
+                              const graph::SocketValue& value) {
+    if (!type_matches(parameter.type, value) || !finite_value(value)) {
+        return false;
+    }
+    if (!parameter.minimum.has_value()) {
+        return true;
+    }
+    return component_in_range(value, *parameter.minimum, *parameter.maximum);
+}
+
 void validate_parameter(const ExposedSmartMaterialParameter& parameter) {
     if (parameter.identifier.empty() || parameter.display_name.empty() ||
         parameter.display_group.empty()) {
@@ -306,6 +319,64 @@ void validate_content(const SmartMaterialEntry& entry) {
     }
 }
 
+const graph::GraphNode& bound_node(const SmartMaterialEntry& entry,
+                                   const SmartMaterialParameterBinding& binding) {
+    if (!entry.graph.has_value()) {
+        invalid("smart material parameter binding entry has no graph");
+    }
+    const auto found =
+        std::find_if(entry.graph->nodes().begin(), entry.graph->nodes().end(),
+                     [&](const graph::GraphNode& node) { return node.id == binding.node_id; });
+    if (found == entry.graph->nodes().end()) {
+        invalid("smart material parameter binding node does not exist");
+    }
+    return *found;
+}
+
+const graph::SocketValue& bound_value(const SmartMaterialEntry& entry,
+                                      const SmartMaterialParameterBinding& binding) {
+    const graph::GraphNode& node = bound_node(entry, binding);
+    if (binding.target_kind == SmartMaterialBindingTargetKind::input) {
+        const auto found = std::find_if(node.inputs.begin(), node.inputs.end(),
+                                        [&](const graph::NodeSocket& socket) {
+                                            return socket.identifier == binding.target_identifier;
+                                        });
+        if (found == node.inputs.end()) {
+            invalid("smart material parameter binding input does not exist");
+        }
+        const bool linked = std::any_of(entry.graph->links().begin(), entry.graph->links().end(),
+                                        [&](const graph::GraphLink& link) {
+                                            return link.target_node == binding.node_id &&
+                                                   link.target_socket == binding.target_identifier;
+                                        });
+        if (linked) {
+            invalid("smart material parameter cannot bind a linked graph input");
+        }
+        return found->value;
+    }
+    const auto found = std::find_if(node.properties.begin(), node.properties.end(),
+                                    [&](const graph::NodeProperty& property) {
+                                        return property.key == binding.target_identifier;
+                                    });
+    if (found == node.properties.end()) {
+        invalid("smart material parameter binding property does not exist");
+    }
+    return found->value;
+}
+
+void validate_binding(const ExposedSmartMaterialParameter& parameter,
+                      const SmartMaterialEntry& entry,
+                      const SmartMaterialParameterBinding& binding) {
+    if (binding.node_id == 0 || binding.target_identifier.empty() ||
+        static_cast<std::uint8_t>(binding.target_kind) >
+            static_cast<std::uint8_t>(SmartMaterialBindingTargetKind::property)) {
+        invalid("smart material parameter binding metadata is invalid");
+    }
+    if (!type_matches(parameter.type, bound_value(entry, binding))) {
+        invalid("smart material parameter binding type does not match its target");
+    }
+}
+
 SmartMaterialEntryKind parse_entry_kind(std::string_view value) {
     const auto parsed = parse_decimal<std::uint8_t>(value, "stack entry kind");
     if (parsed > static_cast<std::uint8_t>(SmartMaterialEntryKind::generator)) {
@@ -320,6 +391,14 @@ SmartMaterialContentKind parse_content_kind(std::string_view value) {
         malformed("smart material has an unknown content kind");
     }
     return static_cast<SmartMaterialContentKind>(parsed);
+}
+
+SmartMaterialBindingTargetKind parse_binding_target_kind(std::string_view value) {
+    const auto parsed = parse_decimal<std::uint8_t>(value, "binding target kind");
+    if (parsed > static_cast<std::uint8_t>(SmartMaterialBindingTargetKind::property)) {
+        malformed("smart material has an unknown binding target kind");
+    }
+    return static_cast<SmartMaterialBindingTargetKind>(parsed);
 }
 
 graph::SocketType parse_parameter_type(std::string_view value) {
@@ -383,6 +462,15 @@ void append_parameter(std::string& output, const ExposedSmartMaterialParameter& 
     output +=
         "\t" + (parameter.maximum.has_value() ? double_hex(*parameter.maximum) : std::string("-"));
     output.push_back('\n');
+}
+
+void append_binding(std::string& output, const ExposedSmartMaterialParameter& parameter,
+                    const SmartMaterialParameterBinding& binding) {
+    output += "BIND\t" + encode_bytes(parameter.identifier);
+    output += "\t" + encode_bytes(binding.entry_identifier);
+    output += "\t" + std::to_string(binding.node_id);
+    output += "\t" + std::to_string(static_cast<unsigned>(binding.target_kind));
+    output += "\t" + encode_bytes(binding.target_identifier) + "\n";
 }
 
 std::uint32_t parse_envelope(std::span<const std::string_view> records) {
@@ -466,7 +554,24 @@ ExposedSmartMaterialParameter parse_parameter_record(std::span<const std::string
             .type = parse_parameter_type(fields[1]),
             .default_value = parse_value(fields[5], fields[6]),
             .minimum = parse_optional_double(fields[7]),
-            .maximum = parse_optional_double(fields[8])};
+            .maximum = parse_optional_double(fields[8]),
+            .bindings = {}};
+}
+
+struct ParsedBinding {
+    std::string parameter_identifier;
+    SmartMaterialParameterBinding binding;
+};
+
+ParsedBinding parse_binding_record(std::span<const std::string_view> fields) {
+    if (fields.size() != 6 || fields[0] != "BIND") {
+        malformed("smart material contains a malformed parameter binding record");
+    }
+    return {.parameter_identifier = decode_bytes(fields[1]),
+            .binding = {.entry_identifier = decode_bytes(fields[2]),
+                        .node_id = parse_decimal<graph::NodeId>(fields[3], "binding node identity"),
+                        .target_kind = parse_binding_target_kind(fields[4]),
+                        .target_identifier = decode_bytes(fields[5])}};
 }
 
 void append_parsed_record(SmartMaterialPreset& preset, std::string_view record,
@@ -489,6 +594,15 @@ void append_parsed_record(SmartMaterialPreset& preset, std::string_view record,
         preset.exposed_parameters.push_back(parse_parameter_record(fields));
         return;
     }
+    if (!fields.empty() && fields[0] == "BIND" && saw_parameter &&
+        !preset.exposed_parameters.empty()) {
+        ParsedBinding parsed = parse_binding_record(fields);
+        if (parsed.parameter_identifier != preset.exposed_parameters.back().identifier) {
+            malformed("smart material binding does not follow its owning parameter");
+        }
+        preset.exposed_parameters.back().bindings.push_back(std::move(parsed.binding));
+        return;
+    }
     malformed("smart material contains a malformed or out-of-order record");
 }
 
@@ -500,6 +614,28 @@ void validate_deserialized(const SmartMaterialPreset& preset) {
             throw;
         }
         malformed("serialized smart material is invalid: " + std::string(error.what()));
+    }
+}
+
+SmartMaterialEntry& mutable_bound_entry(SmartMaterialPreset& preset,
+                                        const SmartMaterialParameterBinding& binding) {
+    const auto found = std::find_if(preset.stack.begin(), preset.stack.end(),
+                                    [&](const SmartMaterialEntry& entry) {
+                                        return entry.identifier == binding.entry_identifier;
+                                    });
+    if (found == preset.stack.end()) {
+        invalid("smart material parameter binding entry does not exist");
+    }
+    return *found;
+}
+
+void set_bound_value(SmartMaterialPreset& preset, const SmartMaterialParameterBinding& binding,
+                     const graph::SocketValue& value) {
+    SmartMaterialEntry& entry = mutable_bound_entry(preset, binding);
+    if (binding.target_kind == SmartMaterialBindingTargetKind::input) {
+        entry.graph->set_input_value(binding.node_id, binding.target_identifier, value);
+    } else {
+        entry.graph->set_property_value(binding.node_id, binding.target_identifier, value);
     }
 }
 
@@ -516,7 +652,7 @@ void validate_smart_material(const SmartMaterialPreset& preset) {
     if (preset.identifier.empty() || preset.display_name.empty() || preset.stack.empty()) {
         invalid("smart material requires an identity, display name, and non-empty stack");
     }
-    std::map<std::string_view, SmartMaterialEntryKind, std::less<>> entries;
+    std::map<std::string_view, const SmartMaterialEntry*, std::less<>> entries;
     for (const SmartMaterialEntry& entry : preset.stack) {
         if (entry.identifier.empty() || entry.display_name.empty() ||
             !std::isfinite(entry.opacity) || entry.opacity < 0.0 || entry.opacity > 1.0 ||
@@ -530,17 +666,36 @@ void validate_smart_material(const SmartMaterialPreset& preset) {
                 invalid("smart material stack parent must be an earlier entry");
             }
         }
-        if (!entries.emplace(entry.identifier, entry.kind).second) {
+        if (!entries.emplace(entry.identifier, &entry).second) {
             invalid("smart material repeats stack entry identity '" + entry.identifier + "'");
         }
         validate_content(entry);
     }
     std::map<std::string_view, bool, std::less<>> parameters;
+    std::set<std::tuple<std::string_view, graph::NodeId, SmartMaterialBindingTargetKind,
+                        std::string_view>>
+        bound_targets;
     for (const ExposedSmartMaterialParameter& parameter : preset.exposed_parameters) {
         validate_parameter(parameter);
         if (!parameters.emplace(parameter.identifier, true).second) {
             invalid("smart material repeats exposed parameter identity '" + parameter.identifier +
                     "'");
+        }
+        if (parameter.bindings.empty()) {
+            invalid("exposed smart material parameter requires at least one binding");
+        }
+        for (const SmartMaterialParameterBinding& binding : parameter.bindings) {
+            const auto entry = entries.find(binding.entry_identifier);
+            if (entry == entries.end()) {
+                invalid("smart material parameter binding entry does not exist");
+            }
+            validate_binding(parameter, *entry->second, binding);
+            const auto target =
+                std::tuple{std::string_view(binding.entry_identifier), binding.node_id,
+                           binding.target_kind, std::string_view(binding.target_identifier)};
+            if (!bound_targets.insert(target).second) {
+                invalid("smart material parameter target is bound more than once");
+            }
         }
     }
 }
@@ -568,6 +723,40 @@ SmartMaterialContentReport report_smart_material_content(const SmartMaterialPres
     return report;
 }
 
+SmartMaterialParameterUpdate set_smart_material_parameter_value(
+    SmartMaterialPreset& preset, std::string_view parameter_identifier, graph::SocketValue value) {
+    validate_smart_material(preset);
+    const auto parameter =
+        std::find_if(preset.exposed_parameters.begin(), preset.exposed_parameters.end(),
+                     [&](const ExposedSmartMaterialParameter& candidate) {
+                         return candidate.identifier == parameter_identifier;
+                     });
+    if (parameter == preset.exposed_parameters.end()) {
+        throw SmartMaterialError(
+            SmartMaterialErrorCode::unknown_parameter,
+            "smart material parameter '" + std::string(parameter_identifier) + "' does not exist");
+    }
+    if (!parameter_value_is_valid(*parameter, value)) {
+        throw SmartMaterialError(SmartMaterialErrorCode::invalid_parameter_value,
+                                 "smart material parameter value is invalid");
+    }
+
+    SmartMaterialPreset updated = preset;
+    const auto updated_parameter =
+        std::find_if(updated.exposed_parameters.begin(), updated.exposed_parameters.end(),
+                     [&](const ExposedSmartMaterialParameter& candidate) {
+                         return candidate.identifier == parameter_identifier;
+                     });
+    for (const SmartMaterialParameterBinding& binding : updated_parameter->bindings) {
+        set_bound_value(updated, binding, value);
+    }
+    validate_smart_material(updated);
+    SmartMaterialParameterUpdate result{.parameter_identifier = std::string(parameter_identifier),
+                                        .updated_bindings = updated_parameter->bindings};
+    preset = std::move(updated);
+    return result;
+}
+
 std::string serialize_smart_material(const SmartMaterialPreset& preset) {
     validate_smart_material(preset);
     std::string output = "CTEX_SMART_MATERIAL\t" + std::to_string(preset.schema_version) + "\n";
@@ -581,6 +770,9 @@ std::string serialize_smart_material(const SmartMaterialPreset& preset) {
     }
     for (const ExposedSmartMaterialParameter& parameter : preset.exposed_parameters) {
         append_parameter(output, parameter);
+        for (const SmartMaterialParameterBinding& binding : parameter.bindings) {
+            append_binding(output, parameter, binding);
+        }
     }
     output += "END\n";
     return output;

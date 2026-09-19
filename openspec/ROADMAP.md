@@ -7,7 +7,7 @@ decisions taken and questions still open.
 ## Status
 
 Implementation started. 24 capabilities, 332 requirements, 400 scenarios and
-222 tasks, 117 done. Foundation and the complete headless color-management
+222 tasks, 118 done. Foundation and the complete headless color-management
 scenario suite are green. Slice-A now has memory-buffer PNG input/output with
 8/16-bit preservation and hostile-input ceilings; full image-format breadth
 remains scheduled for slice D. Extensible channel descriptors and sparse
@@ -95,7 +95,9 @@ ordered stack-fragment serialization with embedded graphs and typed, ranged,
 display-grouped parameters. Derived entries retain definitions without cached
 raster output, while model-specific painted layers and masks preserve validated
 pixels and appear in an inspectable content report. Exposed parameter binding
-across entries (13.3) is the next roadmap item.
+now targets stable graph inputs and properties across many entries, with typed,
+ranged, atomic updates and inert-target refusal. Smart masks with independent
+instances (13.4) are the next roadmap item.
 
 ## Milestones
 

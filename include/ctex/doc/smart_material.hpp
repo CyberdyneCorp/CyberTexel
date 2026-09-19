@@ -13,7 +13,7 @@
 
 namespace ctex::doc {
 
-inline constexpr std::uint32_t current_smart_material_schema_version = 2;
+inline constexpr std::uint32_t current_smart_material_schema_version = 3;
 
 enum class SmartMaterialEntryKind : std::uint8_t { layer, group, mask, filter, generator };
 enum class SmartMaterialContentKind : std::uint8_t { derived, model_specific };
@@ -42,6 +42,17 @@ struct SmartMaterialEntry {
     friend bool operator==(const SmartMaterialEntry&, const SmartMaterialEntry&) = default;
 };
 
+enum class SmartMaterialBindingTargetKind : std::uint8_t { input, property };
+
+struct SmartMaterialParameterBinding {
+    std::string entry_identifier;
+    graph::NodeId node_id{};
+    SmartMaterialBindingTargetKind target_kind{SmartMaterialBindingTargetKind::input};
+    std::string target_identifier;
+    friend bool operator==(const SmartMaterialParameterBinding&,
+                           const SmartMaterialParameterBinding&) = default;
+};
+
 struct ExposedSmartMaterialParameter {
     std::string identifier;
     std::string display_name;
@@ -50,6 +61,7 @@ struct ExposedSmartMaterialParameter {
     graph::SocketValue default_value{0.0};
     std::optional<double> minimum;
     std::optional<double> maximum;
+    std::vector<SmartMaterialParameterBinding> bindings;
     friend bool operator==(const ExposedSmartMaterialParameter&,
                            const ExposedSmartMaterialParameter&) = default;
 };
@@ -85,9 +97,18 @@ struct SmartMaterialContentReport {
                            const SmartMaterialContentReport&) = default;
 };
 
+struct SmartMaterialParameterUpdate {
+    std::string parameter_identifier;
+    std::vector<SmartMaterialParameterBinding> updated_bindings;
+    friend bool operator==(const SmartMaterialParameterUpdate&,
+                           const SmartMaterialParameterUpdate&) = default;
+};
+
 enum class SmartMaterialErrorCode : std::uint8_t {
     invalid_preset,
+    invalid_parameter_value,
     malformed_serialization,
+    unknown_parameter,
     unsupported_version,
 };
 
@@ -103,6 +124,8 @@ private:
 void validate_smart_material(const SmartMaterialPreset& preset);
 [[nodiscard]] SmartMaterialContentReport report_smart_material_content(
     const SmartMaterialPreset& preset);
+[[nodiscard]] SmartMaterialParameterUpdate set_smart_material_parameter_value(
+    SmartMaterialPreset& preset, std::string_view parameter_identifier, graph::SocketValue value);
 
 // Canonical, versioned, device-independent representation. Stack order is
 // retained because it is part of the material's compositing semantics.

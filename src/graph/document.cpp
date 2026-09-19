@@ -337,6 +337,21 @@ void GraphDocument::set_input_value(NodeId id, std::string_view socket_identifie
     found->value = std::move(value);
 }
 
+void GraphDocument::set_property_value(NodeId id, std::string_view property_key,
+                                       SocketValue value) {
+    GraphNode& node_value = mutable_node(id);
+    const auto found =
+        std::find_if(node_value.properties.begin(), node_value.properties.end(),
+                     [&](const NodeProperty& property) { return property.key == property_key; });
+    if (found == node_value.properties.end()) {
+        throw std::out_of_range("graph node property does not exist");
+    }
+    if (!value_is_valid(value) || value.index() != found->value.index()) {
+        throw std::invalid_argument("graph property value is non-finite or has the wrong type");
+    }
+    found->value = std::move(value);
+}
+
 NodeInterfaceUpdate GraphDocument::update_node_interface(NodeId id, std::uint32_t type_version,
                                                          std::vector<NodeSocket> inputs,
                                                          std::vector<NodeSocket> outputs) {

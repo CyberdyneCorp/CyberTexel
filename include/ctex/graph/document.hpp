@@ -136,6 +136,7 @@ public:
     void remove_node(NodeId id);
     void set_node_position(NodeId id, NodePosition position);
     void set_input_value(NodeId id, std::string_view socket_identifier, SocketValue value);
+    void set_property_value(NodeId id, std::string_view property_key, SocketValue value);
     [[nodiscard]] NodeInterfaceUpdate update_node_interface(NodeId id, std::uint32_t type_version,
                                                             std::vector<NodeSocket> inputs,
                                                             std::vector<NodeSocket> outputs);

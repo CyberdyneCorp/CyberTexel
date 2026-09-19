@@ -1,3 +1,4 @@
+#include <algorithm>
 #include <ctex/doc/smart_material.hpp>
 #include <iostream>
 #include <limits>
@@ -35,9 +36,17 @@ graph::GraphDocument graph_fixture(std::string name) {
                                  .inputs = {{.identifier = "value",
                                              .display_name = "Value",
                                              .type = graph::SocketType::scalar,
-                                             .value = 0.5}},
+                                             .value = 0.4},
+                                            {.identifier = "colour",
+                                             .display_name = "Colour",
+                                             .type = graph::SocketType::colour,
+                                             .value = graph::ColourValue{0.4F, 0.1F, 0.02F, 1.0F}},
+                                            {.identifier = "enabled",
+                                             .display_name = "Enabled",
+                                             .type = graph::SocketType::boolean,
+                                             .value = true}},
                                  .outputs = {},
-                                 .properties = {}});
+                                 .properties = {{.key = "strength", .value = 0.4}}});
 }
 
 SmartMaterialPreset rich_preset() {
@@ -115,23 +124,101 @@ SmartMaterialPreset rich_preset() {
                  .type = graph::SocketType::scalar,
                  .default_value = 0.4,
                  .minimum = 0.0,
-                 .maximum = 1.0},
+                 .maximum = 1.0,
+                 .bindings = {{.entry_identifier = "base",
+                               .node_id = 1,
+                               .target_kind = SmartMaterialBindingTargetKind::input,
+                               .target_identifier = "value"},
+                              {.entry_identifier = "wear-mask",
+                               .node_id = 1,
+                               .target_kind = SmartMaterialBindingTargetKind::input,
+                               .target_identifier = "value"},
+                              {.entry_identifier = "scratches",
+                               .node_id = 1,
+                               .target_kind = SmartMaterialBindingTargetKind::property,
+                               .target_identifier = "strength"}}},
                 {.identifier = "rust-colour",
                  .display_name = "Rust colour",
                  .display_group = "Surface",
                  .type = graph::SocketType::colour,
                  .default_value = graph::ColourValue{0.4F, 0.1F, 0.02F, 1.0F},
                  .minimum = 0.0,
-                 .maximum = 1.0},
+                 .maximum = 1.0,
+                 .bindings = {{.entry_identifier = "base",
+                               .node_id = 1,
+                               .target_kind = SmartMaterialBindingTargetKind::input,
+                               .target_identifier = "colour"}}},
                 {.identifier = "use-scratches",
                  .display_name = "Use scratches",
                  .display_group = "Wear",
                  .type = graph::SocketType::boolean,
                  .default_value = true,
                  .minimum = std::nullopt,
-                 .maximum = std::nullopt},
+                 .maximum = std::nullopt,
+                 .bindings = {{.entry_identifier = "scratches",
+                               .node_id = 1,
+                               .target_kind = SmartMaterialBindingTargetKind::input,
+                               .target_identifier = "enabled"}}},
             },
     };
+}
+
+const graph::SocketValue& input_value(const SmartMaterialPreset& preset, std::size_t entry_index,
+                                      std::string_view identifier) {
+    const auto& inputs = preset.stack[entry_index].graph->node(1).inputs;
+    return std::find_if(
+               inputs.begin(), inputs.end(),
+               [&](const graph::NodeSocket& input) { return input.identifier == identifier; })
+        ->value;
+}
+
+const graph::SocketValue& property_value(const SmartMaterialPreset& preset, std::size_t entry_index,
+                                         std::string_view key) {
+    const auto& properties = preset.stack[entry_index].graph->node(1).properties;
+    return std::find_if(properties.begin(), properties.end(),
+                        [&](const graph::NodeProperty& item) { return item.key == key; })
+        ->value;
+}
+
+bool one_parameter_updates_every_bound_entry() {
+    SmartMaterialPreset preset = rich_preset();
+    const SmartMaterialParameterUpdate update =
+        set_smart_material_parameter_value(preset, "wear-amount", 0.85);
+    const graph::ColourValue rust{0.2F, 0.3F, 0.4F, 1.0F};
+    static_cast<void>(set_smart_material_parameter_value(preset, "rust-colour", rust));
+    static_cast<void>(set_smart_material_parameter_value(preset, "use-scratches", false));
+    return expect(
+               update.parameter_identifier == "wear-amount" && update.updated_bindings.size() == 3,
+               "parameter update did not report every bound target") &&
+           expect(std::get<double>(input_value(preset, 1, "value")) == 0.85 &&
+                      std::get<double>(input_value(preset, 2, "value")) == 0.85 &&
+                      std::get<double>(property_value(preset, 4, "strength")) == 0.85,
+                  "one exposed parameter did not update all bound graph values") &&
+           expect(std::get<graph::ColourValue>(input_value(preset, 1, "colour")) == rust &&
+                      !std::get<bool>(input_value(preset, 4, "enabled")),
+                  "typed colour or boolean binding did not update") &&
+           expect(std::get<double>(preset.exposed_parameters.front().default_value) == 0.4,
+                  "setting a parameter changed its declared reset default");
+}
+
+bool invalid_parameter_updates_are_atomic() {
+    SmartMaterialPreset preset = rich_preset();
+    const std::string before = serialize_smart_material(preset);
+    const bool range_refused = expect_error(
+        [&] { static_cast<void>(set_smart_material_parameter_value(preset, "wear-amount", 2.0)); },
+        SmartMaterialErrorCode::invalid_parameter_value,
+        "out-of-range smart material parameter update was accepted");
+    const bool type_refused = expect_error(
+        [&] { static_cast<void>(set_smart_material_parameter_value(preset, "wear-amount", true)); },
+        SmartMaterialErrorCode::invalid_parameter_value,
+        "wrong-type smart material parameter update was accepted");
+    const bool unknown_refused = expect_error(
+        [&] { static_cast<void>(set_smart_material_parameter_value(preset, "missing", 0.5)); },
+        SmartMaterialErrorCode::unknown_parameter,
+        "unknown smart material parameter update was accepted");
+    return range_refused && type_refused && unknown_refused &&
+           expect(serialize_smart_material(preset) == before,
+                  "refused smart material parameter update changed the preset");
 }
 
 bool complete_fragment_round_trips_canonically() {
@@ -142,7 +229,8 @@ bool complete_fragment_round_trips_canonically() {
            expect(serialize_smart_material(restored) == serialized,
                   "smart material serialization is not canonical") &&
            expect(restored.stack.size() == 6 && restored.stack[2].graph.has_value() &&
-                      restored.exposed_parameters.size() == 3,
+                      restored.exposed_parameters.size() == 3 &&
+                      restored.exposed_parameters.front().bindings.size() == 3,
                   "smart material omitted an entry kind, graph, or exposed parameter") &&
            expect(serialized.find(source.display_name) == std::string::npos,
                   "smart material text was not safely length-independent encoded");
@@ -201,17 +289,58 @@ bool invalid_fragments_are_refused() {
 
     SmartMaterialPreset wrong_pixel_size = rich_preset();
     wrong_pixel_size.stack.back().pixel_payloads.front().pixels.pop_back();
+    const bool pixel_size_refused =
+        expect_error([&] { static_cast<void>(serialize_smart_material(wrong_pixel_size)); },
+                     SmartMaterialErrorCode::invalid_preset,
+                     "model-specific content accepted a mismatched pixel byte count");
+
+    SmartMaterialPreset duplicate_binding = rich_preset();
+    duplicate_binding.exposed_parameters.front().bindings.push_back(
+        duplicate_binding.exposed_parameters.front().bindings.front());
+    const bool duplicate_binding_refused =
+        expect_error([&] { static_cast<void>(serialize_smart_material(duplicate_binding)); },
+                     SmartMaterialErrorCode::invalid_preset,
+                     "one smart material target accepted duplicate bindings");
+
+    SmartMaterialPreset missing_target = rich_preset();
+    missing_target.exposed_parameters.front().bindings.front().target_identifier = "missing";
+    const bool missing_target_refused =
+        expect_error([&] { static_cast<void>(serialize_smart_material(missing_target)); },
+                     SmartMaterialErrorCode::invalid_preset,
+                     "smart material accepted a binding to a missing graph target");
+
+    SmartMaterialPreset linked_target = rich_preset();
+    graph::GraphDocument& graph = *linked_target.stack[1].graph;
+    const graph::NodeId source = graph.add_node({.role = graph::NodeRole::regular,
+                                                 .type_id = "ctex.input.test",
+                                                 .type_version = 1,
+                                                 .display_name = "Source",
+                                                 .position = {},
+                                                 .inputs = {},
+                                                 .outputs = {{.identifier = "value",
+                                                              .display_name = "Value",
+                                                              .type = graph::SocketType::scalar,
+                                                              .value = 0.0}},
+                                                 .properties = {}});
+    const graph::AddLinkResult link = graph.add_link({.source_node = source,
+                                                      .source_socket = "value",
+                                                      .target_node = 1,
+                                                      .target_socket = "value"});
+    const bool linked_target_refused =
+        expect_error([&] { static_cast<void>(serialize_smart_material(linked_target)); },
+                     SmartMaterialErrorCode::invalid_preset,
+                     "smart material accepted an inert binding to a linked graph input");
     return duplicate_refused && parent_refused && type_refused && range_refused &&
-           derived_pixels_refused &&
-           expect_error([&] { static_cast<void>(serialize_smart_material(wrong_pixel_size)); },
-                        SmartMaterialErrorCode::invalid_preset,
-                        "model-specific content accepted a mismatched pixel byte count");
+           derived_pixels_refused && pixel_size_refused && duplicate_binding_refused &&
+           missing_target_refused && linked_target_refused &&
+           expect(link.coercion == graph::SocketCoercion::identity,
+                  "linked-binding refusal fixture did not create its graph link");
 }
 
 bool malformed_and_future_serializations_are_refused() {
     const std::string valid = serialize_smart_material(rich_preset());
     std::string future = valid;
-    future.replace(0, std::string_view("CTEX_SMART_MATERIAL\t2").size(), "CTEX_SMART_MATERIAL\t3");
+    future.replace(0, std::string_view("CTEX_SMART_MATERIAL\t3").size(), "CTEX_SMART_MATERIAL\t4");
     const bool future_refused = expect_error(
         [&] { static_cast<void>(deserialize_smart_material(future)); },
         SmartMaterialErrorCode::unsupported_version, "future smart material version was accepted");
@@ -234,7 +363,9 @@ bool malformed_and_future_serializations_are_refused() {
 
 int main() {
     return complete_fragment_round_trips_canonically() &&
-                   mixed_content_is_classified_and_reported() && invalid_fragments_are_refused() &&
+                   mixed_content_is_classified_and_reported() &&
+                   one_parameter_updates_every_bound_entry() &&
+                   invalid_parameter_updates_are_atomic() && invalid_fragments_are_refused() &&
                    malformed_and_future_serializations_are_refused()
                ? 0
                : 1;

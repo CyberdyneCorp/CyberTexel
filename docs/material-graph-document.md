@@ -18,6 +18,11 @@ Nodes are stored in identity order and links in endpoint order. Socket and
 property declaration order remains significant because it is part of a node
 type's user-facing interface.
 
+Input socket and property values can be updated by stable node and member
+identity. Property updates preserve the property's existing value type and
+reject non-finite numeric values; this lets higher-level preset bindings update
+node configuration without exposing mutable graph internals.
+
 Socket storage represents scalar, vector, colour, string, image reference, and
 boolean values. Link creation uses this exact coercion table:
 

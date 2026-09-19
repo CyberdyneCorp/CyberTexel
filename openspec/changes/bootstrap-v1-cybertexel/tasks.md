@@ -619,7 +619,11 @@ versus model-specific content is now explicit: derived entries reject cached
 raster output, while painted layers and masks retain validated pixel payloads.
 The ordered content report names and measures each model-specific entry so a
 host can surface its portability before application. Exposed parameter binding
-across many entries (13.3) is next.
+now names stable graph inputs or properties across any number of entries. One
+typed, ranged update changes all targets atomically, reports each target and
+leaves the declared reset default intact; missing, duplicate, mistyped and
+linked-input targets are refused. Smart masks with independent instances (13.4)
+are next.
 
 ## 1. Foundation
 
@@ -806,7 +810,7 @@ across many entries (13.3) is next.
 
 - [x] 13.1 Smart material serialization: stack fragment plus exposed parameters
 - [x] 13.2 Derived versus model-specific content and its reporting
-- [ ] 13.3 Exposed parameter binding across many entries
+- [x] 13.3 Exposed parameter binding across many entries
 - [ ] 13.4 Smart masks with independent instances
 - [ ] 13.5 Anchor points, ordering rule, cycle refusal, dependency-ordered evaluation
 - [ ] 13.6 Portable resource resolution and self-contained packaging
