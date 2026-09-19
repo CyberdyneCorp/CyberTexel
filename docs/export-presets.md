@@ -68,6 +68,7 @@ little-endian, and OpenEXR uses uncompressed scanline storage.
 
 Both `validate_export_preset()` and the encoder reject an impossible
 format/depth pair before producing bytes. The typed diagnostic names both the
-format and requested depth. Export scopes, naming, padding, dry runs, and the
-multi-output export coordinator remain subsequent texture-export roadmap
-stages.
+format and requested depth. [Texture export planning](export-planning.md)
+defines texture-set, UDIM, atlas, and layer scopes plus collision-safe filename
+patterns. Padding, dry runs, and the multi-output export coordinator remain
+subsequent texture-export roadmap stages.

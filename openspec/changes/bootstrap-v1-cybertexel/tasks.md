@@ -774,7 +774,7 @@ across two clean runs.
 - [x] 12.6 Untrusted input bounds and the container fuzzing gate
 - [x] 12.7 Export presets: token vocabulary, derived tokens, built-in preset set
 - [x] 12.8 Export formats, bit depths, and the refusal of impossible combinations
-- [ ] 12.9 Export scopes, layer scopes, filename pattern and collision refusal
+- [x] 12.9 Export scopes, layer scopes, filename pattern and collision refusal
 - [ ] 12.10 Padding, export resolution, dry run, machine-readable report, in-memory export
 - [ ] 12.11 `project-io` and `texture-export` scenarios as tests
 

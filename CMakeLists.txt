@@ -189,6 +189,7 @@ ctex_add_module(
     SOURCES
         src/io/io.cpp
         src/io/export_preset.cpp
+        src/io/export_plan.cpp
         src/io/texture_encode.cpp
         src/io/project_container.cpp
         src/io/project_autosave.cpp
@@ -328,6 +329,10 @@ if(BUILD_TESTING)
     ctex_configure_cpp_target(ctex_texture_encode_test)
     target_link_libraries(ctex_texture_encode_test PRIVATE cybertexel)
     add_test(NAME texture-export-formats COMMAND ctex_texture_encode_test)
+    add_executable(ctex_export_plan_test tests/io/export_plan_test.cpp)
+    ctex_configure_cpp_target(ctex_export_plan_test)
+    target_link_libraries(ctex_export_plan_test PRIVATE cybertexel)
+    add_test(NAME texture-export-plan COMMAND ctex_export_plan_test)
     add_test(
         NAME project-container-determinism
         COMMAND "${CTEX_PYTHON3_EXECUTABLE}" tools/check_determinism.py project-save
@@ -1130,11 +1135,12 @@ if(BUILD_TESTING)
         standalone-asset
         export-presets
         texture-export-formats
+        texture-export-plan
         project-container-determinism
         PROPERTIES LABELS project-io-scenario
     )
     set_tests_properties(
-        texture-export-formats
+        texture-export-formats texture-export-plan
         PROPERTIES LABELS "project-io-scenario;texture-export-scenario"
     )
     set_tests_properties(

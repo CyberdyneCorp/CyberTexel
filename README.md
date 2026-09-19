@@ -132,7 +132,9 @@ The current implementation provides:
   channel and named mesh-map addressing, and six built-in PBR packing
   conventions. Memory encoders cover PNG, JPEG, TGA, TIFF and OpenEXR with an
   explicit 8/16/32-bit compatibility matrix and typed refusal of impossible
-  combinations.
+  combinations. Pure [export planning](docs/export-planning.md) composes
+  texture-set, UDIM, atlas, and layer scopes with predictable filename tokens
+  and preflight collision refusal.
 - Extensible semantic channels and a nine-channel metallic/roughness PBR preset,
   with independent precision and allocation-free disabled channels.
 - Texture-set documents derived from mesh partitions and named UVs, with stable
