@@ -52,6 +52,10 @@ inline constexpr ToolParameterDescriptor stroke_jitter_flow_parameter{"stroke.ji
                                                                       0.0, 1.0};
 inline constexpr ToolParameterDescriptor stroke_taper_floor_parameter{"stroke.taper.floor", 0.0,
                                                                       0.0, 1.0};
+inline constexpr double minimum_taper_stamp_count = 2.0;
+inline constexpr double maximum_taper_stamp_count = 1'000'000.0;
+inline constexpr double minimum_taper_distance = stroke_position_tolerance;
+inline constexpr double maximum_taper_distance = maximum_stroke_radius;
 inline constexpr ToolParameterDescriptor stroke_grid_step_parameter{
     "stroke.constraint.grid_step", 1.0, stroke_position_tolerance, maximum_stroke_radius};
 inline constexpr std::uint32_t maximum_radial_symmetry_count = 4'096;

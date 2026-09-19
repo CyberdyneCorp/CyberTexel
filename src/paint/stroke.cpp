@@ -182,20 +182,16 @@ void resolve_input_mapping_parameters(StrokeInputMapping& mapping, ToolParameter
 }
 
 void validate_taper_span(TaperSpan span) {
-    if (!finite(span.extent)) {
-        throw StrokeResolutionError("taper extent must be finite");
-    }
     if (span.unit == TaperUnit::none && span.extent == 0.0) {
         return;
     }
-    if (span.unit == TaperUnit::stamp_count && span.extent >= 2.0 &&
-        std::floor(span.extent) == span.extent) {
+    if (span.unit == TaperUnit::stamp_count && std::floor(span.extent) == span.extent) {
         return;
     }
-    if (span.unit == TaperUnit::distance && span.extent > 0.0) {
+    if (span.unit == TaperUnit::distance) {
         return;
     }
-    throw StrokeResolutionError("taper span requires no extent, at least two stamps, or distance");
+    throw StrokeResolutionError("taper span unit or stamp count is invalid");
 }
 
 void validate_taper(const TaperSettings& taper) {
@@ -276,6 +272,34 @@ void resolve_modifier_parameters(StrokeSettings& settings, ToolParameterReport& 
         validate_tool_parameter(stroke_grid_step_parameter, settings.constraint.grid_step, report);
     settings.symmetry.radial_count = static_cast<std::uint32_t>(validate_tool_parameter(
         stroke_radial_count_parameter, settings.symmetry.radial_count, report));
+}
+
+ToolParameterDescriptor taper_extent_descriptor(std::string_view name, TaperUnit unit) {
+    if (unit == TaperUnit::none) {
+        return {.name = name, .default_value = 0.0, .minimum = 0.0, .maximum = 0.0};
+    }
+    if (unit == TaperUnit::stamp_count) {
+        return {.name = name,
+                .default_value = minimum_taper_stamp_count,
+                .minimum = minimum_taper_stamp_count,
+                .maximum = maximum_taper_stamp_count};
+    }
+    if (unit == TaperUnit::distance) {
+        return {.name = name,
+                .default_value = minimum_taper_distance,
+                .minimum = minimum_taper_distance,
+                .maximum = maximum_taper_distance};
+    }
+    throw StrokeResolutionError("taper span unit is invalid");
+}
+
+void resolve_taper_parameters(TaperSettings& taper, ToolParameterReport& report) {
+    taper.entry.extent = validate_tool_parameter(
+        taper_extent_descriptor("stroke.taper.entry.extent", taper.entry.unit), taper.entry.extent,
+        report);
+    taper.exit.extent = validate_tool_parameter(
+        taper_extent_descriptor("stroke.taper.exit.extent", taper.exit.unit), taper.exit.extent,
+        report);
 }
 
 void validate_sample(const StrokeInputSample& sample) {
@@ -838,6 +862,7 @@ StrokeResolver::StrokeResolver(StrokeSettings settings) : settings_(std::move(se
         resolve_base_parameters(settings_, parameter_report_);
         resolve_modifier_parameters(settings_, parameter_report_);
         resolve_input_mapping_parameters(settings_.input_mapping, parameter_report_);
+        resolve_taper_parameters(settings_.taper, parameter_report_);
     } catch (const std::invalid_argument& error) {
         throw StrokeResolutionError(error.what());
     }

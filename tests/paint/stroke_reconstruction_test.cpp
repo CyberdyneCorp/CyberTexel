@@ -730,6 +730,33 @@ bool response_mapping_parameters_share_bounds_and_reports() {
                   "response mapping clamp report is incomplete");
 }
 
+bool taper_extents_use_mode_specific_bounds_and_reports() {
+    StrokeSettings active;
+    active.taper.entry = {.unit = TaperUnit::stamp_count, .extent = 1.0};
+    active.taper.exit = {.unit = TaperUnit::distance, .extent = maximum_taper_distance * 2.0};
+    const StrokeResolver active_resolver(active);
+    const TaperSettings& resolved = active_resolver.settings().taper;
+    const ToolParameterReport& active_report = active_resolver.parameter_report();
+
+    StrokeSettings disabled;
+    disabled.taper.entry = {.unit = TaperUnit::none, .extent = 5.0};
+    const StrokeResolver disabled_resolver(disabled);
+    const auto disabled_clamp =
+        disabled_resolver.parameter_report().clamp_for("stroke.taper.entry.extent");
+    return expect(resolved.entry.extent == minimum_taper_stamp_count &&
+                      resolved.exit.extent == maximum_taper_distance,
+                  "active taper extents did not use their mode-specific bounds") &&
+           expect(active_report.clamps.size() == 2 &&
+                      active_report.clamp_for("stroke.taper.entry.extent") &&
+                      active_report.clamp_for("stroke.taper.exit.extent"),
+                  "active taper extent clamps were not reported") &&
+           expect(disabled_resolver.settings().taper.entry.extent == 0.0 &&
+                      disabled_clamp == ToolParameterClamp{.name = "stroke.taper.entry.extent",
+                                                           .supplied = 5.0,
+                                                           .resolved = 0.0},
+                  "a disabled taper retained or failed to report an inert extent");
+}
+
 bool invalid_input_is_rejected_without_partial_resolution() {
     StrokeSettings future;
     future.reconstruction_version = canonical_stroke_reconstruction_version + 1;
@@ -788,12 +815,21 @@ bool invalid_input_is_rejected_without_partial_resolution() {
     }
 
     StrokeSettings invalid_taper;
-    invalid_taper.taper.entry = {.unit = TaperUnit::stamp_count, .extent = 1.0};
+    invalid_taper.taper.entry = {.unit = TaperUnit::stamp_count, .extent = 2.5};
     bool invalid_taper_refused = false;
     try {
         static_cast<void>(StrokeResolver(invalid_taper));
     } catch (const StrokeResolutionError&) {
         invalid_taper_refused = true;
+    }
+
+    StrokeSettings invalid_taper_unit;
+    invalid_taper_unit.taper.exit.unit = static_cast<TaperUnit>(255);
+    bool invalid_taper_unit_refused = false;
+    try {
+        static_cast<void>(StrokeResolver(invalid_taper_unit));
+    } catch (const StrokeResolutionError&) {
+        invalid_taper_unit_refused = true;
     }
 
     StrokeSettings invalid_constraint;
@@ -852,6 +888,7 @@ bool invalid_input_is_rejected_without_partial_resolution() {
            expect(non_finite_mapping_refused, "a non-finite response mapping was accepted") &&
            expect(invalid_jitter_refused, "invalid jitter was accepted") &&
            expect(invalid_taper_refused, "invalid taper was accepted") &&
+           expect(invalid_taper_unit_refused, "an unknown taper unit was accepted") &&
            expect(invalid_constraint_refused, "invalid constraint settings were accepted") &&
            expect(invalid_symmetry_axis_refused, "an invalid radial symmetry axis was accepted") &&
            expect(pressure_refused, "an out-of-range pressure value was accepted") &&
@@ -892,6 +929,7 @@ int main() {
                    base_parameters_share_bounds_and_reach_stamps() &&
                    modifier_parameters_share_bounds_and_reports() &&
                    response_mapping_parameters_share_bounds_and_reports() &&
+                   taper_extents_use_mode_specific_bounds_and_reports() &&
                    invalid_input_is_rejected_without_partial_resolution()
                ? 0
                : 1;

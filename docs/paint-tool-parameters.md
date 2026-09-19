@@ -8,7 +8,7 @@ value, and resolved value to a `ToolParameterReport`; in-range values produce
 no report entry. Non-finite inputs and internally inconsistent descriptors are
 refused without modifying the report.
 
-The routed base stroke parameters are:
+The currently routed stroke parameters are:
 
 | Parameter | Default | Minimum | Maximum | Unit |
 |---|---:|---:|---:|---|
@@ -43,10 +43,14 @@ The routed base stroke parameters are:
 | `stroke.input.tilt_rotation.maximum_output` | 1 | 0 | 1 | azimuth multiplier |
 | `stroke.input.tilt_elongation.minimum_output` | 1 | 0.01 | 100 | elongation multiplier |
 | `stroke.input.tilt_elongation.maximum_output` | 2 | 0.01 | 100 | elongation multiplier |
+| `stroke.taper.entry.extent` | 0 (disabled) | 0 when disabled; 2 stamps; 0.000001 distance | 0 when disabled; 1,000,000 stamps or distance | selected taper unit |
+| `stroke.taper.exit.extent` | 0 (disabled) | 0 when disabled; 2 stamps; 0.000001 distance | 0 when disabled; 1,000,000 stamps or distance | selected taper unit |
 
 `StrokeResolver::settings()` exposes the resolved settings and
 `parameter_report()` exposes their clamps. Brush and Eraser consume the
 resolved stroke, so they cannot bypass or reinterpret the parameter decision.
-Conditional taper spans, the remaining tool descriptors and entry points are
-tracked by roadmap task 10.12; that task remains incomplete
-until the behavioral no-inert audit also covers every documented parameter.
+Stamp-count taper extents must remain integral after range resolution. Disabled
+tapers resolve their otherwise inert extent to zero. The remaining tool
+descriptors and entry points are tracked by roadmap task 10.12; that task
+remains incomplete until the behavioral no-inert audit also covers every
+documented parameter.

@@ -121,6 +121,12 @@ does not recursively alter their placement. Distances are measured before
 position jitter. The taper floor is normalized to `[0, 1]` and defaults to
 zero; taper is disabled by default.
 
+Stamp-count extents are bounded to 2 through 1,000,000 stamps and distance
+extents to 0.000001 through 1,000,000 surface units. Finite values outside the
+selected unit's range are clamped and reported; fractional stamp counts and
+unknown units are refused. A disabled span always resolves its extent to zero
+so that the field cannot retain an inert value.
+
 Jitter is stateless and reproducible. Each random value is keyed by the 64-bit
 stroke seed, pre-symmetry source ordinal and a fixed target channel, mixed with
 the SplitMix64 finalizer, then converted from its high 53 bits to `[-1, 1)`.
