@@ -68,7 +68,23 @@ configurable through `ProjectContainerReadLimits`. An unknown storage encoding
 causes the complete resource section to be reported and retained opaquely for a
 lossless re-save.
 
+## Atomic and deterministic save
+
+`save_project_container_atomic` encodes the complete project before touching
+the destination, writes it to an exclusively created sibling temporary file,
+synchronizes that file, and atomically replaces the destination. It then
+synchronizes the containing directory on POSIX systems; Windows publication
+uses replace-existing and write-through semantics. A serialization, write, or
+publication failure removes its temporary file and leaves an existing project
+untouched. If the process is interrupted before publication, only the sibling
+temporary file can be incomplete—the prior project remains at its original
+path.
+
+Container encoding has no timestamps, random identifiers, filesystem metadata,
+or iteration over unordered collections. Saving the same in-memory container
+twice therefore publishes byte-identical files; the project-save determinism
+gate exercises the atomic filesystem API rather than only the memory encoder.
+
 The current in-memory `ProjectContainer` is the extensible framing, tiled pixel,
-and portable resource foundation. Atomic filesystem publication, autosave,
-standalone assets and the complete document object schema are added by the
-subsequent project-I/O roadmap tasks.
+and portable resource foundation. Autosave, standalone assets and the complete
+document object schema are added by subsequent project-I/O roadmap tasks.

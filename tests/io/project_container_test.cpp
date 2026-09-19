@@ -312,6 +312,93 @@ bool unknown_resource_storage_is_preserved() {
                   "opaque current-version resource section could not be resaved");
 }
 
+std::vector<std::byte> read_binary_file(const std::filesystem::path& path) {
+    std::ifstream stream(path, std::ios::binary | std::ios::ate);
+    if (!stream) {
+        return {};
+    }
+    const std::streampos end = stream.tellg();
+    if (end < 0) {
+        return {};
+    }
+    std::vector<std::byte> bytes(static_cast<std::size_t>(end));
+    stream.seekg(0);
+    stream.read(reinterpret_cast<char*>(bytes.data()), static_cast<std::streamsize>(bytes.size()));
+    return stream ? bytes : std::vector<std::byte>{};
+}
+
+bool atomic_save_replaces_only_with_complete_deterministic_files() {
+    const std::filesystem::path directory =
+        std::filesystem::temp_directory_path() / "ctex-project-container-atomic-save-test";
+    std::error_code filesystem_error;
+    std::filesystem::remove_all(directory, filesystem_error);
+    std::filesystem::create_directories(directory, filesystem_error);
+    if (!expect(!filesystem_error, "could not create atomic save test directory")) {
+        return false;
+    }
+    const std::filesystem::path path = directory / "project.ctex";
+
+    ProjectContainer first;
+    first.resources.push_back(
+        {.identifier = "packed",
+         .kind = "image",
+         .relative_path = "old.bin",
+         .packed_bytes = std::vector<std::byte>{std::byte{'o'}, std::byte{'l'}, std::byte{'d'}}});
+    save_project_container_atomic(path, first);
+    const std::vector<std::byte> first_bytes = read_binary_file(path);
+
+    ProjectContainer second;
+    second.resources.push_back(
+        {.identifier = "packed",
+         .kind = "image",
+         .relative_path = "new.bin",
+         .packed_bytes = std::vector<std::byte>{std::byte{'n'}, std::byte{'e'}, std::byte{'w'}}});
+    save_project_container_atomic(path, second);
+    const std::vector<std::byte> second_bytes = read_binary_file(path);
+    save_project_container_atomic(path, second);
+    const std::vector<std::byte> repeated_bytes = read_binary_file(path);
+
+    ProjectContainer invalid = second;
+    invalid.resources.front().relative_path = "../outside.bin";
+    const bool invalid_refused = expect_error([&] { save_project_container_atomic(path, invalid); },
+                                              ProjectContainerErrorCode::invalid_resource,
+                                              "invalid project replaced the previously saved file");
+    const std::vector<std::byte> after_refusal = read_binary_file(path);
+
+    const std::filesystem::path interrupted = directory / ".project.ctex.tmp.interrupted";
+    {
+        std::ofstream stream(interrupted, std::ios::binary);
+        stream << "partial";
+    }
+    const std::vector<std::byte> while_interrupted = read_binary_file(path);
+    std::filesystem::remove(interrupted, filesystem_error);
+
+    const std::filesystem::path blocked = directory / "blocked.ctex";
+    std::filesystem::create_directories(blocked / "child", filesystem_error);
+    const bool publication_refused =
+        expect_error([&] { save_project_container_atomic(blocked, second); },
+                     ProjectContainerErrorCode::filesystem_failure,
+                     "atomic save unexpectedly replaced a non-empty directory");
+    bool temporary_file_remains = false;
+    for (const auto& entry : std::filesystem::directory_iterator(directory)) {
+        temporary_file_remains |=
+            entry.path().filename().string().starts_with(".blocked.ctex.tmp.");
+    }
+    std::filesystem::remove_all(directory, filesystem_error);
+
+    return expect(first_bytes == write_project_container(first) &&
+                      second_bytes == write_project_container(second),
+                  "atomic save did not publish a complete encoded project") &&
+           expect(second_bytes == repeated_bytes,
+                  "saving an unchanged project did not produce byte-identical files") &&
+           expect(invalid_refused && after_refusal == second_bytes,
+                  "failed serialization changed the previously saved project") &&
+           expect(while_interrupted == second_bytes,
+                  "a partial sibling temporary file replaced the saved project") &&
+           expect(publication_refused && !temporary_file_remains,
+                  "failed atomic publication left a temporary project file behind");
+}
+
 bool write_determinism_artifact() {
     const char* output_directory = std::getenv("CTEX_DETERMINISM_OUTPUT_DIR");
     if (output_directory == nullptr) {
@@ -336,13 +423,11 @@ bool write_determinism_artifact() {
          .version = 3,
          .payload = {std::byte{'f'}, std::byte{'u'}, std::byte{'t'}, std::byte{'u'}, std::byte{'r'},
                      std::byte{'e'}}});
-    const std::vector<std::byte> encoded = write_project_container(container);
     const std::filesystem::path path =
         std::filesystem::path(output_directory) / "project-container.ctex";
-    std::ofstream stream(path, std::ios::binary);
-    stream.write(reinterpret_cast<const char*>(encoded.data()),
-                 static_cast<std::streamsize>(encoded.size()));
-    return expect(stream.good(), "could not write project-container determinism artifact");
+    save_project_container_atomic(path, container);
+    return expect(std::filesystem::is_regular_file(path),
+                  "could not write project-container determinism artifact");
 }
 
 }  // namespace
@@ -359,7 +444,8 @@ int main(int argc, char** argv) {
                    invalid_tile_metadata_is_refused_before_writing() &&
                    resources_round_trip_and_resolve_without_blocking_open() &&
                    unsafe_or_duplicate_resource_identities_are_refused() &&
-                   unknown_resource_storage_is_preserved()
+                   unknown_resource_storage_is_preserved() &&
+                   atomic_save_replaces_only_with_complete_deterministic_files()
                ? 0
                : 1;
 }

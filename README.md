@@ -121,7 +121,8 @@ The current implementation provides:
 - A versioned, forward-preserving [project container](docs/project-container.md)
   with a probeable header, independently compressed sparse tile storage, and
   portable referenced or packed image, font, map, and mesh resources with
-  explicit missing-resource reports.
+  explicit missing-resource reports. Saves are atomically published and
+  byte-identical for unchanged projects.
 - Extensible semantic channels and a nine-channel metallic/roughness PBR preset,
   with independent precision and allocation-free disabled channels.
 - Texture-set documents derived from mesh partitions and named UVs, with stable

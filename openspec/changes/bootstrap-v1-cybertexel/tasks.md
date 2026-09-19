@@ -768,7 +768,7 @@ across two clean runs.
 
 - [x] 12.1 Container format: schema, versioning, backward-open reading, tile storage
 - [x] 12.2 Referenced and packed resources; missing-resource reporting
-- [ ] 12.3 Atomic save; deterministic writing
+- [x] 12.3 Atomic save; deterministic writing
 - [ ] 12.4 Autosave, recovery enumeration, non-blocking snapshot
 - [ ] 12.5 Standalone asset import and export, self-contained packaging
 - [ ] 12.6 Untrusted input bounds and the container fuzzing gate

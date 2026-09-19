@@ -104,6 +104,7 @@ enum class ProjectContainerErrorCode : std::uint8_t {
     invalid_resource,
     compression_failed,
     over_limit,
+    filesystem_failure,
 };
 
 class ProjectContainerError : public std::runtime_error {
@@ -128,6 +129,8 @@ struct ProjectContainerReadLimits {
 [[nodiscard]] ContainerSchemaVersion probe_project_container_version(
     std::span<const std::byte> bytes);
 [[nodiscard]] std::vector<std::byte> write_project_container(const ProjectContainer& container);
+void save_project_container_atomic(const std::filesystem::path& path,
+                                   const ProjectContainer& container);
 [[nodiscard]] ProjectContainerReadResult read_project_container(
     std::span<const std::byte> bytes, ProjectContainerReadLimits limits = {});
 

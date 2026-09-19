@@ -2,6 +2,8 @@
 
 #include <algorithm>
 #include <array>
+#include <atomic>
+#include <cerrno>
 #include <cstdlib>
 #include <cstring>
 #include <ctex/io/project_container.hpp>
@@ -10,7 +12,16 @@
 #include <memory>
 #include <set>
 #include <string_view>
+#include <system_error>
 #include <utility>
+
+#if defined(_WIN32)
+#define NOMINMAX
+#include <windows.h>
+#else
+#include <fcntl.h>
+#include <unistd.h>
+#endif
 
 namespace ctex::io {
 namespace {
@@ -140,6 +151,168 @@ struct UnsupportedTileSection : std::runtime_error {
 
 struct UnsupportedResourceSection : std::runtime_error {
     using std::runtime_error::runtime_error;
+};
+
+[[noreturn]] void throw_filesystem_error(std::string_view operation, int error) {
+    const std::error_code code(error, std::system_category());
+    throw ProjectContainerError(ProjectContainerErrorCode::filesystem_failure,
+                                std::string(operation) + ": " + code.message());
+}
+
+#if defined(_WIN32)
+using NativeFile = HANDLE;
+constexpr NativeFile invalid_native_file = INVALID_HANDLE_VALUE;
+
+std::uint64_t process_identity() noexcept { return GetCurrentProcessId(); }
+
+NativeFile create_exclusive_file(const std::filesystem::path& path) {
+    return CreateFileW(path.c_str(), GENERIC_WRITE, 0, nullptr, CREATE_NEW, FILE_ATTRIBUTE_NORMAL,
+                       nullptr);
+}
+
+void close_file(NativeFile file) noexcept { CloseHandle(file); }
+
+void write_and_sync_file(NativeFile file, std::span<const std::byte> bytes) {
+    std::size_t offset = 0;
+    while (offset < bytes.size()) {
+        const std::size_t remaining = bytes.size() - offset;
+        const DWORD request =
+            static_cast<DWORD>(std::min<std::size_t>(remaining, std::numeric_limits<DWORD>::max()));
+        DWORD written = 0;
+        if (!WriteFile(file, bytes.data() + offset, request, &written, nullptr) || written == 0) {
+            throw_filesystem_error("could not write project temporary file", GetLastError());
+        }
+        offset += written;
+    }
+    if (!FlushFileBuffers(file)) {
+        throw_filesystem_error("could not synchronize project temporary file", GetLastError());
+    }
+}
+
+void replace_file(const std::filesystem::path& temporary, const std::filesystem::path& target) {
+    if (!MoveFileExW(temporary.c_str(), target.c_str(),
+                     MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH)) {
+        throw_filesystem_error("could not atomically publish project file", GetLastError());
+    }
+}
+
+void sync_directory(const std::filesystem::path&) {}
+#else
+using NativeFile = int;
+constexpr NativeFile invalid_native_file = -1;
+
+std::uint64_t process_identity() noexcept { return static_cast<std::uint64_t>(::getpid()); }
+
+NativeFile create_exclusive_file(const std::filesystem::path& path) {
+    return ::open(path.c_str(), O_WRONLY | O_CREAT | O_EXCL | O_CLOEXEC, 0666);
+}
+
+void close_file(NativeFile file) noexcept { static_cast<void>(::close(file)); }
+
+void write_and_sync_file(NativeFile file, std::span<const std::byte> bytes) {
+    std::size_t offset = 0;
+    while (offset < bytes.size()) {
+        const std::size_t request = std::min(
+            bytes.size() - offset, static_cast<std::size_t>(std::numeric_limits<ssize_t>::max()));
+        const ssize_t written = ::write(file, bytes.data() + offset, request);
+        if (written < 0 && errno == EINTR) {
+            continue;
+        }
+        if (written <= 0) {
+            throw_filesystem_error("could not write project temporary file", errno);
+        }
+        offset += static_cast<std::size_t>(written);
+    }
+    if (::fsync(file) != 0) {
+        throw_filesystem_error("could not synchronize project temporary file", errno);
+    }
+}
+
+void replace_file(const std::filesystem::path& temporary, const std::filesystem::path& target) {
+    if (::rename(temporary.c_str(), target.c_str()) != 0) {
+        throw_filesystem_error("could not atomically publish project file", errno);
+    }
+}
+
+void sync_directory(const std::filesystem::path& directory) {
+    const int descriptor = ::open(directory.c_str(), O_RDONLY | O_DIRECTORY | O_CLOEXEC);
+    if (descriptor < 0) {
+        throw_filesystem_error("could not open project directory for synchronization", errno);
+    }
+    if (::fsync(descriptor) != 0) {
+        const int error = errno;
+        close_file(descriptor);
+        throw_filesystem_error("could not synchronize project directory", error);
+    }
+    close_file(descriptor);
+}
+#endif
+
+class TemporaryProjectFile {
+public:
+    explicit TemporaryProjectFile(const std::filesystem::path& target) {
+        static std::atomic_uint64_t next_identity{1};
+        const std::filesystem::path directory =
+            target.has_parent_path() ? target.parent_path() : std::filesystem::path{"."};
+        std::filesystem::path prefix{"."};
+        prefix += target.filename();
+        prefix += ".tmp.";
+        prefix += std::to_string(process_identity());
+        prefix += ".";
+        for (unsigned attempt = 0; attempt < 128; ++attempt) {
+            std::filesystem::path name = prefix;
+            name += std::to_string(next_identity.fetch_add(1));
+            path_ = directory / name;
+            file_ = create_exclusive_file(path_);
+            if (file_ != invalid_native_file) {
+                return;
+            }
+#if defined(_WIN32)
+            const int error = static_cast<int>(GetLastError());
+            if (error != ERROR_FILE_EXISTS && error != ERROR_ALREADY_EXISTS) {
+                throw_filesystem_error("could not create project temporary file", error);
+            }
+#else
+            if (errno != EEXIST) {
+                throw_filesystem_error("could not create project temporary file", errno);
+            }
+#endif
+        }
+        throw ProjectContainerError(ProjectContainerErrorCode::filesystem_failure,
+                                    "could not allocate a unique project temporary file");
+    }
+
+    TemporaryProjectFile(const TemporaryProjectFile&) = delete;
+    TemporaryProjectFile& operator=(const TemporaryProjectFile&) = delete;
+
+    ~TemporaryProjectFile() {
+        if (file_ != invalid_native_file) {
+            close_file(file_);
+        }
+        if (!published_) {
+            std::error_code ignored;
+            std::filesystem::remove(path_, ignored);
+        }
+    }
+
+    void write_and_sync(std::span<const std::byte> bytes) {
+        write_and_sync_file(file_, bytes);
+        close_file(file_);
+        file_ = invalid_native_file;
+    }
+
+    void publish(const std::filesystem::path& target) {
+        replace_file(path_, target);
+        published_ = true;
+        const std::filesystem::path directory =
+            target.has_parent_path() ? target.parent_path() : std::filesystem::path{"."};
+        sync_directory(directory);
+    }
+
+private:
+    std::filesystem::path path_;
+    NativeFile file_{invalid_native_file};
+    bool published_{};
 };
 
 std::size_t checked_size(std::uint64_t value, std::string_view field) {
@@ -549,6 +722,18 @@ std::vector<std::byte> write_project_container(const ProjectContainer& container
     writer.u64(body.view().size());
     writer.bytes(body.view());
     return std::move(writer).finish();
+}
+
+void save_project_container_atomic(const std::filesystem::path& path,
+                                   const ProjectContainer& container) {
+    if (path.empty() || path.filename().empty()) {
+        throw ProjectContainerError(ProjectContainerErrorCode::filesystem_failure,
+                                    "project save path must name a file");
+    }
+    const std::vector<std::byte> bytes = write_project_container(container);
+    TemporaryProjectFile temporary(path);
+    temporary.write_and_sync(bytes);
+    temporary.publish(path);
 }
 
 ProjectContainerReadResult read_project_container(std::span<const std::byte> bytes,
