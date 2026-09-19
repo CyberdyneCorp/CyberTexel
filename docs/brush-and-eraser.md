@@ -14,6 +14,9 @@ Stroke reconstruction and coverage remain authoritative for radius, opacity,
 flow, hardness, tip rotation, coordinate sampling and symmetry. Brush does not
 re-resolve or reinterpret those values. Its blend mode is evaluated through the
 same canonical formula used by material graphs and layer painting.
+The [shared tool-parameter validator](paint-tool-parameters.md) clamps radius to
+its documented bounds and makes that clamp observable through the stroke entry
+point's parameter report before either tool runs.
 
 `apply_eraser` follows the identical mask and deposition path. For each texel it
 computes:

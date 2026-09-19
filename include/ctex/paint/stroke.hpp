@@ -3,6 +3,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <ctex/paint/parameters.hpp>
 #include <optional>
 #include <span>
 #include <stdexcept>
@@ -17,6 +18,11 @@ inline constexpr double stroke_position_tolerance = 1.0e-6;
 inline constexpr double default_spacing_fraction = 0.1;
 inline constexpr double minimum_spacing_fraction = 0.01;
 inline constexpr double maximum_spacing_fraction = 4.0;
+inline constexpr double default_stroke_radius = 1.0;
+inline constexpr double minimum_stroke_radius = stroke_position_tolerance;
+inline constexpr double maximum_stroke_radius = 1'000'000.0;
+inline constexpr ToolParameterDescriptor stroke_radius_parameter{
+    "stroke.radius", default_stroke_radius, minimum_stroke_radius, maximum_stroke_radius};
 
 struct Vec3d {
     double x{};
@@ -138,7 +144,7 @@ struct StrokeSettings {
     std::uint32_t reconstruction_version{canonical_stroke_reconstruction_version};
     TipMode tip_mode{TipMode::continuous_sweep};
     double spacing_fraction{default_spacing_fraction};
-    double radius{1.0};
+    double radius{default_stroke_radius};
     double opacity{1.0};
     double hardness{1.0};
     double rotation_radians{};
@@ -204,11 +210,15 @@ public:
     [[nodiscard]] ResolvedStroke resolve();
 
     [[nodiscard]] const StrokeSettings& settings() const noexcept { return settings_; }
+    [[nodiscard]] const ToolParameterReport& parameter_report() const noexcept {
+        return parameter_report_;
+    }
     [[nodiscard]] std::size_t sample_count() const noexcept { return samples_.size(); }
     [[nodiscard]] bool is_resolved() const noexcept { return resolved_; }
 
 private:
     StrokeSettings settings_;
+    ToolParameterReport parameter_report_;
     std::vector<StrokeInputSample> samples_;
     bool resolved_{};
 };

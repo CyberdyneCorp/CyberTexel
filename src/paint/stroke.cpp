@@ -814,6 +814,12 @@ ResolvedStroke ingest_resolved_stroke(const ResolvedStroke& stroke) {
 }
 
 StrokeResolver::StrokeResolver(StrokeSettings settings) : settings_(std::move(settings)) {
+    try {
+        settings_.radius =
+            validate_tool_parameter(stroke_radius_parameter, settings_.radius, parameter_report_);
+    } catch (const std::invalid_argument& error) {
+        throw StrokeResolutionError(error.what());
+    }
     validate_settings(settings_);
 }
 

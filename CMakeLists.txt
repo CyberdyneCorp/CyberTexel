@@ -132,6 +132,7 @@ ctex_add_module(
         src/paint/deposition.cpp
         src/paint/fill.cpp
         src/paint/masking.cpp
+        src/paint/parameters.cpp
         src/paint/particle.cpp
         src/paint/picker.cpp
         src/paint/preview.cpp
@@ -387,6 +388,14 @@ if(BUILD_TESTING)
         PRIVATE ctex_paint ctex_doc ctex_emit ctex_pick ctex_mesh ctex_graph ctex_image
     )
     add_test(NAME paint-selection COMMAND ctex_paint_selection_test)
+
+    add_executable(ctex_paint_parameters_test tests/paint/parameters_test.cpp)
+    ctex_configure_cpp_target(ctex_paint_parameters_test)
+    target_link_libraries(
+        ctex_paint_parameters_test
+        PRIVATE ctex_paint ctex_doc ctex_emit ctex_pick ctex_mesh ctex_graph ctex_image
+    )
+    add_test(NAME paint-parameters COMMAND ctex_paint_parameters_test)
 
     add_executable(ctex_paint_rejection_test tests/paint/rejection_test.cpp)
     ctex_configure_cpp_target(ctex_paint_rejection_test)

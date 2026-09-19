@@ -34,6 +34,11 @@ step is `1,000,000` nanoseconds (1 ms). Reconstruction proceeds as follows:
 4. The stabilizer updates once per reconstructed point using its actual
    timestamp delta.
 
+The stroke radius defaults to `1.0` surface unit and has the inclusive range
+`1e-6` through `1,000,000`. Values outside that range are clamped by the shared
+tool-parameter validator before reconstruction; `StrokeResolver::parameter_report()`
+records the supplied and resolved values. Non-finite values are refused.
+
 For raw point `p`, prior stabilized cursor `c`, stabilizer radius `r`, elapsed
 seconds `dt`, and time constant `tau`, a point inside `r` leaves `c` unchanged.
 Otherwise the boundary target is `b = p - normalize(p - c) * r`, and the new

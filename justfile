@@ -135,6 +135,9 @@ test-paint-colour-id: build
 test-paint-selection: build
     ctest --test-dir build/headless --output-on-failure -R '^paint-selection$'
 
+test-paint-parameters: build
+    ctest --test-dir build/headless --output-on-failure -R '^paint-parameters$'
+
 test-paint-rejection: build
     ctest --test-dir build/headless --output-on-failure -R '^paint-rejection$'
 

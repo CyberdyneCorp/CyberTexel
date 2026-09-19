@@ -473,6 +473,11 @@ screen region are selected. Polygon selection reuses the canonical triangle,
 UV-island and connected-by-angle expansion rules. Active selection masks feed
 paint masking directly; validated stored masks own an independent copy. Screen
 operations preserve traversal accounting and refuse stale surface caches.
+Task 10.12 is in progress. Its shared parameter-validation seam now owns the
+canonical stroke-radius default and range, clamps finite out-of-range values,
+and records supplied and resolved values for downstream consumers. The
+remaining tool families and the complete behavioural no-inert audit still keep
+10.12 open.
 
 ## 1. Foundation
 

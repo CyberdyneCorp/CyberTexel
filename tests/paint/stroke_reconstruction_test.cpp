@@ -585,6 +585,47 @@ bool spacing_contract_has_versioned_defaults_and_bounds() {
                   "spacing outside the declared inclusive bounds was accepted");
 }
 
+bool radius_uses_shared_bounds_and_reports_clamps() {
+    const StrokeInputSample input = sample(0.0, 0);
+    StrokeSettings above;
+    above.radius = maximum_stroke_radius * 2.0;
+    StrokeResolver maximum(above);
+    const auto upper_clamp = maximum.parameter_report().clamp_for("stroke.radius");
+    maximum.append_samples({&input, 1});
+    const ResolvedStroke maximum_stroke = maximum.resolve();
+
+    StrokeSettings below;
+    below.radius = 0.0;
+    StrokeResolver minimum(below);
+    const auto lower_clamp = minimum.parameter_report().clamp_for("stroke.radius");
+    minimum.append_samples({&input, 1});
+    const ResolvedStroke minimum_stroke = minimum.resolve();
+
+    StrokeResolver unchanged;
+    bool non_finite_refused = false;
+    try {
+        StrokeSettings invalid;
+        invalid.radius = std::numeric_limits<double>::infinity();
+        static_cast<void>(StrokeResolver(invalid));
+    } catch (const StrokeResolutionError&) {
+        non_finite_refused = true;
+    }
+    return expect(upper_clamp == ToolParameterClamp{.name = "stroke.radius",
+                                                    .supplied = maximum_stroke_radius * 2.0,
+                                                    .resolved = maximum_stroke_radius} &&
+                      maximum.settings().radius == maximum_stroke_radius &&
+                      maximum_stroke.stamps[0].radius == maximum_stroke_radius,
+                  "radius above its maximum was not clamped, reported, and used") &&
+           expect(lower_clamp == ToolParameterClamp{.name = "stroke.radius",
+                                                    .supplied = 0.0,
+                                                    .resolved = minimum_stroke_radius} &&
+                      minimum_stroke.stamps[0].radius == minimum_stroke_radius,
+                  "radius below its minimum was not clamped, reported, and used") &&
+           expect(unchanged.parameter_report().clamps.empty(),
+                  "an in-range default radius was reported as clamped") &&
+           expect(non_finite_refused, "a non-finite radius was accepted or clamped");
+}
+
 bool invalid_input_is_rejected_without_partial_resolution() {
     StrokeSettings future;
     future.reconstruction_version = canonical_stroke_reconstruction_version + 1;
@@ -731,6 +772,7 @@ int main() {
                    external_discrete_stamps_preserve_visible_separation() &&
                    malformed_external_strokes_are_rejected_without_mutation() &&
                    spacing_contract_has_versioned_defaults_and_bounds() &&
+                   radius_uses_shared_bounds_and_reports_clamps() &&
                    invalid_input_is_rejected_without_partial_resolution()
                ? 0
                : 1;
