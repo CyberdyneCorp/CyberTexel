@@ -30,6 +30,60 @@
 
 #include "capi_internal.hpp"
 
+struct ctex_paint_dilation_session_tile {
+    ctex_paint_dilation_session_tile(std::pmr::memory_resource* resource,
+                                     const ctex_paint_dilation_tile_descriptor& descriptor)
+        : u(descriptor.u),
+          v(descriptor.v),
+          width(descriptor.width),
+          height(descriptor.height),
+          component_count(descriptor.component_count),
+          pixels(descriptor.pixels, descriptor.pixels + descriptor.pixel_count, resource),
+          coverage(descriptor.coverage, descriptor.coverage + descriptor.coverage_count, resource) {
+    }
+
+    ctex_paint_dilation_session_tile(std::pmr::memory_resource* resource,
+                                     const ctex_paint_dilation_session_tile& source,
+                                     const ctex::paint::SeamDilationResult& result)
+        : u(source.u),
+          v(source.v),
+          width(source.width),
+          height(source.height),
+          component_count(source.component_count),
+          pixels(result.raster.pixels.begin(), result.raster.pixels.end(), resource),
+          coverage(source.coverage.begin(), source.coverage.end(), resource),
+          dilated_texel_count(result.dilated_texel_count),
+          zero_gradient_texel_count(result.zero_gradient_texel_count) {}
+
+    std::int32_t u{};
+    std::int32_t v{};
+    std::uint32_t width{};
+    std::uint32_t height{};
+    std::uint32_t component_count{};
+    std::pmr::vector<double> pixels;
+    std::pmr::vector<std::uint8_t> coverage;
+    std::size_t dilated_texel_count{};
+    std::size_t zero_gradient_texel_count{};
+};
+
+struct ctex_paint_dilation_session {
+    ctex_paint_dilation_session(ctex_allocator_state allocator_value,
+                                std::uint32_t requested_radius)
+        : allocator(allocator_value), memory_resource(allocator_value), tiles(&memory_resource) {
+        ctex::paint::ToolParameterReport report;
+        radius = ctex::paint::resolve_seam_dilation_radius(requested_radius, report);
+        radius_clamped = report.clamp_for("seam_dilation.radius").has_value();
+    }
+
+    ctex_allocator_state allocator;
+    ctex_host_memory_resource memory_resource;
+    std::pmr::vector<ctex_paint_dilation_session_tile> tiles;
+    std::uint32_t radius{};
+    bool radius_clamped{};
+    bool finished{};
+    std::size_t dilation_pass_count{};
+};
+
 namespace {
 
 struct DiagnosticState {
@@ -240,6 +294,19 @@ ctex_document* create_document(const ctex_allocator_state& allocator) {
         return ::new (storage) ctex_document(allocator);
     } catch (...) {
         deallocate_storage(allocator, storage, sizeof(ctex_document), alignof(ctex_document));
+        throw;
+    }
+}
+
+ctex_paint_dilation_session* create_paint_dilation_session(const ctex_allocator_state& allocator,
+                                                           std::uint32_t radius) {
+    void* storage = allocate_storage(allocator, sizeof(ctex_paint_dilation_session),
+                                     alignof(ctex_paint_dilation_session));
+    try {
+        return ::new (storage) ctex_paint_dilation_session(allocator, radius);
+    } catch (...) {
+        deallocate_storage(allocator, storage, sizeof(ctex_paint_dilation_session),
+                           alignof(ctex_paint_dilation_session));
         throw;
     }
 }
@@ -1773,20 +1840,34 @@ void copy_paint_work_tiles(const ctex::paint::PaintWorkReport& report,
     }
 }
 
-std::size_t validate_capi_seam_dilation(const ctex_paint_seam_dilation_descriptor& dilation) {
-    if (dilation.component_count == 0 || dilation.component_count > 4) {
+std::size_t validate_seam_dilation_arrays(std::uint32_t width, std::uint32_t height,
+                                          std::uint32_t component_count, const double* pixels,
+                                          std::size_t pixel_count, const std::uint8_t* coverage,
+                                          std::size_t coverage_count) {
+    if (component_count == 0 || component_count > 4) {
         throw std::invalid_argument("seam-dilation component_count must be between one and four");
     }
-    const std::size_t texel_count = bounded_paint_pixel_count(
-        dilation.width, dilation.height, CTEX_DIAGNOSTIC_INVALID_PAINT_DILATION);
-    const std::size_t required_pixel_count = texel_count * dilation.component_count;
-    if (dilation.pixel_count != required_pixel_count || dilation.coverage_count != texel_count) {
+    const std::size_t texel_count =
+        bounded_paint_pixel_count(width, height, CTEX_DIAGNOSTIC_INVALID_PAINT_DILATION);
+    const std::size_t required_pixel_count = texel_count * component_count;
+    if (pixel_count != required_pixel_count || coverage_count != texel_count) {
         throw std::invalid_argument("seam-dilation input counts are inconsistent");
     }
-    if (dilation.pixels == nullptr || dilation.coverage == nullptr) {
+    if (pixels == nullptr || coverage == nullptr) {
         throw std::invalid_argument("seam-dilation input arrays are required");
     }
     return required_pixel_count;
+}
+
+std::size_t validate_capi_seam_dilation(const ctex_paint_seam_dilation_descriptor& dilation) {
+    return validate_seam_dilation_arrays(dilation.width, dilation.height, dilation.component_count,
+                                         dilation.pixels, dilation.pixel_count, dilation.coverage,
+                                         dilation.coverage_count);
+}
+
+std::size_t validate_capi_dilation_tile(const ctex_paint_dilation_tile_descriptor& tile) {
+    return validate_seam_dilation_arrays(tile.width, tile.height, tile.component_count, tile.pixels,
+                                         tile.pixel_count, tile.coverage, tile.coverage_count);
 }
 
 ctex_paint_seam_dilation_info capi_seam_dilation_info(
@@ -1800,6 +1881,121 @@ ctex_paint_seam_dilation_info capi_seam_dilation_info(
         .radius_clamped =
             result.parameter_report.clamp_for("seam_dilation.radius").has_value() ? 1U : 0U,
     };
+}
+
+bool dilation_tile_before(const ctex_paint_dilation_session_tile& tile, std::int32_t u,
+                          std::int32_t v) {
+    return tile.u < u || (tile.u == u && tile.v < v);
+}
+
+void stage_capi_dilation_tile(ctex_paint_dilation_session& session,
+                              const ctex_paint_dilation_tile_descriptor& descriptor) {
+    static_cast<void>(validate_capi_dilation_tile(descriptor));
+    if (session.finished) {
+        throw std::logic_error("cannot stage a UV tile after stroke dilation finished");
+    }
+    ctex_paint_dilation_session_tile staged(&session.memory_resource, descriptor);
+    const auto existing = std::lower_bound(session.tiles.begin(), session.tiles.end(), descriptor,
+                                           [](const ctex_paint_dilation_session_tile& tile,
+                                              const ctex_paint_dilation_tile_descriptor& value) {
+                                               return dilation_tile_before(tile, value.u, value.v);
+                                           });
+    if (existing == session.tiles.end()) {
+        session.tiles.push_back(std::move(staged));
+    } else if (existing->u != descriptor.u || existing->v != descriptor.v) {
+        session.tiles.insert(existing, std::move(staged));
+    } else {
+        *existing = std::move(staged);
+    }
+}
+
+ctex::paint::SeamDilationRaster capi_dilation_raster(const ctex_paint_dilation_session_tile& tile) {
+    return {
+        .width = tile.width,
+        .height = tile.height,
+        .component_count = static_cast<std::uint8_t>(tile.component_count),
+        .pixels = std::vector<double>(tile.pixels.begin(), tile.pixels.end()),
+    };
+}
+
+void finish_capi_dilation_session(ctex_paint_dilation_session& session) {
+    if (session.finished) {
+        return;
+    }
+    std::pmr::vector<ctex_paint_dilation_session_tile> completed(&session.memory_resource);
+    completed.reserve(session.tiles.size());
+    for (const ctex_paint_dilation_session_tile& tile : session.tiles) {
+        const ctex::paint::SeamDilationResult result =
+            ctex::paint::dilate_uv_seams(capi_dilation_raster(tile), tile.coverage, session.radius);
+        completed.emplace_back(&session.memory_resource, tile, result);
+    }
+    session.tiles = std::move(completed);
+    session.dilation_pass_count = session.radius == 0 ? 0 : session.tiles.size();
+    session.finished = true;
+}
+
+std::size_t capi_dilation_session_pixel_count(const ctex_paint_dilation_session& session) {
+    std::size_t count = 0;
+    for (const ctex_paint_dilation_session_tile& tile : session.tiles) {
+        if (tile.pixels.size() > std::numeric_limits<std::size_t>::max() - count) {
+            throw std::length_error("deferred seam-dilation pixel count exceeds address space");
+        }
+        count += tile.pixels.size();
+    }
+    return count;
+}
+
+ctex_paint_dilation_session_info capi_dilation_session_info(
+    const ctex_paint_dilation_session& session, std::size_t pixel_count) {
+    return {
+        .size = CTEX_PAINT_DILATION_SESSION_INFO_CURRENT_SIZE,
+        .state = session.finished ? CTEX_PAINT_DILATION_FINAL : CTEX_PAINT_DILATION_PROVISIONAL,
+        .tile_count = session.tiles.size(),
+        .required_pixel_count = pixel_count,
+        .dilation_pass_count = session.dilation_pass_count,
+        .resolved_radius = session.radius,
+        .radius_clamped = session.radius_clamped ? 1U : 0U,
+    };
+}
+
+void copy_capi_dilation_session_output(const ctex_paint_dilation_session& session,
+                                       ctex_paint_dilation_tile_info* tile_info, double* pixels) {
+    std::size_t offset = 0;
+    for (std::size_t index = 0; index < session.tiles.size(); ++index) {
+        const ctex_paint_dilation_session_tile& tile = session.tiles[index];
+        if (tile_info != nullptr) {
+            tile_info[index] = {
+                .u = tile.u,
+                .v = tile.v,
+                .width = tile.width,
+                .height = tile.height,
+                .component_count = tile.component_count,
+                .pixel_offset = offset,
+                .pixel_count = tile.pixels.size(),
+                .dilated_texel_count = tile.dilated_texel_count,
+                .zero_gradient_texel_count = tile.zero_gradient_texel_count,
+            };
+        }
+        if (pixels != nullptr) {
+            std::copy(tile.pixels.begin(), tile.pixels.end(), pixels + offset);
+        }
+        offset += tile.pixels.size();
+    }
+}
+
+void write_capi_dilation_session_output(const ctex_paint_dilation_session& session,
+                                        ctex_paint_dilation_session_info& out_info,
+                                        ctex_paint_dilation_tile_info* tiles,
+                                        std::size_t tile_capacity, std::size_t& out_tile_count,
+                                        double* pixels, std::size_t pixel_capacity,
+                                        std::size_t& out_pixel_count) {
+    const std::size_t pixel_count = capi_dilation_session_pixel_count(session);
+    out_tile_count = session.tiles.size();
+    out_pixel_count = pixel_count;
+    validate_output_array(tiles, tile_capacity, session.tiles.size(), "tiles");
+    validate_output_array(pixels, pixel_capacity, pixel_count, "pixels");
+    out_info = capi_dilation_session_info(session, pixel_count);
+    copy_capi_dilation_session_output(session, tiles, pixels);
 }
 
 ctex::paint::RejectionSettings accept_all_rejection_settings() {
@@ -2829,6 +3025,104 @@ extern "C" ctex_result ctex_paint_dilate_uv_seams(
             if (pixels != nullptr) {
                 std::copy(result.raster.pixels.begin(), result.raster.pixels.end(), pixels);
             }
+        } catch (const std::invalid_argument& error) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_INVALID_PAINT_DILATION,
+                           error.what());
+        }
+    });
+}
+
+extern "C" ctex_result ctex_paint_dilation_session_create(
+    std::uint32_t radius, ctex_paint_dilation_session** out_session) {
+    return call_boundary("ctex_paint_dilation_session_create", [&] {
+        if (out_session == nullptr) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                           "out_session is required");
+        }
+        *out_session = nullptr;
+        *out_session = create_paint_dilation_session(current_allocator(), radius);
+    });
+}
+
+extern "C" void ctex_paint_dilation_session_destroy(ctex_paint_dilation_session* session) {
+    if (session == nullptr) {
+        return;
+    }
+    const ctex_allocator_state allocator = session->allocator;
+    session->~ctex_paint_dilation_session();
+    deallocate_storage(allocator, session, sizeof(ctex_paint_dilation_session),
+                       alignof(ctex_paint_dilation_session));
+}
+
+extern "C" ctex_result ctex_paint_dilation_session_stage_tile(
+    ctex_paint_dilation_session* session, const ctex_paint_dilation_tile_descriptor* tile) {
+    return call_boundary("ctex_paint_dilation_session_stage_tile", [&] {
+        if (session == nullptr || tile == nullptr) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                           session == nullptr ? "session is required" : "tile is required");
+        }
+        validate_structure_size(tile->size, CTEX_PAINT_DILATION_TILE_DESCRIPTOR_V1_SIZE,
+                                CTEX_PAINT_DILATION_TILE_DESCRIPTOR_CURRENT_SIZE, "tile.size");
+        try {
+            stage_capi_dilation_tile(*session, *tile);
+        } catch (const std::invalid_argument& error) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_INVALID_PAINT_DILATION,
+                           error.what());
+        } catch (const std::logic_error& error) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_INVALID_PAINT_DILATION,
+                           error.what());
+        }
+    });
+}
+
+extern "C" ctex_result ctex_paint_dilation_session_get_preview(
+    const ctex_paint_dilation_session* session, ctex_paint_dilation_session_info* out_info,
+    ctex_paint_dilation_tile_info* tiles, std::size_t tile_capacity, std::size_t* out_tile_count,
+    double* pixels, std::size_t pixel_capacity, std::size_t* out_pixel_count) {
+    return call_boundary("ctex_paint_dilation_session_get_preview", [&] {
+        if (session == nullptr || out_info == nullptr || out_tile_count == nullptr ||
+            out_pixel_count == nullptr) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                           "session, out_info, out_tile_count and out_pixel_count are required");
+        }
+        validate_structure_size(out_info->size, CTEX_PAINT_DILATION_SESSION_INFO_V1_SIZE,
+                                CTEX_PAINT_DILATION_SESSION_INFO_CURRENT_SIZE, "out_info.size");
+        try {
+            write_capi_dilation_session_output(*session, *out_info, tiles, tile_capacity,
+                                               *out_tile_count, pixels, pixel_capacity,
+                                               *out_pixel_count);
+        } catch (const std::length_error& error) {
+            throw_boundary(CTEX_RESULT_OVER_BUDGET, CTEX_DIAGNOSTIC_PAINT_LIMIT_EXCEEDED,
+                           error.what());
+        }
+    });
+}
+
+extern "C" ctex_result ctex_paint_dilation_session_finish(
+    ctex_paint_dilation_session* session, ctex_paint_dilation_session_info* out_info,
+    ctex_paint_dilation_tile_info* tiles, std::size_t tile_capacity, std::size_t* out_tile_count,
+    double* pixels, std::size_t pixel_capacity, std::size_t* out_pixel_count) {
+    return call_boundary("ctex_paint_dilation_session_finish", [&] {
+        if (session == nullptr || out_info == nullptr || out_tile_count == nullptr ||
+            out_pixel_count == nullptr) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                           "session, out_info, out_tile_count and out_pixel_count are required");
+        }
+        validate_structure_size(out_info->size, CTEX_PAINT_DILATION_SESSION_INFO_V1_SIZE,
+                                CTEX_PAINT_DILATION_SESSION_INFO_CURRENT_SIZE, "out_info.size");
+        try {
+            const std::size_t current_pixel_count = capi_dilation_session_pixel_count(*session);
+            *out_tile_count = session->tiles.size();
+            *out_pixel_count = current_pixel_count;
+            validate_output_array(tiles, tile_capacity, session->tiles.size(), "tiles");
+            validate_output_array(pixels, pixel_capacity, current_pixel_count, "pixels");
+            finish_capi_dilation_session(*session);
+            write_capi_dilation_session_output(*session, *out_info, tiles, tile_capacity,
+                                               *out_tile_count, pixels, pixel_capacity,
+                                               *out_pixel_count);
+        } catch (const std::length_error& error) {
+            throw_boundary(CTEX_RESULT_OVER_BUDGET, CTEX_DIAGNOSTIC_PAINT_LIMIT_EXCEEDED,
+                           error.what());
         } catch (const std::invalid_argument& error) {
             throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_INVALID_PAINT_DILATION,
                            error.what());

@@ -120,6 +120,7 @@ typedef struct ctex_allocator_descriptor {
 typedef struct ctex_document ctex_document;
 typedef struct ctex_cube_lut ctex_cube_lut;
 typedef struct ctex_mesh ctex_mesh;
+typedef struct ctex_paint_dilation_session ctex_paint_dilation_session;
 
 #define CTEX_MAX_MESH_VERTEX_COUNT ((size_t)100000000)
 #define CTEX_MAX_MESH_TRIANGLE_COUNT ((size_t)100000000)
@@ -579,6 +580,56 @@ typedef struct ctex_paint_seam_dilation_info {
 
 #define CTEX_PAINT_SEAM_DILATION_INFO_V1_SIZE ((uint32_t)sizeof(ctex_paint_seam_dilation_info))
 #define CTEX_PAINT_SEAM_DILATION_INFO_CURRENT_SIZE ((uint32_t)sizeof(ctex_paint_seam_dilation_info))
+
+typedef enum ctex_paint_dilation_state {
+    CTEX_PAINT_DILATION_PROVISIONAL = 0,
+    CTEX_PAINT_DILATION_FINAL = 1
+} ctex_paint_dilation_state;
+
+typedef struct ctex_paint_dilation_tile_descriptor {
+    uint32_t size;
+    int32_t u;
+    int32_t v;
+    uint32_t width;
+    uint32_t height;
+    uint32_t component_count;
+    const double* pixels;
+    size_t pixel_count;
+    const uint8_t* coverage;
+    size_t coverage_count;
+} ctex_paint_dilation_tile_descriptor;
+
+#define CTEX_PAINT_DILATION_TILE_DESCRIPTOR_V1_SIZE \
+    ((uint32_t)sizeof(ctex_paint_dilation_tile_descriptor))
+#define CTEX_PAINT_DILATION_TILE_DESCRIPTOR_CURRENT_SIZE \
+    ((uint32_t)sizeof(ctex_paint_dilation_tile_descriptor))
+
+typedef struct ctex_paint_dilation_tile_info {
+    int32_t u;
+    int32_t v;
+    uint32_t width;
+    uint32_t height;
+    uint32_t component_count;
+    size_t pixel_offset;
+    size_t pixel_count;
+    size_t dilated_texel_count;
+    size_t zero_gradient_texel_count;
+} ctex_paint_dilation_tile_info;
+
+typedef struct ctex_paint_dilation_session_info {
+    uint32_t size;
+    uint32_t state;
+    size_t tile_count;
+    size_t required_pixel_count;
+    size_t dilation_pass_count;
+    uint32_t resolved_radius;
+    uint32_t radius_clamped;
+} ctex_paint_dilation_session_info;
+
+#define CTEX_PAINT_DILATION_SESSION_INFO_V1_SIZE \
+    ((uint32_t)sizeof(ctex_paint_dilation_session_info))
+#define CTEX_PAINT_DILATION_SESSION_INFO_CURRENT_SIZE \
+    ((uint32_t)sizeof(ctex_paint_dilation_session_info))
 
 typedef struct ctex_paint_deposition_descriptor {
     uint32_t size;
@@ -1053,6 +1104,27 @@ CTEX_API ctex_result ctex_paint_dilate_uv_seams(const ctex_paint_seam_dilation_d
                                                 ctex_paint_seam_dilation_info* out_info,
                                                 double* pixels, size_t pixel_capacity,
                                                 size_t* out_pixel_count);
+
+/* Creates one allocator-routed deferred seam-dilation session. */
+CTEX_API ctex_result ctex_paint_dilation_session_create(uint32_t radius,
+                                                        ctex_paint_dilation_session** out_session);
+CTEX_API void ctex_paint_dilation_session_destroy(ctex_paint_dilation_session* session);
+
+/* Stages or replaces the latest pixels for one dirtied UV tile. */
+CTEX_API ctex_result ctex_paint_dilation_session_stage_tile(
+    ctex_paint_dilation_session* session, const ctex_paint_dilation_tile_descriptor* tile);
+
+/* Returns an undilated provisional snapshot without finishing the session. */
+CTEX_API ctex_result ctex_paint_dilation_session_get_preview(
+    const ctex_paint_dilation_session* session, ctex_paint_dilation_session_info* out_info,
+    ctex_paint_dilation_tile_info* tiles, size_t tile_capacity, size_t* out_tile_count,
+    double* pixels, size_t pixel_capacity, size_t* out_pixel_count);
+
+/* Finalizes every staged tile once and returns the idempotent final snapshot. */
+CTEX_API ctex_result ctex_paint_dilation_session_finish(
+    ctex_paint_dilation_session* session, ctex_paint_dilation_session_info* out_info,
+    ctex_paint_dilation_tile_info* tiles, size_t tile_capacity, size_t* out_tile_count,
+    double* pixels, size_t pixel_capacity, size_t* out_pixel_count);
 
 /* Intersects every active normalized mask for one bounded tile. */
 CTEX_API ctex_result ctex_paint_combine_masks(uint32_t width, uint32_t height,

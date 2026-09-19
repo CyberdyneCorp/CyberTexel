@@ -69,6 +69,7 @@
       {"requirement": "Backface handling", "symbols": ["ctex_paint_rejection_init", "ctex_paint_evaluate_rejected_coverage"]},
       {"requirement": "Bounded work", "symbols": ["ctex_paint_work_init", "ctex_paint_plan_work"]},
       {"requirement": "UV seam dilation", "symbols": ["ctex_paint_seam_dilation_init", "ctex_paint_dilate_uv_seams"]},
+      {"requirement": "Dilation is deferred within a stroke", "symbols": ["ctex_paint_dilation_session_create", "ctex_paint_dilation_session_stage_tile", "ctex_paint_dilation_session_get_preview", "ctex_paint_dilation_session_finish", "ctex_paint_dilation_session_destroy"]},
       {"requirement": "Alpha discard", "symbols": ["ctex_paint_evaluate_tile_deposition"]},
       {"requirement": "Per-stroke coverage accumulation", "symbols": ["ctex_paint_evaluate_tile_deposition"]},
       {"requirement": "Flow separate from opacity", "symbols": ["ctex_paint_evaluate_tile_deposition"]},

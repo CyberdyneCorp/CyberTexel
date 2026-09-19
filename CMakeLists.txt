@@ -376,6 +376,11 @@ if(BUILD_TESTING)
         ctex_configure_c_target(ctex_capi_paint_dilation_test)
         target_link_libraries(ctex_capi_paint_dilation_test PRIVATE cybertexel_c)
         add_test(NAME c-abi-paint-dilation COMMAND ctex_capi_paint_dilation_test)
+        add_executable(ctex_capi_paint_dilation_session_test
+                       tests/capi/paint_dilation_session_test.c)
+        ctex_configure_c_target(ctex_capi_paint_dilation_session_test)
+        target_link_libraries(ctex_capi_paint_dilation_session_test PRIVATE cybertexel_c)
+        add_test(NAME c-abi-paint-dilation-session COMMAND ctex_capi_paint_dilation_session_test)
         if(UNIX AND NOT APPLE)
             add_test(
                 NAME c-abi-export-surface

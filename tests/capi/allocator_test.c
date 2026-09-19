@@ -64,6 +64,21 @@ int main(void) {
     };
     ctex_document* document = NULL;
     ctex_cube_lut* lut = NULL;
+    ctex_paint_dilation_session* dilation_session = NULL;
+    const double dilation_pixels[3] = {-1.0, 2.0, -1.0};
+    const uint8_t dilation_coverage[3] = {0, 1, 0};
+    const ctex_paint_dilation_tile_descriptor dilation_tile = {
+        CTEX_PAINT_DILATION_TILE_DESCRIPTOR_CURRENT_SIZE,
+        0,
+        0,
+        3,
+        1,
+        1,
+        dilation_pixels,
+        3,
+        dilation_coverage,
+        3,
+    };
     ctex_texture_set_descriptor texture_set = {
         CTEX_TEXTURE_SET_DESCRIPTOR_CURRENT_SIZE,
         "Body",
@@ -95,6 +110,14 @@ int main(void) {
         lut == NULL || capture.allocation_count <= document_allocation_count) {
         return 2;
     }
+    document_allocation_count = capture.allocation_count;
+    if (ctex_paint_dilation_session_create(1, &dilation_session) != CTEX_RESULT_SUCCESS ||
+        dilation_session == NULL ||
+        ctex_paint_dilation_session_stage_tile(dilation_session, &dilation_tile) !=
+            CTEX_RESULT_SUCCESS ||
+        capture.allocation_count <= document_allocation_count) {
+        return 2;
+    }
     successful_allocation_count = capture.allocation_count;
 
     if (ctex_set_allocator(NULL) != CTEX_RESULT_SUCCESS) {
@@ -112,6 +135,7 @@ int main(void) {
     successful_allocation_count = capture.allocation_count;
     ctex_document_destroy(document);
     ctex_cube_lut_destroy(lut);
+    ctex_paint_dilation_session_destroy(dilation_session);
     if (capture.deallocation_count != successful_allocation_count) {
         return 5;
     }
