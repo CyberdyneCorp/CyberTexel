@@ -467,6 +467,12 @@ selection. Exact zero tolerance is never widened, and the result reports both
 its selected texel count and a distinct matched-or-empty status. Named views of
 the same selection serve paint restriction, mask-source and visibility-filter
 consumers without copying or changing its meaning.
+Selection (10.11) uses exact clipped screen rectangle and lasso queries as a
+broad phase, then projects cached surface texels so only centers inside the
+screen region are selected. Polygon selection reuses the canonical triangle,
+UV-island and connected-by-angle expansion rules. Active selection masks feed
+paint masking directly; validated stored masks own an independent copy. Screen
+operations preserve traversal accounting and refuse stale surface caches.
 
 ## 1. Foundation
 
@@ -615,7 +621,7 @@ consumers without copying or changing its meaning.
 - [x] 10.8 Particle with deterministic seeding
 - [x] 10.9 Picker across every enabled channel
 - [x] 10.10 Colour ID selection with tolerance and its empty-selection reporting
-- [ ] 10.11 Selection tool: rectangle, lasso, polygon fill; storable as a mask
+- [x] 10.11 Selection tool: rectangle, lasso, polygon fill; storable as a mask
 - [ ] 10.12 Parameter validation at every entry point; the no-inert-parameter audit
 - [ ] 10.13 `paint-tools` scenarios as tests
 

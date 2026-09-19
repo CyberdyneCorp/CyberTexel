@@ -99,6 +99,9 @@ The current implementation provides:
   [Colour-ID selection](docs/colour-id-selection.md) creates an explicit binary
   region using a configurable linear-RGB tolerance, including an observable
   empty result, for paint, mask, and visibility consumers.
+  The [Selection tool](docs/selection-tool.md) maps screen rectangles, lassos,
+  triangles, UV islands, and connected-by-angle polygon regions into active or
+  independently stored texture-space masks.
 - Sparse tiled image storage for one-to-four-channel 8-bit, 16-bit, and
   floating-point pixels, with tile-level dirty tracking and monotonic channel
   and per-tile [content revisions](docs/host-transport-revisions.md), plus

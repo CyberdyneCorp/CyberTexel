@@ -139,6 +139,7 @@ ctex_add_module(
         src/paint/rejection.cpp
         src/paint/seam_dilation.cpp
         src/paint/seam_filter.cpp
+        src/paint/selection.cpp
         src/paint/surface_cache.cpp
         src/paint/stroke.cpp
         src/paint/stroke_preset.cpp
@@ -378,6 +379,14 @@ if(BUILD_TESTING)
         PRIVATE ctex_paint ctex_doc ctex_emit ctex_pick ctex_mesh ctex_graph ctex_image
     )
     add_test(NAME paint-colour-id COMMAND ctex_paint_colour_id_test)
+
+    add_executable(ctex_paint_selection_test tests/paint/selection_test.cpp)
+    ctex_configure_cpp_target(ctex_paint_selection_test)
+    target_link_libraries(
+        ctex_paint_selection_test
+        PRIVATE ctex_paint ctex_doc ctex_emit ctex_pick ctex_mesh ctex_graph ctex_image
+    )
+    add_test(NAME paint-selection COMMAND ctex_paint_selection_test)
 
     add_executable(ctex_paint_rejection_test tests/paint/rejection_test.cpp)
     ctex_configure_cpp_target(ctex_paint_rejection_test)
