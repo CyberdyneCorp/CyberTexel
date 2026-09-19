@@ -208,6 +208,13 @@ normalized range and that clamp is reported in the result metadata.
 Both operations are capped at `CTEX_MAX_PAINT_TILE_TEXEL_COUNT` (1,048,576)
 texels so this boundary cannot silently allocate a canvas-sized intermediate.
 
+`ctex_paint_blend_snapshot` turns deposition samples into row-major RGBA pixels.
+It evaluates the named blend mode against the caller's immutable stroke-start
+tile, never against a prior call's output. All twenty blend modes use the same
+formula surface as material graphs and layer compositing. A deposition sample
+whose alpha-discard write flag is zero preserves its snapshot pixel. Input
+arrays are validated in full before any caller-owned output is changed.
+
 ## ABI version and compatibility
 
 `ctex_get_abi_version` is safe before any handle exists and returns the major,
@@ -245,7 +252,7 @@ The contract is stated per entry-point family:
 | --- | --- |
 | `ctex_get_version`, `ctex_get_abi_version` | Process-safe and callable concurrently from any thread |
 | `ctex_get_working_color_space`, `ctex_color_space_get_name`, `ctex_channel_get_color_policy`, `ctex_channel_get_bit_depth_warning`, `ctex_resolve_input_color_space`, `ctex_color_convert`, `ctex_color_input_to_working`, `ctex_accumulate_height`, `ctex_quantize_unorm8` | Stateless, process-safe and callable concurrently from any thread |
-| `ctex_image_decode_memory`, `ctex_image_encode_memory`, `ctex_stroke_settings_init`, `ctex_stroke_resolve`, `ctex_stroke_preset_serialize`, `ctex_stroke_preset_deserialize`, `ctex_paint_evaluate_tile_coverage`, `ctex_paint_evaluate_tile_deposition` | Stateless and safe to call concurrently; inputs are borrowed only for the call and outputs are caller-owned |
+| `ctex_image_decode_memory`, `ctex_image_encode_memory`, `ctex_stroke_settings_init`, `ctex_stroke_resolve`, `ctex_stroke_preset_serialize`, `ctex_stroke_preset_deserialize`, `ctex_paint_evaluate_tile_coverage`, `ctex_paint_evaluate_tile_deposition`, `ctex_paint_blend_snapshot` | Stateless and safe to call concurrently; inputs are borrowed only for the call and outputs are caller-owned |
 | `ctex_cube_lut_create` | Process-safe; each successful call creates independent immutable state and captures the active allocator |
 | `ctex_cube_lut_apply_preview` | Safe to call concurrently, including against the same immutable LUT handle |
 | `ctex_cube_lut_destroy` | The caller ensures no application call is using that handle; distinct handles may be destroyed concurrently |

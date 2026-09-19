@@ -107,7 +107,7 @@ class CApiCoverageTests(unittest.TestCase):
 
     def test_repository_manifest_has_only_the_known_coverage_gap(self) -> None:
         failures = CHECK.check(CHECK.ROOT, CHECK.MANIFEST)
-        self.assertEqual(len(failures), 198)
+        self.assertEqual(len(failures), 197)
         self.assertTrue(
             all("requirement lacks C ABI evidence" in failure for failure in failures)
         )

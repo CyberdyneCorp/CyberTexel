@@ -8,6 +8,8 @@ static int expect(int condition) { return condition ? 1 : 0; }
 
 static int near(double left, double right) { return fabs(left - right) < 1.0e-9; }
 
+static int near_float(float left, float right) { return fabsf(left - right) < 1.0e-6f; }
+
 static ctex_mesh* coverage_mesh(void) {
     static const ctex_vec3f positions[4] = {
         {0.0f, 0.0f, 0.0f}, {10.0f, 0.0f, 0.0f}, {10.0f, 1.0f, 0.0f}, {0.0f, 1.0f, 0.0f}};
@@ -198,6 +200,80 @@ static int deposition_accumulates_and_discards_canonical_stamps(void) {
     return passed;
 }
 
+static int all_blend_modes_are_reachable(ctex_paint_blend_descriptor* descriptor,
+                                         ctex_vec4f* pixels, size_t* count) {
+    static const char* const blend_modes[20] = {
+        "normal",       "darken",      "multiply",  "color_burn", "lighten",
+        "screen",       "color_dodge", "add",       "overlay",    "soft_light",
+        "linear_light", "difference",  "exclusion", "subtract",   "divide",
+        "hue",          "saturation",  "color",     "value",      "pass_through"};
+    size_t index = 0;
+    for (index = 0; index < 20; ++index) {
+        descriptor->blend_mode = blend_modes[index];
+        if (!expect(ctex_paint_blend_snapshot(descriptor, pixels, 2, count) ==
+                    CTEX_RESULT_SUCCESS)) {
+            return 0;
+        }
+    }
+    return 1;
+}
+
+static int snapshot_blending_uses_deposition_write_mask(void) {
+    const ctex_vec4f snapshot[2] = {{0.25f, 0.5f, 0.75f, 0.2f}, {0.1f, 0.2f, 0.3f, 0.4f}};
+    const ctex_vec4f paint[2] = {{0.8f, 0.4f, 0.2f, 1.0f}, {1.0f, 0.9f, 0.8f, 0.7f}};
+    ctex_paint_deposition_sample deposition[2] = {
+        {.strength = 0.5, .retained_strength = 0.5, .write = 1},
+        {.strength = 1.0, .retained_strength = 1.0, .write = 0}};
+    ctex_paint_blend_descriptor descriptor = {
+        CTEX_PAINT_BLEND_DESCRIPTOR_CURRENT_SIZE, 2, 1, "multiply", snapshot, paint, deposition, 2};
+    ctex_vec4f pixels[2] = {{-1.0f, -1.0f, -1.0f, -1.0f}, {-1.0f, -1.0f, -1.0f, -1.0f}};
+    size_t count = 0;
+    int passed =
+        expect(ctex_paint_blend_snapshot(&descriptor, NULL, 0, &count) == CTEX_RESULT_SUCCESS) &&
+        expect(count == 2);
+    if (passed) {
+        passed = expect(ctex_paint_blend_snapshot(&descriptor, pixels, 1, &count) ==
+                        CTEX_RESULT_BUFFER_TOO_SMALL) &&
+                 expect(pixels[0].x == -1.0f && pixels[1].x == -1.0f);
+    }
+    if (passed) {
+        passed = expect(ctex_paint_blend_snapshot(&descriptor, pixels, 2, &count) ==
+                        CTEX_RESULT_SUCCESS) &&
+                 expect(near_float(pixels[0].x, 0.225f) && near_float(pixels[0].y, 0.35f) &&
+                        near_float(pixels[0].z, 0.45f) && near_float(pixels[0].w, 0.6f)) &&
+                 expect(near_float(pixels[1].x, snapshot[1].x) &&
+                        near_float(pixels[1].y, snapshot[1].y) &&
+                        near_float(pixels[1].z, snapshot[1].z) &&
+                        near_float(pixels[1].w, snapshot[1].w));
+    }
+    deposition[0].strength = 0.75;
+    if (passed) {
+        passed = expect(ctex_paint_blend_snapshot(&descriptor, pixels, 2, &count) ==
+                        CTEX_RESULT_SUCCESS) &&
+                 expect(near_float(pixels[0].x, 0.2125f) && near_float(pixels[0].y, 0.275f) &&
+                        near_float(pixels[0].z, 0.3f) && near_float(pixels[0].w, 0.8f));
+    }
+    if (passed) {
+        passed = all_blend_modes_are_reachable(&descriptor, pixels, &count);
+    }
+    descriptor.blend_mode = "unknown";
+    pixels[0].x = -2.0f;
+    if (passed) {
+        passed = expect(ctex_paint_blend_snapshot(&descriptor, pixels, 2, &count) ==
+                        CTEX_RESULT_INVALID_ARGUMENT) &&
+                 expect(ctex_get_last_diagnostic_code() == CTEX_DIAGNOSTIC_INVALID_PAINT_BLEND) &&
+                 expect(pixels[0].x == -2.0f);
+    }
+    descriptor.blend_mode = "normal";
+    descriptor.width = 0;
+    if (passed) {
+        passed = expect(ctex_paint_blend_snapshot(&descriptor, pixels, 2, &count) ==
+                        CTEX_RESULT_INVALID_ARGUMENT) &&
+                 expect(ctex_get_last_diagnostic_code() == CTEX_DIAGNOSTIC_INVALID_PAINT_BLEND);
+    }
+    return passed;
+}
+
 static int invalid_inputs_are_stable_diagnostics(void) {
     ctex_mesh* mesh = coverage_mesh();
     ctex_paint_tile_coverage_descriptor tile = {
@@ -241,6 +317,7 @@ int main(void) {
     return continuous_and_external_strokes_produce_tile_coverage() &&
                    discrete_tips_do_not_synthesize_sweeps() &&
                    deposition_accumulates_and_discards_canonical_stamps() &&
+                   snapshot_blending_uses_deposition_write_mask() &&
                    invalid_inputs_are_stable_diagnostics()
                ? 0
                : 1;

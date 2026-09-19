@@ -72,7 +72,8 @@ typedef enum ctex_diagnostic_code {
     CTEX_DIAGNOSTIC_INVALID_STROKE = 36,
     CTEX_DIAGNOSTIC_INVALID_STROKE_PRESET = 37,
     CTEX_DIAGNOSTIC_INVALID_PAINT_COVERAGE = 38,
-    CTEX_DIAGNOSTIC_PAINT_LIMIT_EXCEEDED = 39
+    CTEX_DIAGNOSTIC_PAINT_LIMIT_EXCEEDED = 39,
+    CTEX_DIAGNOSTIC_INVALID_PAINT_BLEND = 40
 } ctex_diagnostic_code;
 
 typedef enum ctex_log_severity {
@@ -421,6 +422,20 @@ typedef struct ctex_paint_deposition_sample {
     double retained_strength;
     uint32_t write;
 } ctex_paint_deposition_sample;
+
+typedef struct ctex_paint_blend_descriptor {
+    uint32_t size;
+    uint32_t width;
+    uint32_t height;
+    const char* blend_mode;
+    const ctex_vec4f* stroke_start_snapshot;
+    const ctex_vec4f* paint;
+    const ctex_paint_deposition_sample* deposition;
+    size_t pixel_count;
+} ctex_paint_blend_descriptor;
+
+#define CTEX_PAINT_BLEND_DESCRIPTOR_V1_SIZE ((uint32_t)sizeof(ctex_paint_blend_descriptor))
+#define CTEX_PAINT_BLEND_DESCRIPTOR_CURRENT_SIZE ((uint32_t)sizeof(ctex_paint_blend_descriptor))
 
 typedef struct ctex_stroke_preset_info {
     uint32_t size;
@@ -818,6 +833,15 @@ CTEX_API ctex_result ctex_paint_evaluate_tile_deposition(
     const ctex_resolved_stroke_descriptor* stroke,
     const ctex_paint_deposition_descriptor* deposition, ctex_paint_deposition_info* out_info,
     ctex_paint_deposition_sample* samples, size_t sample_capacity, size_t* out_sample_count);
+
+/*
+ * Blends one deposited tile against caller-owned stroke-start pixels. Samples
+ * whose deposition write flag is zero preserve the corresponding snapshot
+ * pixel. Pass NULL output with zero capacity to query the required count.
+ */
+CTEX_API ctex_result ctex_paint_blend_snapshot(const ctex_paint_blend_descriptor* descriptor,
+                                               ctex_vec4f* pixels, size_t pixel_capacity,
+                                               size_t* out_pixel_count);
 
 /*
  * Installs one process-wide sink. Pass NULL to uninstall it. The callback can

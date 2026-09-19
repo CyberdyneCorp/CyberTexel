@@ -9,6 +9,7 @@
 #include <ctex/image/color_policy.hpp>
 #include <ctex/io/image_io.hpp>
 #include <ctex/io/texture_encode.hpp>
+#include <ctex/paint/blending.hpp>
 #include <ctex/paint/coverage.hpp>
 #include <ctex/paint/deposition.hpp>
 #include <ctex/paint/stroke.hpp>
@@ -1501,22 +1502,27 @@ ctex::paint::ResolvedStroke paint_stroke(const ctex_resolved_stroke_descriptor& 
     return result;
 }
 
-std::size_t paint_tile_texel_count(const ctex_paint_tile_coverage_descriptor& tile) {
-    validate_structure_size(tile.size, CTEX_PAINT_TILE_COVERAGE_DESCRIPTOR_V1_SIZE,
-                            CTEX_PAINT_TILE_COVERAGE_DESCRIPTOR_CURRENT_SIZE, "tile.size");
-    if (tile.width == 0 || tile.height == 0 ||
-        static_cast<std::size_t>(tile.width) >
-            std::numeric_limits<std::size_t>::max() / tile.height) {
-        throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_INVALID_PAINT_COVERAGE,
-                       "paint tile dimensions are invalid");
+std::size_t bounded_paint_pixel_count(std::uint32_t width, std::uint32_t height,
+                                      ctex_diagnostic_code invalid_dimensions_code) {
+    if (width == 0 || height == 0 ||
+        static_cast<std::size_t>(width) > std::numeric_limits<std::size_t>::max() / height) {
+        throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, invalid_dimensions_code,
+                       "paint dimensions are invalid");
     }
-    const std::size_t count = static_cast<std::size_t>(tile.width) * tile.height;
+    const std::size_t count = static_cast<std::size_t>(width) * height;
     if (count > CTEX_MAX_PAINT_TILE_TEXEL_COUNT) {
         throw_boundary(CTEX_RESULT_OVER_BUDGET, CTEX_DIAGNOSTIC_PAINT_LIMIT_EXCEEDED,
-                       "paint tile texel_count=" + std::to_string(count) +
+                       "paint pixel_count=" + std::to_string(count) +
                            " maximum=" + std::to_string(CTEX_MAX_PAINT_TILE_TEXEL_COUNT));
     }
     return count;
+}
+
+std::size_t paint_tile_texel_count(const ctex_paint_tile_coverage_descriptor& tile) {
+    validate_structure_size(tile.size, CTEX_PAINT_TILE_COVERAGE_DESCRIPTOR_V1_SIZE,
+                            CTEX_PAINT_TILE_COVERAGE_DESCRIPTOR_CURRENT_SIZE, "tile.size");
+    return bounded_paint_pixel_count(tile.width, tile.height,
+                                     CTEX_DIAGNOSTIC_INVALID_PAINT_COVERAGE);
 }
 
 ctex::paint::TextureSpaceRaster paint_tile_surface(
@@ -1588,6 +1594,46 @@ void copy_deposition_samples(const ctex::paint::DepositionRaster& deposition,
             .write = discarded.write_mask[index],
         };
     }
+}
+
+ctex::graph::ColourValue paint_colour(ctex_vec4f value) {
+    return {value.x, value.y, value.z, value.w};
+}
+
+ctex_vec4f capi_colour(ctex::graph::ColourValue value) {
+    return {value.r, value.g, value.b, value.a};
+}
+
+struct PaintBlendInputs {
+    std::vector<ctex::graph::ColourValue> snapshot;
+    std::vector<ctex::graph::ColourValue> paint;
+    std::vector<double> strength;
+};
+
+PaintBlendInputs paint_blend_inputs(const ctex_paint_blend_descriptor& descriptor,
+                                    std::size_t expected_count) {
+    if (descriptor.blend_mode == nullptr || descriptor.stroke_start_snapshot == nullptr ||
+        descriptor.paint == nullptr || descriptor.deposition == nullptr) {
+        throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                       "blend_mode, stroke_start_snapshot, paint and deposition are required");
+    }
+    if (descriptor.pixel_count != expected_count) {
+        throw std::invalid_argument("paint blend pixel count does not match its dimensions");
+    }
+    PaintBlendInputs result;
+    result.snapshot.reserve(expected_count);
+    result.paint.reserve(expected_count);
+    result.strength.reserve(expected_count);
+    for (std::size_t index = 0; index < expected_count; ++index) {
+        if (descriptor.deposition[index].write > 1) {
+            throw std::invalid_argument("paint blend deposition write flag is invalid");
+        }
+        result.snapshot.push_back(paint_colour(descriptor.stroke_start_snapshot[index]));
+        result.paint.push_back(paint_colour(descriptor.paint[index]));
+        result.strength.push_back(
+            descriptor.deposition[index].write != 0 ? descriptor.deposition[index].strength : 0.0);
+    }
+    return result;
 }
 
 }  // namespace
@@ -2264,6 +2310,36 @@ extern "C" ctex_result ctex_paint_evaluate_tile_deposition(
                            error.what());
         } catch (const std::out_of_range& error) {
             throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_INVALID_PAINT_COVERAGE,
+                           error.what());
+        }
+    });
+}
+
+extern "C" ctex_result ctex_paint_blend_snapshot(const ctex_paint_blend_descriptor* descriptor,
+                                                 ctex_vec4f* pixels, std::size_t pixel_capacity,
+                                                 std::size_t* out_pixel_count) {
+    return call_boundary("ctex_paint_blend_snapshot", [&] {
+        if (descriptor == nullptr || out_pixel_count == nullptr) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                           descriptor == nullptr ? "descriptor=null" : "out_pixel_count=null");
+        }
+        validate_structure_size(descriptor->size, CTEX_PAINT_BLEND_DESCRIPTOR_V1_SIZE,
+                                CTEX_PAINT_BLEND_DESCRIPTOR_CURRENT_SIZE, "descriptor.size");
+        const std::size_t pixel_count = bounded_paint_pixel_count(
+            descriptor->width, descriptor->height, CTEX_DIAGNOSTIC_INVALID_PAINT_BLEND);
+        *out_pixel_count = pixel_count;
+        validate_output_array(pixels, pixel_capacity, pixel_count, "pixels");
+        try {
+            const PaintBlendInputs inputs = paint_blend_inputs(*descriptor, pixel_count);
+            ctex::paint::StrokeSnapshotBlender blender(descriptor->width, descriptor->height,
+                                                       inputs.snapshot, descriptor->blend_mode);
+            blender.shade(inputs.paint, inputs.strength);
+            if (pixels != nullptr) {
+                std::transform(blender.result().pixels.begin(), blender.result().pixels.end(),
+                               pixels, capi_colour);
+            }
+        } catch (const std::invalid_argument& error) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_INVALID_PAINT_BLEND,
                            error.what());
         }
     });

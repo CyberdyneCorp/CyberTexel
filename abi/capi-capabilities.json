@@ -65,7 +65,8 @@
       {"requirement": "Falloff", "symbols": ["ctex_paint_evaluate_tile_coverage"]},
       {"requirement": "Alpha discard", "symbols": ["ctex_paint_evaluate_tile_deposition"]},
       {"requirement": "Per-stroke coverage accumulation", "symbols": ["ctex_paint_evaluate_tile_deposition"]},
-      {"requirement": "Flow separate from opacity", "symbols": ["ctex_paint_evaluate_tile_deposition"]}
+      {"requirement": "Flow separate from opacity", "symbols": ["ctex_paint_evaluate_tile_deposition"]},
+      {"requirement": "Blending against a stroke-start snapshot", "symbols": ["ctex_paint_blend_snapshot"]}
     ]},
     {"name": "paint-tools", "kind": "runtime", "requirements": []},
     {"name": "picking", "kind": "runtime", "requirements": []},
