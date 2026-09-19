@@ -75,7 +75,8 @@ typedef enum ctex_diagnostic_code {
     CTEX_DIAGNOSTIC_PAINT_LIMIT_EXCEEDED = 39,
     CTEX_DIAGNOSTIC_INVALID_PAINT_BLEND = 40,
     CTEX_DIAGNOSTIC_INVALID_PAINT_MASK = 41,
-    CTEX_DIAGNOSTIC_INVALID_PAINT_COORDINATES = 42
+    CTEX_DIAGNOSTIC_INVALID_PAINT_COORDINATES = 42,
+    CTEX_DIAGNOSTIC_INVALID_PAINT_REJECTION = 43
 } ctex_diagnostic_code;
 
 typedef enum ctex_log_severity {
@@ -446,6 +447,68 @@ typedef struct ctex_paint_material_coordinate_sample {
     ctex_vec2d coordinates[3];
     double weights[3];
 } ctex_paint_material_coordinate_sample;
+
+typedef enum ctex_paint_symmetry_depth_policy {
+    CTEX_PAINT_SYMMETRY_DEPTH_REQUIRE_CONSISTENT = 0,
+    CTEX_PAINT_SYMMETRY_DEPTH_DISABLE_DERIVED = 1
+} ctex_paint_symmetry_depth_policy;
+
+typedef enum ctex_paint_depth_disposition {
+    CTEX_PAINT_DEPTH_DISABLED_BY_OPERATION = 0,
+    CTEX_PAINT_DEPTH_CONSISTENT_PER_INSTANCE = 1,
+    CTEX_PAINT_DEPTH_DISABLED_FOR_DERIVED_SYMMETRY = 2
+} ctex_paint_depth_disposition;
+
+typedef struct ctex_paint_depth_context_descriptor {
+    uint32_t size;
+    uint64_t symmetry_instance;
+    uint32_t viewport_width;
+    uint32_t viewport_height;
+    const ctex_vec2d* screen_positions;
+    const double* surface_depth;
+    size_t surface_sample_count;
+    const double* visible_depth;
+    size_t visible_depth_count;
+    uint32_t transform_consistent;
+} ctex_paint_depth_context_descriptor;
+
+#define CTEX_PAINT_DEPTH_CONTEXT_DESCRIPTOR_V1_SIZE \
+    ((uint32_t)sizeof(ctex_paint_depth_context_descriptor))
+#define CTEX_PAINT_DEPTH_CONTEXT_DESCRIPTOR_CURRENT_SIZE \
+    ((uint32_t)sizeof(ctex_paint_depth_context_descriptor))
+
+typedef struct ctex_paint_rejection_descriptor {
+    uint32_t size;
+    uint32_t depth_enabled;
+    double depth_bias;
+    uint32_t symmetry_depth_policy;
+    uint32_t angle_enabled;
+    double minimum_normal_dot;
+    uint32_t backface_enabled;
+    const ctex_paint_depth_context_descriptor* depth_contexts;
+    size_t depth_context_count;
+    const ctex_vec3d* view_directions;
+    size_t view_direction_count;
+} ctex_paint_rejection_descriptor;
+
+#define CTEX_PAINT_REJECTION_DESCRIPTOR_V1_SIZE ((uint32_t)sizeof(ctex_paint_rejection_descriptor))
+#define CTEX_PAINT_REJECTION_DESCRIPTOR_CURRENT_SIZE \
+    ((uint32_t)sizeof(ctex_paint_rejection_descriptor))
+
+typedef struct ctex_paint_rejection_info {
+    uint32_t size;
+    uint32_t depth_disposition;
+    size_t depth_rejected_contributions;
+    size_t angle_rejected_contributions;
+    size_t backface_rejected_texels;
+    double resolved_depth_bias;
+    double resolved_minimum_normal_dot;
+    uint32_t depth_bias_clamped;
+    uint32_t minimum_normal_dot_clamped;
+} ctex_paint_rejection_info;
+
+#define CTEX_PAINT_REJECTION_INFO_V1_SIZE ((uint32_t)sizeof(ctex_paint_rejection_info))
+#define CTEX_PAINT_REJECTION_INFO_CURRENT_SIZE ((uint32_t)sizeof(ctex_paint_rejection_info))
 
 typedef struct ctex_paint_deposition_descriptor {
     uint32_t size;
@@ -890,6 +953,16 @@ CTEX_API ctex_result ctex_paint_evaluate_material_coordinates(
     const ctex_paint_material_coordinate_descriptor* descriptor,
     ctex_paint_material_coordinate_sample* samples, size_t sample_capacity,
     size_t* out_sample_count);
+
+/* Initializes canonical depth, angle and backface rejection settings. */
+CTEX_API ctex_result ctex_paint_rejection_init(ctex_paint_rejection_descriptor* out_rejection);
+
+/* Applies depth, angle and backface rejection to geometric tile coverage. */
+CTEX_API ctex_result ctex_paint_evaluate_rejected_coverage(
+    const ctex_mesh* mesh, const ctex_paint_tile_coverage_descriptor* tile,
+    const ctex_resolved_stroke_descriptor* stroke, const ctex_paint_rejection_descriptor* rejection,
+    ctex_paint_rejection_info* out_info, double* coverage, size_t coverage_capacity,
+    size_t* out_coverage_count);
 
 /* Intersects every active normalized mask for one bounded tile. */
 CTEX_API ctex_result ctex_paint_combine_masks(uint32_t width, uint32_t height,

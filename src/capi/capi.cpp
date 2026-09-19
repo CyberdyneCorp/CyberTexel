@@ -1589,6 +1589,145 @@ ctex_paint_material_coordinate_sample capi_material_coordinates(
     return result;
 }
 
+bool paint_flag(std::uint32_t value, std::string_view name) {
+    if (value > 1) {
+        throw std::invalid_argument(std::string(name) + " flag is invalid");
+    }
+    return value != 0;
+}
+
+ctex::paint::SymmetryDepthPolicy paint_symmetry_depth_policy(std::uint32_t value) {
+    switch (value) {
+        case CTEX_PAINT_SYMMETRY_DEPTH_REQUIRE_CONSISTENT:
+            return ctex::paint::SymmetryDepthPolicy::require_consistent_per_instance;
+        case CTEX_PAINT_SYMMETRY_DEPTH_DISABLE_DERIVED:
+            return ctex::paint::SymmetryDepthPolicy::disable_for_derived_symmetry;
+        default:
+            throw std::invalid_argument("paint symmetry depth policy is invalid");
+    }
+}
+
+std::span<const double> paint_double_view(const double* values, std::size_t count,
+                                          std::string_view name) {
+    if (values == nullptr && count != 0) {
+        throw std::invalid_argument(std::string(name) + " is null with nonzero count");
+    }
+    return count == 0 ? std::span<const double>{} : std::span<const double>(values, count);
+}
+
+struct PaintRejectionStorage {
+    ctex::paint::RejectionSettings settings;
+    std::vector<std::vector<ctex::paint::Vec2d>> screen_positions;
+    std::vector<ctex::paint::DepthProjectionContext> depth_contexts;
+    std::vector<ctex::paint::Vec3d> view_directions;
+
+    [[nodiscard]] ctex::paint::RejectionInput input() const {
+        return {.depth_contexts = depth_contexts, .view_directions = view_directions};
+    }
+};
+
+void validate_paint_rejection_arrays(const ctex_paint_rejection_descriptor& descriptor,
+                                     std::size_t texel_count,
+                                     std::uint64_t symmetry_instance_count) {
+    if ((descriptor.depth_contexts == nullptr && descriptor.depth_context_count != 0) ||
+        (descriptor.view_directions == nullptr && descriptor.view_direction_count != 0)) {
+        throw std::invalid_argument("paint rejection arrays are null with nonzero counts");
+    }
+    if (descriptor.depth_context_count > symmetry_instance_count ||
+        (descriptor.view_direction_count != 0 && descriptor.view_direction_count != texel_count)) {
+        throw std::invalid_argument("paint rejection array count is inconsistent");
+    }
+}
+
+void append_paint_depth_context(PaintRejectionStorage& storage,
+                                const ctex_paint_depth_context_descriptor& context,
+                                std::size_t texel_count) {
+    validate_structure_size(context.size, CTEX_PAINT_DEPTH_CONTEXT_DESCRIPTOR_V1_SIZE,
+                            CTEX_PAINT_DEPTH_CONTEXT_DESCRIPTOR_CURRENT_SIZE, "depth_context.size");
+    if (context.surface_sample_count != texel_count) {
+        throw std::invalid_argument("depth context surface sample count is inconsistent");
+    }
+    if (context.screen_positions == nullptr && context.surface_sample_count != 0) {
+        throw std::invalid_argument("depth context screen_positions is null with nonzero count");
+    }
+    std::vector<ctex::paint::Vec2d>& positions = storage.screen_positions.emplace_back();
+    positions.reserve(context.surface_sample_count);
+    for (std::size_t sample = 0; sample < context.surface_sample_count; ++sample) {
+        positions.push_back(
+            {context.screen_positions[sample].x, context.screen_positions[sample].y});
+    }
+    storage.depth_contexts.push_back({
+        .symmetry_instance = context.symmetry_instance,
+        .viewport_width = context.viewport_width,
+        .viewport_height = context.viewport_height,
+        .screen_positions = positions,
+        .surface_depth =
+            paint_double_view(context.surface_depth, context.surface_sample_count, "surface_depth"),
+        .visible_depth =
+            paint_double_view(context.visible_depth, context.visible_depth_count, "visible_depth"),
+        .transform_consistent = paint_flag(context.transform_consistent, "transform_consistent"),
+    });
+}
+
+PaintRejectionStorage paint_rejection_storage(const ctex_paint_rejection_descriptor& descriptor,
+                                              std::size_t texel_count,
+                                              std::uint64_t symmetry_instance_count) {
+    validate_paint_rejection_arrays(descriptor, texel_count, symmetry_instance_count);
+    PaintRejectionStorage storage{
+        .settings =
+            {
+                .depth_enabled = paint_flag(descriptor.depth_enabled, "depth_enabled"),
+                .depth_bias = descriptor.depth_bias,
+                .symmetry_depth_policy =
+                    paint_symmetry_depth_policy(descriptor.symmetry_depth_policy),
+                .angle_enabled = paint_flag(descriptor.angle_enabled, "angle_enabled"),
+                .minimum_normal_dot = descriptor.minimum_normal_dot,
+                .backface_enabled = paint_flag(descriptor.backface_enabled, "backface_enabled"),
+            },
+        .screen_positions = {},
+        .depth_contexts = {},
+        .view_directions = {},
+    };
+    storage.screen_positions.reserve(descriptor.depth_context_count);
+    storage.depth_contexts.reserve(descriptor.depth_context_count);
+    for (std::size_t index = 0; index < descriptor.depth_context_count; ++index) {
+        append_paint_depth_context(storage, descriptor.depth_contexts[index], texel_count);
+    }
+    storage.view_directions.reserve(descriptor.view_direction_count);
+    for (std::size_t index = 0; index < descriptor.view_direction_count; ++index) {
+        storage.view_directions.push_back(stroke_vec(descriptor.view_directions[index]));
+    }
+    return storage;
+}
+
+std::uint32_t capi_depth_disposition(ctex::paint::DepthRejectionDisposition disposition) {
+    switch (disposition) {
+        case ctex::paint::DepthRejectionDisposition::disabled_by_operation:
+            return CTEX_PAINT_DEPTH_DISABLED_BY_OPERATION;
+        case ctex::paint::DepthRejectionDisposition::consistent_per_instance:
+            return CTEX_PAINT_DEPTH_CONSISTENT_PER_INSTANCE;
+        case ctex::paint::DepthRejectionDisposition::disabled_for_derived_symmetry:
+            return CTEX_PAINT_DEPTH_DISABLED_FOR_DERIVED_SYMMETRY;
+    }
+    throw std::invalid_argument("paint depth disposition is invalid");
+}
+
+ctex_paint_rejection_info capi_rejection_info(const ctex::paint::RejectionReport& report) {
+    return {
+        .size = CTEX_PAINT_REJECTION_INFO_CURRENT_SIZE,
+        .depth_disposition = capi_depth_disposition(report.depth_disposition),
+        .depth_rejected_contributions = report.depth_rejected_contributions,
+        .angle_rejected_contributions = report.angle_rejected_contributions,
+        .backface_rejected_texels = report.backface_rejected_texels,
+        .resolved_depth_bias = report.resolved_settings.depth_bias,
+        .resolved_minimum_normal_dot = report.resolved_settings.minimum_normal_dot,
+        .depth_bias_clamped =
+            report.parameter_report.clamp_for("rejection.depth_bias").has_value() ? 1U : 0U,
+        .minimum_normal_dot_clamped =
+            report.parameter_report.clamp_for("rejection.minimum_normal_dot").has_value() ? 1U : 0U,
+    };
+}
+
 ctex::paint::RejectionSettings accept_all_rejection_settings() {
     return {
         .depth_enabled = false,
@@ -2433,6 +2572,73 @@ extern "C" ctex_result ctex_paint_evaluate_material_coordinates(
                            error.what());
         } catch (const std::out_of_range& error) {
             throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_INVALID_PAINT_COORDINATES,
+                           error.what());
+        }
+    });
+}
+
+extern "C" ctex_result ctex_paint_rejection_init(ctex_paint_rejection_descriptor* out_rejection) {
+    return call_boundary("ctex_paint_rejection_init", [&] {
+        if (out_rejection == nullptr) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                           "out_rejection is required");
+        }
+        *out_rejection = {
+            .size = CTEX_PAINT_REJECTION_DESCRIPTOR_CURRENT_SIZE,
+            .depth_enabled = 1,
+            .depth_bias = ctex::paint::default_depth_rejection_bias,
+            .symmetry_depth_policy = CTEX_PAINT_SYMMETRY_DEPTH_REQUIRE_CONSISTENT,
+            .angle_enabled = 1,
+            .minimum_normal_dot = ctex::paint::default_angle_rejection_dot,
+            .backface_enabled = 0,
+            .depth_contexts = nullptr,
+            .depth_context_count = 0,
+            .view_directions = nullptr,
+            .view_direction_count = 0,
+        };
+    });
+}
+
+extern "C" ctex_result ctex_paint_evaluate_rejected_coverage(
+    const ctex_mesh* mesh, const ctex_paint_tile_coverage_descriptor* tile,
+    const ctex_resolved_stroke_descriptor* stroke, const ctex_paint_rejection_descriptor* rejection,
+    ctex_paint_rejection_info* out_info, double* coverage, std::size_t coverage_capacity,
+    std::size_t* out_coverage_count) {
+    return call_boundary("ctex_paint_evaluate_rejected_coverage", [&] {
+        if (mesh == nullptr || tile == nullptr || stroke == nullptr || rejection == nullptr ||
+            out_info == nullptr || out_coverage_count == nullptr) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                           "mesh, tile, stroke, rejection, out_info and out_coverage_count are "
+                           "required");
+        }
+        validate_structure_size(rejection->size, CTEX_PAINT_REJECTION_DESCRIPTOR_V1_SIZE,
+                                CTEX_PAINT_REJECTION_DESCRIPTOR_CURRENT_SIZE, "rejection.size");
+        validate_structure_size(out_info->size, CTEX_PAINT_REJECTION_INFO_V1_SIZE,
+                                CTEX_PAINT_REJECTION_INFO_CURRENT_SIZE, "out_info.size");
+        const std::size_t texel_count = paint_tile_texel_count(*tile);
+        *out_coverage_count = texel_count;
+        validate_output_array(coverage, coverage_capacity, texel_count, "coverage");
+        try {
+            const ctex::paint::ResolvedStroke converted_stroke = paint_stroke(*stroke);
+            const ctex::paint::TextureSpaceRaster surface = paint_tile_surface(*mesh, *tile);
+            const PaintRejectionStorage storage = paint_rejection_storage(
+                *rejection, texel_count, converted_stroke.symmetry_instance_count);
+            const ctex::paint::RejectedCoverageRaster result =
+                ctex::paint::evaluate_rejected_coverage(surface, converted_stroke, storage.settings,
+                                                        storage.input());
+            const ctex_paint_rejection_info staged_info = capi_rejection_info(result.report);
+            *out_info = staged_info;
+            if (coverage != nullptr) {
+                std::copy(result.coverage.values.begin(), result.coverage.values.end(), coverage);
+            }
+        } catch (const ctex::paint::StrokeResolutionError& error) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_INVALID_STROKE,
+                           error.what());
+        } catch (const std::invalid_argument& error) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_INVALID_PAINT_REJECTION,
+                           error.what());
+        } catch (const std::out_of_range& error) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_INVALID_PAINT_REJECTION,
                            error.what());
         }
     });

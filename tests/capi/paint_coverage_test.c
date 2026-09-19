@@ -208,6 +208,197 @@ static int uncovered_material_texels_have_no_projections(void) {
     return passed;
 }
 
+static ctex_resolved_stroke_descriptor one_stamp_descriptor(ctex_resolved_stamp* value) {
+    const ctex_resolved_stroke_descriptor stroke = {
+        .size = CTEX_RESOLVED_STROKE_DESCRIPTOR_CURRENT_SIZE,
+        .reconstruction_version = 1,
+        .tip_mode = CTEX_STROKE_TIP_DISCRETE_ALPHA,
+        .symmetry_instance_count = 1,
+        .stamps = value,
+        .stamp_count = 1,
+    };
+    return stroke;
+}
+
+static int depth_rejection_defaults_are_exposed(void) {
+    ctex_mesh* mesh = coverage_mesh();
+    const ctex_paint_tile_coverage_descriptor tile = {
+        CTEX_PAINT_TILE_COVERAGE_DESCRIPTOR_CURRENT_SIZE, "uv0", 1, 1, {0.0, 0.0}};
+    ctex_resolved_stamp resolved_stamp = stamp(5.0, 0);
+    const ctex_resolved_stroke_descriptor stroke = one_stamp_descriptor(&resolved_stamp);
+    const ctex_vec2d screen_position = {0.5, 0.5};
+    const double surface_depth = 0.7;
+    const double visible_depth = 0.5;
+    const ctex_paint_depth_context_descriptor context = {
+        .size = CTEX_PAINT_DEPTH_CONTEXT_DESCRIPTOR_CURRENT_SIZE,
+        .viewport_width = 1,
+        .viewport_height = 1,
+        .screen_positions = &screen_position,
+        .surface_depth = &surface_depth,
+        .surface_sample_count = 1,
+        .visible_depth = &visible_depth,
+        .visible_depth_count = 1,
+        .transform_consistent = 1,
+    };
+    ctex_paint_rejection_descriptor rejection;
+    ctex_paint_rejection_info info = {.size = CTEX_PAINT_REJECTION_INFO_CURRENT_SIZE};
+    double coverage = -1.0;
+    size_t count = 0;
+    int passed =
+        mesh != NULL && expect(ctex_paint_rejection_init(&rejection) == CTEX_RESULT_SUCCESS);
+    rejection.depth_contexts = &context;
+    rejection.depth_context_count = 1;
+    if (passed) {
+        passed =
+            expect(ctex_paint_evaluate_rejected_coverage(mesh, &tile, &stroke, &rejection, &info,
+                                                         NULL, 0, &count) == CTEX_RESULT_SUCCESS) &&
+            expect(
+                count == 1 && info.depth_disposition == CTEX_PAINT_DEPTH_CONSISTENT_PER_INSTANCE &&
+                info.depth_rejected_contributions == 1 && near(info.resolved_depth_bias, 1.0e-4) &&
+                near(info.resolved_minimum_normal_dot, 0.5));
+    }
+    info.depth_rejected_contributions = 9;
+    if (passed) {
+        passed = expect(ctex_paint_evaluate_rejected_coverage(mesh, &tile, &stroke, &rejection,
+                                                              &info, &coverage, 0, &count) ==
+                        CTEX_RESULT_BUFFER_TOO_SMALL) &&
+                 expect(coverage == -1.0 && info.depth_rejected_contributions == 9);
+    }
+    if (passed) {
+        passed = expect(ctex_paint_evaluate_rejected_coverage(mesh, &tile, &stroke, &rejection,
+                                                              &info, &coverage, 1,
+                                                              &count) == CTEX_RESULT_SUCCESS) &&
+                 expect(near(coverage, 0.0) && info.depth_rejected_contributions == 1);
+    }
+    ctex_mesh_destroy(mesh);
+    return passed;
+}
+
+static int angle_and_backface_rejection_are_exposed(void) {
+    ctex_mesh* mesh = coverage_mesh();
+    const ctex_paint_tile_coverage_descriptor tile = {
+        CTEX_PAINT_TILE_COVERAGE_DESCRIPTOR_CURRENT_SIZE, "uv0", 1, 1, {0.0, 0.0}};
+    ctex_resolved_stamp resolved_stamp = stamp(5.0, 0);
+    resolved_stamp.frame = (ctex_stroke_frame){{0.0, 1.0, 0.0}, {0.0, 0.0, 1.0}, {1.0, 0.0, 0.0}};
+    const ctex_resolved_stroke_descriptor stroke = one_stamp_descriptor(&resolved_stamp);
+    ctex_paint_rejection_descriptor rejection;
+    ctex_paint_rejection_info info = {.size = CTEX_PAINT_REJECTION_INFO_CURRENT_SIZE};
+    double coverage = -1.0;
+    size_t count = 0;
+    int passed =
+        mesh != NULL && expect(ctex_paint_rejection_init(&rejection) == CTEX_RESULT_SUCCESS);
+    rejection.depth_enabled = 0;
+    if (passed) {
+        passed = expect(ctex_paint_evaluate_rejected_coverage(mesh, &tile, &stroke, &rejection,
+                                                              &info, &coverage, 1,
+                                                              &count) == CTEX_RESULT_SUCCESS) &&
+                 expect(near(coverage, 0.0) && info.angle_rejected_contributions == 1);
+    }
+    resolved_stamp.frame = (ctex_stroke_frame){{1.0, 0.0, 0.0}, {0.0, 1.0, 0.0}, {0.0, 0.0, 1.0}};
+    const ctex_vec3d away_view = {0.0, 0.0, -1.0};
+    rejection.angle_enabled = 0;
+    rejection.backface_enabled = 1;
+    rejection.view_directions = &away_view;
+    rejection.view_direction_count = 1;
+    if (passed) {
+        passed = expect(ctex_paint_evaluate_rejected_coverage(mesh, &tile, &stroke, &rejection,
+                                                              &info, &coverage, 1,
+                                                              &count) == CTEX_RESULT_SUCCESS) &&
+                 expect(near(coverage, 0.0) && info.backface_rejected_texels == 1 &&
+                        info.depth_disposition == CTEX_PAINT_DEPTH_DISABLED_BY_OPERATION);
+    }
+    ctex_mesh_destroy(mesh);
+    return passed;
+}
+
+static int derived_symmetry_depth_policy_is_reported(void) {
+    ctex_mesh* mesh = coverage_mesh();
+    const ctex_paint_tile_coverage_descriptor tile = {
+        CTEX_PAINT_TILE_COVERAGE_DESCRIPTOR_CURRENT_SIZE, "uv0", 1, 1, {0.0, 0.0}};
+    ctex_resolved_stamp stamps[2] = {stamp(10.0, 0), stamp(5.0, 1)};
+    stamps[1].source_ordinal = 0;
+    stamps[1].symmetry_instance = 1;
+    const ctex_resolved_stroke_descriptor stroke = {
+        .size = CTEX_RESOLVED_STROKE_DESCRIPTOR_CURRENT_SIZE,
+        .reconstruction_version = 1,
+        .tip_mode = CTEX_STROKE_TIP_DISCRETE_ALPHA,
+        .symmetry_instance_count = 2,
+        .stamps = stamps,
+        .stamp_count = 2,
+    };
+    const ctex_vec2d screen_position = {0.5, 0.5};
+    const double surface_depth = 0.7;
+    const double visible_depth = 0.5;
+    const ctex_paint_depth_context_descriptor context = {
+        .size = CTEX_PAINT_DEPTH_CONTEXT_DESCRIPTOR_CURRENT_SIZE,
+        .symmetry_instance = 0,
+        .viewport_width = 1,
+        .viewport_height = 1,
+        .screen_positions = &screen_position,
+        .surface_depth = &surface_depth,
+        .surface_sample_count = 1,
+        .visible_depth = &visible_depth,
+        .visible_depth_count = 1,
+        .transform_consistent = 1,
+    };
+    ctex_paint_rejection_descriptor rejection;
+    ctex_paint_rejection_info info = {.size = CTEX_PAINT_REJECTION_INFO_CURRENT_SIZE};
+    double coverage = 0.0;
+    size_t count = 0;
+    int passed =
+        mesh != NULL && expect(ctex_paint_rejection_init(&rejection) == CTEX_RESULT_SUCCESS);
+    rejection.symmetry_depth_policy = CTEX_PAINT_SYMMETRY_DEPTH_DISABLE_DERIVED;
+    rejection.depth_contexts = &context;
+    rejection.depth_context_count = 1;
+    if (passed) {
+        passed = expect(ctex_paint_evaluate_rejected_coverage(mesh, &tile, &stroke, &rejection,
+                                                              &info, &coverage, 1,
+                                                              &count) == CTEX_RESULT_SUCCESS) &&
+                 expect(near(coverage, 1.0) &&
+                        info.depth_disposition == CTEX_PAINT_DEPTH_DISABLED_FOR_DERIVED_SYMMETRY);
+    }
+    ctex_mesh_destroy(mesh);
+    return passed;
+}
+
+static int rejection_parameters_are_clamped_and_invalid_flags_are_transactional(void) {
+    ctex_mesh* mesh = coverage_mesh();
+    const ctex_paint_tile_coverage_descriptor tile = {
+        CTEX_PAINT_TILE_COVERAGE_DESCRIPTOR_CURRENT_SIZE, "uv0", 1, 1, {0.0, 0.0}};
+    ctex_resolved_stamp resolved_stamp = stamp(5.0, 0);
+    const ctex_resolved_stroke_descriptor stroke = one_stamp_descriptor(&resolved_stamp);
+    ctex_paint_rejection_descriptor rejection;
+    ctex_paint_rejection_info info = {.size = CTEX_PAINT_REJECTION_INFO_CURRENT_SIZE};
+    double coverage = -1.0;
+    size_t count = 0;
+    int passed =
+        mesh != NULL && expect(ctex_paint_rejection_init(&rejection) == CTEX_RESULT_SUCCESS);
+    rejection.depth_enabled = 0;
+    rejection.depth_bias = -1.0;
+    rejection.minimum_normal_dot = 2.0;
+    if (passed) {
+        passed = expect(ctex_paint_evaluate_rejected_coverage(mesh, &tile, &stroke, &rejection,
+                                                              &info, &coverage, 1,
+                                                              &count) == CTEX_RESULT_SUCCESS) &&
+                 expect(near(coverage, 1.0) && near(info.resolved_depth_bias, 0.0) &&
+                        near(info.resolved_minimum_normal_dot, 1.0) &&
+                        info.depth_bias_clamped == 1 && info.minimum_normal_dot_clamped == 1);
+    }
+    rejection.backface_enabled = 2;
+    coverage = 7.0;
+    info.backface_rejected_texels = 9;
+    if (passed) {
+        passed =
+            expect(ctex_paint_evaluate_rejected_coverage(mesh, &tile, &stroke, &rejection, &info,
+                                                         &coverage, 1,
+                                                         &count) == CTEX_RESULT_INVALID_ARGUMENT) &&
+            expect(ctex_get_last_diagnostic_code() == CTEX_DIAGNOSTIC_INVALID_PAINT_REJECTION) &&
+            expect(coverage == 7.0 && info.backface_rejected_texels == 9);
+    }
+    ctex_mesh_destroy(mesh);
+    return passed;
+}
+
 static int deposition_mask_extension_is_append_only(
     ctex_mesh* mesh, const ctex_paint_tile_coverage_descriptor* tile,
     const ctex_resolved_stroke_descriptor* stroke, ctex_paint_deposition_descriptor* deposition,
@@ -497,6 +688,10 @@ int main(void) {
                    discrete_tips_do_not_synthesize_sweeps() &&
                    material_coordinate_modes_are_exposed_per_texel() &&
                    uncovered_material_texels_have_no_projections() &&
+                   depth_rejection_defaults_are_exposed() &&
+                   angle_and_backface_rejection_are_exposed() &&
+                   derived_symmetry_depth_policy_is_reported() &&
+                   rejection_parameters_are_clamped_and_invalid_flags_are_transactional() &&
                    deposition_accumulates_and_discards_canonical_stamps() &&
                    paint_mask_classes_intersect_before_deposition() &&
                    snapshot_blending_uses_deposition_write_mask() &&
