@@ -108,6 +108,9 @@ test-stroke-reconstruction: build
 test-stroke-preset: build
     ctest --test-dir build/headless --output-on-failure -R '^stroke-preset$'
 
+test-stroke-model-scenarios: build
+    ctest --test-dir build/headless --output-on-failure -L '^stroke-model-scenario$'
+
 test-paint-coverage: build
     ctest --test-dir build/headless --output-on-failure -R '^paint-coverage$'
 
@@ -134,6 +137,9 @@ test-paint-preview: build
 
 test-paint-work: build
     ctest --test-dir build/headless --output-on-failure -R '^paint-work$'
+
+test-paint-engine-scenarios: build
+    ctest --test-dir build/headless --output-on-failure -L '^paint-engine-scenario$'
 
 test-mesh: build
     ctest --test-dir build/headless --output-on-failure -R '^mesh-ingest$'

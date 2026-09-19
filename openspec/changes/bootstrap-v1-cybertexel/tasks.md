@@ -385,7 +385,13 @@ once per deduplicated row-major storage tile. Its report distinguishes total
 canvas metadata, footprint count, candidate visits and the exact processed tile
 set. Tests keep a short 16K stroke at four of 65,536 tiles and plan a one-tile
 operation on maximum 32-bit canvas metadata without enumerating the grid. The
-combined stroke-model and paint-engine scenario mapping (9.16) is next.
+combined stroke-model and paint-engine scenario suites (9.16) label every
+applicable headless CTest and map every specification scenario to its executable
+evidence. A dedicated integration fixture proves that coalesced versus
+one-sample input batches produce identical canonical stamps and build-up
+deposition, while the same resolved sequence drives coverage, rejection and
+deposition. History-dependent assertions are carried forward to task 3.9, and
+mip/gutter/tangent assertions are explicitly carried forward to task 9.17.
 
 ## 1. Foundation
 
@@ -519,7 +525,7 @@ combined stroke-model and paint-engine scenario mapping (9.16) is next.
 - [x] 9.13 UV seam dilation, extrapolating, deferred to stroke end
 - [x] 9.14 Preview without commit, and the preview-equals-commit test
 - [x] 9.15 Bounded work reporting
-- [ ] 9.16 `stroke-model` and `paint-engine` scenarios as tests
+- [x] 9.16 `stroke-model` and `paint-engine` scenarios as tests
 - [ ] 9.17 Seam adjacency, tangent-aware filters and derivatives, mip/gutter limits, mirrored-UV and minification fixtures
 
 ## 10. Tools

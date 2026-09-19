@@ -167,7 +167,8 @@ The current implementation provides:
   [material-graph](docs/material-graph-scenarios.md),
   [shader-emission](docs/shader-emission-scenarios.md),
   [execution-backend](docs/execution-backend-scenarios.md), and
-  [host-transport](docs/host-transport-scenarios.md) scenario suites.
+  [host-transport](docs/host-transport-scenarios.md), plus combined
+  [stroke-model and paint-engine](docs/paint-scenarios.md) scenario suites.
 
 The remaining painting stages, editable layer document, project IO, host-transport
 binding/performance integrations, remaining language bindings, and complete

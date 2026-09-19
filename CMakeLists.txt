@@ -384,6 +384,14 @@ if(BUILD_TESTING)
     )
     add_test(NAME paint-work COMMAND ctex_paint_work_test)
 
+    add_executable(ctex_paint_scenarios_test tests/paint/scenarios_test.cpp)
+    ctex_configure_cpp_target(ctex_paint_scenarios_test)
+    target_link_libraries(
+        ctex_paint_scenarios_test
+        PRIVATE ctex_paint ctex_doc ctex_emit ctex_pick ctex_mesh ctex_graph ctex_image
+    )
+    add_test(NAME paint-scenarios COMMAND ctex_paint_scenarios_test)
+
     add_executable(ctex_document_test tests/doc/document_test.cpp)
     ctex_configure_cpp_target(ctex_document_test)
     target_link_libraries(ctex_document_test PRIVATE ctex_doc ctex_mesh ctex_graph ctex_image)
@@ -825,5 +833,26 @@ if(BUILD_TESTING)
     )
     set_tests_properties(
         ${CTEX_HOST_TRANSPORT_SCENARIO_TESTS} PROPERTIES LABELS host-transport-scenario
+    )
+    set_tests_properties(
+        stroke-reconstruction
+        stroke-preset
+        PROPERTIES LABELS stroke-model-scenario
+    )
+    set_tests_properties(
+        paint-coverage
+        paint-rejection
+        paint-deposition
+        paint-blending
+        paint-masking
+        paint-surface-cache
+        paint-seam-dilation
+        paint-work
+        PROPERTIES LABELS paint-engine-scenario
+    )
+    set_tests_properties(
+        paint-preview
+        paint-scenarios
+        PROPERTIES LABELS "stroke-model-scenario;paint-engine-scenario"
     )
 endif()

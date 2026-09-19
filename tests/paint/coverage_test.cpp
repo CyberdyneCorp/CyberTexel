@@ -20,6 +20,19 @@ bool near(double actual, double expected, double tolerance = 1.0e-9) {
     return std::abs(actual - expected) <= tolerance;
 }
 
+bool same_material_coordinates(const MaterialCoordinates& left, const MaterialCoordinates& right) {
+    if (left.count != right.count) {
+        return false;
+    }
+    for (std::size_t index = 0; index < left.count; ++index) {
+        if (left.projections[index].coordinate != right.projections[index].coordinate ||
+            !near(left.projections[index].weight, right.projections[index].weight)) {
+            return false;
+        }
+    }
+    return true;
+}
+
 Stamp stamp(Vec3d position, std::uint64_t ordinal) {
     return {.position = position,
             .frame = {},
@@ -124,6 +137,10 @@ bool coordinate_modes_expose_uv_triplanar_and_caller_planar_frames() {
     const auto uv = material_coordinates(texel, {.mode = MaterialCoordinateMode::uv, .planar = {}});
     const auto triplanar =
         material_coordinates(texel, {.mode = MaterialCoordinateMode::triplanar, .planar = {}});
+    SurfaceTexel distorted_uv_texel = texel;
+    distorted_uv_texel.uv = {1000.0, -1000.0};
+    const auto distorted_uv_triplanar = material_coordinates(
+        distorted_uv_texel, {.mode = MaterialCoordinateMode::triplanar, .planar = {}});
     const auto planar = material_coordinates(texel, {.mode = MaterialCoordinateMode::planar,
                                                      .planar = {.origin = {1.0, 1.0, 1.0},
                                                                 .u_axis = {0.0, 1.0, 0.0},
@@ -138,6 +155,8 @@ bool coordinate_modes_expose_uv_triplanar_and_caller_planar_frames() {
                       near(triplanar.projections[1].weight, 4.0 / 9.0) &&
                       near(triplanar.projections[2].weight, 4.0 / 9.0),
                   "triplanar projections did not use squared normal weights") &&
+           expect(same_material_coordinates(distorted_uv_triplanar, triplanar),
+                  "UV distortion changed world-space triplanar sampling") &&
            expect(planar.count == 1 && planar.projections[0].coordinate == Vec2d{2.0, 4.0},
                   "planar projection did not use the caller-supplied frame");
 }
