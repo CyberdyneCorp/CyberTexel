@@ -61,7 +61,10 @@ The current implementation provides:
   canonical events enter deposition. A revision-keyed
   [paint surface-map cache](docs/paint-surface-cache.md) reuses immutable
   coverage, exact source-triangle, and UV-island maps across operations and
-  invalidates them on mesh replacement or UV-set changes.
+  invalidates them on mesh replacement or UV-set changes. Configurable
+  [UV seam dilation](docs/paint-seam-dilation.md) extends directional gradients
+  into texture gutters and is deferred until every dirtied tile reaches stroke
+  finalization.
 - Sparse tiled image storage for one-to-four-channel 8-bit, 16-bit, and
   floating-point pixels, with tile-level dirty tracking and monotonic channel
   and per-tile [content revisions](docs/host-transport-revisions.md), plus

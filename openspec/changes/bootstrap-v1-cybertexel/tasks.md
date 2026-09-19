@@ -366,7 +366,14 @@ continuity, and deterministic source order assigns their identities. A mesh
 revision change clears every entry before lookup, while a UV-set change clears
 all tiles for the logical partition; cache statistics make both reuse and
 invalidation executable contracts. Deferred stroke-end seam dilation (9.13) is
-next.
+implemented by a reusable one-to-four-component operation that finds the
+nearest covered texel and extrapolates its directional gradient without feeding
+generated gutter pixels back into the source. The radius defaults to two and
+zero disables the operation; thin regions with no interior gradient use a
+reported zero-gradient extrapolation. A stroke coordinator retains the latest
+version of every dirtied UV tile across frames, identifies intermediate output
+as provisional, and runs one idempotent final pass over all staged tiles.
+Preview without commit and final preview-to-commit equality (9.14) are next.
 
 ## 1. Foundation
 
@@ -497,7 +504,7 @@ next.
 - [x] 9.10 Blending against the stroke-start snapshot, all modes
 - [x] 9.11 Masking inputs and their intersection
 - [x] 9.12 Cached coverage, triangle identity and UV island maps, keyed by mesh revision
-- [ ] 9.13 UV seam dilation, extrapolating, deferred to stroke end
+- [x] 9.13 UV seam dilation, extrapolating, deferred to stroke end
 - [ ] 9.14 Preview without commit, and the preview-equals-commit test
 - [ ] 9.15 Bounded work reporting
 - [ ] 9.16 `stroke-model` and `paint-engine` scenarios as tests

@@ -126,6 +126,9 @@ test-paint-masking: build
 test-paint-surface-cache: build
     ctest --test-dir build/headless --output-on-failure -R '^paint-surface-cache$'
 
+test-paint-seam-dilation: build
+    ctest --test-dir build/headless --output-on-failure -R '^paint-seam-dilation$'
+
 test-mesh: build
     ctest --test-dir build/headless --output-on-failure -R '^mesh-ingest$'
 

@@ -89,6 +89,9 @@ Foundation implementation is in progress.
 - Per-texture-set immutable coverage, source-triangle, UV-island and surface
   raster bundles cached across operations by mesh revision, UV set and tile,
   with atomic mesh- and UV-change invalidation and observable reuse statistics.
+- Channel-agnostic UV seam dilation with a configurable two-texel default,
+  directional gradient extrapolation, explicit thin-island fallback reporting,
+  and idempotent stroke-end processing across every staged UV tile.
 - Linear Rec. 709 working-space and sRGB transfer functions with unclamped HDR
   conversion.
 - Native and sanitizer test presets plus a registry-driven determinism gate that
