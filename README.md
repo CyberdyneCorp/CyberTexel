@@ -47,7 +47,10 @@ The current implementation provides:
 - Camera-independent [texture-space paint coverage](docs/paint-coverage.md)
   with interpolated surface geometry, gap-free continuous swept capsules,
   transformed discrete tips, specified hardness falloff, and UV, squared-normal
-  triplanar, or caller-framed planar material coordinates.
+  triplanar, or caller-framed planar material coordinates. The separate
+  [paint rejection stage](docs/paint-rejection.md) provides default-on depth and
+  angle tests, per-operation backface handling, explicit symmetry depth policy,
+  and precision-aware alpha discard without losing accumulated strength.
 - Sparse tiled image storage for one-to-four-channel 8-bit, 16-bit, and
   floating-point pixels, with tile-level dirty tracking and monotonic channel
   and per-tile [content revisions](docs/host-transport-revisions.md), plus

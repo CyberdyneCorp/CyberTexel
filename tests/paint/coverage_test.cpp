@@ -41,8 +41,11 @@ TextureSpaceRaster surface(std::initializer_list<Vec3d> positions) {
                               .tile_origin = {},
                               .texels = {}};
     for (const Vec3d position : positions) {
-        result.texels.push_back(
-            {.position = position, .normal = {0.0, 0.0, 1.0}, .uv = {}, .triangle = 0});
+        result.texels.push_back({.position = position,
+                                 .normal = {0.0, 0.0, 1.0},
+                                 .geometric_normal = {0.0, 0.0, 1.0},
+                                 .uv = {},
+                                 .triangle = 0});
     }
     return result;
 }
@@ -61,7 +64,8 @@ bool uv_rasterization_is_independent_of_screen_visibility() {
                   "UV triangle was not rasterized independently of a camera") &&
            expect(raster.texels[texel].position.x > 100.0 &&
                       near(raster.texels[texel].uv.x, 0.375) &&
-                      near(raster.texels[texel].uv.y, 0.375),
+                      near(raster.texels[texel].uv.y, 0.375) &&
+                      near(raster.texels[texel].geometric_normal.z, 1.0),
                   "texture-space raster did not interpolate surface geometry");
 }
 
@@ -112,8 +116,11 @@ bool discrete_tips_apply_rotation_and_elongation() {
 }
 
 bool coordinate_modes_expose_uv_triplanar_and_caller_planar_frames() {
-    const SurfaceTexel texel{
-        .position = {2.0, 3.0, 5.0}, .normal = {1.0, 2.0, 2.0}, .uv = {0.25, 0.75}, .triangle = 4};
+    const SurfaceTexel texel{.position = {2.0, 3.0, 5.0},
+                             .normal = {1.0, 2.0, 2.0},
+                             .geometric_normal = {0.0, 0.0, 1.0},
+                             .uv = {0.25, 0.75},
+                             .triangle = 4};
     const auto uv = material_coordinates(texel, {.mode = MaterialCoordinateMode::uv, .planar = {}});
     const auto triplanar =
         material_coordinates(texel, {.mode = MaterialCoordinateMode::triplanar, .planar = {}});
@@ -150,7 +157,11 @@ bool invalid_geometry_and_projection_inputs_are_refused() {
     bool frame_refused = false;
     try {
         static_cast<void>(material_coordinates(
-            {.position = {}, .normal = {0.0, 0.0, 1.0}, .uv = {}, .triangle = 0},
+            {.position = {},
+             .normal = {0.0, 0.0, 1.0},
+             .geometric_normal = {0.0, 0.0, 1.0},
+             .uv = {},
+             .triangle = 0},
             {.mode = MaterialCoordinateMode::planar,
              .planar = {.origin = {}, .u_axis = {1.0, 0.0, 0.0}, .v_axis = {1.0, 0.0, 0.0}}}));
     } catch (const std::invalid_argument&) {

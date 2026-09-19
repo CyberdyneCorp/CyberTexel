@@ -29,6 +29,7 @@ struct TextureSpaceRasterRequest {
 struct SurfaceTexel {
     Vec3d position;
     Vec3d normal;
+    Vec3d geometric_normal;
     Vec2d uv;
     std::uint32_t triangle{no_surface_triangle};
 };

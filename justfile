@@ -111,6 +111,9 @@ test-stroke-preset: build
 test-paint-coverage: build
     ctest --test-dir build/headless --output-on-failure -R '^paint-coverage$'
 
+test-paint-rejection: build
+    ctest --test-dir build/headless --output-on-failure -R '^paint-rejection$'
+
 test-mesh: build
     ctest --test-dir build/headless --output-on-failure -R '^mesh-ingest$'
 

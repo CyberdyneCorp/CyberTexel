@@ -8,11 +8,11 @@ deposition, blending, and masking. The public contract is declared in
 
 `rasterize_texture_space` rasterizes mesh UV triangles directly into a requested
 tile. It interpolates caller-supplied world-space position and normal for every
-covered texel; it does not accept a camera, so off-screen and occluded surfaces
-remain candidates until later rejection stages. Texel rows use a top-left
-origin while UV coordinates retain their conventional increasing-up direction.
-If UV triangles overlap, the lowest triangle ordinal owns the texel
-deterministically.
+covered texel and records the triangle's geometric winding normal; it does not
+accept a camera, so off-screen and occluded surfaces remain candidates until
+the [rejection stage](paint-rejection.md). Texel rows use a top-left origin while
+UV coordinates retain their conventional increasing-up direction. If UV
+triangles overlap, the lowest triangle ordinal owns the texel deterministically.
 
 ## Geometric brush coverage
 

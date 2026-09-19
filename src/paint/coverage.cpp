@@ -5,6 +5,8 @@
 #include <stdexcept>
 #include <string>
 
+#include "coverage_detail.hpp"
+
 namespace ctex::paint {
 namespace {
 
@@ -26,6 +28,11 @@ Vec3d subtract(Vec3d left, Vec3d right) {
 
 Vec3d multiply(Vec3d value, double scale) {
     return {value.x * scale, value.y * scale, value.z * scale};
+}
+
+Vec3d cross(Vec3d left, Vec3d right) {
+    return {left.y * right.z - left.z * right.y, left.z * right.x - left.x * right.z,
+            left.x * right.y - left.y * right.x};
 }
 
 double dot(Vec3d left, Vec3d right) {
@@ -136,6 +143,9 @@ void rasterize_triangle(TextureSpaceMeshView mesh, TextureSpaceRasterRequest req
     if (std::abs(area) <= geometry_epsilon) {
         return;
     }
+    const Vec3d geometric_normal = normalized(
+        cross(subtract(positions[1], positions[0]), subtract(positions[2], positions[0])),
+        "triangle geometric normal");
     const PixelBounds bounds = pixel_bounds(pixels, request.width, request.height);
     const std::uint32_t triangle = static_cast<std::uint32_t>(first_index / 3);
     for (std::uint32_t y = bounds.minimum_y; y <= bounds.maximum_y; ++y) {
@@ -149,6 +159,7 @@ void rasterize_triangle(TextureSpaceMeshView mesh, TextureSpaceRasterRequest req
             output.texels[texel_index] = {
                 .position = interpolate(positions, weights),
                 .normal = normalized(interpolate(normals, weights), "interpolated normal"),
+                .geometric_normal = geometric_normal,
                 .uv = {request.tile_origin.x + (static_cast<double>(x) + 0.5) / request.width,
                        request.tile_origin.y + 1.0 -
                            (static_cast<double>(y) + 0.5) / request.height},
@@ -166,8 +177,9 @@ void validate_surface(const TextureSpaceRaster& surface) {
     }
     for (const SurfaceTexel& texel : surface.texels) {
         if (texel.triangle != no_surface_triangle &&
-            (!finite(texel.position) || !finite(texel.normal) || !finite(texel.uv) ||
-             length(texel.normal) <= geometry_epsilon)) {
+            (!finite(texel.position) || !finite(texel.normal) || !finite(texel.geometric_normal) ||
+             !finite(texel.uv) || length(texel.normal) <= geometry_epsilon ||
+             length(texel.geometric_normal) <= geometry_epsilon)) {
             throw std::invalid_argument("covered surface texels must contain finite geometry");
         }
     }
@@ -241,6 +253,35 @@ void validate_planar_frame(PlanarProjectionFrame frame) {
 }
 
 }  // namespace
+
+namespace detail {
+
+void validate_surface_raster(const TextureSpaceRaster& surface) { validate_surface(surface); }
+
+CoverageContribution stamp_contribution(Vec3d point, const Stamp& stamp, bool transformed_tip) {
+    return {.value = stamp_coverage(point, stamp, transformed_tip),
+            .reference_normal = stamp.frame.normal,
+            .symmetry_instance = stamp.symmetry_instance};
+}
+
+CoverageContribution segment_contribution(Vec3d point, const Stamp& start, const Stamp& end) {
+    const Vec3d axis = subtract(end.position, start.position);
+    const double squared_length = dot(axis, axis);
+    if (squared_length <= geometry_epsilon) {
+        const auto first = stamp_contribution(point, start, false);
+        const auto second = stamp_contribution(point, end, false);
+        return first.value >= second.value ? first : second;
+    }
+    const double amount =
+        std::clamp(dot(subtract(point, start.position), axis) / squared_length, 0.0, 1.0);
+    return {.value = segment_coverage(point, start, end),
+            .reference_normal = normalized(
+                add(multiply(start.frame.normal, 1.0 - amount), multiply(end.frame.normal, amount)),
+                "swept reference normal"),
+            .symmetry_instance = start.symmetry_instance};
+}
+
+}  // namespace detail
 
 bool TextureSpaceRaster::covered(std::size_t index) const {
     if (index >= texels.size()) {

@@ -74,6 +74,9 @@ Foundation implementation is in progress.
 - Camera-independent texture-space surface rasterization and geometric stroke
   coverage with swept continuous capsules, transformed discrete tips, specified
   hardness falloff, and UV, triplanar, and caller-framed planar coordinates.
+- Default-on configurable depth and angle paint rejection, counter-clockwise
+  geometric-normal backface handling, reported symmetry depth policy, and
+  precision-aware alpha discard that retains accumulated deposition.
 - Linear Rec. 709 working-space and sRGB transfer functions with unclamped HDR
   conversion.
 - Native and sanitizer test presets plus a registry-driven determinism gate that

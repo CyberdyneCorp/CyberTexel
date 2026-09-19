@@ -340,7 +340,13 @@ continuous tips cover branch-local swept segments with interpolated radius and
 hardness, while transformed discrete tips do not synthesize gaps. Geometric
 falloff uses the specified smoothstep complement, and material sampling exposes
 UV, squared-normal triplanar and caller-framed planar coordinates. Explicit
-rejection tests (9.8) are next.
+rejection tests (9.8) apply default-on configurable depth and hit-normal angle
+tests per coverage contribution plus per-operation geometric-normal backface
+handling. Symmetry either supplies a transform-consistent depth context for
+every instance or explicitly disables depth for derived instances, with that
+choice reported. Precision-aware alpha discard produces the write mask while
+retaining sub-threshold accumulation for later stamps. Deposition formulas and
+their batching invariants (9.9) are next.
 
 ## 1. Foundation
 
@@ -466,7 +472,7 @@ rejection tests (9.8) are next.
 - [x] 9.5 Externally resolved stamp ingestion
 - [x] 9.6 Versioned stroke presets and their refusals
 - [x] 9.7 Paint engine: swept coverage, falloff, coordinate modes
-- [ ] 9.8 Depth, angle and backface rejection; alpha discard
+- [x] 9.8 Depth, angle and backface rejection; alpha discard
 - [ ] 9.9 Separate non-building coverage and build-up deposition formulas; batching and frame-rate fixtures
 - [ ] 9.10 Blending against the stroke-start snapshot, all modes
 - [ ] 9.11 Masking inputs and their intersection
