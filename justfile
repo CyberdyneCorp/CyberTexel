@@ -107,6 +107,9 @@ test-graph-document: build
 test-graph-cycles: build
     ctest --test-dir build/headless --output-on-failure -R '^material-graph-cycle-detection$'
 
+test-graph-sockets: build
+    ctest --test-dir build/headless --output-on-failure -R '^material-graph-socket-links$'
+
 examples:
     @just _unimplemented examples 16.2
 

@@ -72,7 +72,8 @@ bool expect(bool condition, std::string_view message) {
 bool round_trip_preserves_the_complete_document() {
     ctex::graph::GraphDocument original(output_node());
     const ctex::graph::NodeId source = original.add_node(source_node());
-    original.add_link({source, "colour", original.output_node_id(), "base_color"});
+    static_cast<void>(
+        original.add_link({source, "colour", original.output_node_id(), "base_color"}));
 
     const std::string serialized = ctex::graph::serialize_graph(original);
     const auto restored = ctex::graph::deserialize_graph(serialized);
@@ -130,11 +131,12 @@ bool links_require_declared_socket_endpoints() {
     ctex::graph::GraphDocument graph(output_node());
     const ctex::graph::NodeId source = graph.add_node(source_node());
     const ctex::graph::GraphLink link{source, "colour", graph.output_node_id(), "base_color"};
-    graph.add_link(link);
+    static_cast<void>(graph.add_link(link));
     const bool removed = graph.remove_link(link);
     bool invalid_refused = false;
     try {
-        graph.add_link({source, "missing", graph.output_node_id(), "base_color"});
+        static_cast<void>(
+            graph.add_link({source, "missing", graph.output_node_id(), "base_color"}));
     } catch (const std::invalid_argument&) {
         invalid_refused = true;
     }

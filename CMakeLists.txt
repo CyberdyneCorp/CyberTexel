@@ -202,6 +202,11 @@ if(BUILD_TESTING)
     target_link_libraries(ctex_graph_cycle_test PRIVATE ctex_graph ctex_image)
     add_test(NAME material-graph-cycle-detection COMMAND ctex_graph_cycle_test)
 
+    add_executable(ctex_graph_socket_test tests/graph/socket_links_test.cpp)
+    ctex_configure_cpp_target(ctex_graph_socket_test)
+    target_link_libraries(ctex_graph_socket_test PRIVATE ctex_graph ctex_image)
+    add_test(NAME material-graph-socket-links COMMAND ctex_graph_socket_test)
+
     add_executable(ctex_material_graph_output_test tests/doc/material_graph_test.cpp)
     ctex_configure_cpp_target(ctex_material_graph_output_test)
     target_link_libraries(

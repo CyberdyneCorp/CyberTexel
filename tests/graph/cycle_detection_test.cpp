@@ -39,14 +39,14 @@ bool closing_cycle_is_refused_with_the_path() {
     const auto first = graph.add_node(node("first", ctex::graph::NodeRole::regular));
     const auto second = graph.add_node(node("second", ctex::graph::NodeRole::regular));
     const auto third = graph.add_node(node("third", ctex::graph::NodeRole::regular));
-    graph.add_link({first, "out", second, "in"});
-    graph.add_link({second, "out", third, "in"});
+    static_cast<void>(graph.add_link({first, "out", second, "in"}));
+    static_cast<void>(graph.add_link({second, "out", third, "in"}));
     const std::string before = ctex::graph::serialize_graph(graph);
 
     std::vector<ctex::graph::NodeId> path;
     std::string diagnostic;
     try {
-        graph.add_link({third, "out", first, "in"});
+        static_cast<void>(graph.add_link({third, "out", first, "in"}));
     } catch (const ctex::graph::GraphCycleError& error) {
         path.assign(error.cycle_path().begin(), error.cycle_path().end());
         diagnostic = error.what();
@@ -65,7 +65,7 @@ bool self_cycles_are_refused_before_mutation() {
     ctex::graph::GraphDocument graph(node("output", ctex::graph::NodeRole::output));
     const auto first = graph.add_node(node("first", ctex::graph::NodeRole::regular));
     try {
-        graph.add_link({first, "out", first, "in"});
+        static_cast<void>(graph.add_link({first, "out", first, "in"}));
     } catch (const ctex::graph::GraphCycleError& error) {
         return expect(error.cycle_path().size() == 2 && error.cycle_path()[0] == first &&
                           error.cycle_path()[1] == first && graph.links().empty(),
@@ -78,7 +78,7 @@ bool cyclic_serialization_is_rejected() {
     ctex::graph::GraphDocument graph(node("output", ctex::graph::NodeRole::output));
     const auto first = graph.add_node(node("first", ctex::graph::NodeRole::regular));
     const auto second = graph.add_node(node("second", ctex::graph::NodeRole::regular));
-    graph.add_link({first, "out", second, "in"});
+    static_cast<void>(graph.add_link({first, "out", second, "in"}));
     std::string serialized = ctex::graph::serialize_graph(graph);
     const std::string reverse =
         "LINK\t" + std::to_string(second) + "\t6f7574\t" + std::to_string(first) + "\t696e\n";

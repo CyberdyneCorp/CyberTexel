@@ -2,6 +2,7 @@
 #define CTEX_GRAPH_DOCUMENT_HPP
 
 #include <cstdint>
+#include <optional>
 #include <span>
 #include <stdexcept>
 #include <string>
@@ -37,7 +38,20 @@ using SocketValue =
     std::variant<std::monostate, bool, double, VectorValue, ColourValue, std::string, ImageValue>;
 
 enum class SocketType : std::uint8_t { scalar, vector, colour, string, image, boolean };
+enum class SocketCoercion : std::uint8_t {
+    identity,
+    scalar_to_vector,
+    vector_to_scalar,
+    colour_to_vector,
+    colour_to_scalar,
+};
 enum class NodeRole : std::uint8_t { regular, output };
+
+inline constexpr VectorValue linear_rec709_luminance_weights{0.2126F, 0.7152F, 0.0722F};
+
+[[nodiscard]] std::string_view socket_type_name(SocketType type) noexcept;
+[[nodiscard]] std::optional<SocketCoercion> socket_coercion(SocketType source,
+                                                            SocketType target) noexcept;
 
 struct NodePosition {
     float x;
@@ -80,6 +94,24 @@ struct GraphLink {
     friend bool operator==(const GraphLink&, const GraphLink&) = default;
 };
 
+struct AddLinkResult {
+    SocketCoercion coercion;
+    std::optional<GraphLink> replaced_link;
+    friend bool operator==(const AddLinkResult&, const AddLinkResult&) = default;
+};
+
+class SocketTypeError final : public std::invalid_argument {
+public:
+    SocketTypeError(SocketType source, SocketType target);
+
+    [[nodiscard]] SocketType source_type() const noexcept { return source_type_; }
+    [[nodiscard]] SocketType target_type() const noexcept { return target_type_; }
+
+private:
+    SocketType source_type_;
+    SocketType target_type_;
+};
+
 class GraphCycleError final : public std::invalid_argument {
 public:
     explicit GraphCycleError(std::vector<NodeId> cycle_path);
@@ -100,7 +132,7 @@ public:
     void set_node_position(NodeId id, NodePosition position);
     void set_input_value(NodeId id, std::string_view socket_identifier, SocketValue value);
 
-    void add_link(GraphLink link);
+    [[nodiscard]] AddLinkResult add_link(GraphLink link);
     [[nodiscard]] bool remove_link(const GraphLink& link) noexcept;
 
     [[nodiscard]] const GraphNode& node(NodeId id) const;

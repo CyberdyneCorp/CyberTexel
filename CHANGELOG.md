@@ -66,6 +66,8 @@ Foundation implementation is in progress.
   output constants.
 - Edit-time material graph cycle refusal with typed, deterministic path
   diagnostics and cyclic-input rejection during deserialization.
+- Explicit material graph socket coercions, typed incompatibility diagnostics,
+  and transactional one-link-per-input replacement reporting.
 
 ### Changed
 

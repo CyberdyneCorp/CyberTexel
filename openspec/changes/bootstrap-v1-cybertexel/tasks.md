@@ -138,8 +138,12 @@ inputs and defaults from registered channels, including the built-in nine.
 Task 6.2 refuses self-links and links that would close a cycle before mutating
 the document. Its typed diagnostic reports a deterministic closed node-ID path,
 and deserialization independently rejects cyclic input with a linear CSR-backed
-topological pass. Socket coercion and one-link-per-input replacement (6.3) are
-next.
+topological pass. Task 6.3 defines the exact identity, scalar/vector and
+colour/vector coercion matrix with linear Rec. 709 luminance weights. Link edits
+return their required emission coercion and any displaced connection; invalid
+types and cycles are refused before transactional one-link-per-input replacement.
+Deserialization enforces the same invariants. The built-in node catalogue (6.4)
+is next.
 
 ## 1. Foundation
 
@@ -215,7 +219,7 @@ next.
 
 - [x] 6.1 Graph document: nodes, links, sockets, serialization, comparison
 - [x] 6.2 Edit-time cycle detection and its diagnostics
-- [ ] 6.3 Socket typing, coercion rules, one-link-per-input, refusal of non-coercible links
+- [x] 6.3 Socket typing, coercion rules, one-link-per-input, refusal of non-coercible links
 - [ ] 6.4 Node catalogue: input, texture, colour and filter, vector and math
 - [ ] 6.5 Node groups, socket propagation, recursion refusal
 - [ ] 6.6 Graph validation independent of emission

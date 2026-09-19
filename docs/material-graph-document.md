@@ -18,10 +18,27 @@ Nodes are stored in identity order and links in endpoint order. Socket and
 property declaration order remains significant because it is part of a node
 type's user-facing interface.
 
-Socket storage already represents the six specified value domains—scalar,
-vector, colour, string, image reference, and boolean—but task 6.1 only validates
-stored constants. Connection coercion and one-link-per-input replacement belong
-to task 6.3.
+Socket storage represents scalar, vector, colour, string, image reference, and
+boolean values. Link creation uses this exact coercion table:
+
+| Output | Input | Link coercion |
+|---|---|---|
+| Any type | Same type | Identity |
+| Scalar | Vector | Broadcast to XYZ |
+| Vector | Scalar | Linear Rec. 709 luminance |
+| Colour | Vector | Pass RGB; ignore alpha |
+| Colour | Scalar | Linear Rec. 709 luminance over RGB |
+
+The luminance weights are `(0.2126, 0.7152, 0.0722)`. Every other cross-type
+connection is refused with a typed diagnostic naming the output and input types.
+The document records the required coercion but does not alter either socket's
+stored value; emission applies it later.
+
+Each input holds at most one link. Connecting a different output to an occupied
+input atomically replaces the old link, and `add_link` returns both the old link
+and the new link's coercion. Type and cycle refusals occur before replacement,
+so the existing link remains unchanged. Deserialization enforces the same type
+and single-link invariants.
 
 ## Cycle refusal
 

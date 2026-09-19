@@ -198,7 +198,54 @@ std::string cycle_message(std::span<const NodeId> path) {
     return result;
 }
 
+std::string socket_type_message(SocketType source, SocketType target) {
+    return "cannot connect " + std::string(socket_type_name(source)) + " output to " +
+           std::string(socket_type_name(target)) + " input";
+}
+
 }  // namespace
+
+std::string_view socket_type_name(SocketType type) noexcept {
+    switch (type) {
+        case SocketType::scalar:
+            return "scalar";
+        case SocketType::vector:
+            return "vector";
+        case SocketType::colour:
+            return "colour";
+        case SocketType::string:
+            return "string";
+        case SocketType::image:
+            return "image";
+        case SocketType::boolean:
+            return "boolean";
+    }
+    return "unknown";
+}
+
+std::optional<SocketCoercion> socket_coercion(SocketType source, SocketType target) noexcept {
+    if (source == target) {
+        return SocketCoercion::identity;
+    }
+    if (source == SocketType::scalar && target == SocketType::vector) {
+        return SocketCoercion::scalar_to_vector;
+    }
+    if (source == SocketType::vector && target == SocketType::scalar) {
+        return SocketCoercion::vector_to_scalar;
+    }
+    if (source == SocketType::colour && target == SocketType::vector) {
+        return SocketCoercion::colour_to_vector;
+    }
+    if (source == SocketType::colour && target == SocketType::scalar) {
+        return SocketCoercion::colour_to_scalar;
+    }
+    return std::nullopt;
+}
+
+SocketTypeError::SocketTypeError(SocketType source, SocketType target)
+    : std::invalid_argument(socket_type_message(source, target)),
+      source_type_(source),
+      target_type_(target) {}
 
 GraphCycleError::GraphCycleError(std::vector<NodeId> cycle_path)
     : std::invalid_argument(cycle_message(cycle_path)), cycle_path_(std::move(cycle_path)) {}
@@ -273,14 +320,20 @@ void GraphDocument::set_input_value(NodeId id, std::string_view socket_identifie
     found->value = std::move(value);
 }
 
-void GraphDocument::add_link(GraphLink link) {
+AddLinkResult GraphDocument::add_link(GraphLink link) {
     const GraphNode& source = node(link.source_node);
     const GraphNode& target = node(link.target_node);
-    if (find_socket(source.outputs, link.source_socket) == nullptr) {
+    const NodeSocket* source_socket = find_socket(source.outputs, link.source_socket);
+    const NodeSocket* target_socket = find_socket(target.inputs, link.target_socket);
+    if (source_socket == nullptr) {
         throw std::invalid_argument("graph link source socket does not exist");
     }
-    if (find_socket(target.inputs, link.target_socket) == nullptr) {
+    if (target_socket == nullptr) {
         throw std::invalid_argument("graph link target socket does not exist");
+    }
+    const auto coercion = socket_coercion(source_socket->type, target_socket->type);
+    if (!coercion) {
+        throw SocketTypeError(source_socket->type, target_socket->type);
     }
     if (std::find(links_.begin(), links_.end(), link) != links_.end()) {
         throw std::invalid_argument("graph link already exists");
@@ -289,8 +342,20 @@ void GraphDocument::add_link(GraphLink link) {
         path->insert(path->begin(), link.source_node);
         throw GraphCycleError(std::move(*path));
     }
-    links_.push_back(std::move(link));
-    std::sort(links_.begin(), links_.end(), link_less);
+    const auto replaced = std::find_if(links_.begin(), links_.end(), [&](const GraphLink& current) {
+        return current.target_node == link.target_node &&
+               current.target_socket == link.target_socket;
+    });
+    AddLinkResult result{.coercion = *coercion, .replaced_link = std::nullopt};
+    std::vector<GraphLink> updated = links_;
+    if (replaced != links_.end()) {
+        result.replaced_link = *replaced;
+        updated.erase(updated.begin() + (replaced - links_.begin()));
+    }
+    updated.push_back(std::move(link));
+    std::sort(updated.begin(), updated.end(), link_less);
+    links_.swap(updated);
+    return result;
 }
 
 bool GraphDocument::remove_link(const GraphLink& link) noexcept {
@@ -344,12 +409,20 @@ void GraphDocument::validate() const {
         std::adjacent_find(links_.begin(), links_.end()) != links_.end()) {
         throw std::invalid_argument("graph links must be unique and canonically ordered");
     }
+    std::set<std::pair<NodeId, std::string_view>> occupied_inputs;
     for (const GraphLink& link : links_) {
         const GraphNode& source = node(link.source_node);
         const GraphNode& target = node(link.target_node);
-        if (find_socket(source.outputs, link.source_socket) == nullptr ||
-            find_socket(target.inputs, link.target_socket) == nullptr) {
+        const NodeSocket* source_socket = find_socket(source.outputs, link.source_socket);
+        const NodeSocket* target_socket = find_socket(target.inputs, link.target_socket);
+        if (source_socket == nullptr || target_socket == nullptr) {
             throw std::invalid_argument("graph link references a missing socket");
+        }
+        if (!socket_coercion(source_socket->type, target_socket->type)) {
+            throw SocketTypeError(source_socket->type, target_socket->type);
+        }
+        if (!occupied_inputs.emplace(link.target_node, link.target_socket).second) {
+            throw std::invalid_argument("serialized graph has more than one link to an input");
         }
     }
     validate_acyclic(nodes_, links_);
