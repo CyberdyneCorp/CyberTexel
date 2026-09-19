@@ -80,6 +80,60 @@ std::size_t texture_set_id_buffer_size(const std::vector<std::string>& identifie
     return required_size;
 }
 
+ctex::doc::PartitionSourceKind partition_source_kind(std::uint32_t kind) {
+    switch (kind) {
+        case CTEX_PARTITION_SOURCE_MATERIAL:
+            return ctex::doc::PartitionSourceKind::material;
+        case CTEX_PARTITION_SOURCE_OBJECT:
+            return ctex::doc::PartitionSourceKind::object;
+        case CTEX_PARTITION_SOURCE_SUBMESH:
+            return ctex::doc::PartitionSourceKind::submesh;
+        case CTEX_PARTITION_SOURCE_EXPLICIT_FACES:
+            return ctex::doc::PartitionSourceKind::explicit_faces;
+    }
+    throw std::invalid_argument("partition_kind=" + std::to_string(kind));
+}
+
+void validate_descriptor_size(const ctex_texture_set_descriptor& descriptor) {
+    if (descriptor.size < CTEX_TEXTURE_SET_DESCRIPTOR_V1_SIZE) {
+        throw std::invalid_argument(
+            "descriptor.size=" + std::to_string(descriptor.size) +
+            " minimum_size=" + std::to_string(CTEX_TEXTURE_SET_DESCRIPTOR_V1_SIZE));
+    }
+    if (descriptor.size > CTEX_TEXTURE_SET_DESCRIPTOR_CURRENT_SIZE) {
+        throw std::invalid_argument(
+            "descriptor.size=" + std::to_string(descriptor.size) +
+            " library_size=" + std::to_string(CTEX_TEXTURE_SET_DESCRIPTOR_CURRENT_SIZE));
+    }
+}
+
+ctex::doc::TextureSetDescriptor texture_set_descriptor(
+    const ctex_texture_set_descriptor& descriptor) {
+    validate_descriptor_size(descriptor);
+    if (descriptor.display_name == nullptr) {
+        throw std::invalid_argument("descriptor.display_name=null");
+    }
+    if (descriptor.partition_key == nullptr) {
+        throw std::invalid_argument("descriptor.partition_key=null");
+    }
+    if (descriptor.uv_set == nullptr) {
+        throw std::invalid_argument("descriptor.uv_set=null");
+    }
+    std::uint8_t bit_depth = 8;
+    constexpr std::size_t bit_depth_end = offsetof(ctex_texture_set_descriptor, default_bit_depth) +
+                                          sizeof(ctex_texture_set_descriptor::default_bit_depth);
+    if (descriptor.size >= bit_depth_end) {
+        bit_depth = descriptor.default_bit_depth;
+    }
+    return {.display_name = descriptor.display_name,
+            .partition_kind = partition_source_kind(descriptor.partition_kind),
+            .partition_key = descriptor.partition_key,
+            .uv_set = descriptor.uv_set,
+            .width = descriptor.width,
+            .height = descriptor.height,
+            .default_bit_depth = bit_depth};
+}
+
 }  // namespace
 
 extern "C" ctex_version ctex_get_version(void) {
@@ -102,6 +156,19 @@ extern "C" ctex_result ctex_document_create(ctex_document** out_document) {
 }
 
 extern "C" void ctex_document_destroy(ctex_document* document) { delete document; }
+
+extern "C" ctex_result ctex_document_create_texture_set(
+    ctex_document* document, const ctex_texture_set_descriptor* descriptor) {
+    return call_boundary("ctex_document_create_texture_set", [&] {
+        if (document == nullptr) {
+            throw std::invalid_argument("document=null");
+        }
+        if (descriptor == nullptr) {
+            throw std::invalid_argument("descriptor=null");
+        }
+        static_cast<void>(document->value.create_texture_set(texture_set_descriptor(*descriptor)));
+    });
+}
 
 extern "C" ctex_result ctex_document_get_texture_set_ids(const ctex_document* document,
                                                          char* buffer, std::size_t buffer_size,

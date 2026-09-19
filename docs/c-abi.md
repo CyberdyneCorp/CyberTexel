@@ -25,6 +25,17 @@ this contract to the ordered stable texture-set identities: each UTF-8 identity
 is NUL-terminated and entries are packed consecutively; `out_count` reports how
 many entries are present.
 
+Input descriptors begin with a `uint32_t size`. Callers set it to the descriptor
+size they compiled against; the library rejects values below the required prefix
+or above its own current structure before reading any later field. Fields are
+read only when `size` covers the complete field. The first
+`ctex_texture_set_descriptor` prefix ends before `default_bit_depth`, so an older
+caller receives the documented 8-bit default even if bytes beyond its declared
+prefix contain another value. Current callers use
+`CTEX_TEXTURE_SET_DESCRIPTOR_CURRENT_SIZE`; the stable older prefix is exposed
+as `CTEX_TEXTURE_SET_DESCRIPTOR_V1_SIZE`. Descriptor strings are borrowed for
+the duration of `ctex_document_create_texture_set` and copied into the document.
+
 After a failed call, `ctex_get_last_result` returns the same result and
 `ctex_get_last_diagnostic` returns an English message naming the operation and
 the offending value. Diagnostic state belongs to the calling thread. The

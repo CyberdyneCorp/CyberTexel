@@ -636,7 +636,10 @@ and allocation-free per-thread diagnostics. Caller-owned two-call buffers (14.2)
 now return ordered texture-set identities as consecutive NUL-terminated UTF-8
 entries. Null-buffer queries report the exact byte and item counts; short buffers
 report their required size without any partial write. Versioned descriptors
-(14.3) are next.
+(14.3) now begin with a 32-bit byte size, consume only complete covered fields,
+default an older texture-set descriptor's appended bit depth to 8, and reject
+truncated or future-sized layouts before mutation. ABI versioning and its diff
+gate (14.4) are next.
 
 ## 1. Foundation
 
@@ -836,7 +839,7 @@ report their required size without any partial write. Versioned descriptors
 
 - [x] 14.1 C ABI: prefix, export map, opaque handles, result codes, diagnostics
 - [x] 14.2 Caller-owned buffers with two-call sizing
-- [ ] 14.3 Versioned descriptors and the implausible-size refusal
+- [x] 14.3 Versioned descriptors and the implausible-size refusal
 - [ ] 14.4 ABI version query, stability rules, symbol and descriptor diff gate
 - [ ] 14.5 Threading contract documentation and the two-document concurrency test
 - [ ] 14.6 Host log sink and the English-plus-codes diagnostic rule

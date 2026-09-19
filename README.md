@@ -192,8 +192,10 @@ The current implementation provides:
   export surface, opaque document handles, distinct integer result categories,
   exception containment, and allocation-free per-thread diagnostics. Bulk
   results use atomic caller-owned buffers with null-buffer sizing queries; stable
-  texture-set IDs exercise the complete two-call contract. The same public
-  header is compiled by a strict C11 consumer test.
+  texture-set IDs exercise the complete two-call contract. Size-first texture-set
+  descriptors accept older prefixes with documented defaults and refuse
+  implausibly large layouts before mutation. The same public header is compiled
+  by a strict C11 consumer test.
 - An isolated [Kong shader compiler context](docs/kong-backend.md) that compiles
   Kong source deterministically to WGSL, MSL, binary SPIR-V, or HLSL, supports
   concurrent independent targets, and reports unsupported requests explicitly.

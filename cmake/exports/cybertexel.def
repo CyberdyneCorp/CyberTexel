@@ -1,5 +1,6 @@
 EXPORTS
     ctex_document_create
+    ctex_document_create_texture_set
     ctex_document_destroy
     ctex_document_get_texture_set_ids
     ctex_get_last_diagnostic
