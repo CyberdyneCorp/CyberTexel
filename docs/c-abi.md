@@ -61,6 +61,10 @@ non-append descriptor edit, enum renumbering, or header/export mismatch fails
 with the affected name. A deliberate incompatible change therefore requires a
 major version increment.
 
+The [C ABI capability coverage inventory](c-abi-coverage.md) maps OpenSpec
+requirements to their public entry points. Its gate stays red, with every gap
+named, until the complete runtime surface is reachable without C++ access.
+
 ## Threading contract
 
 The contract is stated per entry-point family:

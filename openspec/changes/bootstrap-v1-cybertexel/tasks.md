@@ -660,6 +660,12 @@ map to out-of-memory, and misaligned returns are rejected by stable code. A core
 the current C surface: the document index, stable keys, texture-set descriptor
 and identity strings, shared state, preset-vector capacity, and channel metadata.
 Future C entry points must propagate the owning document resource.
+Task 14.8 has begun with a manifest containing every one of the 24 OpenSpec
+capabilities and a checker that compares exact requirement titles with declared
+`ctex_*` symbols. Non-runtime capabilities require a rationale and repository
+evidence, while runtime capabilities require symbols for every requirement. The
+gate currently refuses 239 unmapped runtime requirements by name and remains
+outside the green aggregate until those entry points exist.
 
 ## 1. Foundation
 

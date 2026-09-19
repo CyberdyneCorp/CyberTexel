@@ -137,7 +137,10 @@ callback pairs, preserve allocator provenance per opaque document, and report
 failure or misalignment by stable code. A core PMR boundary routes every
 persistent allocation reachable through the current C surface, including the
 document index, texture-set identity and descriptor fields, shared state and
-channel metadata. The full-surface coverage gate (14.8) is next.
+channel metadata. Full-surface coverage (14.8) now has a requirement-granular
+manifest and tested checker over all 24 capabilities. It correctly remains red,
+naming the 239 runtime requirements that still lack C entry points; those gaps
+must be implemented before the task can close.
 
 ## Milestones
 

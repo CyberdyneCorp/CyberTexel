@@ -382,6 +382,11 @@ gate-abi-diff: build
     python3 tests/tools/test_check_abi.py
     python3 tools/check_abi.py
 
+# Every runtime capability must name the public C operations that expose it.
+gate-c-api-coverage:
+    python3 tests/tools/test_check_capi_coverage.py
+    python3 tools/check_capi_coverage.py
+
 # Every capability has a numbered example that runs and asserts.
 gate-example-coverage:
     @just _unimplemented gate-example-coverage 16.5

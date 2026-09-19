@@ -1,0 +1,52 @@
+{
+  "schema": 1,
+  "capabilities": [
+    {"name": "build-packaging", "kind": "non-runtime", "rationale": "Build and distribution policy has no runtime operation.", "evidence": ["just gate-version-consistency", "just gate-abi-diff"]},
+    {"name": "c-abi", "kind": "boundary", "requirements": [
+      {"requirement": "Symbol prefix and export surface", "symbols": ["ctex_get_version"]},
+      {"requirement": "C linkage only", "symbols": ["ctex_get_version"]},
+      {"requirement": "Opaque handles", "symbols": ["ctex_document_create", "ctex_document_destroy"]},
+      {"requirement": "Integer result codes", "symbols": ["ctex_document_create"]},
+      {"requirement": "Diagnostic retrieval", "symbols": ["ctex_get_last_result", "ctex_get_last_diagnostic"]},
+      {"requirement": "Caller-owned buffers", "symbols": ["ctex_document_get_texture_set_ids"]},
+      {"requirement": "Versioned descriptors", "symbols": ["ctex_document_create_texture_set"]},
+      {"requirement": "ABI version query", "symbols": ["ctex_get_abi_version"]},
+      {"requirement": "ABI stability rules", "symbols": ["ctex_get_abi_version"]},
+      {"requirement": "Thread safety is declared", "symbols": ["ctex_document_create", "ctex_document_get_texture_set_ids"]},
+      {"requirement": "No global mutable state across handles", "symbols": ["ctex_document_create"]},
+      {"requirement": "Callbacks carry user data", "symbols": ["ctex_set_log_sink", "ctex_set_allocator"]},
+      {"requirement": "Full-surface coverage", "evidence": ["just gate-c-api-coverage"]},
+      {"requirement": "Host log sink", "symbols": ["ctex_set_log_sink"]},
+      {"requirement": "Diagnostics are English with machine-readable codes", "symbols": ["ctex_get_last_diagnostic_code", "ctex_get_last_diagnostic"]},
+      {"requirement": "Allocation control", "symbols": ["ctex_set_allocator"]}
+    ]},
+    {"name": "cli-headless", "kind": "non-runtime", "rationale": "The CLI consumes the C ABI and is not itself a library operation.", "evidence": ["task 15"]},
+    {"name": "color-management", "kind": "runtime", "requirements": []},
+    {"name": "device-gate", "kind": "non-runtime", "rationale": "Device performance policy is repository and CI evidence.", "evidence": ["task 17"]},
+    {"name": "editable-authoring", "kind": "runtime", "requirements": []},
+    {"name": "examples", "kind": "non-runtime", "rationale": "Examples consume the bindings and are not library operations.", "evidence": ["task 16"]},
+    {"name": "execution-backends", "kind": "runtime", "requirements": []},
+    {"name": "host-transport", "kind": "runtime", "requirements": []},
+    {"name": "image-io", "kind": "runtime", "requirements": []},
+    {"name": "language-bindings", "kind": "non-runtime", "rationale": "Bindings mirror the C ABI and are checked by their own parity gate.", "evidence": ["just gate-binding-parity"]},
+    {"name": "material-graph", "kind": "runtime", "requirements": []},
+    {"name": "mesh-and-texture-sets", "kind": "runtime", "requirements": [
+      {"requirement": "Texture set partitioning", "symbols": ["ctex_document_create_texture_set"]},
+      {"requirement": "Per-set resolution and bit depth", "symbols": ["ctex_document_create_texture_set"]},
+      {"requirement": "Set identity is stable", "symbols": ["ctex_document_get_texture_set_ids"]}
+    ]},
+    {"name": "mesh-maps", "kind": "runtime", "requirements": []},
+    {"name": "paint-engine", "kind": "runtime", "requirements": []},
+    {"name": "paint-tools", "kind": "runtime", "requirements": []},
+    {"name": "picking", "kind": "runtime", "requirements": []},
+    {"name": "project-io", "kind": "runtime", "requirements": []},
+    {"name": "resource-residency", "kind": "runtime", "requirements": []},
+    {"name": "shader-emission", "kind": "runtime", "requirements": []},
+    {"name": "smart-materials", "kind": "runtime", "requirements": []},
+    {"name": "stroke-model", "kind": "runtime", "requirements": []},
+    {"name": "texture-document", "kind": "runtime", "requirements": [
+      {"requirement": "Document and texture sets", "symbols": ["ctex_document_create", "ctex_document_create_texture_set", "ctex_document_get_texture_set_ids"]}
+    ]},
+    {"name": "texture-export", "kind": "runtime", "requirements": []}
+  ]
+}
