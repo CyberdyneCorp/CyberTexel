@@ -5,6 +5,7 @@
 #include <ctex/maps/external_import.hpp>
 #include <iostream>
 #include <limits>
+#include <optional>
 #include <string_view>
 #include <vector>
 
@@ -134,6 +135,29 @@ bool colour_import_converts_rgb_and_preserves_alpha() {
                   "vertex-colour import converted the wrong components");
 }
 
+bool directx_normal_import_records_and_converts_its_green_channel() {
+    doc::TextureDocument document;
+    const doc::TextureSet& set = texture_set(document);
+    MeshMapSet maps(set, fixture_mesh_revision);
+    const std::vector<std::byte> source{std::byte{128}, std::byte{64}, std::byte{255}};
+    const ExternalMeshMapImport request{.kind = MeshMapKind::tangent_space_normal,
+                                        .channel_meaning = MeshMapChannelMeaning::normal_xyz,
+                                        .color_space = image::ColorSpace::linear_rec709,
+                                        .texture_set_id = set.id(),
+                                        .uv_set = "paint",
+                                        .mesh_revision = fixture_mesh_revision,
+                                        .normal_convention = NormalMapConvention::direct_x,
+                                        .buffer = view(source, 1, 1, 3)};
+    const ExternalMeshMapImportResult result = import_external_mesh_map(maps, request);
+    const MeshMapSample sample = maps.sample(MeshMapKind::tangent_space_normal, 0.5, 0.5).sample;
+    return expect(result.normal_convention == NormalMapConvention::direct_x &&
+                      maps.map(MeshMapKind::tangent_space_normal).normal_convention ==
+                          NormalMapConvention::direct_x &&
+                      near(sample.values[0], 128.0 / 255.0) &&
+                      near(sample.values[1], 191.0 / 255.0) && near(sample.values[2], 1.0),
+                  "external DirectX normal was not recorded and read as canonical OpenGL");
+}
+
 template <typename Operation>
 bool refused(Operation operation) {
     try {
@@ -165,6 +189,8 @@ bool invalid_or_missing_declarations_and_buffers_are_transactional() {
     short_buffer.buffer.pixel_bytes = 1;
     ExternalMeshMapImport wrong_set = ao_import(set, source);
     wrong_set.texture_set_id = "material/other";
+    ExternalMeshMapImport convention_on_data = ao_import(set, source);
+    convention_on_data.normal_convention = NormalMapConvention::open_gl;
     ExternalMeshMapImport short_colour_channels{
         .kind = MeshMapKind::vertex_colour,
         .channel_meaning = MeshMapChannelMeaning::colour_rgb,
@@ -188,6 +214,16 @@ bool invalid_or_missing_declarations_and_buffers_are_transactional() {
                    .row_stride_bytes = sizeof(non_finite_colour),
                    .pixels = non_finite_colour.data(),
                    .pixel_bytes = sizeof(non_finite_colour)}};
+    const std::vector<std::byte> normal_pixels{std::byte{128}, std::byte{128}, std::byte{255}};
+    ExternalMeshMapImport missing_normal_convention{
+        .kind = MeshMapKind::tangent_space_normal,
+        .channel_meaning = MeshMapChannelMeaning::normal_xyz,
+        .color_space = image::ColorSpace::linear_rec709,
+        .texture_set_id = set.id(),
+        .uv_set = "paint",
+        .mesh_revision = fixture_mesh_revision,
+        .normal_convention = std::nullopt,
+        .buffer = view(normal_pixels, 1, 1, 3)};
 
     const bool all_refused =
         refused([&] { static_cast<void>(import_external_mesh_map(maps, missing_meaning)); }) &&
@@ -197,9 +233,12 @@ bool invalid_or_missing_declarations_and_buffers_are_transactional() {
         refused([&] { static_cast<void>(import_external_mesh_map(maps, invalid_colour_space)); }) &&
         refused([&] { static_cast<void>(import_external_mesh_map(maps, short_buffer)); }) &&
         refused([&] { static_cast<void>(import_external_mesh_map(maps, wrong_set)); }) &&
+        refused([&] { static_cast<void>(import_external_mesh_map(maps, convention_on_data)); }) &&
         refused(
             [&] { static_cast<void>(import_external_mesh_map(maps, short_colour_channels)); }) &&
-        refused([&] { static_cast<void>(import_external_mesh_map(maps, non_finite)); });
+        refused([&] { static_cast<void>(import_external_mesh_map(maps, non_finite)); }) &&
+        refused(
+            [&] { static_cast<void>(import_external_mesh_map(maps, missing_normal_convention)); });
     return expect(all_refused && maps.size() == 0,
                   "invalid external map declaration or buffer changed the target map set");
 }
@@ -209,6 +248,7 @@ bool invalid_or_missing_declarations_and_buffers_are_transactional() {
 int main() {
     return external_ao_matches_provider_output_and_owns_its_copy() &&
                    colour_import_converts_rgb_and_preserves_alpha() &&
+                   directx_normal_import_records_and_converts_its_green_channel() &&
                    invalid_or_missing_declarations_and_buffers_are_transactional()
                ? 0
                : 1;

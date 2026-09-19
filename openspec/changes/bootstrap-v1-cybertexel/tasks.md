@@ -543,6 +543,13 @@ provider output. RGB/RGBA vertex colours are converted from declared sRGB into
 the linear working space while alpha and every non-colour data channel remain
 numeric. The result reports the declaration, canonical storage space and whether
 conversion occurred; malformed metadata or buffers publish nothing.
+Normal-map convention handling (11.6) requires every tangent-space,
+object-space and bent-normal binding to record OpenGL or DirectX green-channel
+orientation while refusing the field on non-normal maps. Provider and external
+import paths preserve the declaration. Reads expose the library's canonical
+OpenGL encoding by applying `1 - green` to DirectX samples without changing
+stored pixels or the other components; tangent-basis compatibility remains in
+11.12.
 
 ## 1. Foundation
 
@@ -702,7 +709,7 @@ conversion occurred; malformed metadata or buffers publish nothing.
 - [x] 11.3 Missing-map reporting with no neutral substitution
 - [x] 11.4 Staleness tracking against the mesh revision
 - [x] 11.5 External map import with declared channel meaning and colour space
-- [ ] 11.6 Normal map convention recording and conversion on read
+- [x] 11.6 Normal map convention recording and conversion on read
 - [ ] 11.7 Generators: AO, curvature, thickness, position gradient, direction, dirt, edge wear, scratches
 - [ ] 11.8 Generator parameter validation and cross-executor determinism
 - [ ] 11.9 Map memory accounting and host-driven release

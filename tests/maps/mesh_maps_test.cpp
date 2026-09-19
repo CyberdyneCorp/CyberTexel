@@ -85,8 +85,21 @@ std::shared_ptr<image::TiledImage> scalar_map(std::uint32_t width, std::uint32_t
         width, height, image::PixelFormat{.channel_type = channel_type, .channel_count = 1});
 }
 
+std::shared_ptr<image::TiledImage> vector_map(std::uint32_t width, std::uint32_t height) {
+    return std::make_shared<image::TiledImage>(
+        width, height,
+        image::PixelFormat{.channel_type = image::ChannelType::uint8_unorm, .channel_count = 3});
+}
+
 void write_u8(image::TiledImage& image, std::uint32_t x, std::uint32_t y, std::uint8_t value) {
     const std::array pixel{static_cast<std::byte>(value)};
+    image.write_pixel(x, y, pixel);
+}
+
+void write_rgb8(image::TiledImage& image, std::uint32_t x, std::uint32_t y, std::uint8_t red,
+                std::uint8_t green, std::uint8_t blue) {
+    const std::array pixel{static_cast<std::byte>(red), static_cast<std::byte>(green),
+                           static_cast<std::byte>(blue)};
     image.write_pixel(x, y, pixel);
 }
 
@@ -215,6 +228,35 @@ bool supported_storage_precisions_decode_on_read() {
         near(maps.sample(MeshMapKind::thickness, 0.5, 0.5).sample.values[0], 32'768.0 / 65'535.0) &&
             near(maps.sample(MeshMapKind::height, 0.5, 0.5).sample.values[0], 0.25),
         "16-bit normalized or floating-point mesh-map storage decoded incorrectly");
+}
+
+bool normal_conventions_are_recorded_and_canonicalized_on_read() {
+    doc::TextureDocument document;
+    const doc::TextureSet& set = texture_set(document);
+    MeshMapSet maps(set, fixture_mesh_revision);
+    auto normal = vector_map(1, 1);
+    write_rgb8(*normal, 0, 0, 128, 64, 255);
+    static_cast<void>(maps.bind({.kind = MeshMapKind::tangent_space_normal,
+                                 .texture_set_id = set.id(),
+                                 .uv_set = "paint",
+                                 .mesh_revision = fixture_mesh_revision,
+                                 .normal_convention = NormalMapConvention::open_gl,
+                                 .pixels = normal}));
+    const MeshMapSample open_gl = maps.sample(MeshMapKind::tangent_space_normal, 0.5, 0.5).sample;
+    static_cast<void>(maps.bind({.kind = MeshMapKind::tangent_space_normal,
+                                 .texture_set_id = set.id(),
+                                 .uv_set = "paint",
+                                 .mesh_revision = fixture_mesh_revision,
+                                 .normal_convention = NormalMapConvention::direct_x,
+                                 .pixels = normal}));
+    const MeshMapSample direct_x = maps.sample(MeshMapKind::tangent_space_normal, 0.5, 0.5).sample;
+    return expect(near(open_gl.values[0], direct_x.values[0]) &&
+                      near(open_gl.values[1], 64.0 / 255.0) &&
+                      near(direct_x.values[1], 191.0 / 255.0) &&
+                      near(open_gl.values[2], direct_x.values[2]) &&
+                      maps.map(MeshMapKind::tangent_space_normal).normal_convention ==
+                          NormalMapConvention::direct_x,
+                  "normal-map convention was not retained or converted to canonical OpenGL");
 }
 
 bool required_maps_are_reported_without_neutral_substitution() {
@@ -413,10 +455,44 @@ bool incompatible_bindings_and_samples_are_refused() {
     } catch (const std::invalid_argument&) {
         zero_source_revision_refused = true;
     }
+    auto normal = vector_map(1, 1);
+    bool missing_normal_convention_refused = false;
+    try {
+        static_cast<void>(maps.bind({.kind = MeshMapKind::tangent_space_normal,
+                                     .texture_set_id = set.id(),
+                                     .uv_set = "paint",
+                                     .mesh_revision = fixture_mesh_revision,
+                                     .pixels = normal}));
+    } catch (const std::invalid_argument&) {
+        missing_normal_convention_refused = true;
+    }
+    bool convention_on_data_refused = false;
+    try {
+        static_cast<void>(maps.bind({.kind = MeshMapKind::ambient_occlusion,
+                                     .texture_set_id = set.id(),
+                                     .uv_set = "paint",
+                                     .mesh_revision = fixture_mesh_revision,
+                                     .normal_convention = NormalMapConvention::open_gl,
+                                     .pixels = scalar}));
+    } catch (const std::invalid_argument&) {
+        convention_on_data_refused = true;
+    }
+    bool invalid_convention_refused = false;
+    try {
+        static_cast<void>(maps.bind({.kind = MeshMapKind::tangent_space_normal,
+                                     .texture_set_id = set.id(),
+                                     .uv_set = "paint",
+                                     .mesh_revision = fixture_mesh_revision,
+                                     .normal_convention = static_cast<NormalMapConvention>(255),
+                                     .pixels = normal}));
+    } catch (const std::invalid_argument&) {
+        invalid_convention_refused = true;
+    }
     return expect(texture_set_refused && uv_set_refused && channels_refused && missing_refused &&
                       coordinate_refused && unnamed_consumer_refused &&
                       invalid_requirement_refused && zero_revision_refused &&
-                      zero_source_revision_refused,
+                      zero_source_revision_refused && missing_normal_convention_refused &&
+                      convention_on_data_refused && invalid_convention_refused,
                   "invalid mesh-map binding or sampling input was accepted") &&
            expect(maps.size() == 0, "a refused mesh-map operation mutated the map set");
 }
@@ -429,6 +505,7 @@ int main() {
                    exact_resolution_replacement_has_no_mismatch() &&
                    identifiers_use_nearest_sampling() &&
                    supported_storage_precisions_decode_on_read() &&
+                   normal_conventions_are_recorded_and_canonicalized_on_read() &&
                    required_maps_are_reported_without_neutral_substitution() &&
                    complete_requirements_and_direct_missing_reads_are_distinct() &&
                    mesh_revision_changes_report_retained_stale_maps() &&

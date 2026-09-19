@@ -60,6 +60,17 @@ void validate_descriptor(const MeshMapDescriptor& descriptor, std::string_view t
         throw std::invalid_argument("mesh map '" + std::string(name) +
                                     "' has no source mesh revision");
     }
+    if (mesh_map_uses_normal_convention(descriptor.kind) && !descriptor.normal_convention) {
+        throw std::invalid_argument("mesh map '" + std::string(name) +
+                                    "' requires a normal-map convention");
+    }
+    if (!mesh_map_uses_normal_convention(descriptor.kind) && descriptor.normal_convention) {
+        throw std::invalid_argument("non-normal mesh map '" + std::string(name) +
+                                    "' declares a normal-map convention");
+    }
+    if (descriptor.normal_convention) {
+        static_cast<void>(normal_map_convention_name(*descriptor.normal_convention));
+    }
     const ChannelCountRange channels = channel_count_range(descriptor.kind);
     const std::uint8_t actual = descriptor.pixels->format().channel_count;
     if (actual < channels.minimum || actual > channels.maximum) {
@@ -129,6 +140,13 @@ MeshMapSample bilinear_sample(const MeshMapDescriptor& descriptor, double x, dou
         result.values[component] = std::lerp(top, bottom, y_fraction);
     }
     return result;
+}
+
+MeshMapSample convert_normal_convention(const MeshMapDescriptor& descriptor, MeshMapSample sample) {
+    if (descriptor.normal_convention == NormalMapConvention::direct_x) {
+        sample.values[1] = 1.0 - sample.values[1];
+    }
+    return sample;
 }
 
 std::string map_names(std::span<const MeshMapKind> maps) {
@@ -208,6 +226,37 @@ std::string_view mesh_map_name(MeshMapKind kind) {
             return "uv-density";
         case MeshMapKind::vertex_colour:
             return "vertex-colour";
+    }
+    throw std::invalid_argument("mesh map kind is invalid");
+}
+
+std::string_view normal_map_convention_name(NormalMapConvention convention) {
+    switch (convention) {
+        case NormalMapConvention::open_gl:
+            return "OpenGL";
+        case NormalMapConvention::direct_x:
+            return "DirectX";
+    }
+    throw std::invalid_argument("normal-map convention is invalid");
+}
+
+bool mesh_map_uses_normal_convention(MeshMapKind kind) {
+    switch (kind) {
+        case MeshMapKind::tangent_space_normal:
+        case MeshMapKind::object_space_normal:
+        case MeshMapKind::bent_normal:
+            return true;
+        case MeshMapKind::world_space_direction:
+        case MeshMapKind::ambient_occlusion:
+        case MeshMapKind::curvature:
+        case MeshMapKind::thickness:
+        case MeshMapKind::position:
+        case MeshMapKind::height:
+        case MeshMapKind::material_id:
+        case MeshMapKind::object_id:
+        case MeshMapKind::uv_density:
+        case MeshMapKind::vertex_colour:
+            return false;
     }
     throw std::invalid_argument("mesh map kind is invalid");
 }
@@ -344,8 +393,9 @@ MeshMapReadResult MeshMapSet::sample(MeshMapKind kind, double u, double v) const
     const MeshMapDescriptor& descriptor = map(kind);
     const double x = u * static_cast<double>(descriptor.pixels->width() - 1);
     const double y = (1.0 - v) * static_cast<double>(descriptor.pixels->height() - 1);
-    return {.sample = is_identifier_map(kind) ? nearest_sample(descriptor, x, y)
-                                              : bilinear_sample(descriptor, x, y),
+    const MeshMapSample filtered = is_identifier_map(kind) ? nearest_sample(descriptor, x, y)
+                                                           : bilinear_sample(descriptor, x, y);
+    return {.sample = convert_normal_convention(descriptor, filtered),
             .staleness = staleness(descriptor, mesh_revision_)};
 }
 

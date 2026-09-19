@@ -148,6 +148,7 @@ BakeRequestResult request_bake(const BakeProvider& provider, MeshMapSet& target,
                                                  .texture_set_id = target.texture_set_id(),
                                                  .uv_set = target.uv_set(),
                                                  .mesh_revision = requested_mesh_revision,
+                                                 .normal_convention = output.normal_convention,
                                                  .pixels = std::move(pixels)});
         report(control, 1.0);
         return {.status = BakeRequestStatus::completed,

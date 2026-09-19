@@ -1,8 +1,10 @@
 #include <array>
+#include <cmath>
 #include <cstddef>
 #include <ctex/maps/bake_provider.hpp>
 #include <iostream>
 #include <limits>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -24,12 +26,14 @@ bool expect(bool condition, std::string_view message) {
 struct ProviderState {
     std::vector<MeshMapKind> advertised{MeshMapKind::ambient_occlusion, MeshMapKind::curvature};
     std::vector<std::byte> pixels{std::byte{0}, std::byte{64}, std::byte{128}, std::byte{255}};
+    std::uint8_t channel_count{1};
     std::size_t row_stride_bytes{};
     std::size_t request_count{};
     mesh::MeshRevision requested_mesh_revision{};
     bool fail{};
     bool invalid_progress{};
     bool invalid_status{};
+    std::optional<NormalMapConvention> normal_convention;
 };
 
 bool can_produce(void* user_data, MeshMapKind kind) noexcept {
@@ -61,10 +65,14 @@ BakeProviderStatus produce(void* user_data, const BakeRequest* request, const Ba
     output->image = {
         .width = request->width,
         .height = request->height,
-        .format = {.channel_type = image::ChannelType::uint8_unorm, .channel_count = 1},
-        .row_stride_bytes = state.row_stride_bytes == 0 ? request->width : state.row_stride_bytes,
+        .format = {.channel_type = image::ChannelType::uint8_unorm,
+                   .channel_count = state.channel_count},
+        .row_stride_bytes = state.row_stride_bytes == 0
+                                ? static_cast<std::size_t>(request->width) * state.channel_count
+                                : state.row_stride_bytes,
         .pixels = state.pixels.data(),
         .pixel_bytes = state.pixels.size()};
+    output->normal_convention = state.normal_convention;
     if (state.invalid_status) {
         return static_cast<BakeProviderStatus>(255);
     }
@@ -161,6 +169,30 @@ bool strided_output_needs_no_padding_after_the_last_row() {
                   "valid strided provider output required nonexistent final-row padding");
 }
 
+bool normal_provider_must_declare_and_forwards_its_convention() {
+    doc::TextureDocument document;
+    MeshMapSet maps(texture_set(document), fixture_mesh_revision);
+    ProviderState state;
+    state.advertised = {MeshMapKind::tangent_space_normal};
+    state.channel_count = 3;
+    state.pixels = {std::byte{128}, std::byte{64}, std::byte{255}};
+    const BakeRequestResult missing =
+        request_bake(provider(state), maps, MeshMapKind::tangent_space_normal, 1, 1);
+    const bool missing_bound_output = maps.size() != 0;
+    state.normal_convention = NormalMapConvention::direct_x;
+    const BakeRequestResult declared =
+        request_bake(provider(state), maps, MeshMapKind::tangent_space_normal, 1, 1);
+    const MeshMapSample sample = maps.sample(MeshMapKind::tangent_space_normal, 0.5, 0.5).sample;
+    return expect(missing.status == BakeRequestStatus::provider_failed && !missing_bound_output &&
+                      maps.size() == 1 && declared.status == BakeRequestStatus::completed &&
+                      declared.binding && declared.binding->resolution_mismatch,
+                  "normal provider convention was not required and then accepted") &&
+           expect(maps.map(MeshMapKind::tangent_space_normal).normal_convention ==
+                          NormalMapConvention::direct_x &&
+                      std::abs(sample.values[1] - (191.0 / 255.0)) < 1.0e-12,
+                  "provider normal convention was not retained or converted on read");
+}
+
 bool cancellation_before_and_during_provider_work_binds_nothing() {
     doc::TextureDocument document;
     MeshMapSet maps(texture_set(document), fixture_mesh_revision);
@@ -233,6 +265,7 @@ int main() {
     return supported_request_reports_progress_and_binds_output() &&
                    unsupported_request_names_map_and_advertised_set() &&
                    strided_output_needs_no_padding_after_the_last_row() &&
+                   normal_provider_must_declare_and_forwards_its_convention() &&
                    cancellation_before_and_during_provider_work_binds_nothing() &&
                    provider_failures_and_invalid_output_are_transactional() &&
                    malformed_provider_and_request_are_refused_before_callbacks()

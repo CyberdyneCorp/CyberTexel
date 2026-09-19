@@ -52,11 +52,17 @@ inline constexpr std::array all_mesh_map_kinds{
 
 [[nodiscard]] std::string_view mesh_map_name(MeshMapKind kind);
 
+enum class NormalMapConvention : std::uint8_t { open_gl, direct_x };
+
+[[nodiscard]] std::string_view normal_map_convention_name(NormalMapConvention convention);
+[[nodiscard]] bool mesh_map_uses_normal_convention(MeshMapKind kind);
+
 struct MeshMapDescriptor {
     MeshMapKind kind{};
     std::string texture_set_id;
     std::string uv_set;
     mesh::MeshRevision mesh_revision{};
+    std::optional<NormalMapConvention> normal_convention{};
     std::shared_ptr<const image::TiledImage> pixels;
 };
 

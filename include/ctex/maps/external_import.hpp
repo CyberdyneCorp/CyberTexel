@@ -25,11 +25,12 @@ enum class MeshMapChannelMeaning : std::uint8_t {
 
 struct ExternalMeshMapImport {
     MeshMapKind kind{};
-    std::optional<MeshMapChannelMeaning> channel_meaning;
-    std::optional<image::ColorSpace> color_space;
+    std::optional<MeshMapChannelMeaning> channel_meaning{};
+    std::optional<image::ColorSpace> color_space{};
     std::string texture_set_id;
     std::string uv_set;
     mesh::MeshRevision mesh_revision{};
+    std::optional<NormalMapConvention> normal_convention{};
     MeshMapPixelBufferView buffer;
 };
 
@@ -38,6 +39,7 @@ struct ExternalMeshMapImportResult {
     MeshMapChannelMeaning channel_meaning{};
     image::ColorSpace declared_color_space{};
     image::ColorSpace storage_color_space{};
+    std::optional<NormalMapConvention> normal_convention{};
     bool converted_to_working_space{};
 };
 

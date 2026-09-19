@@ -63,6 +63,23 @@ space is still declared and returned in `ExternalMeshMapImportResult`, alongside
 the canonical storage space and whether conversion occurred. Caller memory can
 be released or changed as soon as the synchronous import returns.
 
+## Normal-map convention
+
+Every tangent-space, object-space and bent-normal binding must declare
+`NormalMapConvention::open_gl` or `NormalMapConvention::direct_x`; omitting it,
+using an unknown value or attaching one to a non-normal map is refused before
+the binding changes. Provider output and external import carry the same
+declaration, and the source convention remains queryable on
+`MeshMapDescriptor`.
+
+CyberTexel exposes OpenGL-style encoded XYZ as its single downstream
+convention. Sampling a DirectX normal changes only the encoded green component
+to `1 - green`; red, blue, alpha, source pixels and the recorded declaration are
+unchanged. Conversion occurs on read after filtering, which is algebraically
+equivalent to converting each texel before linear filtering. This convention
+normalization does not claim tangent-basis compatibility: tangent algorithm,
+orientation and mirrored-handedness validation remain roadmap task 11.12.
+
 ## Bake-provider seam
 
 `BakeProvider` is an optional synchronous callback table with an opaque context,
@@ -79,5 +96,6 @@ cancellation publishes no map. Unsupported requests do not invoke the request
 callback and return a diagnostic naming both the requested map and the complete
 advertised set. Provider failure, invalid progress and malformed output likewise
 leave existing bindings unchanged. The callback arguments and returned image
-view are valid only for the synchronous call; revisioned asynchronous requests
-are reserved for roadmap task 11.13.
+view are valid only for the synchronous call. Normal-map output must include its
+OpenGL/DirectX declaration. Revisioned asynchronous requests are reserved for
+roadmap task 11.13.

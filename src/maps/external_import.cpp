@@ -135,6 +135,15 @@ void validate_declarations(const ExternalMeshMapImport& request) {
     }
     static_cast<void>(mesh_map_channel_meaning_name(*request.channel_meaning));
     static_cast<void>(image::color_space_name(*request.color_space));
+    if (mesh_map_uses_normal_convention(request.kind) && !request.normal_convention) {
+        throw std::invalid_argument("external normal map requires an OpenGL or DirectX convention");
+    }
+    if (!mesh_map_uses_normal_convention(request.kind) && request.normal_convention) {
+        throw std::invalid_argument("external non-normal map declares a normal-map convention");
+    }
+    if (request.normal_convention) {
+        static_cast<void>(normal_map_convention_name(*request.normal_convention));
+    }
     if (!request.buffer.format.is_valid()) {
         throw std::invalid_argument("external mesh map has an invalid pixel format");
     }
@@ -184,11 +193,13 @@ ExternalMeshMapImportResult import_external_mesh_map(MeshMapSet& target,
                                              .texture_set_id = request.texture_set_id,
                                              .uv_set = request.uv_set,
                                              .mesh_revision = request.mesh_revision,
+                                             .normal_convention = request.normal_convention,
                                              .pixels = std::move(pixels)});
     return {.binding = std::move(binding),
             .channel_meaning = *request.channel_meaning,
             .declared_color_space = *request.color_space,
             .storage_color_space = image::working_color_space(),
+            .normal_convention = request.normal_convention,
             .converted_to_working_space = converted};
 }
 

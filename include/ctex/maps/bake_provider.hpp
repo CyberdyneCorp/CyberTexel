@@ -39,6 +39,7 @@ enum class BakeProviderStatus : std::uint8_t { completed, cancelled, failed };
 
 struct BakeProviderOutput {
     BakeImageView image;
+    std::optional<NormalMapConvention> normal_convention{};
     const char* detail{};
 };
 
