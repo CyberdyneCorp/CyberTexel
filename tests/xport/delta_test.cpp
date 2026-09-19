@@ -6,6 +6,7 @@
 #include <exception>
 #include <iostream>
 #include <string_view>
+#include <vector>
 
 namespace {
 
@@ -31,7 +32,7 @@ bool empty_query_moves_no_pixels() {
     return expect(delta.disposition == DeltaQueryDisposition::complete &&
                       delta.synchronized_cursor == initial_cursor &&
                       delta.current_cursor == initial_cursor && delta.changed_tiles.empty() &&
-                      channels.resident_pixel_bytes() == 0,
+                      delta.indexed_tiles_visited == 0 && channels.resident_pixel_bytes() == 0,
                   "an unchanged delta query allocated or returned pixels");
 }
 
@@ -67,7 +68,8 @@ bool twenty_operations_are_complete_and_coalesced() {
     passed &= expect(complete.disposition == DeltaQueryDisposition::complete &&
                          complete.synchronized_cursor == initial_cursor &&
                          complete.current_cursor.revision == operation_count &&
-                         complete.changed_tiles.size() == changed_tile_count,
+                         complete.changed_tiles.size() == changed_tile_count &&
+                         complete.indexed_tiles_visited == changed_tile_count,
                      "twenty operations did not coalesce to the complete changed-tile union");
     for (std::size_t index = 0; index < complete.changed_tiles.size(); ++index) {
         const auto& version = complete.changed_tiles[index];
@@ -85,7 +87,8 @@ bool twenty_operations_are_complete_and_coalesced() {
 
     const ChannelDelta recent =
         ctex::xport::query_channel_delta_metadata(channels, "pbr.base_color", cursor_after_twelve);
-    passed &= expect(recent.changed_tiles.size() == operation_count - changed_tile_count,
+    passed &= expect(recent.changed_tiles.size() == operation_count - changed_tile_count &&
+                         recent.indexed_tiles_visited == operation_count - changed_tile_count,
                      "delta since the caller-held revision omitted or repeated a changed tile");
     for (const auto& version : recent.changed_tiles) {
         passed &= expect(version.revision > changed_tile_count && version.generation == 2,
@@ -95,7 +98,7 @@ bool twenty_operations_are_complete_and_coalesced() {
     const auto current_cursor = channels.channel_revision_cursor("pbr.base_color");
     const ChannelDelta current =
         ctex::xport::query_channel_delta_metadata(channels, "pbr.base_color", current_cursor);
-    passed &= expect(current.changed_tiles.empty(),
+    passed &= expect(current.changed_tiles.empty() && current.indexed_tiles_visited == 0,
                      "querying from the current revision returned false changes");
     return passed;
 }
@@ -113,6 +116,34 @@ bool future_revision_is_refused() {
     } catch (const std::exception&) {
     }
     return expect(false, "a future synchronized revision was accepted");
+}
+
+bool row_major_order_is_independent_of_revision_order() {
+    TextureChannels channels(256, 192, 8, ctex::doc::metallic_roughness_channels());
+    channels.enable("pbr.base_color");
+    const auto initial = channels.channel_revision_cursor("pbr.base_color");
+    const std::array revision_order{
+        TileCoordinate{3, 2},
+        TileCoordinate{0, 1},
+        TileCoordinate{2, 0},
+        TileCoordinate{1, 2},
+    };
+    for (std::size_t index = 0; index < revision_order.size(); ++index) {
+        const std::array value{std::byte{static_cast<unsigned char>(index + 1)}, std::byte{2},
+                               std::byte{3}};
+        channels.pixels("pbr.base_color")
+            .write_pixel(revision_order[index].x * ctex::image::default_tile_size,
+                         revision_order[index].y * ctex::image::default_tile_size, value);
+    }
+    const ChannelDelta delta =
+        ctex::xport::query_channel_delta_metadata(channels, "pbr.base_color", initial);
+    std::vector<TileCoordinate> actual;
+    for (const auto& version : delta.changed_tiles) {
+        actual.push_back(version.coordinate);
+    }
+    const std::vector<TileCoordinate> expected{{2, 0}, {0, 1}, {1, 2}, {3, 2}};
+    return expect(actual == expected && delta.indexed_tiles_visited == expected.size(),
+                  "revision index did not preserve row-major delta ordering");
 }
 
 bool stale_cursor_requires_full_resynchronization() {
@@ -136,6 +167,7 @@ bool stale_cursor_requires_full_resynchronization() {
         expect(reset_cursor.epoch == stale_cursor.epoch + 1 && reset_cursor.revision == 0 &&
                    stale.disposition == DeltaQueryDisposition::full_resynchronization_required &&
                    stale.current_cursor == reset_cursor && stale.changed_tiles.empty() &&
+                   stale.indexed_tiles_visited == 0 &&
                    unknown.disposition == DeltaQueryDisposition::full_resynchronization_required,
                "a cursor from an unrelated revision epoch returned a partial delta");
     const auto pixels_after_reset = channels.pixels("pbr.base_color").read_pixel(0, 0);
@@ -151,6 +183,7 @@ bool stale_cursor_requires_full_resynchronization() {
         ctex::xport::query_channel_delta_metadata(channels, "pbr.base_color", reset_cursor);
     passed &= expect(after_reset.disposition == DeltaQueryDisposition::complete &&
                          after_reset.changed_tiles.size() == 1 &&
+                         after_reset.indexed_tiles_visited == 1 &&
                          after_reset.changed_tiles.front().revision == 1 &&
                          after_reset.changed_tiles.front().generation == 2,
                      "the new revision epoch did not resume complete delta tracking");
@@ -161,7 +194,9 @@ bool stale_cursor_requires_full_resynchronization() {
 
 int main() {
     return empty_query_moves_no_pixels() && twenty_operations_are_complete_and_coalesced() &&
-                   future_revision_is_refused() && stale_cursor_requires_full_resynchronization()
+                   future_revision_is_refused() &&
+                   row_major_order_is_independent_of_revision_order() &&
+                   stale_cursor_requires_full_resynchronization()
                ? 0
                : 1;
 }

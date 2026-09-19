@@ -80,6 +80,13 @@ bool test_sparse_clear_and_dirty_tracking() {
                      "dirty tile was duplicated or misidentified");
     passed &= expect(image.tile_extent({1, 1}).width == 1, "edge tile width is wrong");
     passed &= expect(image.tile_extent({1, 1}).height == 6, "edge tile height is wrong");
+    const auto changes = image.changed_tiles_after(0);
+    passed &= expect(changes.coordinates == std::vector<TileCoordinate>{{1, 1}} &&
+                         changes.indexed_tiles_visited == 1,
+                     "tile change index did not return only the changed tile");
+    const auto no_changes = image.changed_tiles_after(image.revision());
+    passed &= expect(no_changes.coordinates.empty() && no_changes.indexed_tiles_visited == 0,
+                     "current-revision change query visited the image grid");
     image.clear_dirty();
     passed &= expect(image.dirty_tiles().empty(), "dirty state did not clear");
     return passed;

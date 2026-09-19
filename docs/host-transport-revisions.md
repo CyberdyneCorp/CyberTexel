@@ -35,8 +35,23 @@ revision newer than the current value in the same epoch is rejected. An unknown
 cursor or any cursor from another epoch returns
 `DeltaQueryDisposition::full_resynchronization_required` with no partial tile
 list. The host must fully synchronize and retain the returned current cursor
-before incremental queries resume. The current scan is linear in the logical
-tile count, with the change-proportional index scheduled for task 8.8.
+before incremental queries resume.
+
+Each image maintains a revision-ordered index containing one entry per tile at
+that tile's latest change. Rewriting a tile rekeys its existing entry instead of
+adding history, and starting a new revision epoch clears the index. A delta
+query uses the first indexed revision newer than the caller's cursor, visits
+only that suffix, and row-major sorts only the returned coordinates. Querying
+the current cursor takes the constant-time empty fast path. Consequently query
+work is `O(1)` for an unchanged current cursor and `O(log I + K)` for `K`
+returned tiles among `I` tiles changed in the current epoch. A fixed-pass radix
+ordering of the 64-bit `(y, x)` key preserves row-major results without adding a
+document-sized scan or comparison sort.
+
+`ChannelDelta::indexed_tiles_visited` exposes the number of candidate index
+entries traversed. It is zero for the unchanged 16K fixture and equals the
+coalesced result count for changed queries, making the scaling invariant a
+deterministic test rather than a wall-clock threshold.
 
 ## Explicit tile readback
 

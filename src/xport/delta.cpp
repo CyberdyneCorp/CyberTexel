@@ -14,6 +14,7 @@ ChannelDelta query_channel_delta_metadata(const doc::TextureChannels& channels,
             .synchronized_cursor = synchronized_cursor,
             .current_cursor = current_cursor,
             .changed_tiles = {},
+            .indexed_tiles_visited = 0,
         };
     }
     if (synchronized_cursor.revision > current_cursor.revision) {
@@ -27,25 +28,22 @@ ChannelDelta query_channel_delta_metadata(const doc::TextureChannels& channels,
         .synchronized_cursor = synchronized_cursor,
         .current_cursor = current_cursor,
         .changed_tiles = {},
+        .indexed_tiles_visited = 0,
     };
     if (synchronized_cursor == current_cursor) {
         return result;
     }
 
-    for (std::uint32_t y = 0; y < image.tile_rows(); ++y) {
-        for (std::uint32_t x = 0; x < image.tile_columns(); ++x) {
-            const image::TileCoordinate coordinate{x, y};
-            const doc::TileRevision revision = image.tile_revision(coordinate);
-            if (revision <= synchronized_cursor.revision) {
-                continue;
-            }
-            result.changed_tiles.push_back({
-                .coordinate = coordinate,
-                .revision = revision,
-                .generation = image.tile_generation(coordinate),
-                .residency = TileResidency::cpu,
-            });
-        }
+    const image::TileChangeSet changes = image.changed_tiles_after(synchronized_cursor.revision);
+    result.indexed_tiles_visited = changes.indexed_tiles_visited;
+    result.changed_tiles.reserve(changes.coordinates.size());
+    for (const image::TileCoordinate coordinate : changes.coordinates) {
+        result.changed_tiles.push_back({
+            .coordinate = coordinate,
+            .revision = image.tile_revision(coordinate),
+            .generation = image.tile_generation(coordinate),
+            .residency = TileResidency::cpu,
+        });
     }
     return result;
 }

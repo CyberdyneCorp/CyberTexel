@@ -25,6 +25,7 @@ struct ChannelDelta {
     doc::ChannelRevisionCursor synchronized_cursor;
     doc::ChannelRevisionCursor current_cursor;
     std::vector<TileVersion> changed_tiles;
+    std::size_t indexed_tiles_visited{};
 };
 
 class DeltaQueryError final : public std::invalid_argument {

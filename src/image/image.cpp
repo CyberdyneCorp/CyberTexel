@@ -1,4 +1,5 @@
 #include <algorithm>
+#include <array>
 #include <ctex/image/tiled_image.hpp>
 #include <limits>
 #include <stdexcept>
@@ -11,6 +12,33 @@ std::size_t checked_multiply(std::size_t left, std::size_t right, const char* de
         throw std::overflow_error(description);
     }
     return left * right;
+}
+
+std::uint64_t row_major_key(TileCoordinate coordinate) noexcept {
+    return (static_cast<std::uint64_t>(coordinate.y) << 32U) | coordinate.x;
+}
+
+void radix_sort_row_major(std::vector<TileCoordinate>& coordinates) {
+    if (coordinates.size() < 2) {
+        return;
+    }
+    std::vector<TileCoordinate> scratch(coordinates.size());
+    for (unsigned shift = 0; shift < 64; shift += 8) {
+        std::array<std::size_t, 256> offsets{};
+        for (const TileCoordinate coordinate : coordinates) {
+            ++offsets[(row_major_key(coordinate) >> shift) & 0xffU];
+        }
+        std::size_t next = 0;
+        for (std::size_t& offset : offsets) {
+            const std::size_t count = offset;
+            offset = next;
+            next += count;
+        }
+        for (const TileCoordinate coordinate : coordinates) {
+            scratch[offsets[(row_major_key(coordinate) >> shift) & 0xffU]++] = coordinate;
+        }
+        coordinates.swap(scratch);
+    }
 }
 
 }  // namespace
@@ -87,6 +115,23 @@ TileStorageHandle TiledImage::pin_tile_storage(TileCoordinate tile) const {
     return tiles_[tile_index(tile)];
 }
 
+TileChangeSet TiledImage::changed_tiles_after(Revision revision) const {
+    if (revision > revision_) {
+        throw std::out_of_range("tile change query revision is newer than the image");
+    }
+    TileChangeSet result;
+    if (revision == revision_) {
+        return result;
+    }
+    for (auto entry = changed_tiles_by_revision_.upper_bound(revision);
+         entry != changed_tiles_by_revision_.end(); ++entry) {
+        result.coordinates.push_back(entry->second);
+        ++result.indexed_tiles_visited;
+    }
+    radix_sort_row_major(result.coordinates);
+    return result;
+}
+
 bool TiledImage::is_tile_dirty(TileCoordinate tile) const { return dirty_[tile_index(tile)]; }
 
 std::vector<TileCoordinate> TiledImage::dirty_tiles() const {
@@ -136,7 +181,22 @@ void TiledImage::write_pixel(std::uint32_t x, std::uint32_t y, std::span<const s
     }
     auto& tile = allocate_tile(index);
     if (revision_exhausted) {
+        std::map<Revision, TileCoordinate> next_index;
+        next_index.emplace(1, coordinate);
         begin_new_revision_epoch();
+        changed_tiles_by_revision_.swap(next_index);
+    } else {
+        const Revision next_revision = revision_ + 1;
+        const auto [unused, inserted] =
+            changed_tiles_by_revision_.emplace(next_revision, coordinate);
+        static_cast<void>(unused);
+        if (!inserted) {
+            throw std::logic_error("tile change index revision collision");
+        }
+        const Revision previous_revision = tile_revisions_[index];
+        if (previous_revision != 0) {
+            changed_tiles_by_revision_.erase(previous_revision);
+        }
     }
     std::copy(pixel.begin(), pixel.end(), tile.begin() + pixel_offset(x, y));
     ++revision_;
@@ -188,6 +248,7 @@ void TiledImage::begin_new_revision_epoch() noexcept {
     ++revision_epoch_;
     revision_ = 0;
     std::fill(tile_revisions_.begin(), tile_revisions_.end(), 0);
+    changed_tiles_by_revision_.clear();
 }
 
 }  // namespace ctex::image

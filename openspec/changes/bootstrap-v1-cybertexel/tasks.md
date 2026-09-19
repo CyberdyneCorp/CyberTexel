@@ -284,7 +284,11 @@ reports invalid declarations or no common format explicitly. Snapshot pinning
 unique physical-allocation accounting and copy-on-write CPU tiles. The
 canonical delta query now admits and returns a token; a token-based readback
 keeps revision R immutable while an edit publishes R+1 for the following
-delta. The change-proportional index (8.8) is next.
+delta. Task 8.8 replaces the document-grid scan with one latest-change entry per
+tile, keyed by revision. Current-cursor queries take an O(1) empty path; changed
+queries traverse and radix-order only their coalesced candidates, with
+`indexed_tiles_visited` making the scaling invariant directly testable. Preview
+transport (8.9) is next.
 
 ## 1. Foundation
 
@@ -396,7 +400,7 @@ delta. The change-proportional index (8.8) is next.
 - [x] 8.5 Declared, stable memory layout; direct-upload test
 - [x] 8.6 Format negotiation and the host-owned conversion decision
 - [x] 8.7 Releasable, budgeted snapshot tokens pin resource versions between query and readback
-- [ ] 8.8 Delta query cost independent of document tile count
+- [x] 8.8 Delta query cost independent of document tile count
 - [ ] 8.9 Preview transport through the same mechanism
 - [ ] 8.10 Stable identities for host-cached resources
 - [ ] 8.11 `host-transport` scenarios as tests

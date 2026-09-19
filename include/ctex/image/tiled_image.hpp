@@ -4,6 +4,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <ctex/image/pixel_format.hpp>
+#include <map>
 #include <memory>
 #include <span>
 #include <vector>
@@ -34,6 +35,11 @@ struct TileExtent {
     std::uint32_t height;
 };
 
+struct TileChangeSet {
+    std::vector<TileCoordinate> coordinates;
+    std::size_t indexed_tiles_visited{};
+};
+
 class TiledImage {
 public:
     TiledImage(std::uint32_t width, std::uint32_t height, PixelFormat format,
@@ -59,6 +65,7 @@ public:
     [[nodiscard]] Generation tile_generation(TileCoordinate tile) const;
     [[nodiscard]] bool is_tile_allocated(TileCoordinate tile) const;
     [[nodiscard]] TileStorageHandle pin_tile_storage(TileCoordinate tile) const;
+    [[nodiscard]] TileChangeSet changed_tiles_after(Revision revision) const;
     [[nodiscard]] bool is_tile_dirty(TileCoordinate tile) const;
     [[nodiscard]] std::vector<TileCoordinate> dirty_tiles() const;
 
@@ -88,6 +95,7 @@ private:
     Revision revision_{};
     std::vector<Revision> tile_revisions_;
     std::vector<Generation> tile_generations_;
+    std::map<Revision, TileCoordinate> changed_tiles_by_revision_;
 };
 
 }  // namespace ctex::image

@@ -41,7 +41,9 @@ The current implementation provides:
   metadata, explicit full-resynchronization signaling, and asynchronous named
   tile readback into caller-owned buffers with a declared direct-upload memory
   layout, host-controlled format negotiation, and budgeted copy-on-write
-  snapshot tokens for consistent query-to-readback synchronization.
+  snapshot tokens for consistent query-to-readback synchronization. Delta
+  queries use a change-proportional revision index rather than scanning the
+  document tile grid.
 - Linear Rec. 709 and sRGB colour transforms, semantic input policies,
   preview-only 3D LUTs, ordered dithering, and promoted-precision operations.
 - Memory-buffer PNG decoding and encoding with 8/16-bit preservation,
