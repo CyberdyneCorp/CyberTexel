@@ -44,6 +44,10 @@ The current implementation provides:
   engine can ingest validated resolved stamps without reapplying modifiers;
   named [stroke presets](docs/stroke-presets.md) serialize canonically with
   explicit schema migration and future-version refusal.
+- Camera-independent [texture-space paint coverage](docs/paint-coverage.md)
+  with interpolated surface geometry, gap-free continuous swept capsules,
+  transformed discrete tips, specified hardness falloff, and UV, squared-normal
+  triplanar, or caller-framed planar material coordinates.
 - Sparse tiled image storage for one-to-four-channel 8-bit, 16-bit, and
   floating-point pixels, with tile-level dirty tracking and monotonic channel
   and per-tile [content revisions](docs/host-transport-revisions.md), plus
@@ -143,7 +147,7 @@ The current implementation provides:
   [execution-backend](docs/execution-backend-scenarios.md), and
   [host-transport](docs/host-transport-scenarios.md) scenario suites.
 
-The editable layer document, painting engine, project IO, host-transport
+The remaining painting stages, editable layer document, project IO, host-transport
 binding/performance integrations, remaining language bindings, and complete
 export workflow remain roadmap work and are not presented as implemented APIs
 yet.

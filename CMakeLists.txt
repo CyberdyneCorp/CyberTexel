@@ -120,7 +120,11 @@ ctex_add_module(
 ctex_add_module(
     paint
     DEPENDS doc emit pick
-    SOURCES src/paint/paint.cpp src/paint/stroke.cpp src/paint/stroke_preset.cpp
+    SOURCES
+        src/paint/paint.cpp
+        src/paint/coverage.cpp
+        src/paint/stroke.cpp
+        src/paint/stroke_preset.cpp
 )
 ctex_add_module(maps DEPENDS image doc)
 ctex_add_module(
@@ -299,6 +303,14 @@ if(BUILD_TESTING)
         PRIVATE ctex_paint ctex_doc ctex_emit ctex_pick ctex_mesh ctex_graph ctex_image
     )
     add_test(NAME stroke-preset COMMAND ctex_stroke_preset_test)
+
+    add_executable(ctex_paint_coverage_test tests/paint/coverage_test.cpp)
+    ctex_configure_cpp_target(ctex_paint_coverage_test)
+    target_link_libraries(
+        ctex_paint_coverage_test
+        PRIVATE ctex_paint ctex_doc ctex_emit ctex_pick ctex_mesh ctex_graph ctex_image
+    )
+    add_test(NAME paint-coverage COMMAND ctex_paint_coverage_test)
 
     add_executable(ctex_document_test tests/doc/document_test.cpp)
     ctex_configure_cpp_target(ctex_document_test)

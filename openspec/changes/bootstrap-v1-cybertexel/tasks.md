@@ -334,7 +334,13 @@ current settings; schema 1 omits flow jitter and migrates it to the documented
 zero default. Deserialization parses the header first, transactionally validates
 the complete result, upgrades older input and names any unsupported newer
 version. Texture-space swept coverage, falloff and coordinate modes (9.7) are
-next.
+implemented independently of camera visibility. The surface raster carries
+interpolated position, normal, UV and deterministic triangle ownership;
+continuous tips cover branch-local swept segments with interpolated radius and
+hardness, while transformed discrete tips do not synthesize gaps. Geometric
+falloff uses the specified smoothstep complement, and material sampling exposes
+UV, squared-normal triplanar and caller-framed planar coordinates. Explicit
+rejection tests (9.8) are next.
 
 ## 1. Foundation
 
@@ -459,7 +465,7 @@ next.
 - [x] 9.4 Symmetry planes and radial symmetry, emitted within one stroke
 - [x] 9.5 Externally resolved stamp ingestion
 - [x] 9.6 Versioned stroke presets and their refusals
-- [ ] 9.7 Paint engine: swept coverage, falloff, coordinate modes
+- [x] 9.7 Paint engine: swept coverage, falloff, coordinate modes
 - [ ] 9.8 Depth, angle and backface rejection; alpha discard
 - [ ] 9.9 Separate non-building coverage and build-up deposition formulas; batching and frame-rate fixtures
 - [ ] 9.10 Blending against the stroke-start snapshot, all modes

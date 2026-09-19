@@ -108,6 +108,9 @@ test-stroke-reconstruction: build
 test-stroke-preset: build
     ctest --test-dir build/headless --output-on-failure -R '^stroke-preset$'
 
+test-paint-coverage: build
+    ctest --test-dir build/headless --output-on-failure -R '^paint-coverage$'
+
 test-mesh: build
     ctest --test-dir build/headless --output-on-failure -R '^mesh-ingest$'
 

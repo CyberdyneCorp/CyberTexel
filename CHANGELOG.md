@@ -71,6 +71,9 @@ Foundation implementation is in progress.
   sweep topology without reapplying any reconstruction or modifier stage.
 - Canonical named stroke-preset serialization with exact numeric round trips,
   schema-1 default migration, and named refusal of newer schema versions.
+- Camera-independent texture-space surface rasterization and geometric stroke
+  coverage with swept continuous capsules, transformed discrete tips, specified
+  hardness falloff, and UV, triplanar, and caller-framed planar coordinates.
 - Linear Rec. 709 working-space and sRGB transfer functions with unclamped HDR
   conversion.
 - Native and sanitizer test presets plus a registry-driven determinism gate that
