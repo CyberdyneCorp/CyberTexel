@@ -98,6 +98,7 @@ ctex_add_module(
     DEPENDS graph image
     SOURCES
         src/emit/emit.cpp
+        src/emit/emission_cache.cpp
         src/emit/feature_emission.cpp
         src/emit/kong_context.cpp
         src/emit/pass_plan.cpp
@@ -342,6 +343,11 @@ if(BUILD_TESTING)
             PROPERTIES FIXTURES_REQUIRED feature-emission-spirv
         )
     endif()
+
+    add_executable(ctex_emission_cache_test tests/emit/emission_cache_test.cpp)
+    ctex_configure_cpp_target(ctex_emission_cache_test)
+    target_link_libraries(ctex_emission_cache_test PRIVATE ctex_emit ctex_graph)
+    add_test(NAME emission-cache COMMAND ctex_emission_cache_test)
 
     add_executable(ctex_material_graph_output_test tests/doc/material_graph_test.cpp)
     ctex_configure_cpp_target(ctex_material_graph_output_test)

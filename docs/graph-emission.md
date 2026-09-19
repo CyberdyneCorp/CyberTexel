@@ -7,7 +7,8 @@ program intended for a generated shader function body. Device-independent
 state, and commands. [Layer-stack emission](feature-gated-emission.md) now
 connects those plans to all four target artifact forms under a declared device
 feature set; complete material-graph entry-point integration follows in tasks
-6.13–6.16.
+6.14–6.16. Canonical graph content, target, feature set, and host-node semantics
+also key the [emission cache](emission-cache.md).
 
 Each intermediate variable is derived from the stable node ID and output socket
 identifier. A node inside a group is additionally qualified by the stable group

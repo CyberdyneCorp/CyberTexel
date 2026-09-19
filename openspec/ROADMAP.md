@@ -7,7 +7,7 @@ decisions taken and questions still open.
 ## Status
 
 Implementation started. 24 capabilities, 332 requirements, 400 scenarios and
-222 tasks, 37 done. Foundation and the complete headless color-management
+222 tasks, 38 done. Foundation and the complete headless color-management
 scenario suite are green. Slice-A now has memory-buffer PNG input/output with
 8/16-bit preservation and hostile-input ceilings; full image-format breadth
 remains scheduled for slice D. Extensible channel descriptors and sparse
@@ -82,6 +82,10 @@ format, filtering, and compute declaration. It emits premultiplied source-over
 shaders for every target, keeps fitting stacks in one pass, deterministically
 splits larger stacks with carried intermediate generations, and reports a
 nearest-filter workaround when float linear filtering is unavailable.
+Graph and layer-stack emission results now use collision-free canonical cache
+keys covering content, target, host-node semantics, and every normalized device
+feature. Hits return one immutable stored result without running code generation;
+failed emission is not retained, and cache accounting is observable.
 
 ## Milestones
 
@@ -150,6 +154,12 @@ passes reserve one slot for their shared sampler; a continuation also reserves
 one for the carried intermediate. Packing is greedy in bottom-to-top order and
 therefore emits the fewest sequential passes without exceeding the declared
 budget. Task 6.12 and capability `shader-emission`.
+
+**2026-09-19 — Emission cache keys retain canonical bytes.** Full canonical
+content avoids treating a truncated digest collision as identity. Device format
+lists are normalized as sets, while target, every feature field, and versioned
+host-node semantics remain explicit key dimensions. Task 6.13 and capability
+`shader-emission`.
 
 ## Open questions
 

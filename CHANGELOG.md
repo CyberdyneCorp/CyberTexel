@@ -94,6 +94,9 @@ Foundation implementation is in progress.
   with deterministic binding-budget pass splitting, carried intermediates,
   format and dimension refusals, and a reported nearest-filter workaround for
   devices without floating-point linear filtering.
+- Thread-safe graph and layer-stack emission caches keyed by collision-free
+  canonical content, target, host-node semantics, and normalized device
+  features, with immutable results, hit/miss statistics, and failure isolation.
 - README architecture diagram and a current, implementation-scoped feature list.
 
 ### Changed

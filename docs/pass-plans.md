@@ -35,4 +35,6 @@ points match these plans. The plan deliberately stops at submission
 description. Completion records and
 the rule that prevents recycling a generation while a host submission still
 uses it arrive with the host execution protocol in task 7.3. Target-specific
-graph and preview shader modules continue in tasks 6.13–6.16.
+graph and preview shader modules continue in tasks 6.14–6.16. Complete
+layer-stack plans and shaders are retained together by the
+[emission cache](emission-cache.md).

@@ -38,6 +38,8 @@ path.
 
 WGSL, MSL, SPIR-V, and HLSL are produced through the isolated
 [Kong backend](kong-backend.md). Generated SPIR-V layer-stack fixtures are
-validated by `spirv-val` in CI. This API consumes a flattened stack; the
+validated by `spirv-val` in CI. Complete emissions can be retained by the
+[emission cache](emission-cache.md), keyed by this request's full content,
+target, and normalized feature set. This API consumes a flattened stack; the
 editable layer document, blend-mode catalogue, masks, and group semantics
 remain owned by texture-document tasks 3.3–3.7.

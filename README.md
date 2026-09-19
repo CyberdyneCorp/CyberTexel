@@ -73,6 +73,9 @@ The current implementation provides:
   four shader targets, with deterministic binding-budget pass splitting,
   carried intermediates, format/dimension checks, and reported float-filtering
   fallback.
+- Collision-free [emission caches](docs/emission-cache.md) keyed by canonical
+  graph or layer content, shader target, host-node semantics, and normalized
+  device features, returning immutable identical source and pass plans on hits.
 - Strict C++20 builds, sanitizer coverage, OpenSpec validation, dependency
   layering checks, licence auditing, and deterministic-output gates.
 

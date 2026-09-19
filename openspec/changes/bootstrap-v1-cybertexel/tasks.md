@@ -182,7 +182,11 @@ layer stacks for every target. Stacks
 that fit remain one render pass; larger stacks split greedily with explicit
 intermediate generations and dependencies. Unsupported formats and dimensions
 are refused, and unavailable float linear filtering produces a named nearest
-workaround. Emission caching (6.13) is next.
+workaround. Task 6.13 caches graph expressions and complete layer-stack
+emissions by collision-free canonical content, target, normalized features and
+versioned host-node semantics. Hits return one immutable stored result without
+code generation, failures are not retained, and statistics expose entries,
+hits and misses. Concurrent emission verification (6.14) is next.
 
 ## 1. Foundation
 
@@ -268,7 +272,7 @@ workaround. Emission caching (6.13) is next.
 - [x] 6.10 Pass plan: logical resource generations, subresource access, dependencies, lifetimes, bindings, layouts, draw/dispatch and state
 - [x] 6.11 Target languages WGSL, MSL, SPIR-V, HLSL; unsupported-target refusal
 - [x] 6.12 Feature-gated emission and layer-stack pass splitting at the binding budget
-- [ ] 6.13 Emission cache keyed by graph, target and feature set
+- [x] 6.13 Emission cache keyed by graph, target and feature set
 - [ ] 6.14 Concurrent emission test
 - [ ] 6.15 Preview shader with declared lighting inputs and a documented shading model; per-channel inspection shaders
 - [ ] 6.16 `material-graph` and `shader-emission` scenarios as tests

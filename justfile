@@ -134,6 +134,9 @@ test-pass-plan: build
 test-feature-emission: (_require "spirv-val" "SPIRV-Tools") build
     ctest --test-dir build/headless --output-on-failure -R '^feature-emission'
 
+test-emission-cache: build
+    ctest --test-dir build/headless --output-on-failure -R '^emission-cache$'
+
 examples:
     @just _unimplemented examples 16.2
 
