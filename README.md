@@ -90,12 +90,16 @@ The current implementation provides:
   with stable enumeration, runtime availability, explicit and `CTEX_EXECUTOR`
   process defaults, deterministic automatic policy, and recovery-aware fallback
   reports.
+- An always-available [CPU reference executor](docs/cpu-reference-executor.md)
+  with a CPU-semantics contract for every operation, homogeneous camera clipping,
+  deterministic depth-tested viewport rasterization, and independent UV-space
+  texel rasterization with owned depth, UV, coverage, and triangle buffers.
 - Strict C++20 builds, sanitizer coverage, OpenSpec validation, dependency
   layering checks, licence auditing, deterministic-output gates, and labeled
   [material-graph](docs/material-graph-scenarios.md) and
   [shader-emission](docs/shader-emission-scenarios.md) scenario suites.
 
-The editable layer document, painting engine, executor implementations, host
+The editable layer document, painting engine, remaining executor routes, host
 transport, project IO, language bindings, and complete export workflow remain
 roadmap work and are not presented as implemented APIs yet.
 

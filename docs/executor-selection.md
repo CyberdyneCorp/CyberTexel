@@ -38,8 +38,9 @@ The checked factory refuses to describe CPU fallback unless recovery has first
 been restored and the CPU executor is named. It can instead report
 `recovery-required` or `no-fallback` without claiming partial work was committed.
 
-This task defines discovery and policy only. The CPU implementation arrives in
-7.2; host completion, revision publication, recovery and actual fallback in
-7.3; device feature reporting in 7.4; and the optional owned-GPU provider in
-7.8. Those implementations register against this interface rather than adding
+The mandatory [CPU reference executor](cpu-reference-executor.md) supplies the
+always-available `cpu` implementation and independent raster buffers. Host
+completion, revision publication, recovery and actual fallback arrive in 7.3;
+device feature reporting in 7.4; and the optional owned-GPU provider in 7.8.
+Those implementations register against this interface rather than adding
 parallel selection mechanisms.

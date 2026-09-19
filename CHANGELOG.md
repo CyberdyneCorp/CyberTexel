@@ -29,6 +29,9 @@ Foundation implementation is in progress.
   conversion.
 - Native and sanitizer test presets plus a registry-driven determinism gate that
   refuses empty output categories.
+- An always-available CPU reference executor with a universal CPU operation
+  contract, independently clipped and depth-tested viewport depth/UV buffers,
+  and UV-space texel rasterization carrying projected depth and screen position.
 - Semantic input-colour defaults, preview-only 3D LUTs, structured precision
   warnings, promoted height accumulation and deterministic ordered dithering.
 - Slice-A memory-buffer PNG decoding and encoding with 8/16-bit preservation,

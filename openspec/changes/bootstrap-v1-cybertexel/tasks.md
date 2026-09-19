@@ -209,8 +209,12 @@ Task 7.1 defines an instance-owned executor registry with stable descriptors,
 sorted discovery, explicit runtime availability and deterministic automatic,
 explicit, pinned and `CTEX_EXECUTOR` selection. Unknown environment values keep
 automatic policy and are reported. Structured fallback reports name the failure
-and refuse to claim CPU fallback before recovery restoration. The actual CPU
-reference implementation (7.2) is next.
+and refuse to claim CPU fallback before recovery restoration. Task 7.2 adds the
+always-available device-free CPU reference and requires every operation to carry
+CPU semantics. Its independent homogeneous rasterizer owns depth, UV, coverage
+and triangle buffers for the viewport, while its UV-space raster projects each
+covered texel back to camera depth and screen position, including integer UV
+tile origins. Host-resident completion, publication and recovery (7.3) are next.
 
 ## 1. Foundation
 
@@ -304,7 +308,7 @@ reference implementation (7.2) is next.
 ## 7. Execution
 
 - [x] 7.1 Executor interface, enumeration, selection, environment pin, fallback reporting
-- [ ] 7.2 CPU reference executor: UV-space rasterization, its own depth and UV buffers, every operation
+- [x] 7.2 CPU reference executor: UV-space rasterization, its own depth and UV buffers, every operation
 - [ ] 7.3 Host-executed route: GPU-resident authority, completion tokens, atomic revision publication, stale-result rejection and recovery before fallback
 - [ ] 7.4 Device capability reporting feeding emission
 - [ ] 7.5 Declared parity tolerances per bit depth and for filtered values
