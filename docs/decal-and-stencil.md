@@ -7,6 +7,13 @@ uniform and per-axis scale change its projected extent. Material opacity,
 ordinary paint masks and explicit rejection acceptance are intersected before
 the shared enabled-channel shading path.
 
+Decal rotation defaults to zero and is clamped to `[-2π, 2π]`. Uniform scale
+and both positive per-axis scales default to 1 and are clamped to
+`[0.000001, 1,000,000]` surface units. `DecalPlacement`, `DecalFrame`, retained
+editable entries and `DecalRasterResult` preserve the resolved transform and
+its clamp report, so placement, editing and immediate rasterization use the
+same decision. Non-finite transform values are refused.
+
 `retain_editable_decal` creates an owned editable value containing stable entry
 and material-content identities, the original surface pick, placement
 parameters and a pinned material snapshot. `edit_decal_transform` returns a new
@@ -26,3 +33,10 @@ against caller-supplied screen positions, independent of model coordinates or
 camera motion. Inversion complements the opacity, including the zero-opacity
 region outside the image. `apply_stencil` intersects that result with canonical
 rejection and paint masks before deposition and channel shading.
+
+Stencil position and rotation default to zero. Each position axis is clamped
+to `[-1,000,000, 1,000,000]` screen units and rotation to `[-2π, 2π]`.
+Positive scale axes default to 1 and are clamped to
+`[0.000001, 1,000,000]`. `StencilMaskResult` exposes the resolved transform and
+every clamp; `apply_stencil` carries that result unchanged. Non-finite
+transform values are refused.

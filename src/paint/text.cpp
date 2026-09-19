@@ -322,6 +322,9 @@ TextDecalResult apply_text_decal(const CachedSurfaceMaps& surface,
     DecalMaterial projected = text_material(text, material);
     DecalRasterResult decal =
         rasterize_decal(surface, enabled_layer_snapshot, placement, projected, settings.decal);
+    parameter_report.clamps.insert(parameter_report.clamps.end(),
+                                   decal.parameter_report.clamps.begin(),
+                                   decal.parameter_report.clamps.end());
     return {.size = size,
             .parameter_report = std::move(parameter_report),
             .text = std::move(text),

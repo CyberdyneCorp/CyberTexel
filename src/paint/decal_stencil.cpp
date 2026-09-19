@@ -80,12 +80,16 @@ void validate_material(const DecalMaterial& material) {
     }
 }
 
-void validate_transform(const DecalTransform& transform) {
-    if (!std::isfinite(transform.rotation_radians) || !std::isfinite(transform.uniform_scale) ||
-        transform.uniform_scale <= 0.0 || !finite(transform.axis_scale) ||
-        transform.axis_scale.x <= 0.0 || transform.axis_scale.y <= 0.0) {
-        throw std::invalid_argument("decal transform is invalid");
-    }
+DecalTransform resolve_decal_transform(const DecalTransform& requested,
+                                       ToolParameterReport& report) {
+    return {.rotation_radians = validate_tool_parameter(decal_rotation_parameter,
+                                                        requested.rotation_radians, report),
+            .uniform_scale = validate_tool_parameter(decal_uniform_scale_parameter,
+                                                     requested.uniform_scale, report),
+            .axis_scale = {.x = validate_tool_parameter(decal_axis_scale_x_parameter,
+                                                        requested.axis_scale.x, report),
+                           .y = validate_tool_parameter(decal_axis_scale_y_parameter,
+                                                        requested.axis_scale.y, report)}};
 }
 
 std::size_t checked_surface(const CachedSurfaceMaps& maps) {
@@ -184,11 +188,18 @@ Vec2d screen_to_image(Vec2d screen, const StencilTransform& transform) {
             .y = (-sine * x + cosine * y) / transform.scale.y + 0.5};
 }
 
-void validate_stencil_transform(const StencilTransform& transform) {
-    if (!finite(transform.position) || !std::isfinite(transform.rotation_radians) ||
-        !finite(transform.scale) || transform.scale.x <= 0.0 || transform.scale.y <= 0.0) {
-        throw std::invalid_argument("stencil transform is invalid");
-    }
+StencilTransform resolve_stencil_transform(const StencilTransform& requested,
+                                           ToolParameterReport& report) {
+    return {
+        .position = {.x = validate_tool_parameter(stencil_position_x_parameter,
+                                                  requested.position.x, report),
+                     .y = validate_tool_parameter(stencil_position_y_parameter,
+                                                  requested.position.y, report)},
+        .rotation_radians =
+            validate_tool_parameter(stencil_rotation_parameter, requested.rotation_radians, report),
+        .scale = {
+            .x = validate_tool_parameter(stencil_scale_x_parameter, requested.scale.x, report),
+            .y = validate_tool_parameter(stencil_scale_y_parameter, requested.scale.y, report)}};
 }
 
 RejectedCoverageRaster apply_stencil_mask(const RejectedCoverageRaster& rejected,
@@ -214,14 +225,19 @@ DecalPlacement place_decal_on_surface(const CachedSurfaceMaps& surface, std::siz
         throw std::invalid_argument("decal placement requires a covered picked texel");
     }
     const SurfaceTexel& picked = surface.surface.texels[picked_texel];
-    DecalPlacement placement{
-        .position = picked.position, .surface_normal = picked.normal, .transform = transform};
-    static_cast<void>(resolve_decal_frame(placement));
+    DecalPlacement placement{.position = picked.position,
+                             .surface_normal = picked.normal,
+                             .transform = transform,
+                             .parameter_report = {}};
+    const DecalFrame frame = resolve_decal_frame(placement);
+    placement.transform = frame.resolved_transform;
+    placement.parameter_report = frame.parameter_report;
     return placement;
 }
 
 DecalFrame resolve_decal_frame(const DecalPlacement& placement) {
-    validate_transform(placement.transform);
+    ToolParameterReport parameter_report = placement.parameter_report;
+    const DecalTransform transform = resolve_decal_transform(placement.transform, parameter_report);
     if (!finite(placement.position)) {
         throw std::invalid_argument("decal position must be finite");
     }
@@ -229,8 +245,8 @@ DecalFrame resolve_decal_frame(const DecalPlacement& placement) {
     const Vec3d reference = std::abs(normal.z) < 0.9 ? Vec3d{0.0, 0.0, 1.0} : Vec3d{0.0, 1.0, 0.0};
     const Vec3d unrotated_tangent = normalized(cross(reference, normal), "decal tangent");
     const Vec3d unrotated_bitangent = cross(normal, unrotated_tangent);
-    const double cosine = std::cos(placement.transform.rotation_radians);
-    const double sine = std::sin(placement.transform.rotation_radians);
+    const double cosine = std::cos(transform.rotation_radians);
+    const double sine = std::sin(transform.rotation_radians);
     return {.origin = placement.position,
             .tangent = {unrotated_tangent.x * cosine + unrotated_bitangent.x * sine,
                         unrotated_tangent.y * cosine + unrotated_bitangent.y * sine,
@@ -239,8 +255,10 @@ DecalFrame resolve_decal_frame(const DecalPlacement& placement) {
                           -unrotated_tangent.y * sine + unrotated_bitangent.y * cosine,
                           -unrotated_tangent.z * sine + unrotated_bitangent.z * cosine},
             .normal = normal,
-            .scale = {placement.transform.uniform_scale * placement.transform.axis_scale.x,
-                      placement.transform.uniform_scale * placement.transform.axis_scale.y}};
+            .scale = {transform.uniform_scale * transform.axis_scale.x,
+                      transform.uniform_scale * transform.axis_scale.y},
+            .resolved_transform = transform,
+            .parameter_report = std::move(parameter_report)};
 }
 
 EditableDecalEntry retain_editable_decal(std::string entry_id, std::string material_content_id,
@@ -248,7 +266,9 @@ EditableDecalEntry retain_editable_decal(std::string entry_id, std::string mater
     if (entry_id.empty() || material_content_id.empty() || !finite(placement.position)) {
         throw std::invalid_argument("editable decal identities and position are required");
     }
-    static_cast<void>(resolve_decal_frame(placement));
+    const DecalFrame frame = resolve_decal_frame(placement);
+    placement.transform = frame.resolved_transform;
+    placement.parameter_report = frame.parameter_report;
     validate_material(material);
     return {.entry_id = std::move(entry_id),
             .material_content_id = std::move(material_content_id),
@@ -258,12 +278,13 @@ EditableDecalEntry retain_editable_decal(std::string entry_id, std::string mater
 }
 
 EditableDecalEntry edit_decal_transform(const EditableDecalEntry& entry, DecalTransform transform) {
-    validate_transform(transform);
     if (entry.revision == std::numeric_limits<std::uint64_t>::max()) {
         throw std::overflow_error("editable decal revision exhausted");
     }
     EditableDecalEntry result = entry;
-    result.placement.transform = transform;
+    result.placement.parameter_report = {};
+    result.placement.transform =
+        resolve_decal_transform(transform, result.placement.parameter_report);
     ++result.revision;
     return result;
 }
@@ -295,7 +316,8 @@ DecalRasterResult rasterize_decal(const CachedSurfaceMaps& surface,
             .strength = std::move(strength),
             .sampled_material = std::move(sampled),
             .channels = std::move(shaded.channels),
-            .applied_channel_ids = std::move(shaded.applied_channel_ids)};
+            .applied_channel_ids = std::move(shaded.applied_channel_ids),
+            .parameter_report = frame.parameter_report};
 }
 
 DecalRasterResult rasterize_editable_decal(
@@ -318,20 +340,25 @@ StencilMaskResult resolve_stencil_mask(std::uint32_t width, std::uint32_t height
     const std::size_t texel_count = checked_area(width, height, "stencil destination");
     const std::size_t image_pixels = checked_area(image.width, image.height, "stencil image");
     validate_opacity(image.opacity, image_pixels, "stencil image");
-    validate_stencil_transform(transform);
+    ToolParameterReport parameter_report;
+    const StencilTransform resolved_transform =
+        resolve_stencil_transform(transform, parameter_report);
     if (screen_positions.size() != texel_count) {
         throw std::invalid_argument("stencil requires one screen position per texel");
     }
     StencilMaskResult result{.width = width,
                              .height = height,
                              .inverted = inverted,
-                             .values = std::vector<double>(texel_count, 0.0)};
+                             .values = std::vector<double>(texel_count, 0.0),
+                             .resolved_transform = resolved_transform,
+                             .parameter_report = std::move(parameter_report)};
     for (std::size_t texel = 0; texel < texel_count; ++texel) {
         if (!finite(screen_positions[texel])) {
             throw std::invalid_argument("stencil screen position is not finite");
         }
-        const std::size_t source = image_index(image.width, image.height,
-                                               screen_to_image(screen_positions[texel], transform));
+        const std::size_t source =
+            image_index(image.width, image.height,
+                        screen_to_image(screen_positions[texel], resolved_transform));
         const double opacity = source == no_decal_sample ? 0.0 : image.opacity[source];
         result.values[texel] = inverted ? 1.0 - opacity : opacity;
     }

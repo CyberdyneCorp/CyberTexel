@@ -489,8 +489,11 @@ normalized linear-RGB distance and reports its resolved value. Text tracking
 and surface size have bounded values that drive layout and projection, with
 combined clamp reporting on text-decal results. Particle count, lifetime,
 speed, mass, gravity axes, friction, restitution and randomness return resolved
-settings plus a complete clamp report. Remaining tool families and the complete
-behavioural no-inert audit still keep 10.12 open.
+settings plus a complete clamp report. Decal placement/edit/raster entry points
+and stencil mask/application now share bounded position, rotation and positive
+scale controls while exposing the resolved transforms and clamp reports.
+Remaining tool families and the complete behavioural no-inert audit still keep
+10.12 open.
 
 ## 1. Foundation
 

@@ -2,6 +2,7 @@
 #include <cmath>
 #include <ctex/paint/decal_stencil.hpp>
 #include <iostream>
+#include <limits>
 #include <numbers>
 #include <stdexcept>
 #include <string>
@@ -190,15 +191,17 @@ bool invalid_decal_and_stencil_inputs_are_refused() {
     } catch (const std::invalid_argument&) {
         identity_refused = true;
     }
-    bool scale_refused = false;
+    bool non_finite_transform_refused = false;
     try {
         static_cast<void>(resolve_decal_frame(
             {.position = {},
              .surface_normal = {0.0, 0.0, 1.0},
-             .transform = {
-                 .rotation_radians = 0.0, .uniform_scale = 0.0, .axis_scale = {1.0, 1.0}}}));
+             .transform = {.rotation_radians = 0.0,
+                           .uniform_scale = std::numeric_limits<double>::infinity(),
+                           .axis_scale = {1.0, 1.0}},
+             .parameter_report = {}}));
     } catch (const std::invalid_argument&) {
-        scale_refused = true;
+        non_finite_transform_refused = true;
     }
     bool opacity_refused = false;
     try {
@@ -208,8 +211,58 @@ bool invalid_decal_and_stencil_inputs_are_refused() {
     } catch (const std::invalid_argument&) {
         opacity_refused = true;
     }
-    return expect(identity_refused && scale_refused && opacity_refused,
+    return expect(identity_refused && non_finite_transform_refused && opacity_refused,
                   "invalid decal or stencil input was not refused");
+}
+
+bool decal_and_stencil_parameters_are_bounded_and_reported() {
+    const CachedSurfaceMaps surface = decal_surface();
+    const DecalPlacement placed =
+        place_decal_on_surface(surface, 0,
+                               {.rotation_radians = 10.0,
+                                .uniform_scale = 0.0,
+                                .axis_scale = {maximum_tool_transform_extent * 2.0, -1.0}});
+    const DecalFrame frame = resolve_decal_frame(placed);
+    const std::array layer{channel("pbr.base_color", {0.0F, 0.0F})};
+    const DecalRasterResult raster = rasterize_decal(surface, layer, placed, decal_material());
+    const EditableDecalEntry edited = edit_decal_transform(
+        retain_editable_decal("decal", "material", placement(surface), decal_material()),
+        {.rotation_radians = -10.0, .uniform_scale = 0.0, .axis_scale = {1.0, 1.0}});
+
+    const std::array<Vec2d, 1> positions{Vec2d{}};
+    const StencilMaskResult stencil = resolve_stencil_mask(
+        1, 1, positions, {.width = 1, .height = 1, .opacity = {1.0}},
+        {.position = {maximum_tool_transform_extent * 2.0, -maximum_tool_transform_extent * 2.0},
+         .rotation_radians = 10.0,
+         .scale = {0.0, maximum_tool_transform_extent * 2.0}});
+
+    return expect(placed.transform == frame.resolved_transform &&
+                      frame.parameter_report.clamps.size() == 4 &&
+                      frame.parameter_report.clamp_for("decal.rotation_radians") ==
+                          ToolParameterClamp{"decal.rotation_radians", 10.0,
+                                             maximum_stroke_rotation_radians} &&
+                      frame.parameter_report.clamp_for("decal.uniform_scale") &&
+                      frame.parameter_report.clamp_for("decal.axis_scale.x") &&
+                      frame.parameter_report.clamp_for("decal.axis_scale.y") &&
+                      raster.parameter_report == frame.parameter_report,
+                  "decal transform bounds or clamp report are incomplete") &&
+           expect(edited.placement.transform.rotation_radians == -maximum_stroke_rotation_radians &&
+                      edited.placement.transform.uniform_scale == stroke_position_tolerance &&
+                      edited.placement.parameter_report.clamps.size() == 2,
+                  "editable decal bypassed shared transform resolution") &&
+           expect(
+               stencil.resolved_transform.position ==
+                       Vec2d{maximum_tool_transform_extent, -maximum_tool_transform_extent} &&
+                   stencil.resolved_transform.rotation_radians == maximum_stroke_rotation_radians &&
+                   stencil.resolved_transform.scale ==
+                       Vec2d{stroke_position_tolerance, maximum_tool_transform_extent} &&
+                   stencil.parameter_report.clamps.size() == 5 &&
+                   stencil.parameter_report.clamp_for("stencil.position.x") &&
+                   stencil.parameter_report.clamp_for("stencil.position.y") &&
+                   stencil.parameter_report.clamp_for("stencil.rotation_radians") &&
+                   stencil.parameter_report.clamp_for("stencil.scale.x") &&
+                   stencil.parameter_report.clamp_for("stencil.scale.y"),
+               "stencil transform bounds or clamp report are incomplete");
 }
 
 }  // namespace
@@ -218,7 +271,8 @@ int main() {
     return retained_decal_edits_without_repicking_and_rasterizes_explicitly() &&
                    stencil_is_screen_anchored_transformable_and_invertible() &&
                    stencil_constrains_canonical_paint_strength() &&
-                   invalid_decal_and_stencil_inputs_are_refused()
+                   invalid_decal_and_stencil_inputs_are_refused() &&
+                   decal_and_stencil_parameters_are_bounded_and_reported()
                ? 0
                : 1;
 }

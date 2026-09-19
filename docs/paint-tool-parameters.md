@@ -63,6 +63,15 @@ The currently routed paint-tool parameters are:
 | `particle.friction` | 0.5 | 0 | 1 | normalized |
 | `particle.restitution` | 0 | 0 | 1 | normalized |
 | `particle.randomness` | 0 | 0 | 1 | normalized |
+| `decal.rotation_radians` | 0 | -2π | 2π | radians |
+| `decal.uniform_scale` | 1 | 0.000001 | 1,000,000 | surface units |
+| `decal.axis_scale.x` | 1 | 0.000001 | 1,000,000 | multiplier |
+| `decal.axis_scale.y` | 1 | 0.000001 | 1,000,000 | multiplier |
+| `stencil.position.x` | 0 | -1,000,000 | 1,000,000 | screen units |
+| `stencil.position.y` | 0 | -1,000,000 | 1,000,000 | screen units |
+| `stencil.rotation_radians` | 0 | -2π | 2π | radians |
+| `stencil.scale.x` | 1 | 0.000001 | 1,000,000 | screen units |
+| `stencil.scale.y` | 1 | 0.000001 | 1,000,000 | screen units |
 
 `StrokeResolver::settings()` exposes the resolved settings and
 `parameter_report()` exposes their clamps. Brush and Eraser consume the

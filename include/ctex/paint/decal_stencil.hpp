@@ -4,6 +4,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <ctex/paint/brush.hpp>
+#include <ctex/paint/parameters.hpp>
 #include <ctex/paint/surface_cache.hpp>
 #include <optional>
 #include <span>
@@ -12,6 +13,28 @@
 #include <vector>
 
 namespace ctex::paint {
+
+inline constexpr double maximum_tool_transform_extent = 1'000'000.0;
+inline constexpr ToolParameterDescriptor decal_rotation_parameter{"decal.rotation_radians", 0.0,
+                                                                  -maximum_stroke_rotation_radians,
+                                                                  maximum_stroke_rotation_radians};
+inline constexpr ToolParameterDescriptor decal_uniform_scale_parameter{
+    "decal.uniform_scale", 1.0, stroke_position_tolerance, maximum_tool_transform_extent};
+inline constexpr ToolParameterDescriptor decal_axis_scale_x_parameter{
+    "decal.axis_scale.x", 1.0, stroke_position_tolerance, maximum_tool_transform_extent};
+inline constexpr ToolParameterDescriptor decal_axis_scale_y_parameter{
+    "decal.axis_scale.y", 1.0, stroke_position_tolerance, maximum_tool_transform_extent};
+inline constexpr ToolParameterDescriptor stencil_position_x_parameter{
+    "stencil.position.x", 0.0, -maximum_tool_transform_extent, maximum_tool_transform_extent};
+inline constexpr ToolParameterDescriptor stencil_position_y_parameter{
+    "stencil.position.y", 0.0, -maximum_tool_transform_extent, maximum_tool_transform_extent};
+inline constexpr ToolParameterDescriptor stencil_rotation_parameter{
+    "stencil.rotation_radians", 0.0, -maximum_stroke_rotation_radians,
+    maximum_stroke_rotation_radians};
+inline constexpr ToolParameterDescriptor stencil_scale_x_parameter{
+    "stencil.scale.x", 1.0, stroke_position_tolerance, maximum_tool_transform_extent};
+inline constexpr ToolParameterDescriptor stencil_scale_y_parameter{
+    "stencil.scale.y", 1.0, stroke_position_tolerance, maximum_tool_transform_extent};
 
 struct ToolOpacityImage {
     std::uint32_t width{};
@@ -27,15 +50,18 @@ struct DecalMaterial {
 };
 
 struct DecalTransform {
-    double rotation_radians{};
-    double uniform_scale{1.0};
-    Vec2d axis_scale{1.0, 1.0};
+    double rotation_radians{decal_rotation_parameter.default_value};
+    double uniform_scale{decal_uniform_scale_parameter.default_value};
+    Vec2d axis_scale{decal_axis_scale_x_parameter.default_value,
+                     decal_axis_scale_y_parameter.default_value};
+    friend constexpr bool operator==(DecalTransform, DecalTransform) noexcept = default;
 };
 
 struct DecalPlacement {
     Vec3d position;
     Vec3d surface_normal{0.0, 0.0, 1.0};
     DecalTransform transform;
+    ToolParameterReport parameter_report;
 };
 
 struct DecalFrame {
@@ -44,6 +70,8 @@ struct DecalFrame {
     Vec3d bitangent;
     Vec3d normal;
     Vec2d scale;
+    DecalTransform resolved_transform;
+    ToolParameterReport parameter_report;
 };
 
 [[nodiscard]] DecalPlacement place_decal_on_surface(const CachedSurfaceMaps& surface,
@@ -82,6 +110,7 @@ struct DecalRasterResult {
     std::vector<PaintToolChannelRaster> sampled_material;
     std::vector<PaintToolChannelRaster> channels;
     std::vector<std::string> applied_channel_ids;
+    ToolParameterReport parameter_report;
 };
 
 inline constexpr std::size_t no_decal_sample = static_cast<std::size_t>(-1);
@@ -97,9 +126,11 @@ inline constexpr std::size_t no_decal_sample = static_cast<std::size_t>(-1);
     const DecalRasterSettings& settings = {});
 
 struct StencilTransform {
-    Vec2d position;
-    double rotation_radians{};
-    Vec2d scale{1.0, 1.0};
+    Vec2d position{stencil_position_x_parameter.default_value,
+                   stencil_position_y_parameter.default_value};
+    double rotation_radians{stencil_rotation_parameter.default_value};
+    Vec2d scale{stencil_scale_x_parameter.default_value, stencil_scale_y_parameter.default_value};
+    friend constexpr bool operator==(StencilTransform, StencilTransform) noexcept = default;
 };
 
 struct StencilMaskResult {
@@ -107,6 +138,8 @@ struct StencilMaskResult {
     std::uint32_t height{};
     bool inverted{};
     std::vector<double> values;
+    StencilTransform resolved_transform;
+    ToolParameterReport parameter_report;
 };
 
 [[nodiscard]] StencilMaskResult resolve_stencil_mask(std::uint32_t width, std::uint32_t height,
