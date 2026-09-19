@@ -316,11 +316,15 @@ evaluates at one, tilt magnitude and azimuth are explicit, pressure and tilt
 interpolate with the canonical path, and each resolved radius determines the
 following spacing interval. Deterministic jitter, taper and constraints (9.3)
 use one documented modifier order. Stateless SplitMix64-derived values key all
-five jitter targets by stroke seed, ordinal and channel. Entry and exit taper
+five jitter targets by stroke seed, source ordinal and channel. Entry and exit taper
 support independent stamp-count or path-distance spans over radius, opacity or
 both. Straight-line and deterministic dominant-axis constraints precede the
-existing timestamp stabilizer; grid snapping follows it. Symmetry (9.4) is
-next.
+existing timestamp stabilizer; grid snapping follows it. Task 9.4 expands
+symmetry after all modifiers: any subset of object-origin X/Y/Z mirrors forms a
+Cartesian product with evenly spaced radial copies around a selected axis.
+Every copy transforms the complete coordinate frame, retains its source
+ordinal, receives stable instance/final ordinals and has sweep links confined
+to its own branch. Externally resolved stamp ingestion (9.5) is next.
 
 ## 1. Foundation
 
@@ -442,7 +446,7 @@ next.
 - [x] 9.1 Versioned canonical sample reconstruction, timestamp-based stabilization, spacing, continuous sweeps and discrete alpha tips
 - [x] 9.2 Pressure and tilt mapping with response curves; no-pressure devices at full pressure
 - [x] 9.3 Deterministic jitter, taper, stabilizer, constraints
-- [ ] 9.4 Symmetry planes and radial symmetry, emitted within one stroke
+- [x] 9.4 Symmetry planes and radial symmetry, emitted within one stroke
 - [ ] 9.5 Externally resolved stamp ingestion
 - [ ] 9.6 Versioned stroke presets and their refusals
 - [ ] 9.7 Paint engine: swept coverage, falloff, coordinate modes

@@ -2,6 +2,7 @@
 #include <cmath>
 #include <ctex/paint/stroke.hpp>
 #include <limits>
+#include <numbers>
 #include <optional>
 #include <string_view>
 #include <utility>
@@ -213,6 +214,16 @@ void validate_constraint(const ConstraintSettings& constraint) {
     }
 }
 
+void validate_symmetry(const SymmetrySettings& symmetry) {
+    if (symmetry.radial_count == 0) {
+        throw StrokeResolutionError("radial symmetry count must be at least one");
+    }
+    if (symmetry.radial_axis != SymmetryAxis::x && symmetry.radial_axis != SymmetryAxis::y &&
+        symmetry.radial_axis != SymmetryAxis::z) {
+        throw StrokeResolutionError("radial symmetry axis is invalid");
+    }
+}
+
 void validate_settings(const StrokeSettings& settings) {
     if (settings.reconstruction_version != canonical_stroke_reconstruction_version) {
         throw StrokeResolutionError("unsupported stroke reconstruction version " +
@@ -244,6 +255,7 @@ void validate_settings(const StrokeSettings& settings) {
     validate_jitter(settings.jitter);
     validate_taper(settings.taper);
     validate_constraint(settings.constraint);
+    validate_symmetry(settings.symmetry);
 }
 
 void validate_sample(const StrokeInputSample& sample) {
@@ -478,6 +490,8 @@ Stamp make_stamp(const PathPoint& point, const StrokeSettings& settings, std::ui
         .elongation = multiplied(settings.elongation, mapping.tilt_elongation, tilt_amount),
         .flow = multiplied(settings.flow, mapping.pressure_flow, point.pressure),
         .tip_resource_identity = settings.tip_resource_identity,
+        .source_ordinal = ordinal,
+        .symmetry_instance = 0,
         .ordinal = ordinal,
     };
 }
@@ -494,6 +508,7 @@ ResolvedStroke space_stamps(std::span<const PathPoint> path, const StrokeSetting
     ResolvedStroke result{
         .reconstruction_version = settings.reconstruction_version,
         .tip_mode = settings.tip_mode,
+        .symmetry_instance_count = 1,
         .stamps = {},
         .swept_segments = {},
     };
@@ -596,6 +611,106 @@ void apply_stamp_modifiers(ResolvedStroke& stroke, const StrokeSettings& setting
     apply_jitter(stroke, settings.jitter);
 }
 
+std::vector<std::uint8_t> mirror_masks(const SymmetrySettings& symmetry) {
+    std::vector<std::uint8_t> result;
+    for (std::uint8_t mask = 0; mask < 8; ++mask) {
+        const bool uses_disabled_plane = ((mask & 1U) != 0U && !symmetry.mirror_x) ||
+                                         ((mask & 2U) != 0U && !symmetry.mirror_y) ||
+                                         ((mask & 4U) != 0U && !symmetry.mirror_z);
+        if (!uses_disabled_plane) {
+            result.push_back(mask);
+        }
+    }
+    return result;
+}
+
+Vec3d mirrored(Vec3d value, std::uint8_t mask) {
+    if ((mask & 1U) != 0U) {
+        value.x = -value.x;
+    }
+    if ((mask & 2U) != 0U) {
+        value.y = -value.y;
+    }
+    if ((mask & 4U) != 0U) {
+        value.z = -value.z;
+    }
+    return value;
+}
+
+Vec3d rotated(Vec3d value, SymmetryAxis axis, double cosine, double sine) {
+    if (axis == SymmetryAxis::x) {
+        return {value.x, value.y * cosine - value.z * sine, value.y * sine + value.z * cosine};
+    }
+    if (axis == SymmetryAxis::y) {
+        return {value.x * cosine + value.z * sine, value.y, -value.x * sine + value.z * cosine};
+    }
+    return {value.x * cosine - value.y * sine, value.x * sine + value.y * cosine, value.z};
+}
+
+Vec3d transformed(Vec3d value, std::uint8_t mirror_mask, SymmetryAxis axis, double cosine,
+                  double sine) {
+    return rotated(mirrored(value, mirror_mask), axis, cosine, sine);
+}
+
+Stamp symmetry_copy(const Stamp& source, std::uint8_t mirror_mask, SymmetryAxis axis, double cosine,
+                    double sine, std::uint64_t instance, std::uint64_t ordinal) {
+    Stamp copy = source;
+    copy.position = transformed(copy.position, mirror_mask, axis, cosine, sine);
+    copy.frame.tangent = transformed(copy.frame.tangent, mirror_mask, axis, cosine, sine);
+    copy.frame.bitangent = transformed(copy.frame.bitangent, mirror_mask, axis, cosine, sine);
+    copy.frame.normal = transformed(copy.frame.normal, mirror_mask, axis, cosine, sine);
+    copy.symmetry_instance = instance;
+    copy.ordinal = ordinal;
+    return copy;
+}
+
+void reserve_symmetry_output(ResolvedStroke& output, const ResolvedStroke& source,
+                             std::size_t instance_count) {
+    if (source.stamps.size() > output.stamps.max_size() / instance_count ||
+        source.swept_segments.size() > output.swept_segments.max_size() / instance_count) {
+        throw StrokeResolutionError("symmetry expansion exceeds the addressable output size");
+    }
+    output.stamps.reserve(source.stamps.size() * instance_count);
+    output.swept_segments.reserve(source.swept_segments.size() * instance_count);
+}
+
+ResolvedStroke expand_symmetry(const ResolvedStroke& source, SymmetrySettings symmetry) {
+    const std::vector<std::uint8_t> masks = mirror_masks(symmetry);
+    if (symmetry.radial_count > std::numeric_limits<std::size_t>::max() / masks.size()) {
+        throw StrokeResolutionError("symmetry instance count exceeds the addressable output size");
+    }
+    const std::size_t instance_count = masks.size() * symmetry.radial_count;
+    ResolvedStroke output{
+        .reconstruction_version = source.reconstruction_version,
+        .tip_mode = source.tip_mode,
+        .symmetry_instance_count = instance_count,
+        .stamps = {},
+        .swept_segments = {},
+    };
+    reserve_symmetry_output(output, source, instance_count);
+    std::uint64_t instance = 0;
+    for (std::uint32_t radial_index = 0; radial_index < symmetry.radial_count; ++radial_index) {
+        const double angle = 2.0 * std::numbers::pi * static_cast<double>(radial_index) /
+                             static_cast<double>(symmetry.radial_count);
+        const double cosine = std::cos(angle);
+        const double sine = std::sin(angle);
+        for (const std::uint8_t mirror_mask : masks) {
+            const std::uint64_t offset = output.stamps.size();
+            for (const Stamp& stamp : source.stamps) {
+                output.stamps.push_back(symmetry_copy(stamp, mirror_mask, symmetry.radial_axis,
+                                                      cosine, sine, instance,
+                                                      output.stamps.size()));
+            }
+            for (const SweptSegment segment : source.swept_segments) {
+                output.swept_segments.push_back(
+                    {offset + segment.start_stamp_ordinal, offset + segment.end_stamp_ordinal});
+            }
+            ++instance;
+        }
+    }
+    return output;
+}
+
 }  // namespace
 
 StrokeResolver::StrokeResolver(StrokeSettings settings) : settings_(std::move(settings)) {
@@ -633,6 +748,7 @@ ResolvedStroke StrokeResolver::resolve() {
     apply_grid_constraint(path, settings_.constraint);
     ResolvedStroke result = space_stamps(path, settings_);
     apply_stamp_modifiers(result, settings_);
+    result = expand_symmetry(result, settings_.symmetry);
     resolved_ = true;
     return result;
 }

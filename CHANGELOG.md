@@ -65,6 +65,8 @@ Foundation implementation is in progress.
   spacing.
 - Seed-and-ordinal deterministic jitter, count- and distance-based entry/exit
   taper, and straight-line, dominant-axis, and grid stroke constraints.
+- Object-space X/Y/Z mirror planes and selectable-axis radial symmetry, with
+  transformed coordinate frames and branch-local continuous sweep links.
 - Linear Rec. 709 working-space and sRGB transfer functions with unclamped HDR
   conversion.
 - Native and sanitizer test presets plus a registry-driven determinism gate that

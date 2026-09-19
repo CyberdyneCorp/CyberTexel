@@ -123,6 +123,17 @@ struct ConstraintSettings {
     friend constexpr bool operator==(ConstraintSettings, ConstraintSettings) noexcept = default;
 };
 
+enum class SymmetryAxis : std::uint8_t { x, y, z };
+
+struct SymmetrySettings {
+    bool mirror_x{};
+    bool mirror_y{};
+    bool mirror_z{};
+    std::uint32_t radial_count{1};
+    SymmetryAxis radial_axis{SymmetryAxis::z};
+    friend constexpr bool operator==(SymmetrySettings, SymmetrySettings) noexcept = default;
+};
+
 struct StrokeSettings {
     std::uint32_t reconstruction_version{canonical_stroke_reconstruction_version};
     TipMode tip_mode{TipMode::continuous_sweep};
@@ -139,6 +150,7 @@ struct StrokeSettings {
     JitterSettings jitter;
     TaperSettings taper;
     ConstraintSettings constraint;
+    SymmetrySettings symmetry;
     friend bool operator==(const StrokeSettings&, const StrokeSettings&) = default;
 };
 
@@ -152,6 +164,8 @@ struct Stamp {
     double elongation{};
     double flow{};
     std::string tip_resource_identity;
+    std::uint64_t source_ordinal{};
+    std::uint64_t symmetry_instance{};
     std::uint64_t ordinal{};
     friend bool operator==(const Stamp&, const Stamp&) = default;
 };
@@ -165,6 +179,7 @@ struct SweptSegment {
 struct ResolvedStroke {
     std::uint32_t reconstruction_version{};
     TipMode tip_mode{};
+    std::uint64_t symmetry_instance_count{1};
     std::vector<Stamp> stamps;
     std::vector<SweptSegment> swept_segments;
     friend bool operator==(const ResolvedStroke&, const ResolvedStroke&) = default;

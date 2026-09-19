@@ -50,9 +50,11 @@ inclusive valid range is `0.01` through `4.0`. It is independent of input frame
 rate because distances accumulate across reconstructed path segments.
 
 Each stamp carries position, coordinate frame, radius, opacity, hardness,
-rotation, elongation, flow, tip resource identity and ordinal. Pressure and
-tilt response is applied while creating this one canonical sequence. Taper and
-jitter then alter its resolved properties without creating a second sequence.
+rotation, elongation, flow, tip resource identity, source ordinal, symmetry
+instance and final ordinal. Before symmetry expansion, source and final ordinal
+are equal and the instance is zero. Pressure and tilt response is applied while
+creating this one canonical sequence. Taper and jitter then alter its resolved
+properties without creating a second sequence.
 
 ## Pressure and tilt response
 
@@ -113,13 +115,38 @@ position jitter. The taper floor is normalized to `[0, 1]` and defaults to
 zero; taper is disabled by default.
 
 Jitter is stateless and reproducible. Each random value is keyed by the 64-bit
-stroke seed, stamp ordinal and a fixed target channel, mixed with the SplitMix64
-finalizer, then converted from its high 53 bits to `[-1, 1)`. Position uses
-separate tangent and bitangent channels, each scaled by the configured fraction
-of the tapered radius. Radius uses a relative fraction smaller than one;
-rotation adds radians; opacity and flow add absolute normalized amounts and
-clamp to `[0, 1]`. Jitter is applied after taper and does not change stamp
-ordinals, sweep links or placement count. Every jitter amount defaults to zero.
+stroke seed, pre-symmetry source ordinal and a fixed target channel, mixed with
+the SplitMix64 finalizer, then converted from its high 53 bits to `[-1, 1)`.
+Position uses separate tangent and bitangent channels, each scaled by the
+configured fraction of the tapered radius. Radius uses a relative fraction
+smaller than one; rotation adds radians; opacity and flow add absolute
+normalized amounts and clamp to `[0, 1]`. Jitter is applied after taper and
+before symmetry, so every symmetry copy reflects or rotates the same jittered
+source rather than diverging randomly. It does not change sweep links or
+placement count. Every jitter amount defaults to zero.
+
+## Symmetry expansion
+
+Symmetry expands the modified canonical stamps once, at the end of resolution.
+The X, Y and Z mirror flags describe object-space planes through the origin.
+Every enabled-plane subset is emitted, including the unmirrored identity, so
+three enabled planes produce exactly eight instances even when positions lie on
+a plane and overlap. Position plus tangent, bitangent and normal are all
+reflected; scalar brush properties remain unchanged.
+
+Radial symmetry emits `radial_count` evenly spaced rotations about the selected
+object X, Y or Z axis, including the zero-angle identity. The count must be at
+least one and defaults to one. Mirror subsets are applied first and radial
+rotation second; their Cartesian product is retained without geometric
+deduplication. Ordering is radial index first, then mirror mask from identity
+through X/Y/Z bit order. This makes symmetry instance zero the original stroke.
+
+Each expanded stamp receives a unique final `ordinal`, retains the pre-symmetry
+`source_ordinal` used by deterministic jitter, and reports its stable
+`symmetry_instance`. `ResolvedStroke::symmetry_instance_count` reports the
+product. Continuous sweep links are duplicated inside each instance and never
+connect two instances. All instances remain in one `ResolvedStroke`, allowing a
+document integration to record them as one history operation.
 
 In `continuous_sweep` mode every pair of consecutive stamps has a
 `SweptSegment`. A final endpoint stamp closes any residual shorter-than-spacing

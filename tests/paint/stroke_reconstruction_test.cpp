@@ -367,6 +367,106 @@ bool axis_and_grid_constraints_transform_the_path() {
                   "grid constraint did not snap reconstructed path endpoints");
 }
 
+bool three_plane_symmetry_emits_eight_transformed_frames() {
+    StrokeSettings settings;
+    settings.symmetry = {
+        .mirror_x = true,
+        .mirror_y = true,
+        .mirror_z = true,
+        .radial_count = 1,
+        .radial_axis = SymmetryAxis::z,
+    };
+    const std::array samples{sample_at({1.0, 2.0, 3.0}, 0)};
+    const ResolvedStroke stroke = resolve(settings, samples);
+    bool transforms_match = stroke.stamps.size() == 8;
+    for (std::uint64_t mask = 0; transforms_match && mask < 8; ++mask) {
+        const Stamp& stamp = stroke.stamps[mask];
+        const Vec3d expected{
+            (mask & 1U) != 0U ? -1.0 : 1.0,
+            (mask & 2U) != 0U ? -2.0 : 2.0,
+            (mask & 4U) != 0U ? -3.0 : 3.0,
+        };
+        transforms_match = stamp.position == expected && stamp.source_ordinal == 0 &&
+                           stamp.symmetry_instance == mask && stamp.ordinal == mask;
+    }
+    const Stamp& x_mirror = stroke.stamps[1];
+    return expect(stroke.symmetry_instance_count == 8 && stroke.swept_segments.empty() &&
+                      transforms_match,
+                  "three mirror planes did not emit all eight stable instances") &&
+           expect(x_mirror.frame.tangent == Vec3d{-1.0, 0.0, 0.0} &&
+                      x_mirror.frame.bitangent == Vec3d{0.0, 1.0, 0.0} &&
+                      x_mirror.frame.normal == Vec3d{0.0, 0.0, 1.0},
+                  "mirror symmetry did not transform the complete coordinate frame");
+}
+
+bool radial_symmetry_supports_each_object_axis() {
+    StrokeSettings z_settings;
+    z_settings.symmetry.radial_count = 6;
+    const std::array z_samples{sample_at({1.0, 0.0, 0.0}, 0)};
+    const ResolvedStroke around_z = resolve(z_settings, z_samples);
+    bool evenly_rotated = around_z.stamps.size() == 6;
+    for (std::size_t index = 0; evenly_rotated && index < around_z.stamps.size(); ++index) {
+        const double angle = 2.0 * std::numbers::pi * static_cast<double>(index) / 6.0;
+        evenly_rotated = near(around_z.stamps[index].position.x, std::cos(angle)) &&
+                         near(around_z.stamps[index].position.y, std::sin(angle)) &&
+                         near(around_z.stamps[index].position.z, 0.0);
+    }
+
+    StrokeSettings x_settings;
+    x_settings.symmetry = {.radial_count = 4, .radial_axis = SymmetryAxis::x};
+    const std::array x_samples{sample_at({0.0, 1.0, 0.0}, 0)};
+    const ResolvedStroke around_x = resolve(x_settings, x_samples);
+
+    StrokeSettings y_settings;
+    y_settings.symmetry = {.radial_count = 4, .radial_axis = SymmetryAxis::y};
+    const std::array y_samples{sample_at({1.0, 0.0, 0.0}, 0)};
+    const ResolvedStroke around_y = resolve(y_settings, y_samples);
+    return expect(around_z.symmetry_instance_count == 6 && evenly_rotated,
+                  "six-fold radial symmetry was not evenly distributed around Z") &&
+           expect(near(around_x.stamps[1].position.z, 1.0) &&
+                      near(around_y.stamps[1].position.z, -1.0),
+                  "radial symmetry did not honor the selected X or Y object axis");
+}
+
+bool symmetry_sweeps_never_connect_instances() {
+    StrokeSettings settings;
+    settings.spacing_fraction = 1.0;
+    settings.input_mapping.pressure_radius.enabled = false;
+    settings.symmetry.mirror_x = true;
+    const std::array samples{sample(1.0, 0), sample(3.0, 2'000'000)};
+    const ResolvedStroke stroke = resolve(settings, samples);
+    return expect(stroke.symmetry_instance_count == 2 && stroke.stamps.size() == 6 &&
+                      stroke.swept_segments.size() == 4,
+                  "mirror expansion emitted the wrong stamp or sweep count") &&
+           expect(stroke.swept_segments[0] == SweptSegment{0, 1} &&
+                      stroke.swept_segments[1] == SweptSegment{1, 2} &&
+                      stroke.swept_segments[2] == SweptSegment{3, 4} &&
+                      stroke.swept_segments[3] == SweptSegment{4, 5},
+                  "a symmetry sweep connected two separate instances") &&
+           expect(stroke.stamps[3].position == Vec3d{-1.0, 0.0, 0.0} &&
+                      stroke.stamps[3].source_ordinal == 0 && stroke.stamps[5].source_ordinal == 2,
+                  "symmetry copies lost their transformed position or source ordinal");
+}
+
+bool mirror_and_radial_symmetry_form_a_cartesian_product() {
+    StrokeSettings settings;
+    settings.symmetry = {
+        .mirror_x = true,
+        .mirror_y = true,
+        .mirror_z = false,
+        .radial_count = 3,
+        .radial_axis = SymmetryAxis::z,
+    };
+    const std::array samples{sample_at({1.0, 2.0, 0.0}, 0)};
+    const ResolvedStroke stroke = resolve(settings, samples);
+    return expect(stroke.symmetry_instance_count == 12 && stroke.stamps.size() == 12,
+                  "mirror and radial symmetry did not form their full Cartesian product") &&
+           expect(stroke.stamps.front().position == Vec3d{1.0, 2.0, 0.0} &&
+                      stroke.stamps.back().symmetry_instance == 11 &&
+                      stroke.stamps.back().ordinal == 11,
+                  "combined symmetry ordering or identity instance was unstable");
+}
+
 bool spacing_contract_has_versioned_defaults_and_bounds() {
     StrokeResolver defaults;
     bool below_refused = false;
@@ -454,6 +554,24 @@ bool invalid_input_is_rejected_without_partial_resolution() {
         invalid_constraint_refused = true;
     }
 
+    StrokeSettings invalid_symmetry_count;
+    invalid_symmetry_count.symmetry.radial_count = 0;
+    bool invalid_symmetry_count_refused = false;
+    try {
+        static_cast<void>(StrokeResolver(invalid_symmetry_count));
+    } catch (const StrokeResolutionError&) {
+        invalid_symmetry_count_refused = true;
+    }
+
+    StrokeSettings invalid_symmetry_axis;
+    invalid_symmetry_axis.symmetry.radial_axis = static_cast<SymmetryAxis>(255);
+    bool invalid_symmetry_axis_refused = false;
+    try {
+        static_cast<void>(StrokeResolver(invalid_symmetry_axis));
+    } catch (const StrokeResolutionError&) {
+        invalid_symmetry_axis_refused = true;
+    }
+
     StrokeResolver resolver;
     const std::array reversed{sample(0.0, 2), sample(1.0, 1)};
     bool timestamps_refused = false;
@@ -491,6 +609,8 @@ bool invalid_input_is_rejected_without_partial_resolution() {
            expect(invalid_jitter_refused, "invalid jitter was accepted") &&
            expect(invalid_taper_refused, "invalid taper was accepted") &&
            expect(invalid_constraint_refused, "invalid constraint settings were accepted") &&
+           expect(invalid_symmetry_count_refused, "zero radial symmetry count was accepted") &&
+           expect(invalid_symmetry_axis_refused, "an invalid radial symmetry axis was accepted") &&
            expect(pressure_refused, "an out-of-range pressure value was accepted") &&
            expect(tilt_refused, "an out-of-range tilt vector was accepted") &&
            expect(timestamps_refused && resolver.sample_count() == 1,
@@ -517,6 +637,10 @@ int main() {
                    distance_taper_applies_at_both_ends() &&
                    straight_line_constraint_ignores_intermediate_positions() &&
                    axis_and_grid_constraints_transform_the_path() &&
+                   three_plane_symmetry_emits_eight_transformed_frames() &&
+                   radial_symmetry_supports_each_object_axis() &&
+                   symmetry_sweeps_never_connect_instances() &&
+                   mirror_and_radial_symmetry_form_a_cartesian_product() &&
                    spacing_contract_has_versioned_defaults_and_bounds() &&
                    invalid_input_is_rejected_without_partial_resolution()
                ? 0
