@@ -114,7 +114,7 @@ public:
 
 class HostExecutedExecutor final : public Executor {
 public:
-    explicit HostExecutedExecutor(bool attached);
+    HostExecutedExecutor(std::string device_name, emit::DeviceFeatureSet features, bool attached);
 
     [[nodiscard]] const ExecutorDescriptor& descriptor() const noexcept override;
     void set_attached(bool attached) noexcept;

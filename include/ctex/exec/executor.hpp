@@ -2,6 +2,7 @@
 #define CTEX_EXEC_EXECUTOR_HPP
 
 #include <cstdint>
+#include <ctex/emit/feature_emission.hpp>
 #include <memory>
 #include <optional>
 #include <span>
@@ -27,6 +28,7 @@ struct ExecutorDescriptor {
     std::string device_name;
     ExecutorRoute route{};
     ExecutorAvailability availability{};
+    emit::DeviceFeatureSet features;
     friend bool operator==(const ExecutorDescriptor&, const ExecutorDescriptor&) = default;
 };
 

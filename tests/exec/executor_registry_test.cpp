@@ -10,6 +10,14 @@ using ctex::exec::ExecutorAvailability;
 using ctex::exec::ExecutorDescriptor;
 using ctex::exec::ExecutorRoute;
 
+ctex::emit::DeviceFeatureSet features() {
+    return {.binding_budget = 8,
+            .maximum_texture_dimension = 4096,
+            .supported_texture_formats = {ctex::emit::TextureFormat::rgba8_unorm},
+            .floating_point_filtering = true,
+            .compute_available = false};
+}
+
 class FixtureExecutor final : public ctex::exec::Executor {
 public:
     explicit FixtureExecutor(ExecutorDescriptor descriptor) : descriptor_(std::move(descriptor)) {}
@@ -31,6 +39,7 @@ std::shared_ptr<const ctex::exec::Executor> executor(
         .device_name = identifier + " device",
         .route = route,
         .availability = availability,
+        .features = features(),
     });
 }
 

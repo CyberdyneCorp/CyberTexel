@@ -29,6 +29,12 @@ void validate_descriptor(const ExecutorDescriptor& descriptor) {
         throw ExecutorRegistryError(
             "executor requires an identifier, display name, and device name");
     }
+    if (descriptor.features.binding_budget < 2 ||
+        descriptor.features.maximum_texture_dimension == 0 ||
+        descriptor.features.supported_texture_formats.empty()) {
+        throw ExecutorRegistryError("executor requires valid shader-emission features: " +
+                                    descriptor.identifier);
+    }
 }
 
 ExecutorSelection selected(std::shared_ptr<const Executor> executor, ExecutorSelectionSource source,

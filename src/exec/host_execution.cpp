@@ -238,13 +238,21 @@ HostCompletionResult publish(auto& state,
 
 }  // namespace
 
-HostExecutedExecutor::HostExecutedExecutor(bool attached)
+HostExecutedExecutor::HostExecutedExecutor(std::string device_name, emit::DeviceFeatureSet features,
+                                           bool attached)
     : descriptor_{.identifier = "host",
                   .display_name = "Host executed",
-                  .device_name = "Host-owned device",
+                  .device_name = std::move(device_name),
                   .route = ExecutorRoute::host_executed,
                   .availability = attached ? ExecutorAvailability::available
-                                           : ExecutorAvailability::host_not_attached} {}
+                                           : ExecutorAvailability::host_not_attached,
+                  .features = std::move(features)} {
+    if (descriptor_.device_name.empty() || descriptor_.features.binding_budget < 2 ||
+        descriptor_.features.maximum_texture_dimension == 0 ||
+        descriptor_.features.supported_texture_formats.empty()) {
+        throw HostExecutionError("host attachment requires a device name and valid features");
+    }
+}
 
 const ExecutorDescriptor& HostExecutedExecutor::descriptor() const noexcept { return descriptor_; }
 

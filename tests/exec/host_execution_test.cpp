@@ -87,6 +87,14 @@ RecoveryEvidence replay(std::uint64_t base, std::size_t retained_bytes = 32) {
             .retained_bytes = retained_bytes};
 }
 
+ctex::emit::DeviceFeatureSet host_features() {
+    return {.binding_budget = 16,
+            .maximum_texture_dimension = 8192,
+            .supported_texture_formats = {TextureFormat::rgba8_unorm},
+            .floating_point_filtering = true,
+            .compute_available = true};
+}
+
 HostCompletion success(CompletionToken token, const HostResourceHandoff& resource,
                        RecoveryEvidence recovery) {
     return {.token = token,
@@ -97,7 +105,7 @@ HostCompletion success(CompletionToken token, const HostResourceHandoff& resourc
 }
 
 bool executor_reports_attachment_without_owning_a_device() {
-    ctex::exec::HostExecutedExecutor executor(false);
+    ctex::exec::HostExecutedExecutor executor("Test host GPU", host_features(), false);
     const bool detached =
         executor.descriptor().route == ctex::exec::ExecutorRoute::host_executed &&
         executor.descriptor().availability == ctex::exec::ExecutorAvailability::host_not_attached;

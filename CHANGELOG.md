@@ -36,6 +36,10 @@ Foundation implementation is in progress.
   ownership/state, in-flight generation retention, output validation, atomic
   revision publication, stale and cancelled result rejection, asynchronous
   recovery admission, and device-loss restoration before CPU fallback.
+- Executor-owned device capability reports for shader binding budget, texture
+  limits and formats, floating-point filtering and compute availability, plus a
+  checked seam that feeds the selected executor's report into every emission
+  request kind.
 - Semantic input-colour defaults, preview-only 3D LUTs, structured precision
   warnings, promoted height accumulation and deterministic ordered dithering.
 - Slice-A memory-buffer PNG decoding and encoding with 8/16-bit preservation,

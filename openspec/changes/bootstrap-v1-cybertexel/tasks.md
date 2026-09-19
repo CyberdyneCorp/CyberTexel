@@ -221,8 +221,13 @@ revision; completions validate every output and publish atomically; stale,
 duplicate, failed and cancelled results never advance state. Cancellation keeps
 resources alive through late GPU completion. Deterministic record recovery and
 checkpoint-only recovery are admitted before publication, while device loss
-restores the last commit before an explicit CPU fallback report. Device
-capability reporting into emission (7.4) is next.
+restores the last commit before an explicit CPU fallback report.
+Task 7.4 makes shader-emission features part of every executor descriptor and
+rejects incomplete reports at registration. CPU and host routes publish their
+own binding, dimension, format, filtering and compute limits; one checked seam
+copies the selected executor report into layer-stack, material and preview
+requests so the selected path uses one capability record. Declared numeric
+parity tolerances (7.5) are next.
 
 ## 1. Foundation
 
@@ -318,7 +323,7 @@ capability reporting into emission (7.4) is next.
 - [x] 7.1 Executor interface, enumeration, selection, environment pin, fallback reporting
 - [x] 7.2 CPU reference executor: UV-space rasterization, its own depth and UV buffers, every operation
 - [x] 7.3 Host-executed route: GPU-resident authority, completion tokens, atomic revision publication, stale-result rejection and recovery before fallback
-- [ ] 7.4 Device capability reporting feeding emission
+- [x] 7.4 Device capability reporting feeding emission
 - [ ] 7.5 Declared parity tolerances per bit depth and for filtered values
 - [ ] 7.6 Parity fixture corpus and the CI gate, with unmeasured executors reported
 - [ ] 7.7 Cancellation, progress, worker bound, memory ceiling and its refusals

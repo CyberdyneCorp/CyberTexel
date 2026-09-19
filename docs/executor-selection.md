@@ -2,7 +2,8 @@
 
 `ctex/exec/executor.hpp` defines the process-local registry shared by the three
 execution routes. An executor publishes a stable identifier, display name,
-device name, route, and runtime availability. Registration is instance-owned,
+device name, route, runtime availability, and the
+[features consumed by emission](executor-capabilities.md). Registration is instance-owned,
 rejects incomplete or duplicate descriptors, and enumeration is sorted by
 identifier so plugin discovery order cannot leak into a UI or cache key.
 
@@ -42,6 +43,6 @@ The mandatory [CPU reference executor](cpu-reference-executor.md) supplies the
 always-available `cpu` implementation and independent raster buffers. Host
 [submission and completion](host-execution.md) provides revision-safe atomic
 publication, resource retirement, recovery and actual fallback. Device feature
-reporting arrives in 7.4, and the optional owned-GPU provider in 7.8. Those
-implementations register against this interface rather than adding parallel
-selection mechanisms.
+reporting feeds emission through the same descriptor. The optional owned-GPU
+provider arrives in 7.8. All implementations register against this interface
+rather than adding parallel selection or capability mechanisms.

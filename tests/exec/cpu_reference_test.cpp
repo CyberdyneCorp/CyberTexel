@@ -58,7 +58,10 @@ bool executor_is_always_available_and_runs_cpu_semantics() {
                       executor.descriptor().route == ctex::exec::ExecutorRoute::cpu_reference &&
                       executor.descriptor().availability ==
                           ctex::exec::ExecutorAvailability::available &&
-                      executor.descriptor().device_name == "System CPU",
+                      executor.descriptor().device_name == "System CPU" &&
+                      executor.descriptor().features.supported_texture_formats.size() == 13 &&
+                      executor.descriptor().features.floating_point_filtering &&
+                      !executor.descriptor().features.compute_available,
                   "CPU reference descriptor did not identify an always-available CPU route") &&
            expect(operation.runs == 1 && operation.saw_cpu && record.completed &&
                       record.operation == "count",

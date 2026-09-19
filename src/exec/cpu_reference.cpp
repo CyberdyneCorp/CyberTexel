@@ -359,11 +359,24 @@ CpuUvRaster make_uv_output(CpuUvRasterRequest request) {
 }  // namespace
 
 CpuReferenceExecutor::CpuReferenceExecutor()
-    : descriptor_{.identifier = "cpu",
-                  .display_name = "CPU reference",
-                  .device_name = "System CPU",
-                  .route = ExecutorRoute::cpu_reference,
-                  .availability = ExecutorAvailability::available} {}
+    : descriptor_{
+          .identifier = "cpu",
+          .display_name = "CPU reference",
+          .device_name = "System CPU",
+          .route = ExecutorRoute::cpu_reference,
+          .availability = ExecutorAvailability::available,
+          .features = {.binding_budget = std::numeric_limits<std::uint32_t>::max(),
+                       .maximum_texture_dimension = std::numeric_limits<std::uint32_t>::max(),
+                       .supported_texture_formats =
+                           {emit::TextureFormat::r8_unorm, emit::TextureFormat::rg8_unorm,
+                            emit::TextureFormat::rgba8_unorm, emit::TextureFormat::r16_unorm,
+                            emit::TextureFormat::rg16_unorm, emit::TextureFormat::rgba16_unorm,
+                            emit::TextureFormat::r16_float, emit::TextureFormat::rg16_float,
+                            emit::TextureFormat::rgba16_float, emit::TextureFormat::r32_float,
+                            emit::TextureFormat::rg32_float, emit::TextureFormat::rgba32_float,
+                            emit::TextureFormat::depth32_float},
+                       .floating_point_filtering = true,
+                       .compute_available = false}} {}
 
 const ExecutorDescriptor& CpuReferenceExecutor::descriptor() const noexcept { return descriptor_; }
 

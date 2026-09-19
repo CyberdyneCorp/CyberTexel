@@ -5,6 +5,9 @@ shader artifacts and a validated device-independent pass plan. The caller
 supplies a `DeviceFeatureSet` containing the total per-stage binding budget,
 maximum texture dimension, supported texture formats, floating-point filtering
 support, and compute availability. No GPU object or backend header is involved.
+When an executor has been selected, the
+[executor capability seam](executor-capabilities.md) supplies this exact set to
+the request rather than relying on a second caller-maintained device record.
 
 Layer inputs are ordered bottom-to-top and use premultiplied linear RGBA. The
 emitted fragment code applies premultiplied source-over in that order. A pass

@@ -99,6 +99,9 @@ The current implementation provides:
   host outputs, atomic revision publication, cancellation, stale-result
   rejection, recovery-before-publication, and device-loss recovery before CPU
   fallback.
+- Executor-owned [device capability reports](docs/executor-capabilities.md) for
+  binding budget, texture limits and formats, float filtering, and compute,
+  wired directly into layer-stack, material, and preview emission requests.
 - Strict C++20 builds, sanitizer coverage, OpenSpec validation, dependency
   layering checks, licence auditing, deterministic-output gates, and labeled
   [material-graph](docs/material-graph-scenarios.md) and
