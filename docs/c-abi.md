@@ -54,6 +54,12 @@ prior mesh and revision. The maximum supported mesh has 100,000,000 vertices and
 before reading array contents and report `CTEX_DIAGNOSTIC_MESH_LIMIT_EXCEEDED`
 with the count, supplied value and maximum.
 
+`ctex_document_create_texture_sets_from_mesh` selects any named UV set on a mesh
+and creates one document texture set for every validated face partition, using
+the requested resolution and precision. The operation refuses a missing UV set
+before changing the document. Created stable identities can be retrieved with
+`ctex_document_get_texture_set_ids` and retain the selected UV name.
+
 ## Texture-set channels
 
 Every new texture set registers the nine metallic/roughness preset channels but
@@ -144,7 +150,7 @@ The contract is stated per entry-point family:
 | `ctex_set_allocator` | Process-safe process-wide default for subsequently created objects; each object retains its creating configuration, and the host keeps its user data alive through destruction |
 | `ctex_document_create` | Process-safe; each successful call creates independent state |
 | `ctex_document_destroy` | The caller ensures no other call is using that handle; distinct handles may be destroyed concurrently |
-| `ctex_document_create_texture_set`, `ctex_document_get_texture_set_ids`, `ctex_texture_set_*` | Calls on distinct document handles are safe concurrently; every call on the same document handle must be externally synchronized, including read-only calls |
+| `ctex_document_create_texture_set`, `ctex_document_create_texture_sets_from_mesh`, `ctex_document_get_texture_set_ids`, `ctex_texture_set_*` | Calls on distinct document handles are safe concurrently; every call on the same document handle must be externally synchronized, including read-only calls. Mesh-derived creation also requires no concurrent use of that mesh handle |
 | `ctex_mesh_create` | Process-safe; each successful call creates independent owned state and captures the active allocator |
 | `ctex_mesh_destroy`, `ctex_mesh_replace`, `ctex_mesh_get_info`, `ctex_mesh_get_uv_set_names` | Calls on distinct mesh handles are safe concurrently; every call on the same mesh handle must be externally synchronized, including read-only calls |
 | `ctex_get_last_result`, `ctex_get_last_diagnostic_code`, `ctex_get_last_diagnostic` | Thread-local; concurrent threads never observe or replace one another's diagnostic state |

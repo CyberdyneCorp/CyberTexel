@@ -54,9 +54,13 @@ struct MeshBuffers {
         Vec2f{0.9F, 0.9F},
         Vec2f{0.1F, 0.9F},
     };
-    std::array<UvSetView, 2> uv_sets{
+    std::array<Vec2f, 4> uv2 = uv0;
+    std::array<Vec2f, 4> uv3 = uv1;
+    std::array<UvSetView, 4> uv_sets{
         UvSetView{"paint", uv0},
         UvSetView{"lightmap", uv1},
+        UvSetView{"detail", uv2},
+        UvSetView{"effects", uv3},
     };
     std::array<MeshPartition, 2> partitions{
         MeshPartition{PartitionKind::material, "body", "Body"},
@@ -115,7 +119,7 @@ bool accepts_in_memory_attributes_without_modification() {
 
     return expect(attributes.vertex_count == 4, "mesh reported the wrong vertex count") &&
            expect(attributes.triangle_count == 2, "mesh reported the wrong triangle count") &&
-           expect(attributes.uv_set_count == 2, "mesh reported the wrong UV-set count") &&
+           expect(attributes.uv_set_count == 4, "mesh did not retain four named UV sets") &&
            expect(attributes.has_vertex_colors, "mesh omitted its vertex-colour attribute") &&
            expect(attributes.tangent_source == TangentFrameSource::generated &&
                       attributes.corner_tangent_count == buffers.indices.size(),
@@ -229,7 +233,7 @@ bool derives_total_partitioned_texture_sets() {
     MeshBuffers buffers;
     const MeshView mesh(buffers.descriptor());
     ctex::doc::TextureDocument document;
-    const auto ids = document.create_texture_sets_from_mesh(mesh, "paint", 2048, 1024, 16);
+    const auto ids = document.create_texture_sets_from_mesh(mesh, "lightmap", 2048, 1024, 16);
 
     return expect(ids.size() == 2, "mesh partitions did not produce two texture sets") &&
            expect(document.texture_set_count() == 2, "document did not retain derived sets") &&
@@ -237,8 +241,8 @@ bool derives_total_partitioned_texture_sets() {
                   "body partition identity was not preserved") &&
            expect(document.texture_set(ids[1]).descriptor().partition_key == "trim",
                   "trim partition identity was not preserved") &&
-           expect(document.texture_set(ids[0]).descriptor().uv_set == "paint",
-                  "derived texture set lost its named UV binding") &&
+           expect(document.texture_set(ids[0]).descriptor().uv_set == "lightmap",
+                  "derived texture set lost its second named UV binding") &&
            expect(document.texture_set(ids[0]).descriptor().width == 2048 &&
                       document.texture_set(ids[0]).descriptor().height == 1024 &&
                       document.texture_set(ids[0]).descriptor().default_bit_depth == 16,

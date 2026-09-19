@@ -678,6 +678,9 @@ atomic replacement, revisions and the declared 100,000,000-vertex/triangle
 refusals. This also completes task 4.8. The gate refuses 222 unmapped runtime
 requirements by name and remains outside the green aggregate until those entry
 points exist.
+The mesh follow-up proves four simultaneous named UV sets and lets C hosts derive
+partitioned document texture sets from any selected mesh UV set. Missing names
+are refused before document mutation. This completes task 4.2.
 
 ## 1. Foundation
 
@@ -725,7 +728,7 @@ points exist.
 ## 4. Geometry input
 
 - [x] 4.1 Mesh ingest interface, read-only guarantee, attribute description
-- [ ] 4.2 Multiple UV sets; texture set binding to a named set
+- [x] 4.2 Multiple UV sets; texture set binding to a named set
 - [ ] 4.3 UDIM tiles: on-demand allocation, addressing, cross-tile writes
 - [ ] 4.4 Atlases and their export-time regions
 - [ ] 4.5 Overlap and coverage diagnostics

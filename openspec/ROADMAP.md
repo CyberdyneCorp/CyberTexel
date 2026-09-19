@@ -7,7 +7,7 @@ decisions taken and questions still open.
 ## Status
 
 Implementation started. 24 capabilities, 332 requirements, 400 scenarios and
-222 tasks, 133 done. Foundation and the complete headless color-management
+222 tasks, 134 done. Foundation and the complete headless color-management
 scenario suite are green. Slice-A now has memory-buffer PNG input/output with
 8/16-bit preservation and hostile-input ceilings; full image-format breadth
 remains scheduled for slice D. Extensible channel descriptors and sparse
@@ -149,6 +149,9 @@ mesh handles with four-or-more named UV sets, atomic revisioned replacement and
 declared 100,000,000-vertex/triangle refusals, completing task 4.8. The gate now
 names the 222 runtime requirements that still lack C entry points; those gaps
 must be implemented before task 14.8 can close.
+Four simultaneous named mesh UV sets are now exercised, and the C boundary can
+derive partitioned document texture sets from a selected UV parameterization;
+this completes task 4.2.
 
 ## Milestones
 

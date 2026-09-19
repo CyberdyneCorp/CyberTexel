@@ -740,6 +740,38 @@ ctex::doc::TextureSetDescriptor texture_set_descriptor(
             .default_bit_depth = bit_depth};
 }
 
+void create_texture_sets_from_mesh(ctex_document& document, const ctex_mesh& mesh,
+                                   const char* uv_set, std::uint32_t width, std::uint32_t height,
+                                   std::uint8_t default_bit_depth) {
+    if (uv_set == nullptr) {
+        throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT, "uv_set=null");
+    }
+    const auto matching_uv = std::ranges::find(mesh.state->uv_names, std::string_view(uv_set));
+    if (matching_uv == mesh.state->uv_names.end()) {
+        throw_boundary(CTEX_RESULT_MISSING_RESOURCE, CTEX_DIAGNOSTIC_MISSING_UV_SET,
+                       "UV set is not present: " + std::string(uv_set));
+    }
+    if (width == 0 || height == 0) {
+        throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_INVALID_TEXTURE_SET_RESOLUTION,
+                       "texture-set resolution must be non-zero");
+    }
+    if (!valid_channel_bit_depth(default_bit_depth)) {
+        throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_INVALID_TEXTURE_SET_BIT_DEPTH,
+                       "default_bit_depth=" + std::to_string(default_bit_depth));
+    }
+    for (const ctex::mesh::MeshPartition& partition : mesh.state->partition_views) {
+        const std::string stable_id =
+            ctex::mesh::texture_set_stable_id(partition.kind, partition.stable_key, uv_set);
+        if (document.value.contains_texture_set(stable_id)) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_DUPLICATE_TEXTURE_SET,
+                           "texture-set identity is already present: " + stable_id);
+        }
+    }
+    const ctex::mesh::MeshView view(mesh.state->descriptor());
+    static_cast<void>(document.value.create_texture_sets_from_mesh(view, uv_set, width, height,
+                                                                   default_bit_depth));
+}
+
 }  // namespace
 
 void* ctex_host_memory_resource::do_allocate(std::size_t bytes, std::size_t alignment) {
@@ -1246,6 +1278,18 @@ extern "C" ctex_result ctex_document_create_texture_set(
                            "texture-set identity is already present: " + stable_id);
         }
         static_cast<void>(document->value.create_texture_set(std::move(converted)));
+    });
+}
+
+extern "C" ctex_result ctex_document_create_texture_sets_from_mesh(
+    ctex_document* document, const ctex_mesh* mesh, const char* uv_set, std::uint32_t width,
+    std::uint32_t height, std::uint8_t default_bit_depth) {
+    return call_boundary("ctex_document_create_texture_sets_from_mesh", [&] {
+        if (document == nullptr || mesh == nullptr) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                           document == nullptr ? "document=null" : "mesh=null");
+        }
+        create_texture_sets_from_mesh(*document, *mesh, uv_set, width, height, default_bit_depth);
     });
 }
 

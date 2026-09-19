@@ -1,6 +1,7 @@
 EXPORTS
     ctex_document_create
     ctex_document_create_texture_set
+    ctex_document_create_texture_sets_from_mesh
     ctex_document_destroy
     ctex_document_get_texture_set_ids
     ctex_accumulate_height

@@ -62,7 +62,8 @@ typedef enum ctex_diagnostic_code {
     CTEX_DIAGNOSTIC_INVALID_COLOR_BIT_DEPTH = 26,
     CTEX_DIAGNOSTIC_INVALID_CUBE_LUT = 27,
     CTEX_DIAGNOSTIC_MESH_LIMIT_EXCEEDED = 28,
-    CTEX_DIAGNOSTIC_INVALID_MESH = 29
+    CTEX_DIAGNOSTIC_INVALID_MESH = 29,
+    CTEX_DIAGNOSTIC_MISSING_UV_SET = 30
 } ctex_diagnostic_code;
 
 typedef enum ctex_log_severity {
@@ -399,6 +400,11 @@ CTEX_API ctex_result ctex_document_create(ctex_document** out_document);
 CTEX_API void ctex_document_destroy(ctex_document* document);
 CTEX_API ctex_result ctex_document_create_texture_set(
     ctex_document* document, const ctex_texture_set_descriptor* descriptor);
+CTEX_API ctex_result ctex_document_create_texture_sets_from_mesh(ctex_document* document,
+                                                                 const ctex_mesh* mesh,
+                                                                 const char* uv_set, uint32_t width,
+                                                                 uint32_t height,
+                                                                 uint8_t default_bit_depth);
 CTEX_API ctex_result ctex_document_get_texture_set_ids(const ctex_document* document, char* buffer,
                                                        size_t buffer_size,
                                                        size_t* out_required_size,

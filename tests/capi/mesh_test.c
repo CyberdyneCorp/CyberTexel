@@ -71,15 +71,20 @@ int main(void) {
     ctex_allocator_descriptor allocator = {CTEX_ALLOCATOR_DESCRIPTOR_CURRENT_SIZE, count_allocate,
                                            count_deallocate, &counts};
     ctex_mesh* mesh = NULL;
+    ctex_document* document = NULL;
     ctex_mesh_info initial = {.size = CTEX_MESH_INFO_CURRENT_SIZE};
     ctex_mesh_info replaced = {.size = CTEX_MESH_INFO_CURRENT_SIZE};
     ctex_mesh_info after_rejection = {.size = CTEX_MESH_INFO_CURRENT_SIZE};
     size_t required_size = 0;
     size_t uv_set_count = 0;
     char names[16] = {0};
+    char texture_set_ids[64] = {0};
+    size_t texture_set_ids_size = 0;
+    size_t texture_set_count = 0;
 
     if (!expect(ctex_set_allocator(&allocator) == CTEX_RESULT_SUCCESS) ||
         !expect(ctex_mesh_create(&descriptor, &mesh) == CTEX_RESULT_SUCCESS && mesh != NULL) ||
+        !expect(ctex_document_create(&document) == CTEX_RESULT_SUCCESS && document != NULL) ||
         !expect(memcmp(positions, positions_before, sizeof(positions)) == 0) ||
         !expect(ctex_mesh_get_info(mesh, &initial) == CTEX_RESULT_SUCCESS) ||
         !expect(initial.vertex_count == 3 && initial.triangle_count == 1 &&
@@ -99,11 +104,27 @@ int main(void) {
     }
     first_uv_name[0] = 'u';
 
+    if (!expect(ctex_document_create_texture_sets_from_mesh(document, mesh, "missing", 1024, 512,
+                                                            16) == CTEX_RESULT_MISSING_RESOURCE) ||
+        !expect(ctex_get_last_diagnostic_code() == CTEX_DIAGNOSTIC_MISSING_UV_SET) ||
+        !expect(ctex_document_get_texture_set_ids(document, NULL, 0, &texture_set_ids_size,
+                                                  &texture_set_count) == CTEX_RESULT_SUCCESS) ||
+        !expect(texture_set_count == 0) ||
+        !expect(ctex_document_create_texture_sets_from_mesh(document, mesh, "uv1", 1024, 512, 16) ==
+                CTEX_RESULT_SUCCESS) ||
+        !expect(ctex_document_get_texture_set_ids(document, texture_set_ids,
+                                                  sizeof(texture_set_ids), &texture_set_ids_size,
+                                                  &texture_set_count) == CTEX_RESULT_SUCCESS) ||
+        !expect(texture_set_count == 1) ||
+        !expect(strcmp(texture_set_ids, "material/4:body/uv/3:uv1") == 0)) {
+        return 3;
+    }
+
     positions[0].x = 2.0F;
     if (!expect(ctex_mesh_replace(mesh, &descriptor) == CTEX_RESULT_SUCCESS) ||
         !expect(ctex_mesh_get_info(mesh, &replaced) == CTEX_RESULT_SUCCESS) ||
         !expect(replaced.revision > initial.revision)) {
-        return 3;
+        return 4;
     }
 
     descriptor.default_uv_set = "missing";
@@ -111,7 +132,7 @@ int main(void) {
         !expect(ctex_get_last_diagnostic_code() == CTEX_DIAGNOSTIC_INVALID_MESH) ||
         !expect(ctex_mesh_get_info(mesh, &after_rejection) == CTEX_RESULT_SUCCESS) ||
         !expect(after_rejection.revision == replaced.revision)) {
-        return 4;
+        return 5;
     }
 
     descriptor.default_uv_set = "uv0";
@@ -120,15 +141,16 @@ int main(void) {
         !expect(ctex_get_last_diagnostic_code() == CTEX_DIAGNOSTIC_MESH_LIMIT_EXCEEDED) ||
         !expect(strstr(ctex_get_last_diagnostic(), "vertex_count supplied=100000001") != NULL) ||
         !expect(strstr(ctex_get_last_diagnostic(), "maximum=100000000") != NULL)) {
-        return 5;
+        return 6;
     }
 
     if (!expect(ctex_set_allocator(NULL) == CTEX_RESULT_SUCCESS)) {
-        return 6;
+        return 7;
     }
+    ctex_document_destroy(document);
     ctex_mesh_destroy(mesh);
     if (!expect(counts.allocations > 1 && counts.allocations == counts.deallocations)) {
-        return 7;
+        return 8;
     }
     return 0;
 }
