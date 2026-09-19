@@ -257,6 +257,20 @@ TileMemoryLayout tile_memory_layout(const doc::TextureChannels& channels,
     return make_tile_memory_layout(image, coordinate, format.output_format);
 }
 
+TileMemoryLayout tile_memory_layout(const PreviewResource& preview,
+                                    image::TileCoordinate coordinate) {
+    return make_tile_memory_layout(preview.pixels(), coordinate, preview.format());
+}
+
+TileMemoryLayout tile_memory_layout(const PreviewResource& preview,
+                                    image::TileCoordinate coordinate,
+                                    const ReadbackFormatSelection& format) {
+    if (!format.is_valid() || format.source_format != preview.format()) {
+        throw std::invalid_argument("readback format selection does not match the preview");
+    }
+    return make_tile_memory_layout(preview.pixels(), coordinate, format.output_format);
+}
+
 TileReadback::TileReadback(std::vector<TileReadbackDestination> destinations,
                            TileReadbackStatus status, std::string detail,
                            std::optional<ReadbackFormatSelection> format_selection)

@@ -287,8 +287,13 @@ keeps revision R immutable while an edit publishes R+1 for the following
 delta. Task 8.8 replaces the document-grid scan with one latest-change entry per
 tile, keyed by revision. Current-cursor queries take an O(1) empty path; changed
 queries traverse and radix-order only their coalesced candidates, with
-`indexed_tiles_visited` making the scaling invariant directly testable. Preview
-transport (8.9) is next.
+`indexed_tiles_visited` making the scaling invariant directly testable. Task
+8.9 adds a separate in-flight `PreviewResource` without a second transport
+path: committed channels and previews return the same delta and snapshot types,
+use the same layout and format negotiation, and enter the same asynchronous
+tile readback. A pinned preview remains immutable across later preview edits,
+and no preview write changes committed document pixels. Stable host cache
+identities (8.10) are next.
 
 ## 1. Foundation
 
@@ -401,7 +406,7 @@ transport (8.9) is next.
 - [x] 8.6 Format negotiation and the host-owned conversion decision
 - [x] 8.7 Releasable, budgeted snapshot tokens pin resource versions between query and readback
 - [x] 8.8 Delta query cost independent of document tile count
-- [ ] 8.9 Preview transport through the same mechanism
+- [x] 8.9 Preview transport through the same mechanism
 - [ ] 8.10 Stable identities for host-cached resources
 - [ ] 8.11 `host-transport` scenarios as tests
 

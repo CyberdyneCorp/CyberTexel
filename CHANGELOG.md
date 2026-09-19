@@ -48,6 +48,9 @@ Foundation implementation is in progress.
 - A latest-tile revision index that makes unchanged delta queries constant-time
   and changed queries independent of the document's total tile count while
   preserving coalesced row-major results.
+- Isolated in-flight preview resources transported through the same revision
+  delta, budgeted snapshot, negotiated layout, and asynchronous tile-readback
+  contracts as committed channels.
 - Linear Rec. 709 working-space and sRGB transfer functions with unclamped HDR
   conversion.
 - Native and sanitizer test presets plus a registry-driven determinism gate that

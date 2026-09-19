@@ -126,6 +126,7 @@ ctex_add_module(
         src/xport/xport.cpp
         src/xport/delta.cpp
         src/xport/format.cpp
+        src/xport/preview.cpp
         src/xport/readback.cpp
         src/xport/snapshot.cpp
 )
@@ -265,6 +266,14 @@ if(BUILD_TESTING)
         PRIVATE ctex_xport ctex_doc ctex_mesh ctex_graph ctex_image
     )
     add_test(NAME host-transport-snapshot COMMAND ctex_host_transport_snapshot_test)
+
+    add_executable(ctex_host_transport_preview_test tests/xport/preview_test.cpp)
+    ctex_configure_cpp_target(ctex_host_transport_preview_test)
+    target_link_libraries(
+        ctex_host_transport_preview_test
+        PRIVATE ctex_xport ctex_doc ctex_mesh ctex_graph ctex_image
+    )
+    add_test(NAME host-transport-preview COMMAND ctex_host_transport_preview_test)
 
     add_executable(ctex_document_test tests/doc/document_test.cpp)
     ctex_configure_cpp_target(ctex_document_test)

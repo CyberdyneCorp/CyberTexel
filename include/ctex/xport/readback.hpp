@@ -44,6 +44,11 @@ struct TileMemoryLayout {
                                                   std::string_view semantic_id,
                                                   image::TileCoordinate coordinate,
                                                   const ReadbackFormatSelection& format);
+[[nodiscard]] TileMemoryLayout tile_memory_layout(const PreviewResource& preview,
+                                                  image::TileCoordinate coordinate);
+[[nodiscard]] TileMemoryLayout tile_memory_layout(const PreviewResource& preview,
+                                                  image::TileCoordinate coordinate,
+                                                  const ReadbackFormatSelection& format);
 
 struct TileReadbackDestination {
     TileVersion version;

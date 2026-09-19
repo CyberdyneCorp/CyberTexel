@@ -179,13 +179,9 @@ SnapshotPool::SnapshotPool(std::size_t budget_bytes)
 
 SnapshotMemoryReport SnapshotPool::memory_report() const noexcept { return state_->report(); }
 
-SnapshotQueryResult query_channel_delta(SnapshotPool& pool, const doc::TextureChannels& channels,
-                                        std::string_view semantic_id,
-                                        doc::ChannelRevisionCursor synchronized_cursor) {
-    ChannelDelta delta = query_channel_delta_metadata(channels, semantic_id, synchronized_cursor);
-    const image::TiledImage& image = channels.pixels(semantic_id);
+SnapshotQueryResult SnapshotPool::capture(const image::TiledImage& image, ChannelDelta delta) {
     auto impl = std::make_unique<SnapshotToken::Impl>();
-    impl->pool = pool.state_;
+    impl->pool = state_;
     impl->cursor = delta.current_cursor;
     impl->format = image.format();
     impl->tile_size = image.tile_size();
@@ -214,8 +210,8 @@ SnapshotQueryResult query_channel_delta(SnapshotPool& pool, const doc::TextureCh
     }
 
     std::size_t additional_bytes = 0;
-    if (!pool.state_->acquire(impl->storage, additional_bytes)) {
-        const SnapshotMemoryReport report = pool.memory_report();
+    if (!state_->acquire(impl->storage, additional_bytes)) {
+        const SnapshotMemoryReport report = memory_report();
         return {
             .status = SnapshotQueryStatus::over_budget,
             .synchronized = std::nullopt,
@@ -233,6 +229,20 @@ SnapshotQueryResult query_channel_delta(SnapshotPool& pool, const doc::TextureCh
         .additional_pinned_bytes = additional_bytes,
         .detail = {},
     };
+}
+
+SnapshotQueryResult query_channel_delta(SnapshotPool& pool, const doc::TextureChannels& channels,
+                                        std::string_view semantic_id,
+                                        doc::ChannelRevisionCursor synchronized_cursor) {
+    const image::TiledImage& image = channels.pixels(semantic_id);
+    return pool.capture(image,
+                        query_channel_delta_metadata(channels, semantic_id, synchronized_cursor));
+}
+
+SnapshotQueryResult query_channel_delta(SnapshotPool& pool, const PreviewResource& preview,
+                                        doc::ChannelRevisionCursor synchronized_cursor) {
+    return pool.capture(preview.pixels(),
+                        query_channel_delta_metadata(preview, synchronized_cursor));
 }
 
 }  // namespace ctex::xport

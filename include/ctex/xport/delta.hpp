@@ -3,6 +3,7 @@
 
 #include <cstdint>
 #include <ctex/doc/channels.hpp>
+#include <ctex/xport/preview.hpp>
 #include <stdexcept>
 #include <string_view>
 #include <vector>
@@ -36,6 +37,8 @@ public:
 [[nodiscard]] ChannelDelta query_channel_delta_metadata(
     const doc::TextureChannels& channels, std::string_view semantic_id,
     doc::ChannelRevisionCursor synchronized_cursor);
+[[nodiscard]] ChannelDelta query_channel_delta_metadata(
+    const PreviewResource& preview, doc::ChannelRevisionCursor synchronized_cursor);
 
 }  // namespace ctex::xport
 

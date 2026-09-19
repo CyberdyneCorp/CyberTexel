@@ -2,11 +2,10 @@
 #include <string>
 
 namespace ctex::xport {
+namespace {
 
-ChannelDelta query_channel_delta_metadata(const doc::TextureChannels& channels,
-                                          std::string_view semantic_id,
-                                          doc::ChannelRevisionCursor synchronized_cursor) {
-    const image::TiledImage& image = channels.pixels(semantic_id);
+ChannelDelta query_image_delta(const image::TiledImage& image,
+                               doc::ChannelRevisionCursor synchronized_cursor) {
     const doc::ChannelRevisionCursor current_cursor = image.revision_cursor();
     if (synchronized_cursor.epoch != current_cursor.epoch) {
         return {
@@ -46,6 +45,19 @@ ChannelDelta query_channel_delta_metadata(const doc::TextureChannels& channels,
         });
     }
     return result;
+}
+
+}  // namespace
+
+ChannelDelta query_channel_delta_metadata(const doc::TextureChannels& channels,
+                                          std::string_view semantic_id,
+                                          doc::ChannelRevisionCursor synchronized_cursor) {
+    return query_image_delta(channels.pixels(semantic_id), synchronized_cursor);
+}
+
+ChannelDelta query_channel_delta_metadata(const PreviewResource& preview,
+                                          doc::ChannelRevisionCursor synchronized_cursor) {
+    return query_image_delta(preview.pixels(), synchronized_cursor);
 }
 
 }  // namespace ctex::xport

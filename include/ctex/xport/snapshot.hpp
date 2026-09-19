@@ -56,6 +56,8 @@ private:
     friend class SnapshotPool;
     friend SnapshotQueryResult query_channel_delta(SnapshotPool&, const doc::TextureChannels&,
                                                    std::string_view, doc::ChannelRevisionCursor);
+    friend SnapshotQueryResult query_channel_delta(SnapshotPool&, const PreviewResource&,
+                                                   doc::ChannelRevisionCursor);
 };
 
 class SnapshotPool {
@@ -70,11 +72,14 @@ public:
 
 private:
     struct State;
+    [[nodiscard]] SnapshotQueryResult capture(const image::TiledImage& image, ChannelDelta delta);
     std::shared_ptr<State> state_;
 
     friend struct SnapshotToken::Impl;
     friend SnapshotQueryResult query_channel_delta(SnapshotPool&, const doc::TextureChannels&,
                                                    std::string_view, doc::ChannelRevisionCursor);
+    friend SnapshotQueryResult query_channel_delta(SnapshotPool&, const PreviewResource&,
+                                                   doc::ChannelRevisionCursor);
 };
 
 struct SnapshotDelta {
@@ -97,6 +102,9 @@ struct SnapshotQueryResult {
 
 [[nodiscard]] SnapshotQueryResult query_channel_delta(
     SnapshotPool& pool, const doc::TextureChannels& channels, std::string_view semantic_id,
+    doc::ChannelRevisionCursor synchronized_cursor);
+[[nodiscard]] SnapshotQueryResult query_channel_delta(
+    SnapshotPool& pool, const PreviewResource& preview,
     doc::ChannelRevisionCursor synchronized_cursor);
 
 }  // namespace ctex::xport

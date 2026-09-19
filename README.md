@@ -43,7 +43,9 @@ The current implementation provides:
   layout, host-controlled format negotiation, and budgeted copy-on-write
   snapshot tokens for consistent query-to-readback synchronization. Delta
   queries use a change-proportional revision index rather than scanning the
-  document tile grid.
+  document tile grid. Isolated in-flight preview resources use these same
+  delta, snapshot, layout, format, and asynchronous readback contracts without
+  modifying committed document pixels.
 - Linear Rec. 709 and sRGB colour transforms, semantic input policies,
   preview-only 3D LUTs, ordered dithering, and promoted-precision operations.
 - Memory-buffer PNG decoding and encoding with 8/16-bit preservation,

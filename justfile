@@ -93,6 +93,9 @@ test-host-transport-format: build
 test-host-transport-snapshot: build
     ctest --test-dir build/headless --output-on-failure -R '^host-transport-snapshot$'
 
+test-host-transport-preview: build
+    ctest --test-dir build/headless --output-on-failure -R '^host-transport-preview$'
+
 test-mesh: build
     ctest --test-dir build/headless --output-on-failure -R '^mesh-ingest$'
 

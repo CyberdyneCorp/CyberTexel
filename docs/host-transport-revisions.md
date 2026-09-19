@@ -141,3 +141,25 @@ unchanged. Releasing the last reference to an old version immediately returns
 its CPU allocation to the available snapshot budget; host-device completion
 will provide the corresponding reclamation fence when host-resident delta
 versions are integrated.
+
+## In-flight preview resources
+
+`PreviewResource` owns the uncommitted pixels for one channel semantic. It is
+separate from `TextureChannels`: writing or destroying a preview cannot change
+the committed channel's pixels or revision. This resource is the transport
+boundary for an operation that is still in progress; producing that preview
+from a stroke belongs to the paint engine.
+
+The preview overloads of `query_channel_delta_metadata`, the canonical
+`query_channel_delta`, and `tile_memory_layout` return the same `ChannelDelta`,
+`SnapshotToken`, `TileVersion`, and `TileMemoryLayout` records used for committed
+channels. Pixel transfer then uses the existing snapshot-based
+`TileReadback::begin_cpu` call, including the same host-selected format
+conversion. There is no preview-only readback state machine or payload format.
+
+Preview edits use the same revision index and copy-on-write snapshot storage.
+An unchanged query remains constant-time and consumes no snapshot bytes. If the
+preview changes after a query, readback from its token still returns the queried
+version, while the next delta reports the later edit. Ending the operation
+destroys the preview resource without publishing it into the document; commit
+semantics are defined by the later painting milestone.
