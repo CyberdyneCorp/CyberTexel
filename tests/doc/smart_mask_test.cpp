@@ -89,7 +89,8 @@ SmartMaskPreset mask_preset() {
                                            .target_kind = SmartMaterialBindingTargetKind::property,
                                            .target_identifier = "strength"}}}},
                        .anchor_entries = {},
-                       .anchor_references = {}},
+                       .anchor_references = {},
+                       .resource_references = {}},
     };
 }
 

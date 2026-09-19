@@ -35,3 +35,23 @@ as a library. Referenced dependencies are packed from their resolved bytes so
 their meaning does not change when the library moves. Equal existing resources
 or tiled images are reused; conflicting or duplicate identities and missing
 dependencies refuse the whole install without partially changing the library.
+
+## Smart-material packages
+
+`package_smart_material` creates the standalone manifest directly from a
+validated `SmartMaterialPreset`. Its declared resource identities and kinds are
+the package dependencies, and the canonical schema version and payload must
+match the manifest. Callers supply `ProjectResource` entries that map those
+stable identities to portable relative shelf paths or already packed bytes.
+Missing, ambiguous, wrong-kind, absolute, or escaping resources are refused.
+
+Referenced imports accept an ordered list of search roots. The first root that
+contains a resource's relative shelf path supplies it, so moving a shelf does
+not change the material. `import_smart_material` returns the unchanged preset,
+the normal missing-identifier report, and one status for every graph image
+input. Missing inputs retain their resource identifier and are marked
+`missing`; no neutral content is substituted.
+
+Self-contained export uses the same `self_contained` option as other standalone
+assets and embeds every declared resource. Such a package imports with an empty
+search-path list and reports every image input as `packed`.

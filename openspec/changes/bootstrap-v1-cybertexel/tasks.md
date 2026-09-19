@@ -817,7 +817,7 @@ are next.
 - [x] 13.3 Exposed parameter binding across many entries
 - [x] 13.4 Smart masks with independent instances
 - [x] 13.5 Anchor points, ordering rule, cycle refusal, dependency-ordered evaluation
-- [ ] 13.6 Portable resource resolution and self-contained packaging
+- [x] 13.6 Portable resource resolution and self-contained packaging
 - [ ] 13.7 Shelf and library enumeration with metadata and thumbnails
 - [ ] 13.8 Versioned presets and their refusals
 - [ ] 13.9 One-step application and origin recording

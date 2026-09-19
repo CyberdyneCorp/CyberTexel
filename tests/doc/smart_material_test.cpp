@@ -194,6 +194,7 @@ SmartMaterialPreset rich_preset() {
                                .consumer_entry_identifier = "top-coat",
                                .consumer_node_id = 1,
                                .consumer_input_identifier = "anchor"}},
+        .resource_references = {},
     };
 }
 
@@ -381,7 +382,7 @@ bool invalid_fragments_are_refused() {
 bool malformed_and_future_serializations_are_refused() {
     const std::string valid = serialize_smart_material(rich_preset());
     std::string future = valid;
-    future.replace(0, std::string_view("CTEX_SMART_MATERIAL\t4").size(), "CTEX_SMART_MATERIAL\t5");
+    future.replace(0, std::string_view("CTEX_SMART_MATERIAL\t5").size(), "CTEX_SMART_MATERIAL\t6");
     const bool future_refused = expect_error(
         [&] { static_cast<void>(deserialize_smart_material(future)); },
         SmartMaterialErrorCode::unsupported_version, "future smart material version was accepted");
@@ -440,7 +441,8 @@ SmartMaterialPreset twenty_layer_anchor_fixture() {
                                .stack = {},
                                .exposed_parameters = {},
                                .anchor_entries = {"layer-0", "layer-3"},
-                               .anchor_references = {}};
+                               .anchor_references = {},
+                               .resource_references = {}};
     for (std::size_t index = 0; index < 20; ++index) {
         preset.stack.push_back({.identifier = "layer-" + std::to_string(index),
                                 .parent_identifier = {},

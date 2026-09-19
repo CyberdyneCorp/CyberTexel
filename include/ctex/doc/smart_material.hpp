@@ -14,7 +14,7 @@
 
 namespace ctex::doc {
 
-inline constexpr std::uint32_t current_smart_material_schema_version = 4;
+inline constexpr std::uint32_t current_smart_material_schema_version = 5;
 
 enum class SmartMaterialEntryKind : std::uint8_t { layer, group, mask, filter, generator };
 enum class SmartMaterialContentKind : std::uint8_t { derived, model_specific };
@@ -76,6 +76,13 @@ struct SmartMaterialAnchorReference {
                            const SmartMaterialAnchorReference&) = default;
 };
 
+struct SmartMaterialResourceReference {
+    std::string identifier;
+    std::string kind;
+    friend bool operator==(const SmartMaterialResourceReference&,
+                           const SmartMaterialResourceReference&) = default;
+};
+
 struct SmartMaterialPreset {
     std::uint32_t schema_version{current_smart_material_schema_version};
     std::string identifier;
@@ -84,6 +91,7 @@ struct SmartMaterialPreset {
     std::vector<ExposedSmartMaterialParameter> exposed_parameters;
     std::vector<std::string> anchor_entries;
     std::vector<SmartMaterialAnchorReference> anchor_references;
+    std::vector<SmartMaterialResourceReference> resource_references;
     friend bool operator==(const SmartMaterialPreset&, const SmartMaterialPreset&) = default;
 };
 
@@ -122,6 +130,18 @@ struct SmartMaterialAnchorEvaluationPlan {
                            const SmartMaterialAnchorEvaluationPlan&) = default;
 };
 
+enum class SmartMaterialResourceLocation : std::uint8_t { input, output, property };
+
+struct SmartMaterialImageResourceUse {
+    std::string entry_identifier;
+    graph::NodeId node_id{};
+    SmartMaterialResourceLocation location{SmartMaterialResourceLocation::input};
+    std::string target_identifier;
+    std::string resource_identifier;
+    friend bool operator==(const SmartMaterialImageResourceUse&,
+                           const SmartMaterialImageResourceUse&) = default;
+};
+
 enum class SmartMaterialErrorCode : std::uint8_t {
     invalid_preset,
     invalid_parameter_value,
@@ -131,6 +151,7 @@ enum class SmartMaterialErrorCode : std::uint8_t {
     invalid_anchor_reference,
     anchor_ordering_violation,
     anchor_cycle,
+    invalid_resource_reference,
 };
 
 class SmartMaterialError final : public std::invalid_argument {
@@ -156,6 +177,9 @@ void add_smart_material_anchor_reference(SmartMaterialPreset& preset,
 
 // Public so validation can be composed by smart-material containers.
 void validate_smart_material_anchors(const SmartMaterialPreset& preset);
+void validate_smart_material_resources(const SmartMaterialPreset& preset);
+[[nodiscard]] std::vector<SmartMaterialImageResourceUse> list_smart_material_image_resource_uses(
+    const SmartMaterialPreset& preset);
 
 // Canonical, versioned, device-independent representation. Stack order is
 // retained because it is part of the material's compositing semantics.

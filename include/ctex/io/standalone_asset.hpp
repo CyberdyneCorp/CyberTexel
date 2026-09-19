@@ -40,6 +40,9 @@ struct StandaloneAssetImportResult {
 [[nodiscard]] StandaloneAssetImportResult import_standalone_asset(
     std::span<const std::byte> bytes, const std::filesystem::path& package_directory,
     ProjectContainerReadLimits limits = {});
+[[nodiscard]] StandaloneAssetImportResult import_standalone_asset(
+    std::span<const std::byte> bytes, std::span<const std::filesystem::path> resource_search_paths,
+    ProjectContainerReadLimits limits = {});
 
 struct StandaloneAssetInstallReport {
     std::string asset_identifier;

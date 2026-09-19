@@ -159,6 +159,9 @@ void save_project_container_atomic(const std::filesystem::path& path,
 [[nodiscard]] image::TiledImage restore_tiled_image(const StoredTiledImage& stored);
 [[nodiscard]] ProjectResourceResolution resolve_project_resources(
     const ProjectContainer& container, const std::filesystem::path& project_directory);
+[[nodiscard]] ProjectResourceResolution resolve_project_resources(
+    const ProjectContainer& container,
+    std::span<const std::filesystem::path> resource_search_paths);
 
 }  // namespace ctex::io
 

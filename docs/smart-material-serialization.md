@@ -85,9 +85,23 @@ only affected consumers, in stack order. Because valid dependencies always
 point upward, this is also dependency order. Unrelated layers are excluded, so
 an anchor edit does not force whole-material evaluation.
 
+## Portable resources
+
+`resource_references` declares every external image, font, or other resource by
+a stable identifier and kind. Identifiers are portable names, not filesystem
+locations: absolute paths, drive-qualified names, empty components, and `.` or
+`..` traversal are refused. Every non-empty image value in an embedded graph or
+image parameter default must name a declared resource of kind `image`.
+
+The IO-layer [smart-material package API](standalone-assets.md#smart-material-packages)
+maps those identities to relative shelf paths. Resolution checks ordered search
+roots without changing the serialized identity. Each image input is reported as
+packed, resolved from a search path, or missing. A missing input retains its
+identifier and is never filled with a neutral substitute.
+
 ## Canonical format
 
-`serialize_smart_material()` writes `CTEX_SMART_MATERIAL` schema 4. Text and
+`serialize_smart_material()` writes `CTEX_SMART_MATERIAL` schema 5. Text and
 embedded graph and pixel bytes are hexadecimal, so tabs, line breaks, arbitrary
 UTF-8 and binary pixels cannot alter record boundaries. Floating-point values
 use their exact IEEE bit patterns. Re-serializing a successfully decoded preset
@@ -96,7 +110,8 @@ therefore returns the same bytes.
 `deserialize_smart_material()` rejects malformed envelopes, records appearing
 out of canonical order, invalid embedded graphs and unsupported schema
 versions. Schema migration and documented defaults for older versions belong
-to task 13.8; schema 4 is the only accepted version at this stage. Schema 1 was
+to task 13.8; schema 5 is the only accepted version at this stage. Schema 1 was
 the definition-only precursor, schema 2 added content classification and pixels,
-and schema 3 added parameter bindings. All are intentionally refused until that
-migration is implemented rather than being partially interpreted.
+schema 3 added parameter bindings, and schema 4 added anchors. All are
+intentionally refused until that migration is implemented rather than being
+partially interpreted.

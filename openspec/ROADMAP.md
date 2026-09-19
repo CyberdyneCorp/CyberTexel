@@ -101,8 +101,11 @@ instantiate on layers or groups with deep-copied graphs, origin metadata and
 independent typed parameter state. Layers and masks can now expose their
 composited output as graph-input anchors. References are persisted canonically,
 must point upward, reject inert targets and cycles with typed diagnostics, and
-produce a dependency-ordered plan containing only affected consumers. Portable
-resource resolution and self-contained packaging (13.6) are next.
+produce a dependency-ordered plan containing only affected consumers. Smart
+material images, fonts and other resources now use validated stable identities,
+ordered shelf search paths and per-input missing status without substitution.
+Canonical manifests can embed every dependency for shelf-independent sharing.
+Shelf and library enumeration with metadata and thumbnails (13.7) is next.
 
 ## Milestones
 

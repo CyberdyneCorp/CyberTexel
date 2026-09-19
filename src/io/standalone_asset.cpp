@@ -1,4 +1,5 @@
 #include <algorithm>
+#include <array>
 #include <ctex/io/standalone_asset.hpp>
 #include <iterator>
 #include <string>
@@ -162,18 +163,25 @@ void save_standalone_asset_atomic(const std::filesystem::path& path, const Proje
                                   package_standalone_asset(source, asset_identifier, options));
 }
 
-StandaloneAssetImportResult import_standalone_asset(std::span<const std::byte> bytes,
-                                                    const std::filesystem::path& package_directory,
-                                                    ProjectContainerReadLimits limits) {
+StandaloneAssetImportResult import_standalone_asset(
+    std::span<const std::byte> bytes, std::span<const std::filesystem::path> resource_search_paths,
+    ProjectContainerReadLimits limits) {
     ProjectContainerReadResult opened = read_project_container(bytes, limits);
     validate_import_dependencies(opened.container);
     ProjectResourceResolution resources =
-        resolve_project_resources(opened.container, package_directory);
+        resolve_project_resources(opened.container, resource_search_paths);
     const bool self_contained = is_self_contained(opened.container);
     return {.package = std::move(opened.container),
             .read_report = std::move(opened.report),
             .resources = std::move(resources),
             .self_contained = self_contained};
+}
+
+StandaloneAssetImportResult import_standalone_asset(std::span<const std::byte> bytes,
+                                                    const std::filesystem::path& package_directory,
+                                                    ProjectContainerReadLimits limits) {
+    const std::array search_paths{package_directory};
+    return import_standalone_asset(bytes, search_paths, limits);
 }
 
 StandaloneAssetInstallReport install_standalone_asset(ProjectContainer& library,

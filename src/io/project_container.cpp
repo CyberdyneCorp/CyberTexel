@@ -1158,7 +1158,8 @@ image::TiledImage restore_tiled_image(const StoredTiledImage& stored) {
 }
 
 ProjectResourceResolution resolve_project_resources(
-    const ProjectContainer& container, const std::filesystem::path& project_directory) {
+    const ProjectContainer& container,
+    std::span<const std::filesystem::path> resource_search_paths) {
     ProjectResourceResolution resolution;
     resolution.resources.reserve(container.resources.size());
     for (const ProjectResource& resource : container.resources) {
@@ -1172,19 +1173,21 @@ ProjectResourceResolution resolve_project_resources(
             resolved.status = ProjectResourceStatus::packed;
             resolved.bytes = *resource.packed_bytes;
         } else {
-            const std::filesystem::path path = project_directory / resource.relative_path;
-            std::ifstream stream(path, std::ios::binary | std::ios::ate);
-            const std::streampos end = stream.tellg();
-            if (stream && end >= 0 &&
-                static_cast<std::uintmax_t>(end) <=
-                    static_cast<std::uintmax_t>(std::numeric_limits<std::streamsize>::max())) {
-                resolved.bytes.resize(static_cast<std::size_t>(end));
-                stream.seekg(0);
-                stream.read(reinterpret_cast<char*>(resolved.bytes.data()),
-                            static_cast<std::streamsize>(resolved.bytes.size()));
-                if (stream) {
-                    resolved.status = ProjectResourceStatus::referenced;
-                } else {
+            for (const std::filesystem::path& search_path : resource_search_paths) {
+                const std::filesystem::path path = search_path / resource.relative_path;
+                std::ifstream stream(path, std::ios::binary | std::ios::ate);
+                const std::streampos end = stream.tellg();
+                if (stream && end >= 0 &&
+                    static_cast<std::uintmax_t>(end) <=
+                        static_cast<std::uintmax_t>(std::numeric_limits<std::streamsize>::max())) {
+                    resolved.bytes.resize(static_cast<std::size_t>(end));
+                    stream.seekg(0);
+                    stream.read(reinterpret_cast<char*>(resolved.bytes.data()),
+                                static_cast<std::streamsize>(resolved.bytes.size()));
+                    if (stream) {
+                        resolved.status = ProjectResourceStatus::referenced;
+                        break;
+                    }
                     resolved.bytes.clear();
                 }
             }
@@ -1195,6 +1198,12 @@ ProjectResourceResolution resolve_project_resources(
         resolution.resources.push_back(std::move(resolved));
     }
     return resolution;
+}
+
+ProjectResourceResolution resolve_project_resources(
+    const ProjectContainer& container, const std::filesystem::path& project_directory) {
+    const std::array search_paths{project_directory};
+    return resolve_project_resources(container, search_paths);
 }
 
 }  // namespace ctex::io

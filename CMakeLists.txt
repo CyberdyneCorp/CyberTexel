@@ -137,6 +137,7 @@ ctex_add_module(
         src/doc/smart_mask.cpp
         src/doc/smart_material.cpp
         src/doc/smart_material_anchors.cpp
+        src/doc/smart_material_resources.cpp
 )
 ctex_add_module(
     paint
@@ -202,6 +203,7 @@ ctex_add_module(
         src/io/project_container.cpp
         src/io/project_autosave.cpp
         src/io/standalone_asset.cpp
+        src/io/smart_material_package.cpp
 )
 target_include_directories(ctex_io SYSTEM PRIVATE "${stb_SOURCE_DIR}")
 target_link_libraries(ctex_io PRIVATE ctex_lodepng Threads::Threads)
@@ -329,6 +331,10 @@ if(BUILD_TESTING)
     ctex_configure_cpp_target(ctex_standalone_asset_test)
     target_link_libraries(ctex_standalone_asset_test PRIVATE cybertexel)
     add_test(NAME standalone-asset COMMAND ctex_standalone_asset_test)
+    add_executable(ctex_smart_material_package_test tests/io/smart_material_package_test.cpp)
+    ctex_configure_cpp_target(ctex_smart_material_package_test)
+    target_link_libraries(ctex_smart_material_package_test PRIVATE cybertexel)
+    add_test(NAME smart-material-resources COMMAND ctex_smart_material_package_test)
     add_executable(ctex_export_preset_test tests/io/export_preset_test.cpp)
     ctex_configure_cpp_target(ctex_export_preset_test)
     target_link_libraries(ctex_export_preset_test PRIVATE cybertexel)
