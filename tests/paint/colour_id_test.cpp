@@ -41,6 +41,20 @@ bool zero_tolerance_reports_filtered_map_as_empty() {
                   "zero tolerance silently widened instead of reporting an empty selection");
 }
 
+bool maximum_tolerance_covers_the_normalized_rgb_domain() {
+    const std::array pixels{ColourValue{1.0F, 1.0F, 1.0F, 1.0F}};
+    const ColourIdSelection result =
+        select_colour_id({.width = 1, .height = 1, .pixels = pixels},
+                         ColourValue{0.0F, 0.0F, 0.0F, 1.0F}, maximum_colour_id_tolerance + 1.0);
+    return expect(result.status == ColourIdSelectionStatus::matched &&
+                      result.tolerance == maximum_colour_id_tolerance &&
+                      result.parameter_report.clamp_for("colour_id.tolerance") ==
+                          ToolParameterClamp{.name = "colour_id.tolerance",
+                                             .supplied = maximum_colour_id_tolerance + 1.0,
+                                             .resolved = maximum_colour_id_tolerance},
+                  "maximum colour-ID tolerance did not cover and report the RGB domain");
+}
+
 RejectedCoverageRaster rejected() {
     return {.coverage = {.width = 3, .height = 1, .values = {1.0, 1.0, 1.0}},
             .stamp_events = {{.stamp_ordinal = 0, .values = {1.0, 1.0, 1.0}}},
@@ -78,10 +92,12 @@ bool invalid_inputs_are_refused() {
     } catch (const std::invalid_argument&) {
         size_refused = true;
     }
+    const ColourIdSelection clamped =
+        select_colour_id({.width = 1, .height = 1, .pixels = pixels}, pixels[0], -0.1);
     bool tolerance_refused = false;
     try {
-        static_cast<void>(
-            select_colour_id({.width = 1, .height = 1, .pixels = pixels}, pixels[0], -0.1));
+        static_cast<void>(select_colour_id({.width = 1, .height = 1, .pixels = pixels}, pixels[0],
+                                           std::numeric_limits<double>::infinity()));
     } catch (const std::invalid_argument&) {
         tolerance_refused = true;
     }
@@ -94,8 +110,21 @@ bool invalid_inputs_are_refused() {
     } catch (const std::invalid_argument&) {
         pixels_refused = true;
     }
-    return expect(size_refused && tolerance_refused && pixels_refused,
-                  "invalid colour-ID map or tolerance was not refused");
+    const std::array out_of_domain_pixels{ColourValue{1.1F, 0.0F, 0.0F, 1.0F}};
+    bool domain_refused = false;
+    try {
+        static_cast<void>(select_colour_id(
+            {.width = 1, .height = 1, .pixels = out_of_domain_pixels}, pixels[0], 0.0));
+    } catch (const std::invalid_argument&) {
+        domain_refused = true;
+    }
+    return expect(clamped.tolerance == 0.0 &&
+                      clamped.parameter_report.clamp_for("colour_id.tolerance") ==
+                          ToolParameterClamp{
+                              .name = "colour_id.tolerance", .supplied = -0.1, .resolved = 0.0},
+                  "colour-ID tolerance was not bounded and reported") &&
+           expect(size_refused && tolerance_refused && pixels_refused && domain_refused,
+                  "invalid colour-ID map or non-finite tolerance was not refused");
 }
 
 }  // namespace
@@ -103,6 +132,7 @@ bool invalid_inputs_are_refused() {
 int main() {
     return tolerance_selects_only_matching_ids() &&
                    zero_tolerance_reports_filtered_map_as_empty() &&
+                   maximum_tolerance_covers_the_normalized_rgb_domain() &&
                    result_serves_every_selection_role() && invalid_inputs_are_refused()
                ? 0
                : 1;

@@ -50,6 +50,7 @@ The currently routed paint-tool parameters are:
 | `smear.footprint.radius_x` | 1 | 0 | 4,096 | texels |
 | `smear.footprint.radius_y` | 1 | 0 | 4,096 | texels |
 | `paint.connected.maximum_angle_degrees` | 45 | 0 | 180 | degrees |
+| `colour_id.tolerance` | 0 | 0 | √3 | normalized linear-RGB distance |
 
 `StrokeResolver::settings()` exposes the resolved settings and
 `parameter_report()` exposes their clamps. Brush and Eraser consume the

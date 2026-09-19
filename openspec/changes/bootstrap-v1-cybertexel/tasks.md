@@ -484,8 +484,9 @@ against their selected unit, including zeroing disabled spans, while fractional
 stamp counts remain invalid. Blur radius, smear strength and smear footprint
 axes expose bounded resolved values and clamp reports through their tool
 results. Fill and polygon selection share a bounded connected-surface angle and
-propagate its clamp report. Remaining tool families and the complete
-behavioural no-inert audit still keep 10.12 open.
+propagate its clamp report. Colour-ID tolerance is bounded to the complete
+normalized linear-RGB distance and reports its resolved value. Remaining tool
+families and the complete behavioural no-inert audit still keep 10.12 open.
 
 ## 1. Foundation
 

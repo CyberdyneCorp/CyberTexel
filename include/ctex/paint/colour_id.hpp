@@ -10,6 +10,10 @@
 
 namespace ctex::paint {
 
+inline constexpr double maximum_colour_id_tolerance = 1.73205080756887729353;
+inline constexpr ToolParameterDescriptor colour_id_tolerance_parameter{
+    "colour_id.tolerance", 0.0, 0.0, maximum_colour_id_tolerance};
+
 struct ColourIdMapView {
     std::uint32_t width{};
     std::uint32_t height{};
@@ -23,6 +27,7 @@ struct ColourIdSelection {
     std::uint32_t height{};
     graph::ColourValue picked_colour{};
     double tolerance{};
+    ToolParameterReport parameter_report;
     std::vector<double> values;
     std::size_t selected_texel_count{};
     ColourIdSelectionStatus status{ColourIdSelectionStatus::empty};
