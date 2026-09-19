@@ -512,6 +512,16 @@ texture-set resolution. A bind returns the single resolution-mismatch report,
 and continuous maps remain readable through normalized bilinear sampling while
 material and object identifiers use nearest sampling. Rebinding a kind replaces
 its authoritative pixels explicitly.
+The optional bake-provider seam (11.2) is a synchronous C-style callback table
+with an opaque context, complete capability query and request callback. Requests
+carry texture-set and UV identities plus the requested resolution, while a
+wrapped control forwards monotonic progress and cancellation without allowing a
+provider to publish terminal progress before its output validates. Successful
+borrowed image views are bounds-checked, copied and bound transactionally;
+cancellation, provider failure, malformed output and invalid callback status
+publish nothing. Unsupported requests name the requested map and the provider's
+complete advertised set without invoking its request callback. Revisioned
+asynchronous publication remains scheduled in 11.13.
 
 ## 1. Foundation
 
@@ -667,7 +677,7 @@ its authoritative pixels explicitly.
 ## 11. Mesh maps
 
 - [x] 11.1 Map set definition, per-set binding, resolution mismatch reporting
-- [ ] 11.2 Bake provider interface: capability query, request, progress, cancellation
+- [x] 11.2 Bake provider interface: capability query, request, progress, cancellation
 - [ ] 11.3 Missing-map reporting with no neutral substitution
 - [ ] 11.4 Staleness tracking against the mesh revision
 - [ ] 11.5 External map import with declared channel meaning and colour space

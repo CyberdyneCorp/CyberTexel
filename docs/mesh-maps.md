@@ -23,3 +23,22 @@ inclusive normalized boundary. Material-ID and object-ID maps use nearest
 sampling so filtering cannot create identities that were never stored. Missing
 maps and malformed bindings are refused by name instead of returning neutral
 values.
+
+## Bake-provider seam
+
+`BakeProvider` is an optional synchronous callback table with an opaque context,
+a capability query and a request callback. Requests name the map, texture-set
+identity, UV layout and requested resolution. The provider returns a borrowed
+strided pixel-buffer view; CyberTexel validates and copies it before the
+callback returns, then binds it transactionally. Provider memory never becomes
+document-owned memory by accident.
+
+`BakeControl` carries C-style progress and cancellation callbacks. CyberTexel
+reports initial zero progress, forwards valid monotonic provider progress below
+one, and reports one only after validated output is bound. Existing or observed
+cancellation publishes no map. Unsupported requests do not invoke the request
+callback and return a diagnostic naming both the requested map and the complete
+advertised set. Provider failure, invalid progress and malformed output likewise
+leave existing bindings unchanged. The callback arguments and returned image
+view are valid only for the synchronous call; revisioned asynchronous requests
+are reserved for roadmap task 11.13.
