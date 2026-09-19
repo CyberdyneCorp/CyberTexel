@@ -125,6 +125,9 @@ test-graph-host-nodes: build
 test-kong-context: build
     ctest --test-dir build/headless --output-on-failure -R '^kong-context$'
 
+test-graph-emission: build
+    ctest --test-dir build/headless --output-on-failure -R '^graph-emission$'
+
 examples:
     @just _unimplemented examples 16.2
 

@@ -68,6 +68,8 @@ jobs:
       run: just test-graph-host-nodes
     - name: Kong context isolation
       run: just test-kong-context
+    - name: Graph emission
+      run: just test-graph-emission
     - name: Test suite
       run: just test
 

@@ -261,8 +261,13 @@ if(BUILD_TESTING)
 
     add_executable(ctex_kong_context_test tests/emit/kong_context_test.cpp)
     ctex_configure_cpp_target(ctex_kong_context_test)
-    target_link_libraries(ctex_kong_context_test PRIVATE ctex_emit)
+    target_link_libraries(ctex_kong_context_test PRIVATE ctex_emit ctex_graph)
     add_test(NAME kong-context COMMAND ctex_kong_context_test)
+
+    add_executable(ctex_graph_emission_test tests/emit/graph_emission_test.cpp)
+    ctex_configure_cpp_target(ctex_graph_emission_test)
+    target_link_libraries(ctex_graph_emission_test PRIVATE ctex_emit ctex_graph)
+    add_test(NAME graph-emission COMMAND ctex_graph_emission_test)
 
     add_executable(ctex_material_graph_output_test tests/doc/material_graph_test.cpp)
     ctex_configure_cpp_target(ctex_material_graph_output_test)

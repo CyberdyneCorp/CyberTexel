@@ -166,8 +166,11 @@ opaquely without callback execution. Task 6.8 vendors and attributes ArmorPaint'
 Kongruent-derived minikong compiler, with the active common and WGSL state owned
 by isolated contexts. Independent contexts compile concurrently, while wrapper
 reuse starts with clean state and remains deterministic. Other retained backend
-sources stay unlinked until their context adapters arrive in 6.11. Graph-to-Kong
-emission and result naming (6.9) are next.
+sources stay unlinked until their context adapters arrive in 6.11. Task 6.9 adds
+reachability-driven WGSL expression emission with stable node/socket names,
+complete nested-group qualification, code-generation coercions, attribution,
+single-emission fan-out, and a byte-comparison determinism fixture. Pass-plan
+resource generations, access and synchronization declarations (6.10) are next.
 
 ## 1. Foundation
 
@@ -249,7 +252,7 @@ emission and result naming (6.9) are next.
 - [x] 6.6 Graph validation independent of emission
 - [x] 6.7 Host-registered node types with CPU and emission semantics, replay eligibility and parity fixtures; opaque preservation of unknown types
 - [x] 6.8 Vendor Kong under `thirdparty/`, wrap its global state in a context object, attribute it
-- [ ] 6.9 Emission: result naming, group qualification, single-emission fan-out
+- [x] 6.9 Emission: result naming, group qualification, single-emission fan-out
 - [ ] 6.10 Pass plan: logical resource generations, subresource access, dependencies, lifetimes, bindings, layouts, draw/dispatch and state
 - [ ] 6.11 Target languages WGSL, MSL, SPIR-V, HLSL; unsupported-target refusal
 - [ ] 6.12 Feature-gated emission and layer-stack pass splitting at the binding budget

@@ -82,6 +82,8 @@ Foundation implementation is in progress.
   registry-aware validation, and lossless preservation of unknown node types.
 - Vendored Kongruent minikong with context-owned compiler and WGSL backend state,
   deterministic wrapper reuse, and concurrent independent compilation.
+- Reachability-driven WGSL expression emission with deterministic node and group
+  names, emission-time coercion, attribution comments, and fan-out memoization.
 - README architecture diagram and a current, implementation-scoped feature list.
 
 ### Changed

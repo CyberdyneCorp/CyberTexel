@@ -4,7 +4,13 @@
         {
             "name": "shader-emission",
             "task": "6.9",
-            "cases": []
+            "cases": [
+                {
+                    "name": "qualified material graph",
+                    "command": ["build/headless/ctex_graph_emission_test"],
+                    "outputs": ["shader-emission.wgsl-body"]
+                }
+            ]
         },
         {
             "name": "project-save",

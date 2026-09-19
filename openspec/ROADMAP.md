@@ -7,7 +7,7 @@ decisions taken and questions still open.
 ## Status
 
 Implementation started. 24 capabilities, 332 requirements, 400 scenarios and
-222 tasks, 33 done. Foundation and the complete headless color-management
+222 tasks, 34 done. Foundation and the complete headless color-management
 scenario suite are green. Slice-A now has memory-buffer PNG input/output with
 8/16-bit preservation and hostile-input ceilings; full image-format breadth
 remains scheduled for slice D. Extensible channel descriptors and sparse
@@ -65,6 +65,10 @@ ArmorPaint's Kongruent-derived minikong compiler is now pinned and attributed.
 Its active parser, IR, token-cache, built-in-type and WGSL backend state is owned
 by isolated contexts, allowing deterministic wrapper reuse and concurrent
 compilation across independent contexts.
+Reachability-driven WGSL expression emission now gives every intermediate a
+stable node/socket-derived name, qualifies it by every enclosing group instance,
+inserts declared socket coercions at use sites, and memoizes fan-out so a node is
+emitted once. A byte-comparison fixture now covers shader-emission determinism.
 
 ## Milestones
 

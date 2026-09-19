@@ -62,6 +62,9 @@ The current implementation provides:
 - An isolated [Kong shader compiler context](docs/kong-backend.md) that compiles
   Kong source to WGSL deterministically and supports concurrent independent
   compiler instances.
+- Deterministic [material graph expression emission](docs/graph-emission.md)
+  with node-derived result names, complete nested-group qualification,
+  emission-time socket coercion, node attribution, and single-emission fan-out.
 - Strict C++20 builds, sanitizer coverage, OpenSpec validation, dependency
   layering checks, licence auditing, and deterministic-output gates.
 
