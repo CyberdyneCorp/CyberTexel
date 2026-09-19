@@ -15,6 +15,17 @@
 
 namespace ctex::paint {
 
+inline constexpr ToolParameterDescriptor projection_planar_extent_x_parameter{
+    "projection.planar.extent.x", 1.0, stroke_position_tolerance, maximum_tool_transform_extent};
+inline constexpr ToolParameterDescriptor projection_planar_extent_y_parameter{
+    "projection.planar.extent.y", 1.0, stroke_position_tolerance, maximum_tool_transform_extent};
+inline constexpr ToolParameterDescriptor projection_triplanar_scale_parameter{
+    "projection.triplanar.scale", 1.0, stroke_position_tolerance, maximum_tool_transform_extent};
+inline constexpr ToolParameterDescriptor projection_triplanar_offset_x_parameter{
+    "projection.triplanar.offset.x", 0.0, -1.0, 1.0};
+inline constexpr ToolParameterDescriptor projection_triplanar_offset_y_parameter{
+    "projection.triplanar.offset.y", 0.0, -1.0, 1.0};
+
 struct CameraProjection {
     pick::Mat4f view_projection;
     PaintMaskView visible_surface;
@@ -22,12 +33,14 @@ struct CameraProjection {
 
 struct PlanarProjection {
     PlanarProjectionFrame frame;
-    Vec2d extent{1.0, 1.0};
+    Vec2d extent{projection_planar_extent_x_parameter.default_value,
+                 projection_planar_extent_y_parameter.default_value};
 };
 
 struct TriplanarProjection {
-    double scale{1.0};
-    Vec2d offset;
+    double scale{projection_triplanar_scale_parameter.default_value};
+    Vec2d offset{projection_triplanar_offset_x_parameter.default_value,
+                 projection_triplanar_offset_y_parameter.default_value};
 };
 
 using ProjectionMapping = std::variant<CameraProjection, PlanarProjection, TriplanarProjection>;
@@ -56,6 +69,7 @@ struct ProjectionResult {
     std::vector<PaintToolChannelRaster> sampled_material;
     std::vector<PaintToolChannelRaster> channels;
     std::vector<std::string> applied_channel_ids;
+    ToolParameterReport parameter_report;
 };
 
 [[nodiscard]] ProjectionResult apply_projection(

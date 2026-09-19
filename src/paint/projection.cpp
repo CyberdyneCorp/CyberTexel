@@ -207,9 +207,6 @@ std::vector<ProjectionSample> camera_samples(const CachedSurfaceMaps& surface,
 std::vector<ProjectionSample> planar_samples(const CachedSurfaceMaps& surface,
                                              const DecalMaterial& material,
                                              const PlanarProjection& mapping) {
-    if (!finite(mapping.extent) || mapping.extent.x <= 0.0 || mapping.extent.y <= 0.0) {
-        throw std::invalid_argument("planar projection extent must be finite and positive");
-    }
     std::vector<ProjectionSample> result(surface.surface.texels.size());
     const MaterialCoordinateRequest request{.mode = MaterialCoordinateMode::planar,
                                             .planar = mapping.frame};
@@ -231,9 +228,6 @@ double repeated(double value) { return value - std::floor(value); }
 std::vector<ProjectionSample> triplanar_samples(const CachedSurfaceMaps& surface,
                                                 const DecalMaterial& material,
                                                 const TriplanarProjection& mapping) {
-    if (!std::isfinite(mapping.scale) || mapping.scale <= 0.0 || !finite(mapping.offset)) {
-        throw std::invalid_argument("triplanar projection scale and offset are invalid");
-    }
     std::vector<ProjectionSample> result(surface.surface.texels.size());
     const MaterialCoordinateRequest request{.mode = MaterialCoordinateMode::triplanar,
                                             .planar = {}};
@@ -253,6 +247,33 @@ std::vector<ProjectionSample> triplanar_samples(const CachedSurfaceMaps& surface
         }
     }
     return result;
+}
+
+ProjectionMapping resolve_mapping(const ProjectionMapping& requested, ToolParameterReport& report) {
+    return std::visit(
+        [&](const auto& value) -> ProjectionMapping {
+            using Mapping = std::decay_t<decltype(value)>;
+            if constexpr (std::is_same_v<Mapping, PlanarProjection>) {
+                PlanarProjection resolved = value;
+                resolved.extent.x = validate_tool_parameter(projection_planar_extent_x_parameter,
+                                                            value.extent.x, report);
+                resolved.extent.y = validate_tool_parameter(projection_planar_extent_y_parameter,
+                                                            value.extent.y, report);
+                return resolved;
+            } else if constexpr (std::is_same_v<Mapping, TriplanarProjection>) {
+                TriplanarProjection resolved = value;
+                resolved.scale = validate_tool_parameter(projection_triplanar_scale_parameter,
+                                                         value.scale, report);
+                resolved.offset.x = validate_tool_parameter(projection_triplanar_offset_x_parameter,
+                                                            value.offset.x, report);
+                resolved.offset.y = validate_tool_parameter(projection_triplanar_offset_y_parameter,
+                                                            value.offset.y, report);
+                return resolved;
+            } else {
+                return value;
+            }
+        },
+        requested);
 }
 
 std::vector<ProjectionSample> resolve_samples(const CachedSurfaceMaps& surface,
@@ -341,7 +362,9 @@ ProjectionResult apply_projection(const CachedSurfaceMaps& surface,
                                   const ProjectionSettings& settings) {
     static_cast<void>(validate_surface(surface));
     validate_material(material);
-    std::vector<ProjectionSample> samples = resolve_samples(surface, material, settings.mapping);
+    ToolParameterReport parameter_report;
+    const ProjectionMapping resolved_mapping = resolve_mapping(settings.mapping, parameter_report);
+    std::vector<ProjectionSample> samples = resolve_samples(surface, material, resolved_mapping);
     std::vector<double> strength = sample_strength(material, samples);
     std::vector<PaintToolChannelRaster> sampled = sample_material(material, samples, strength);
     const CombinedPaintMask masks =
@@ -350,7 +373,7 @@ ProjectionResult apply_projection(const CachedSurfaceMaps& surface,
     if (settings.rejection_acceptance) {
         multiply_mask(strength, *settings.rejection_acceptance, "projection rejection acceptance");
     }
-    if (const auto* camera = std::get_if<CameraProjection>(&settings.mapping)) {
+    if (const auto* camera = std::get_if<CameraProjection>(&resolved_mapping)) {
         multiply_mask(strength, camera->visible_surface, "camera visible-surface mask");
     }
     PaintToolShadeResult shaded =
@@ -362,7 +385,8 @@ ProjectionResult apply_projection(const CachedSurfaceMaps& surface,
             .strength = std::move(strength),
             .sampled_material = std::move(sampled),
             .channels = std::move(shaded.channels),
-            .applied_channel_ids = std::move(shaded.applied_channel_ids)};
+            .applied_channel_ids = std::move(shaded.applied_channel_ids),
+            .parameter_report = std::move(parameter_report)};
 }
 
 }  // namespace ctex::paint

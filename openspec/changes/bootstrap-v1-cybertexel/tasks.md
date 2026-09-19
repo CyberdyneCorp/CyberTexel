@@ -492,8 +492,9 @@ speed, mass, gravity axes, friction, restitution and randomness return resolved
 settings plus a complete clamp report. Decal placement/edit/raster entry points
 and stencil mask/application now share bounded position, rotation and positive
 scale controls while exposing the resolved transforms and clamp reports.
-Remaining tool families and the complete behavioural no-inert audit still keep
-10.12 open.
+Planar extent axes plus triplanar scale and offsets are bounded and report every
+resolution before sampling. Remaining tool families and the complete
+behavioural no-inert audit still keep 10.12 open.
 
 ## 1. Foundation
 

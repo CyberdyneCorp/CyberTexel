@@ -72,6 +72,11 @@ The currently routed paint-tool parameters are:
 | `stencil.rotation_radians` | 0 | -2π | 2π | radians |
 | `stencil.scale.x` | 1 | 0.000001 | 1,000,000 | screen units |
 | `stencil.scale.y` | 1 | 0.000001 | 1,000,000 | screen units |
+| `projection.planar.extent.x` | 1 | 0.000001 | 1,000,000 | surface units |
+| `projection.planar.extent.y` | 1 | 0.000001 | 1,000,000 | surface units |
+| `projection.triplanar.scale` | 1 | 0.000001 | 1,000,000 | repetitions per surface unit |
+| `projection.triplanar.offset.x` | 0 | -1 | 1 | periodic image coordinate |
+| `projection.triplanar.offset.y` | 0 | -1 | 1 | periodic image coordinate |
 
 `StrokeResolver::settings()` exposes the resolved settings and
 `parameter_report()` exposes their clamps. Brush and Eraser consume the

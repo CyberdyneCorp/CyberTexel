@@ -2,6 +2,7 @@
 #include <cmath>
 #include <ctex/paint/projection.hpp>
 #include <iostream>
+#include <limits>
 #include <stdexcept>
 #include <string>
 #include <string_view>
@@ -172,22 +173,58 @@ bool invalid_projection_inputs_are_refused() {
     }
     bool planar_refused = false;
     try {
-        static_cast<void>(
-            apply_projection(maps, layer, material(),
-                             {.mapping = PlanarProjection{.frame = {}, .extent = {0.0, 1.0}}}));
+        static_cast<void>(apply_projection(
+            maps, layer, material(),
+            {.mapping = PlanarProjection{
+                 .frame = {}, .extent = {std::numeric_limits<double>::infinity(), 1.0}}}));
     } catch (const std::invalid_argument&) {
         planar_refused = true;
     }
     bool triplanar_refused = false;
     try {
-        static_cast<void>(
-            apply_projection(maps, layer, material(),
-                             {.mapping = TriplanarProjection{.scale = -1.0, .offset = {}}}));
+        static_cast<void>(apply_projection(
+            maps, layer, material(),
+            {.mapping = TriplanarProjection{.scale = std::numeric_limits<double>::quiet_NaN(),
+                                            .offset = {}}}));
     } catch (const std::invalid_argument&) {
         triplanar_refused = true;
     }
     return expect(camera_refused && planar_refused && triplanar_refused,
                   "invalid camera, planar or triplanar projection was not refused");
+}
+
+bool projection_parameters_are_bounded_reported_and_used() {
+    const CachedSurfaceMaps maps = surface({texel({0.25, 0.25, 0.0})});
+    const std::array layer{channel("pbr.base_color", {0.0F})};
+    const ProjectionResult planar = apply_projection(
+        maps, layer, material(),
+        {.mapping = PlanarProjection{
+             .frame = {.origin = {}, .u_axis = {1.0, 0.0, 0.0}, .v_axis = {0.0, 1.0, 0.0}},
+             .extent = {0.0, maximum_tool_transform_extent * 2.0}}});
+    const ProjectionResult triplanar =
+        apply_projection(maps, layer, material(),
+                         {.mapping = TriplanarProjection{.scale = 0.0, .offset = {1.5, -1.5}}});
+
+    return expect(planar.parameter_report.clamps.size() == 2 &&
+                      planar.parameter_report.clamp_for("projection.planar.extent.x") ==
+                          ToolParameterClamp{"projection.planar.extent.x", 0.0,
+                                             stroke_position_tolerance} &&
+                      planar.parameter_report.clamp_for("projection.planar.extent.y") ==
+                          ToolParameterClamp{"projection.planar.extent.y",
+                                             maximum_tool_transform_extent * 2.0,
+                                             maximum_tool_transform_extent} &&
+                      planar.samples[0].count == 0,
+                  "planar projection bounds or clamp report are incomplete") &&
+           expect(triplanar.parameter_report.clamps.size() == 3 &&
+                      triplanar.parameter_report.clamp_for("projection.triplanar.scale") ==
+                          ToolParameterClamp{"projection.triplanar.scale", 0.0,
+                                             stroke_position_tolerance} &&
+                      triplanar.parameter_report.clamp_for("projection.triplanar.offset.x") ==
+                          ToolParameterClamp{"projection.triplanar.offset.x", 1.5, 1.0} &&
+                      triplanar.parameter_report.clamp_for("projection.triplanar.offset.y") ==
+                          ToolParameterClamp{"projection.triplanar.offset.y", -1.5, -1.0} &&
+                      triplanar.samples[0].source_indices == std::array<std::size_t, 3>{2, 2, 2},
+                  "triplanar projection bounds or clamp report are incomplete");
 }
 
 }  // namespace
@@ -196,7 +233,8 @@ int main() {
     return camera_projection_applies_only_to_visible_framed_surface() &&
                    planar_projection_uses_its_centered_frame_and_extent() &&
                    triplanar_projection_blends_normal_weighted_repeating_planes() &&
-                   invalid_projection_inputs_are_refused()
+                   invalid_projection_inputs_are_refused() &&
+                   projection_parameters_are_bounded_reported_and_used()
                ? 0
                : 1;
 }

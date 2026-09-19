@@ -19,12 +19,19 @@ silently affect another:
 - `PlanarProjection` uses a finite orthonormal `PlanarProjectionFrame`. Its
   origin is the image centre, its u/v axes set orientation, and its positive
   two-dimensional extent sets the finite projected width and height. Samples
-  outside that rectangle do not contribute.
+  outside that rectangle do not contribute. Each extent axis defaults to 1 and
+  is clamped to `[0.000001, 1,000,000]` surface units.
 - `TriplanarProjection` uses the squared components of the normalized surface
   normal as X/Y/Z plane weights. World-space plane coordinates use the supplied
   positive scale and two-dimensional offset, repeat at integer boundaries and
   blend all three samples. Material opacity participates in that weighted blend
-  before masks and rejection are applied.
+  before masks and rejection are applied. Scale defaults to 1 and is clamped to
+  `[0.000001, 1,000,000]`; each periodic offset defaults to zero and is clamped
+  to `[-1, 1]`.
+
+Finite out-of-range projection controls are resolved before sampling and every
+clamp is returned in `ProjectionResult::parameter_report`. Non-finite controls,
+invalid planar frames, camera matrices and masks remain refused.
 
 Material images use the same channel-and-opacity representation as decals.
 Rows are stored top-down while projection UVs are bottom-left based, and nearest
