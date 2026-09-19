@@ -122,8 +122,8 @@ test-graph-validation: build
 test-graph-host-nodes: build
     ctest --test-dir build/headless --output-on-failure -R '^material-graph-host-nodes$'
 
-test-kong-context: build
-    ctest --test-dir build/headless --output-on-failure -R '^kong-context$'
+test-kong-context: (_require "spirv-val" "SPIRV-Tools") build
+    ctest --test-dir build/headless --output-on-failure -R '^kong-(context|spirv-)'
 
 test-graph-emission: build
     ctest --test-dir build/headless --output-on-failure -R '^graph-emission$'

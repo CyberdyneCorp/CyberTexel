@@ -6,17 +6,40 @@
 #include <stdlib.h>
 #include <string.h>
 
-static type_id     vertex_inputs[256];
-size_t             vertex_inputs_size = 0;
-static type_id     fragment_inputs[256];
-size_t             fragment_inputs_size = 0;
-static int         global_register_indices[512];
-static function_id vertex_functions[256];
-size_t             vertex_functions_size = 0;
-static function_id fragment_functions[256];
-size_t             fragment_functions_size = 0;
-static function_id compute_functions[256];
-static size_t      compute_functions_size = 0;
+typedef struct kong_metal_state {
+	type_id     vertex_inputs[256];
+	size_t      vertex_inputs_size;
+	type_id     fragment_inputs[256];
+	size_t      fragment_inputs_size;
+	int         global_register_indices[512];
+	function_id vertex_functions[256];
+	size_t      vertex_functions_size;
+	function_id fragment_functions[256];
+	size_t      fragment_functions_size;
+	function_id compute_functions[256];
+	size_t      compute_functions_size;
+} kong_metal_state;
+
+#define metal_state                 ((kong_metal_state *)kong_active_backend_state())
+#define vertex_inputs               (metal_state->vertex_inputs)
+#define vertex_inputs_size          (metal_state->vertex_inputs_size)
+#define fragment_inputs             (metal_state->fragment_inputs)
+#define fragment_inputs_size        (metal_state->fragment_inputs_size)
+#define global_register_indices     (metal_state->global_register_indices)
+#define vertex_functions            (metal_state->vertex_functions)
+#define vertex_functions_size       (metal_state->vertex_functions_size)
+#define fragment_functions          (metal_state->fragment_functions)
+#define fragment_functions_size     (metal_state->fragment_functions_size)
+#define compute_functions           (metal_state->compute_functions)
+#define compute_functions_size      (metal_state->compute_functions_size)
+
+void *kong_metal_state_create(void) {
+	return calloc(1, sizeof(kong_metal_state));
+}
+
+void kong_metal_state_destroy(void *state) {
+	free(state);
+}
 
 static char *type_string(type_id type) {
 	if (type == float_id) {

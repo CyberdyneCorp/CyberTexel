@@ -60,8 +60,8 @@ The current implementation provides:
   [host node types](docs/host-node-types.md) provide checked CPU/emission
   callbacks, replay eligibility, parity fixtures, and lossless opaque fallback.
 - An isolated [Kong shader compiler context](docs/kong-backend.md) that compiles
-  Kong source to WGSL deterministically and supports concurrent independent
-  compiler instances.
+  Kong source deterministically to WGSL, MSL, binary SPIR-V, or HLSL, supports
+  concurrent independent targets, and reports unsupported requests explicitly.
 - Deterministic [material graph expression emission](docs/graph-emission.md)
   with node-derived result names, complete nested-group qualification,
   emission-time socket coercion, node attribution, and single-emission fan-out.

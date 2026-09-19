@@ -245,55 +245,191 @@ typedef struct instructions_buffer {
 	size_t    offset;
 } instructions_buffer;
 
-static uint32_t operands_buffer[4096];
-
 typedef struct pointer_relation {
 	spirv_id non_pointer_type_id;
 	spirv_id pointer_type_id;
 } pointer_relation;
 
 static_array(pointer_relation, written_pointers, 256);
-static written_pointers written_pointer_relations;
-static spirv_id         output_struct_pointer_type = {0};
 
 typedef struct int_constant_container {
 	struct container container;
 	spirv_id         value;
 } int_constant_container;
 
-static struct hash_map *int_constants = NULL;
-
-static struct {
+typedef struct uint_constant_entry {
 	uint32_t key;
 	spirv_id value;
-} *uint_constants = NULL;
+} uint_constant_entry;
 
-static struct {
+typedef struct float_constant_entry {
 	float    key;
 	spirv_id value;
-} *float_constants = NULL;
+} float_constant_entry;
 
-static struct {
+typedef struct bool_constant_entry {
 	bool     key;
 	spirv_id value;
-} *bool_constants = NULL;
+} bool_constant_entry;
 
-static struct {
+typedef struct function_map_entry {
 	name_id  key;
 	spirv_id value;
-} *function_map = NULL;
+} function_map_entry;
 
-static spirv_id per_vertex_var    = {0};
-static spirv_id output_vars[256]  = {0};
-static type_id  output_types[256] = {0};
-static size_t   output_vars_count = 0;
+typedef struct complex_type {
+	type_id  type;
+	uint16_t readwrite;
+	uint16_t storage;
+} complex_type;
 
-static spirv_id input_vars[256]  = {0};
-static type_id  input_types[256] = {0};
-static size_t   input_vars_count = 0;
+typedef struct type_map_entry {
+	complex_type key;
+	spirv_id     value;
+} type_map_entry;
 
-static uint32_t vertex_parameter_indices[256];
-static uint32_t vertex_parameter_member_indices[256];
+typedef struct index_map_entry {
+	uint64_t key;
+	spirv_id value;
+} index_map_entry;
+
+typedef struct kong_spirv_state {
+	uint32_t operands_buffer[4096];
+	written_pointers written_pointer_relations;
+	spirv_id output_struct_pointer_type;
+	struct hash_map *int_constants_state;
+	uint_constant_entry *uint_constants_state;
+	float_constant_entry *float_constants_state;
+	bool_constant_entry *bool_constants_state;
+	function_map_entry *function_map_state;
+	spirv_id per_vertex_var;
+	spirv_id output_vars[256];
+	type_id output_types[256];
+	size_t output_vars_count;
+	spirv_id input_vars[256];
+	type_id input_types[256];
+	size_t input_vars_count;
+	uint32_t vertex_parameter_indices[256];
+	uint32_t vertex_parameter_member_indices[256];
+	uint32_t next_index;
+	spirv_id void_type;
+	spirv_id void_function_type;
+	spirv_id spirv_float_type;
+	spirv_id spirv_float2_type;
+	spirv_id spirv_float3_type;
+	spirv_id spirv_float4_type;
+	spirv_id spirv_int_type;
+	spirv_id spirv_int2_type;
+	spirv_id spirv_int3_type;
+	spirv_id spirv_int4_type;
+	spirv_id spirv_uint_type;
+	spirv_id spirv_uint2_type;
+	spirv_id spirv_uint3_type;
+	spirv_id spirv_uint4_type;
+	spirv_id spirv_bool_type;
+	spirv_id spirv_sampler_type;
+	spirv_id spirv_sampler_pointer_type;
+	spirv_id spirv_image_type;
+	spirv_id spirv_image_pointer_type;
+	spirv_id spirv_image2darray_type;
+	spirv_id spirv_image2darray_pointer_type;
+	spirv_id spirv_imagecube_type;
+	spirv_id spirv_imagecube_pointer_type;
+	spirv_id spirv_readwrite_image_type;
+	spirv_id spirv_readwrite_image_pointer_type;
+	spirv_id spirv_sampled_image_type;
+	spirv_id spirv_sampled_image2darray_type;
+	spirv_id spirv_sampled_imagecube_type;
+	spirv_id spirv_float3x3_type;
+	spirv_id spirv_float4x4_type;
+	spirv_id glsl_import;
+	spirv_id dispatch_thread_id_variable;
+	spirv_id group_thread_id_variable;
+	spirv_id group_id_variable;
+	spirv_id work_group_size_variable;
+	spirv_id vertex_id_variable;
+	type_map_entry *type_map_state;
+	index_map_entry *index_map_state;
+	char vertex_buffer[1024 * 1024];
+	char fragment_buffer[1024 * 1024];
+} kong_spirv_state;
+
+#define spirv_state ((kong_spirv_state *)kong_active_backend_state())
+#define operands_buffer (spirv_state->operands_buffer)
+#define written_pointer_relations (spirv_state->written_pointer_relations)
+#define output_struct_pointer_type (spirv_state->output_struct_pointer_type)
+#define int_constants (spirv_state->int_constants_state)
+#define uint_constants (spirv_state->uint_constants_state)
+#define float_constants (spirv_state->float_constants_state)
+#define bool_constants (spirv_state->bool_constants_state)
+#define function_map (spirv_state->function_map_state)
+#define per_vertex_var (spirv_state->per_vertex_var)
+#define output_vars (spirv_state->output_vars)
+#define output_types (spirv_state->output_types)
+#define output_vars_count (spirv_state->output_vars_count)
+#define input_vars (spirv_state->input_vars)
+#define input_types (spirv_state->input_types)
+#define input_vars_count (spirv_state->input_vars_count)
+#define vertex_parameter_indices (spirv_state->vertex_parameter_indices)
+#define vertex_parameter_member_indices (spirv_state->vertex_parameter_member_indices)
+#define next_index (spirv_state->next_index)
+#define void_type (spirv_state->void_type)
+#define void_function_type (spirv_state->void_function_type)
+#define spirv_float_type (spirv_state->spirv_float_type)
+#define spirv_float2_type (spirv_state->spirv_float2_type)
+#define spirv_float3_type (spirv_state->spirv_float3_type)
+#define spirv_float4_type (spirv_state->spirv_float4_type)
+#define spirv_int_type (spirv_state->spirv_int_type)
+#define spirv_int2_type (spirv_state->spirv_int2_type)
+#define spirv_int3_type (spirv_state->spirv_int3_type)
+#define spirv_int4_type (spirv_state->spirv_int4_type)
+#define spirv_uint_type (spirv_state->spirv_uint_type)
+#define spirv_uint2_type (spirv_state->spirv_uint2_type)
+#define spirv_uint3_type (spirv_state->spirv_uint3_type)
+#define spirv_uint4_type (spirv_state->spirv_uint4_type)
+#define spirv_bool_type (spirv_state->spirv_bool_type)
+#define spirv_sampler_type (spirv_state->spirv_sampler_type)
+#define spirv_sampler_pointer_type (spirv_state->spirv_sampler_pointer_type)
+#define spirv_image_type (spirv_state->spirv_image_type)
+#define spirv_image_pointer_type (spirv_state->spirv_image_pointer_type)
+#define spirv_image2darray_type (spirv_state->spirv_image2darray_type)
+#define spirv_image2darray_pointer_type (spirv_state->spirv_image2darray_pointer_type)
+#define spirv_imagecube_type (spirv_state->spirv_imagecube_type)
+#define spirv_imagecube_pointer_type (spirv_state->spirv_imagecube_pointer_type)
+#define spirv_readwrite_image_type (spirv_state->spirv_readwrite_image_type)
+#define spirv_readwrite_image_pointer_type (spirv_state->spirv_readwrite_image_pointer_type)
+#define spirv_sampled_image_type (spirv_state->spirv_sampled_image_type)
+#define spirv_sampled_image2darray_type (spirv_state->spirv_sampled_image2darray_type)
+#define spirv_sampled_imagecube_type (spirv_state->spirv_sampled_imagecube_type)
+#define spirv_float3x3_type (spirv_state->spirv_float3x3_type)
+#define spirv_float4x4_type (spirv_state->spirv_float4x4_type)
+#define glsl_import (spirv_state->glsl_import)
+#define dispatch_thread_id_variable (spirv_state->dispatch_thread_id_variable)
+#define group_thread_id_variable (spirv_state->group_thread_id_variable)
+#define group_id_variable (spirv_state->group_id_variable)
+#define work_group_size_variable (spirv_state->work_group_size_variable)
+#define vertex_id_variable (spirv_state->vertex_id_variable)
+#define type_map (spirv_state->type_map_state)
+#define index_map (spirv_state->index_map_state)
+
+void *kong_spirv_state_create(void) {
+	return calloc(1, sizeof(kong_spirv_state));
+}
+
+void kong_spirv_state_destroy(void *state) {
+	kong_spirv_state *spirv = (kong_spirv_state *)state;
+	if (spirv == NULL) {
+		return;
+	}
+	hash_map_destroy(spirv->int_constants_state);
+	hmfree(spirv->uint_constants_state);
+	hmfree(spirv->float_constants_state);
+	hmfree(spirv->bool_constants_state);
+	hmfree(spirv->function_map_state);
+	hmfree(spirv->type_map_state);
+	hmfree(spirv->index_map_state);
+	free(spirv);
+}
 
 static void write_buffer(FILE *file, uint8_t *output, size_t output_size) {
 	for (size_t i = 0; i < output_size; ++i) {
@@ -399,8 +535,6 @@ static void write_generator_magic_number(instructions_buffer *instructions) {
 	instructions->instructions[instructions->offset++] = 44;
 }
 
-static uint32_t next_index = 1;
-
 static void write_bound(instructions_buffer *instructions) {
 	instructions->instructions[instructions->offset++] = next_index;
 }
@@ -480,9 +614,9 @@ static void write_capabilities(instructions_buffer *instructions, const capabili
 }
 
 static spirv_id write_type_void(instructions_buffer *instructions) {
-	spirv_id void_type = allocate_index();
-	write_instruction(instructions, 2, SPIRV_OPCODE_TYPE_VOID, &void_type.id);
-	return void_type;
+	spirv_id result = allocate_index();
+	write_instruction(instructions, 2, SPIRV_OPCODE_TYPE_VOID, &result.id);
+	return result;
 }
 
 static spirv_id write_type_function(instructions_buffer *instructions, spirv_id return_type, spirv_id *parameter_types, uint16_t parameter_types_size) {
@@ -592,56 +726,6 @@ static spirv_id write_type_pointer_preallocated(instructions_buffer *instruction
 	write_instruction(instructions, WORD_COUNT(operands), SPIRV_OPCODE_TYPE_POINTER, operands);
 	return pointer_type;
 }
-
-static spirv_id void_type;
-static spirv_id void_function_type;
-static spirv_id spirv_float_type;
-static spirv_id spirv_float2_type;
-static spirv_id spirv_float3_type;
-static spirv_id spirv_float4_type;
-static spirv_id spirv_int_type;
-static spirv_id spirv_int2_type;
-static spirv_id spirv_int3_type;
-static spirv_id spirv_int4_type;
-static spirv_id spirv_uint_type;
-static spirv_id spirv_uint2_type;
-static spirv_id spirv_uint3_type;
-static spirv_id spirv_uint4_type;
-static spirv_id spirv_bool_type;
-static spirv_id spirv_sampler_type;
-static spirv_id spirv_sampler_pointer_type;
-static spirv_id spirv_image_type;
-static spirv_id spirv_image_pointer_type;
-static spirv_id spirv_image2darray_type;
-static spirv_id spirv_image2darray_pointer_type;
-static spirv_id spirv_imagecube_type;
-static spirv_id spirv_imagecube_pointer_type;
-static spirv_id spirv_readwrite_image_type;
-static spirv_id spirv_readwrite_image_pointer_type;
-static spirv_id spirv_sampled_image_type;
-static spirv_id spirv_sampled_image2darray_type;
-static spirv_id spirv_sampled_imagecube_type;
-static spirv_id spirv_float3x3_type;
-static spirv_id spirv_float4x4_type;
-
-static spirv_id glsl_import;
-
-static spirv_id dispatch_thread_id_variable;
-static spirv_id group_thread_id_variable;
-static spirv_id group_id_variable;
-static spirv_id work_group_size_variable;
-static spirv_id vertex_id_variable;
-
-typedef struct complex_type {
-	type_id  type;
-	uint16_t readwrite;
-	uint16_t storage;
-} complex_type;
-
-static struct {
-	complex_type key;
-	spirv_id     value;
-} *type_map = NULL;
 
 static void add_to_type_map(type_id kong_type, spirv_id spirv_type, bool readwrite, storage_class storage) {
 	assert(kong_type != NO_TYPE);
@@ -1659,11 +1743,6 @@ static spirv_id write_op_dpdy(instructions_buffer *instructions, spirv_id type, 
 	write_instruction(instructions, WORD_COUNT(operands), SPIRV_OPCODE_DPDY, operands);
 	return result;
 }
-
-static struct {
-	uint64_t key;
-	spirv_id value;
-} *index_map = NULL;
 
 static spirv_id convert_kong_index_to_spirv_id(uint64_t index) {
 	spirv_id id = hmget(index_map, index);
@@ -3606,12 +3685,32 @@ static void init_float_constants(void) {
 	}
 }
 
+static void init_uint_constants(void) {
+	spirv_id default_id = {0};
+	hmdefault(uint_constants, default_id);
+	size_t size = hmlenu(uint_constants);
+	for (size_t i = 0; i < size; ++i) {
+		hmdel(uint_constants, uint_constants[i].key);
+	}
+}
+
+static void init_bool_constants(void) {
+	spirv_id default_id = {0};
+	hmdefault(bool_constants, default_id);
+	size_t size = hmlenu(bool_constants);
+	for (size_t i = 0; i < size; ++i) {
+		hmdel(bool_constants, bool_constants[i].key);
+	}
+}
+
 void init_maps(void) {
 	init_index_map();
 	init_type_map();
 	init_function_map();
 	init_int_constants();
 	init_float_constants();
+	init_uint_constants();
+	init_bool_constants();
 }
 
 static char *write_bytecode2(char *buffer, int *size_out, instructions_buffer *header, instructions_buffer *decorations, instructions_buffer *base_types,
@@ -3814,8 +3913,8 @@ static char *spirv_export_vertex2(function *main, bool debug, int *size_out) {
 
 	write_constants(&constants);
 
-	static char _buffer[1024 * 1024];
-	char *result = write_bytecode2(&_buffer[0], size_out, &header, &decorations, &base_types, &constants, &aggregate_types, &global_vars, &instructions, debug);
+	char *result = write_bytecode2(spirv_state->vertex_buffer, size_out, &header, &decorations, &base_types, &constants, &aggregate_types, &global_vars,
+	                              &instructions, debug);
 	free(header.instructions);
 	free(decorations.instructions);
 	free(base_types.instructions);
@@ -3960,8 +4059,8 @@ static char *spirv_export_fragment2(function *main, bool debug, int *size_out) {
 
 	write_constants(&constants);
 
-	static char _buffer[1024 * 1024];
-	char *result = write_bytecode2(&_buffer[0], size_out, &header, &decorations, &base_types, &constants, &aggregate_types, &global_vars, &instructions, debug);
+	char *result = write_bytecode2(spirv_state->fragment_buffer, size_out, &header, &decorations, &base_types, &constants, &aggregate_types, &global_vars,
+	                              &instructions, debug);
 	free(header.instructions);
 	free(decorations.instructions);
 	free(base_types.instructions);

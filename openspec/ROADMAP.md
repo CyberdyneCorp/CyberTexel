@@ -7,7 +7,7 @@ decisions taken and questions still open.
 ## Status
 
 Implementation started. 24 capabilities, 332 requirements, 400 scenarios and
-222 tasks, 35 done. Foundation and the complete headless color-management
+222 tasks, 36 done. Foundation and the complete headless color-management
 scenario suite are green. Slice-A now has memory-buffer PNG input/output with
 8/16-bit preservation and hostile-input ceilings; full image-format breadth
 remains scheduled for slice D. Extensible channel descriptors and sparse
@@ -73,6 +73,10 @@ Device-independent pass plans now name versioned logical textures and tile-aware
 subresources, reject uninitialized access and unordered hazards, derive
 submission lifetimes, and carry the complete binding, layout, render-state, and
 draw/dispatch data a host needs without exposing a device handle.
+Kong target selection now emits split WGSL/HLSL text, a unified MSL module, or
+binary SPIR-V from the same headless API. Each backend owns per-context state,
+cross-target compilation is concurrent and deterministic, unknown targets name
+the complete available set, and SPIR-V output passes the external validator.
 
 ## Milestones
 
@@ -151,10 +155,10 @@ them rather than drifting.
 3. **Reference devices.** `device-gate` requires at least one desktop and one
    tablet, named with full configuration. Which machines, and who owns them for
    CI, is not settled. Resolve in slice A through task 17.1 before recording any performance claim.
-4. **Additional Kong targets.** Task 6.8 proved that the active common compiler
-   and WGSL backend tolerate context-owned state without a process-wide lock.
-   The retained HLSL, Metal and SPIR-V backends remain unlinked until task 6.11;
-   isolate each adapter before enabling it rather than reintroducing globals.
+4. **Additional Kong targets.** Tasks 6.8 and 6.11 moved the common compiler and
+   all four target backends to context-owned state without a process-wide lock.
+   Their artifact shapes are now explicit: split WGSL/HLSL text, unified MSL,
+   and binary SPIR-V.
 5. **Instance deletion policy.** `texture-document` allows either refusing the
    deletion of a referenced entry or converting its instances to independent
    copies, and makes it the caller's choice. Whether hosts actually want the

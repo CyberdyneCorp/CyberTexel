@@ -19,6 +19,8 @@ jobs:
     steps:
     - uses: actions/checkout@v4
     - uses: extractions/setup-just@v2
+    - name: Install SPIR-V validator
+      run: sudo apt-get update && sudo apt-get install -y spirv-tools
     - name: Sanitized tests
       run: just test-sanitize
 
@@ -28,6 +30,8 @@ jobs:
     steps:
     - uses: actions/checkout@v4
     - uses: extractions/setup-just@v2
+    - name: Install SPIR-V validator
+      run: sudo apt-get update && sudo apt-get install -y spirv-tools
     - name: Build
       run: just build
     - name: Formatting

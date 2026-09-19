@@ -9,11 +9,13 @@ CyberTexel changes:
 
 - Removed the dependency on ArmorPaint's `iron_system.h` logging interface.
 - Moved the parser, intermediate representation, token cache, built-in type IDs,
-  and WGSL backend traversal state into an opaque `kong_context`.
+  and WGSL, HLSL, Metal, and SPIR-V backend traversal state into an opaque
+  `kong_context`.
 - Made stb_ds hash seeding thread-local and reset it for each context so separate
   compiler contexts may run concurrently with deterministic output.
-- Added `kong_context.h`, the narrow C API used by CyberTexel.
+- Added `kong_context.h`, the narrow C API used by CyberTexel, with explicit
+  text, unified-module, and binary artifact ownership.
+- Used the compiler-recognized `__typeof__` spelling in stb_ds so its C99
+  literal-address helper remains available under strict C11 compilation.
 
-The HLSL, Metal, and SPIR-V sources are retained for provenance but are not
-compiled yet. Their target adapters will be context-isolated when task 6.11
-enables those output languages.
+All four retained backends are compiled and independently context-isolated.

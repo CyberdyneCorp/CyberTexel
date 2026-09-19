@@ -6,10 +6,28 @@
 #include <stdlib.h>
 #include <string.h>
 
-static descriptor_set *all_descriptor_sets[256];
-static size_t          all_descriptor_sets_count = 0;
-static type_id         payload_types[256];
-static size_t          payload_types_count = 0;
+typedef struct kong_hlsl_state {
+	descriptor_set *all_descriptor_sets[256];
+	size_t          all_descriptor_sets_count;
+	type_id         payload_types[256];
+	size_t          payload_types_count;
+	char            vertex_buffer[1024 * 1024 * 2];
+	char            fragment_buffer[1024 * 1024 * 2];
+} kong_hlsl_state;
+
+#define hlsl_state                ((kong_hlsl_state *)kong_active_backend_state())
+#define all_descriptor_sets       (hlsl_state->all_descriptor_sets)
+#define all_descriptor_sets_count (hlsl_state->all_descriptor_sets_count)
+#define payload_types             (hlsl_state->payload_types)
+#define payload_types_count       (hlsl_state->payload_types_count)
+
+void *kong_hlsl_state_create(void) {
+	return calloc(1, sizeof(kong_hlsl_state));
+}
+
+void kong_hlsl_state_destroy(void *state) {
+	free(state);
+}
 
 static char *member_string(type *parent_type, name_id member_name) {
 	if (parent_type == get_type(ray_type_id)) {
@@ -94,7 +112,7 @@ static bool is_input(type_id t, type_id inputs[64], size_t inputs_count) {
 	return false;
 }
 
-static void write_types(char *hlsl, size_t *offset, shader_stage stage, type_id inputs[64], size_t inputs_count, type_id output, function *main,
+static void write_types(char *hlsl, size_t *offset, shader_stage stage, type_id *inputs, size_t inputs_count, type_id output, function *main,
                         function **rayshaders, size_t rayshaders_count) {
 	type_id types[256];
 	size_t  types_size = 0;
@@ -325,8 +343,9 @@ static void write_globals(char *hlsl, size_t *offset, function *main, function *
 		}
 		else if (base_type == float4_id) {
 			if (t->array_size > 0) {
-				*offset += sprintf(&hlsl[*offset], "struct _%llu_type { float4 data; };\n", g->var_index);
-				*offset += sprintf(&hlsl[*offset], "RWStructuredBuffer<_%llu_type> _%llu : register(u%i);\n", g->var_index, g->var_index, register_index);
+				*offset += sprintf(&hlsl[*offset], "struct _%" PRIu64 "_type { float4 data; };\n", g->var_index);
+				*offset += sprintf(&hlsl[*offset], "RWStructuredBuffer<_%" PRIu64 "_type> _%" PRIu64 " : register(u%i);\n", g->var_index,
+				                   g->var_index, register_index);
 			}
 			else {
 				*offset += sprintf(&hlsl[*offset], "static const float4 _%" PRIu64 " = float4(%f, %f, %f, %f);\n\n", g->var_index, g->value.value.floats[0],
@@ -1236,9 +1255,9 @@ static void write_functions(char *hlsl, size_t *offset, shader_stage stage, func
 }
 
 static char *hlsl_export_vertex2(api_kind d3d, function *main, bool debug) {
-	static char _buffer[1024 * 1024 * 2];
-	char       *hlsl   = &_buffer[0];
+	char       *hlsl   = hlsl_state->vertex_buffer;
 	size_t      offset = 0;
+	hlsl[0] = 0;
 
 	assert(main->parameters_size > 0);
 	type_id vertex_inputs[64];
@@ -1258,9 +1277,9 @@ static char *hlsl_export_vertex2(api_kind d3d, function *main, bool debug) {
 }
 
 static char *hlsl_export_fragment2(api_kind d3d, function *main, bool debug) {
-	static char _buffer[1024 * 1024 * 2];
-	char       *hlsl   = &_buffer[0];
+	char       *hlsl   = hlsl_state->fragment_buffer;
 	size_t      offset = 0;
+	hlsl[0] = 0;
 
 	assert(main->parameters_size > 0);
 	type_id pixel_input = main->parameter_types[0].type;
@@ -1282,6 +1301,8 @@ void hlsl_export2(char **vs, char **fs, api_kind d3d, bool debug) {
 
 	static_array_init(vertex_shaders);
 	static_array_init(fragment_shaders);
+	all_descriptor_sets_count = 0;
+	payload_types_count       = 0;
 
 	for (type_id i = 0; get_type(i) != NULL; ++i) {
 		type *t = get_type(i);

@@ -83,7 +83,8 @@ typedef struct kong_core_state {
 struct kong_context {
 	kong_builtin_types builtins;
 	kong_core_state   *core;
-	void              *backend_state;
+	void              *backend_states[KONG_TARGET_COUNT];
+	void              *active_backend_state;
 	bool               compiled;
 	char               last_error[4096];
 };
@@ -6079,6 +6080,15 @@ void indent(char *code, size_t *offset, int indentation) {
 void wgsl_export2(char **vs, char **fs);
 void *kong_wgsl_state_create(void);
 void  kong_wgsl_state_destroy(void *state);
+void hlsl_export2(char **vs, char **fs, api_kind d3d, bool debug);
+void *kong_hlsl_state_create(void);
+void  kong_hlsl_state_destroy(void *state);
+char *metal_export(char *directory);
+void *kong_metal_state_create(void);
+void  kong_metal_state_destroy(void *state);
+void spirv_export2(char **vs, char **fs, int *vs_size, int *fs_size, bool debug);
+void *kong_spirv_state_create(void);
+void  kong_spirv_state_destroy(void *state);
 
 kong_builtin_types *kong_active_builtin_types(void) {
 	assert(active_context != NULL);
@@ -6087,7 +6097,8 @@ kong_builtin_types *kong_active_builtin_types(void) {
 
 void *kong_active_backend_state(void) {
 	assert(active_context != NULL);
-	return active_context->backend_state;
+	assert(active_context->active_backend_state != NULL);
+	return active_context->active_backend_state;
 }
 
 static void initialize_context(kong_context *context) {
@@ -6105,6 +6116,13 @@ static void initialize_context(kong_context *context) {
 	active_context = previous;
 }
 
+static void destroy_backend_states(kong_context *context) {
+	kong_wgsl_state_destroy(context->backend_states[KONG_TARGET_WGSL]);
+	kong_metal_state_destroy(context->backend_states[KONG_TARGET_MSL]);
+	kong_spirv_state_destroy(context->backend_states[KONG_TARGET_SPIRV]);
+	kong_hlsl_state_destroy(context->backend_states[KONG_TARGET_HLSL]);
+}
+
 kong_context *kong_context_create(void) {
 	kong_context *context = (kong_context *)calloc(1, sizeof(kong_context));
 	if (context == NULL) {
@@ -6115,12 +6133,19 @@ kong_context *kong_context_create(void) {
 		free(context);
 		return NULL;
 	}
-	context->backend_state = kong_wgsl_state_create();
-	if (context->backend_state == NULL) {
-		free(context->core);
-		free(context);
-		return NULL;
+	context->backend_states[KONG_TARGET_WGSL]  = kong_wgsl_state_create();
+	context->backend_states[KONG_TARGET_MSL]   = kong_metal_state_create();
+	context->backend_states[KONG_TARGET_SPIRV] = kong_spirv_state_create();
+	context->backend_states[KONG_TARGET_HLSL]  = kong_hlsl_state_create();
+	for (int target = 0; target < KONG_TARGET_COUNT; ++target) {
+		if (context->backend_states[target] == NULL) {
+			destroy_backend_states(context);
+			free(context->core);
+			free(context);
+			return NULL;
+		}
 	}
+	context->active_backend_state = context->backend_states[KONG_TARGET_WGSL];
 	initialize_context(context);
 	return context;
 }
@@ -6166,17 +6191,110 @@ void kong_context_destroy(kong_context *context) {
 	free(compiler_functions);
 	free(compiler_types);
 	active_context = previous;
-	kong_wgsl_state_destroy(context->backend_state);
+	destroy_backend_states(context);
 	free(context->core);
 	free(context);
 }
 
-bool kong_context_compile_wgsl(kong_context *context, const char *source, char **vertex_source, char **fragment_source) {
-	if (context == NULL || source == NULL || vertex_source == NULL || fragment_source == NULL) {
+const char *kong_target_name(kong_target target) {
+	switch (target) {
+	case KONG_TARGET_WGSL:
+		return "WGSL";
+	case KONG_TARGET_MSL:
+		return "MSL";
+	case KONG_TARGET_SPIRV:
+		return "SPIR-V";
+	case KONG_TARGET_HLSL:
+		return "HLSL";
+	case KONG_TARGET_COUNT:
+		return "unknown";
+	}
+	return "unknown";
+}
+
+void kong_compilation_destroy(kong_compilation *compilation) {
+	if (compilation == NULL) {
+		return;
+	}
+	free(compilation->vertex_source);
+	free(compilation->fragment_source);
+	free(compilation->module_source);
+	free(compilation->vertex_binary);
+	free(compilation->fragment_binary);
+	memset(compilation, 0, sizeof(*compilation));
+}
+
+static bool copy_binary(const char *source, int size, uint8_t **destination, size_t *destination_size) {
+	if (source == NULL || size <= 0) {
 		return false;
 	}
-	*vertex_source   = NULL;
-	*fragment_source = NULL;
+	*destination = (uint8_t *)malloc((size_t)size);
+	if (*destination == NULL) {
+		return false;
+	}
+	memcpy(*destination, source, (size_t)size);
+	*destination_size = (size_t)size;
+	return true;
+}
+
+static char *copy_text(const char *source) {
+	if (source == NULL) {
+		return NULL;
+	}
+	size_t size = strlen(source) + 1;
+	char *copy = (char *)malloc(size);
+	if (copy != NULL) {
+		memcpy(copy, source, size);
+	}
+	return copy;
+}
+
+static bool compile_target(kong_target target, kong_compilation *compilation) {
+	char *vertex   = NULL;
+	char *fragment = NULL;
+	switch (target) {
+	case KONG_TARGET_WGSL:
+		transform(TRANSFORM_FLAG_ONE_COMPONENT_SWIZZLE);
+		wgsl_export2(&compilation->vertex_source, &compilation->fragment_source);
+		return compilation->vertex_source != NULL && compilation->fragment_source != NULL;
+	case KONG_TARGET_MSL:
+		compilation->module_source = metal_export("");
+		return compilation->module_source != NULL;
+	case KONG_TARGET_SPIRV: {
+		int vertex_size   = 0;
+		int fragment_size = 0;
+		transform(TRANSFORM_FLAG_ONE_COMPONENT_SWIZZLE | TRANSFORM_FLAG_BINARY_UNIFY_LENGTH);
+		spirv_export2(&vertex, &fragment, &vertex_size, &fragment_size, false);
+		return copy_binary(vertex, vertex_size, &compilation->vertex_binary,
+		                   &compilation->vertex_binary_size) &&
+		       copy_binary(fragment, fragment_size, &compilation->fragment_binary,
+		                   &compilation->fragment_binary_size);
+	}
+	case KONG_TARGET_HLSL:
+		hlsl_export2(&vertex, &fragment, API_DIRECT3D12, false);
+		if (vertex == NULL || fragment == NULL) {
+			return false;
+		}
+		compilation->vertex_source   = copy_text(vertex);
+		compilation->fragment_source = copy_text(fragment);
+		return compilation->vertex_source != NULL && compilation->fragment_source != NULL;
+	case KONG_TARGET_COUNT:
+		break;
+	}
+	return false;
+}
+
+bool kong_context_compile(kong_context *context, const char *source, kong_target target, kong_compilation *compilation) {
+	if (context == NULL || source == NULL || compilation == NULL) {
+		return false;
+	}
+	memset(compilation, 0, sizeof(*compilation));
+	if (target < KONG_TARGET_WGSL || target >= KONG_TARGET_COUNT) {
+		snprintf(context->last_error, sizeof(context->last_error),
+		         "Requested shader target unknown(%d); available targets: WGSL, MSL, SPIR-V, HLSL",
+		         (int)target);
+		return false;
+	}
 	if (context->compiled) {
 		snprintf(context->last_error, sizeof(context->last_error), "Kong context can compile only one program");
 		return false;
@@ -6184,6 +6302,7 @@ bool kong_context_compile_wgsl(kong_context *context, const char *source, char *
 
 	context->compiled      = true;
 	context->last_error[0] = 0;
+	context->active_backend_state = context->backend_states[target];
 	kong_context *previous = active_context;
 	active_context         = context;
 
@@ -6199,13 +6318,39 @@ bool kong_context_compile_wgsl(kong_context *context, const char *source, char *
 		analyze();
 	}
 	if (!kong_error) {
-		transform(TRANSFORM_FLAG_ONE_COMPONENT_SWIZZLE);
-		wgsl_export2(vertex_source, fragment_source);
+		if (!compile_target(target, compilation)) {
+			if (!kong_error) {
+				snprintf(context->last_error, sizeof(context->last_error),
+				         "Kong %s backend did not produce a complete artifact", kong_target_name(target));
+				kong_error = true;
+			}
+		}
 	}
 
-	bool succeeded = !kong_error && *vertex_source != NULL && *fragment_source != NULL;
+	bool succeeded = !kong_error;
 	active_context = previous;
+	if (!succeeded) {
+		kong_compilation_destroy(compilation);
+	}
 	return succeeded;
+}
+
+bool kong_context_compile_wgsl(kong_context *context, const char *source, char **vertex_source, char **fragment_source) {
+	if (vertex_source == NULL || fragment_source == NULL) {
+		return false;
+	}
+	*vertex_source   = NULL;
+	*fragment_source = NULL;
+	kong_compilation compilation;
+	if (!kong_context_compile(context, source, KONG_TARGET_WGSL, &compilation)) {
+		return false;
+	}
+	*vertex_source = compilation.vertex_source;
+	*fragment_source = compilation.fragment_source;
+	compilation.vertex_source = NULL;
+	compilation.fragment_source = NULL;
+	kong_compilation_destroy(&compilation);
+	return true;
 }
 
 const char *kong_context_last_error(const kong_context *context) {

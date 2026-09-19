@@ -46,6 +46,9 @@ add_library(
     STATIC
         thirdparty/kong/kong.c
         thirdparty/kong/kong_cstyle.c
+        thirdparty/kong/kong_hlsl.c
+        thirdparty/kong/kong_metal.c
+        thirdparty/kong/kong_spirv.c
         thirdparty/kong/kong_wgsl.c
         thirdparty/kong/stb_ds.c
 )
@@ -264,6 +267,32 @@ if(BUILD_TESTING)
     ctex_configure_cpp_target(ctex_kong_context_test)
     target_link_libraries(ctex_kong_context_test PRIVATE ctex_emit ctex_graph)
     add_test(NAME kong-context COMMAND ctex_kong_context_test)
+    find_program(CTEX_SPIRV_VAL_EXECUTABLE spirv-val)
+    if(CTEX_SPIRV_VAL_EXECUTABLE)
+        set(CTEX_KONG_VERTEX_SPIRV "${CMAKE_CURRENT_BINARY_DIR}/kong-vertex.spv")
+        set(CTEX_KONG_FRAGMENT_SPIRV "${CMAKE_CURRENT_BINARY_DIR}/kong-fragment.spv")
+        add_test(
+            NAME kong-spirv-generate
+            COMMAND
+                ctex_kong_context_test --write-spirv
+                "${CTEX_KONG_VERTEX_SPIRV}" "${CTEX_KONG_FRAGMENT_SPIRV}"
+        )
+        set_tests_properties(kong-spirv-generate PROPERTIES FIXTURES_SETUP kong-spirv)
+        add_test(
+            NAME kong-spirv-vertex-validation
+            COMMAND "${CTEX_SPIRV_VAL_EXECUTABLE}" "${CTEX_KONG_VERTEX_SPIRV}"
+        )
+        set_tests_properties(
+            kong-spirv-vertex-validation PROPERTIES FIXTURES_REQUIRED kong-spirv
+        )
+        add_test(
+            NAME kong-spirv-fragment-validation
+            COMMAND "${CTEX_SPIRV_VAL_EXECUTABLE}" "${CTEX_KONG_FRAGMENT_SPIRV}"
+        )
+        set_tests_properties(
+            kong-spirv-fragment-validation PROPERTIES FIXTURES_REQUIRED kong-spirv
+        )
+    endif()
 
     add_executable(ctex_graph_emission_test tests/emit/graph_emission_test.cpp)
     ctex_configure_cpp_target(ctex_graph_emission_test)

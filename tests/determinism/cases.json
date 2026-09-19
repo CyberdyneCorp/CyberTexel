@@ -9,6 +9,19 @@
                     "name": "qualified material graph",
                     "command": ["build/headless/ctex_graph_emission_test"],
                     "outputs": ["shader-emission.wgsl-body"]
+                },
+                {
+                    "name": "Kong target artifacts",
+                    "command": ["build/headless/ctex_kong_context_test", "--write-target-artifacts"],
+                    "outputs": [
+                        "kong.wgsl.vert",
+                        "kong.wgsl.frag",
+                        "kong.msl",
+                        "kong.spirv.vert",
+                        "kong.spirv.frag",
+                        "kong.hlsl.vert",
+                        "kong.hlsl.frag"
+                    ]
                 }
             ]
         },
