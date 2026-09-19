@@ -297,7 +297,12 @@ identities (8.10) add a structured key for each named render or compute pass.
 The key combines resource kind, stable plan scope and pass identifier without
 delimiter ambiguity, remains stable across plan reconstruction and pass
 reordering, and lets a host cache compiled pipelines without pointer or ordinal
-keys. The consolidated host-transport scenario suite (8.11) is next.
+keys. Task 8.11 labels the eight transport CTests as one runnable suite and maps
+all sixteen scenarios to current fixtures or their explicit later integration
+tasks. Rust binding parity, save integration and numeric reference-device
+budgets remain explicitly assigned to 14.13, 12.3–12.4 and 17.6 rather than
+being simulated by the C++ suite. The host-transport milestone is otherwise
+complete; painting begins with canonical input sample reconstruction (9.1).
 
 ## 1. Foundation
 
@@ -412,7 +417,7 @@ keys. The consolidated host-transport scenario suite (8.11) is next.
 - [x] 8.8 Delta query cost independent of document tile count
 - [x] 8.9 Preview transport through the same mechanism
 - [x] 8.10 Stable identities for host-cached resources
-- [ ] 8.11 `host-transport` scenarios as tests
+- [x] 8.11 `host-transport` scenarios as tests
 
 ## 9. Painting
 

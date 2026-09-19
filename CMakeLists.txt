@@ -708,4 +708,18 @@ if(BUILD_TESTING)
         ${CTEX_EXECUTION_BACKEND_SCENARIO_TESTS}
         PROPERTIES LABELS execution-backends-scenario
     )
+    set(
+        CTEX_HOST_TRANSPORT_SCENARIO_TESTS
+        host-transport-revisions
+        host-transport-delta
+        host-transport-readback
+        host-transport-layout
+        host-transport-format
+        host-transport-snapshot
+        host-transport-preview
+        host-transport-identity
+    )
+    set_tests_properties(
+        ${CTEX_HOST_TRANSPORT_SCENARIO_TESTS} PROPERTIES LABELS host-transport-scenario
+    )
 endif()

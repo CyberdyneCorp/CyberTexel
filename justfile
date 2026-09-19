@@ -99,6 +99,9 @@ test-host-transport-preview: build
 test-host-transport-identity: build
     ctest --test-dir build/headless --output-on-failure -R '^host-transport-identity$'
 
+test-host-transport-scenarios: build
+    ctest --test-dir build/headless --output-on-failure -L '^host-transport-scenario$'
+
 test-mesh: build
     ctest --test-dir build/headless --output-on-failure -R '^mesh-ingest$'
 

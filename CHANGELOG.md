@@ -54,6 +54,9 @@ Foundation implementation is in progress.
 - Structured stable identities for host-cached render and compute pipelines,
   keyed by pipeline kind, plan scope, and pass name rather than pointers or
   pass ordinals.
+- A labeled host-transport scenario suite mapping every specification scenario
+  to executable coverage or its explicitly scheduled binding, save, or
+  reference-device performance integration.
 - Linear Rec. 709 working-space and sRGB transfer functions with unclamped HDR
   conversion.
 - Native and sanitizer test presets plus a registry-driven determinism gate that

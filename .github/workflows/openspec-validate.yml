@@ -50,6 +50,8 @@ jobs:
       run: just test-png
     - name: Semantic document channels
       run: just test-channels
+    - name: Host transport scenarios
+      run: just test-host-transport-scenarios
     - name: Texture-set document
       run: just test-document
     - name: Read-only mesh ingest
