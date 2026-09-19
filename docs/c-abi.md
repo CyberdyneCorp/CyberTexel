@@ -57,6 +57,31 @@ channel count and resident channel, mesh-map and total bytes. Enabled constant
 channels remain sparse and therefore report zero resident pixel bytes until a
 write materializes a tile.
 
+## Colour management
+
+`ctex_get_working_color_space` and `ctex_color_space_get_name` identify the
+working space as Linear Rec. 709. Every `ctex_rgb_color` carries its source
+space; `ctex_color_convert` therefore never guesses a caller convention and
+refuses unsupported spaces. `ctex_color_input_to_working` additionally applies
+the channel policy, converting colour semantics while leaving linear-data
+semantics unchanged. The supported space set is Linear Rec. 709 and sRGB with
+Rec. 709 primaries.
+
+`ctex_channel_get_color_policy` reports whether each built-in semantic is colour
+or linear data and its recommended minimum precision. Normal and height report
+16 bits; other built-ins report 8. `ctex_channel_get_bit_depth_warning` compares
+a selected precision with that policy and names both selected and recommended
+depths. `ctex_resolve_input_color_space` reports both the resolved space and
+whether automatic mode inferred it: sRGB for colour semantics and linear for
+data semantics. `ctex_accumulate_height` performs the sum before a single
+quantization at the requested storage precision, while `ctex_quantize_unorm8`
+exposes the deterministic ordered dither and its host disable switch.
+
+`ctex_cube_lut_create` parses an in-memory `.cube` 3D LUT into an immutable
+opaque handle. `ctex_cube_lut_apply_preview` first converts its explicitly typed
+input to the working space and applies that LUT only through a preview-named
+operation; authored and exported texture data are not mutated.
+
 ## ABI version and compatibility
 
 `ctex_get_abi_version` is safe before any handle exists and returns the major,
@@ -93,6 +118,10 @@ The contract is stated per entry-point family:
 | Calls | Contract |
 | --- | --- |
 | `ctex_get_version`, `ctex_get_abi_version` | Process-safe and callable concurrently from any thread |
+| `ctex_get_working_color_space`, `ctex_color_space_get_name`, `ctex_channel_get_color_policy`, `ctex_channel_get_bit_depth_warning`, `ctex_resolve_input_color_space`, `ctex_color_convert`, `ctex_color_input_to_working`, `ctex_accumulate_height`, `ctex_quantize_unorm8` | Stateless, process-safe and callable concurrently from any thread |
+| `ctex_cube_lut_create` | Process-safe; each successful call creates independent immutable state and captures the active allocator |
+| `ctex_cube_lut_apply_preview` | Safe to call concurrently, including against the same immutable LUT handle |
+| `ctex_cube_lut_destroy` | The caller ensures no application call is using that handle; distinct handles may be destroyed concurrently |
 | `ctex_set_log_sink` | Process-safe process-wide setting; replacement is atomic, but the host keeps callback user data alive until calls that could have observed the prior sink finish |
 | `ctex_set_allocator` | Process-safe process-wide default for subsequently created objects; each object retains its creating configuration, and the host keeps its user data alive through destruction |
 | `ctex_document_create` | Process-safe; each successful call creates independent state |
@@ -156,14 +185,14 @@ Opaque document storage and every persistent allocation reachable through the
 current C surface use the captured allocator through a core
 `std::pmr::memory_resource`. This includes the ordered texture-set index and
 keys, texture-set identity and descriptor strings, shared accounting state,
-preset-vector capacity, channel descriptor/map storage, and tiled channel-image
-metadata and pixels. Copy-on-write image versions retain that resource across
-copy and move publication. Native C++ callers use the standard default resource
-unless they provide another one. Temporary conversion and scratch allocations
-are intentionally outside the long-lived allocation contract. Any future C
-entry point that creates persistent state must propagate the owning document's
-resource; allocating such state from the process default is a contract
-violation.
+preset-vector capacity, channel descriptor/map storage, tiled channel-image
+metadata and pixels, and opaque `.cube` LUT handles and sample tables.
+Copy-on-write image versions retain that resource across copy and move
+publication. Native C++ callers use the standard default resource unless they
+provide another one. Temporary conversion and scratch allocations are
+intentionally outside the long-lived allocation contract. Any future C entry
+point that creates persistent state must propagate its captured resource;
+allocating such state from the process default is a contract violation.
 
 The Linux export surface is constrained by `cmake/exports/cybertexel.map`, macOS
 uses `cybertexel.exports`, and Windows uses `cybertexel.def`. The

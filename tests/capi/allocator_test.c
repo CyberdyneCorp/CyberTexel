@@ -52,6 +52,9 @@ static void misaligned_deallocate(void* allocation, size_t size, size_t alignmen
 }
 
 int main(void) {
+    static const char cube_source[] =
+        "LUT_3D_SIZE 2\n0 0 0\n1 0 0\n0 1 0\n1 1 0\n"
+        "0 0 1\n1 0 1\n0 1 1\n1 1 1\n";
     allocator_capture capture = {0};
     ctex_allocator_descriptor allocator = {
         CTEX_ALLOCATOR_DESCRIPTOR_CURRENT_SIZE,
@@ -60,6 +63,7 @@ int main(void) {
         &capture,
     };
     ctex_document* document = NULL;
+    ctex_cube_lut* lut = NULL;
     ctex_texture_set_descriptor texture_set = {
         CTEX_TEXTURE_SET_DESCRIPTOR_CURRENT_SIZE,
         "Body",
@@ -71,6 +75,7 @@ int main(void) {
         8,
     };
     size_t successful_allocation_count = 0;
+    size_t document_allocation_count = 0;
     char texture_set_id[128] = {0};
     size_t texture_set_id_size = 0;
     size_t texture_set_count = 0;
@@ -83,6 +88,11 @@ int main(void) {
     }
     if (ctex_document_create_texture_set(document, &texture_set) != CTEX_RESULT_SUCCESS ||
         capture.allocation_count < 13) {
+        return 2;
+    }
+    document_allocation_count = capture.allocation_count;
+    if (ctex_cube_lut_create(cube_source, sizeof(cube_source) - 1, &lut) != CTEX_RESULT_SUCCESS ||
+        lut == NULL || capture.allocation_count <= document_allocation_count) {
         return 2;
     }
     successful_allocation_count = capture.allocation_count;
@@ -101,6 +111,7 @@ int main(void) {
     }
     successful_allocation_count = capture.allocation_count;
     ctex_document_destroy(document);
+    ctex_cube_lut_destroy(lut);
     if (capture.deallocation_count != successful_allocation_count) {
         return 5;
     }

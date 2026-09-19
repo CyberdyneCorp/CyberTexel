@@ -4,6 +4,7 @@
 #include <ctex/capi.h>
 
 #include <ctex/doc/document.hpp>
+#include <ctex/image/cube_lut.hpp>
 #include <memory_resource>
 
 struct ctex_allocator_state {
@@ -30,6 +31,14 @@ struct ctex_document {
     ctex_allocator_state allocator;
     ctex_host_memory_resource memory_resource;
     ctex::doc::TextureDocument value;
+};
+
+struct ctex_cube_lut {
+    ctex_cube_lut(ctex_allocator_state allocator_value, std::string_view source);
+
+    ctex_allocator_state allocator;
+    ctex_host_memory_resource memory_resource;
+    ctex::image::CubeLut value;
 };
 
 #endif

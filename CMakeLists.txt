@@ -337,6 +337,10 @@ if(BUILD_TESTING)
         ctex_configure_c_target(ctex_capi_channels_test)
         target_link_libraries(ctex_capi_channels_test PRIVATE cybertexel_c)
         add_test(NAME c-abi-texture-set-channels COMMAND ctex_capi_channels_test)
+        add_executable(ctex_capi_color_management_test tests/capi/color_management_test.c)
+        ctex_configure_c_target(ctex_capi_color_management_test)
+        target_link_libraries(ctex_capi_color_management_test PRIVATE cybertexel_c)
+        add_test(NAME c-abi-color-management COMMAND ctex_capi_color_management_test)
         if(UNIX AND NOT APPLE)
             add_test(
                 NAME c-abi-export-surface

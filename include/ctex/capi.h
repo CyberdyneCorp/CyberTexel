@@ -55,7 +55,12 @@ typedef enum ctex_diagnostic_code {
     CTEX_DIAGNOSTIC_INVALID_CHANNEL_DEFAULT_VALUE_COUNT = 19,
     CTEX_DIAGNOSTIC_INVALID_CHANNEL_BIT_DEPTH = 20,
     CTEX_DIAGNOSTIC_DUPLICATE_CHANNEL = 21,
-    CTEX_DIAGNOSTIC_MISSING_CHANNEL = 22
+    CTEX_DIAGNOSTIC_MISSING_CHANNEL = 22,
+    CTEX_DIAGNOSTIC_UNSUPPORTED_COLOR_SPACE = 23,
+    CTEX_DIAGNOSTIC_UNSUPPORTED_CHANNEL_SEMANTIC = 24,
+    CTEX_DIAGNOSTIC_INVALID_COLOR_COMPONENT = 25,
+    CTEX_DIAGNOSTIC_INVALID_COLOR_BIT_DEPTH = 26,
+    CTEX_DIAGNOSTIC_INVALID_CUBE_LUT = 27
 } ctex_diagnostic_code;
 
 typedef enum ctex_log_severity {
@@ -95,6 +100,7 @@ typedef struct ctex_allocator_descriptor {
 #define CTEX_ALLOCATOR_DESCRIPTOR_CURRENT_SIZE ((uint32_t)sizeof(ctex_allocator_descriptor))
 
 typedef struct ctex_document ctex_document;
+typedef struct ctex_cube_lut ctex_cube_lut;
 
 typedef enum ctex_partition_source_kind {
     CTEX_PARTITION_SOURCE_MATERIAL = 0,
@@ -181,6 +187,65 @@ typedef struct ctex_texture_set_memory_report {
 #define CTEX_TEXTURE_SET_MEMORY_REPORT_CURRENT_SIZE \
     ((uint32_t)sizeof(ctex_texture_set_memory_report))
 
+typedef enum ctex_color_space {
+    CTEX_COLOR_SPACE_LINEAR_REC709 = 0,
+    CTEX_COLOR_SPACE_SRGB_REC709 = 1
+} ctex_color_space;
+
+typedef enum ctex_input_color_space {
+    CTEX_INPUT_COLOR_SPACE_AUTOMATIC = 0,
+    CTEX_INPUT_COLOR_SPACE_LINEAR_REC709 = 1,
+    CTEX_INPUT_COLOR_SPACE_SRGB_REC709 = 2
+} ctex_input_color_space;
+
+typedef enum ctex_channel_semantic {
+    CTEX_CHANNEL_SEMANTIC_BASE_COLOR = 0,
+    CTEX_CHANNEL_SEMANTIC_OPACITY = 1,
+    CTEX_CHANNEL_SEMANTIC_ROUGHNESS = 2,
+    CTEX_CHANNEL_SEMANTIC_METALLIC = 3,
+    CTEX_CHANNEL_SEMANTIC_NORMAL = 4,
+    CTEX_CHANNEL_SEMANTIC_HEIGHT = 5,
+    CTEX_CHANNEL_SEMANTIC_OCCLUSION = 6,
+    CTEX_CHANNEL_SEMANTIC_EMISSION = 7,
+    CTEX_CHANNEL_SEMANTIC_SUBSURFACE = 8
+} ctex_channel_semantic;
+
+typedef struct ctex_rgb_color {
+    double red;
+    double green;
+    double blue;
+    uint32_t color_space;
+} ctex_rgb_color;
+
+typedef struct ctex_channel_color_policy {
+    uint32_t size;
+    uint32_t color_valued;
+    uint32_t recommended_bit_depth;
+} ctex_channel_color_policy;
+
+#define CTEX_CHANNEL_COLOR_POLICY_V1_SIZE ((uint32_t)sizeof(ctex_channel_color_policy))
+#define CTEX_CHANNEL_COLOR_POLICY_CURRENT_SIZE ((uint32_t)sizeof(ctex_channel_color_policy))
+
+typedef struct ctex_resolved_input_color_space {
+    uint32_t size;
+    uint32_t color_space;
+    uint32_t inferred;
+} ctex_resolved_input_color_space;
+
+#define CTEX_RESOLVED_INPUT_COLOR_SPACE_V1_SIZE ((uint32_t)sizeof(ctex_resolved_input_color_space))
+#define CTEX_RESOLVED_INPUT_COLOR_SPACE_CURRENT_SIZE \
+    ((uint32_t)sizeof(ctex_resolved_input_color_space))
+
+typedef struct ctex_bit_depth_warning {
+    uint32_t size;
+    uint32_t warning;
+    uint32_t selected_bit_depth;
+    uint32_t recommended_bit_depth;
+} ctex_bit_depth_warning;
+
+#define CTEX_BIT_DEPTH_WARNING_V1_SIZE ((uint32_t)sizeof(ctex_bit_depth_warning))
+#define CTEX_BIT_DEPTH_WARNING_CURRENT_SIZE ((uint32_t)sizeof(ctex_bit_depth_warning))
+
 typedef struct ctex_version {
     uint32_t major;
     uint32_t minor;
@@ -190,6 +255,32 @@ typedef struct ctex_version {
 
 CTEX_API ctex_version ctex_get_version(void);
 CTEX_API ctex_version ctex_get_abi_version(void);
+CTEX_API ctex_color_space ctex_get_working_color_space(void);
+CTEX_API ctex_result ctex_color_space_get_name(uint32_t color_space, char* buffer,
+                                               size_t buffer_size, size_t* out_required_size);
+CTEX_API ctex_result ctex_channel_get_color_policy(uint32_t channel_semantic,
+                                                   ctex_channel_color_policy* out_policy);
+CTEX_API ctex_result ctex_resolve_input_color_space(uint32_t declaration, uint32_t channel_semantic,
+                                                    ctex_resolved_input_color_space* out_resolved);
+CTEX_API ctex_result ctex_color_convert(const ctex_rgb_color* input,
+                                        uint32_t destination_color_space,
+                                        ctex_rgb_color* out_color);
+CTEX_API ctex_result ctex_color_input_to_working(const ctex_rgb_color* input,
+                                                 uint32_t channel_semantic,
+                                                 ctex_rgb_color* out_color);
+CTEX_API ctex_result ctex_channel_get_bit_depth_warning(uint32_t channel_semantic,
+                                                        uint32_t selected_bit_depth,
+                                                        ctex_bit_depth_warning* out_warning);
+CTEX_API ctex_result ctex_accumulate_height(const double* contributions, size_t contribution_count,
+                                            uint32_t storage_bit_depth, double* out_accumulated);
+CTEX_API ctex_result ctex_quantize_unorm8(double value, uint32_t x, uint32_t y, uint32_t dither,
+                                          uint8_t* out_value);
+CTEX_API ctex_result ctex_cube_lut_create(const char* cube_source, size_t cube_source_size,
+                                          ctex_cube_lut** out_lut);
+CTEX_API void ctex_cube_lut_destroy(ctex_cube_lut* lut);
+CTEX_API ctex_result ctex_cube_lut_apply_preview(const ctex_cube_lut* lut,
+                                                 const ctex_rgb_color* input,
+                                                 ctex_rgb_color* out_color);
 
 /*
  * Installs one process-wide sink. Pass NULL to uninstall it. The callback can

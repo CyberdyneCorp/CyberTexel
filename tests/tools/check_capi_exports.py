@@ -8,6 +8,15 @@ from pathlib import Path
 
 
 EXPECTED = {
+    "ctex_accumulate_height",
+    "ctex_channel_get_color_policy",
+    "ctex_channel_get_bit_depth_warning",
+    "ctex_color_convert",
+    "ctex_color_input_to_working",
+    "ctex_color_space_get_name",
+    "ctex_cube_lut_apply_preview",
+    "ctex_cube_lut_create",
+    "ctex_cube_lut_destroy",
     "ctex_document_create",
     "ctex_document_create_texture_set",
     "ctex_document_destroy",
@@ -16,6 +25,9 @@ EXPECTED = {
     "ctex_get_last_diagnostic",
     "ctex_get_last_result",
     "ctex_get_version",
+    "ctex_get_working_color_space",
+    "ctex_quantize_unorm8",
+    "ctex_resolve_input_color_space",
     "ctex_texture_set_get_channel_ids",
     "ctex_texture_set_get_channel_info",
     "ctex_texture_set_get_memory_report",

@@ -2,8 +2,10 @@
 #include <ctex/version.h>
 
 #include <algorithm>
+#include <cmath>
 #include <cstdio>
 #include <cstring>
+#include <ctex/image/color_policy.hpp>
 #include <exception>
 #include <limits>
 #include <mutex>
@@ -423,6 +425,96 @@ std::uint32_t storage_bit_depth(const ctex::doc::TextureChannels& channels,
     throw std::logic_error("channel has an unknown storage type");
 }
 
+ctex::image::ColorSpace color_space(std::uint32_t value) {
+    switch (value) {
+        case CTEX_COLOR_SPACE_LINEAR_REC709:
+            return ctex::image::ColorSpace::linear_rec709;
+        case CTEX_COLOR_SPACE_SRGB_REC709:
+            return ctex::image::ColorSpace::srgb_rec709;
+    }
+    throw_boundary(CTEX_RESULT_UNSUPPORTED_OPERATION, CTEX_DIAGNOSTIC_UNSUPPORTED_COLOR_SPACE,
+                   "color_space=" + std::to_string(value));
+}
+
+ctex::image::InputColorSpace input_color_space(std::uint32_t value) {
+    switch (value) {
+        case CTEX_INPUT_COLOR_SPACE_AUTOMATIC:
+            return ctex::image::InputColorSpace::automatic;
+        case CTEX_INPUT_COLOR_SPACE_LINEAR_REC709:
+            return ctex::image::InputColorSpace::linear_rec709;
+        case CTEX_INPUT_COLOR_SPACE_SRGB_REC709:
+            return ctex::image::InputColorSpace::srgb_rec709;
+    }
+    throw_boundary(CTEX_RESULT_UNSUPPORTED_OPERATION, CTEX_DIAGNOSTIC_UNSUPPORTED_COLOR_SPACE,
+                   "input_color_space=" + std::to_string(value));
+}
+
+ctex::image::InputColorSpace declared_input_color_space(ctex::image::ColorSpace value) noexcept {
+    return value == ctex::image::ColorSpace::linear_rec709
+               ? ctex::image::InputColorSpace::linear_rec709
+               : ctex::image::InputColorSpace::srgb_rec709;
+}
+
+ctex::image::ChannelSemantic channel_semantic(std::uint32_t value) {
+    switch (value) {
+        case CTEX_CHANNEL_SEMANTIC_BASE_COLOR:
+            return ctex::image::ChannelSemantic::base_color;
+        case CTEX_CHANNEL_SEMANTIC_OPACITY:
+            return ctex::image::ChannelSemantic::opacity;
+        case CTEX_CHANNEL_SEMANTIC_ROUGHNESS:
+            return ctex::image::ChannelSemantic::roughness;
+        case CTEX_CHANNEL_SEMANTIC_METALLIC:
+            return ctex::image::ChannelSemantic::metallic;
+        case CTEX_CHANNEL_SEMANTIC_NORMAL:
+            return ctex::image::ChannelSemantic::normal;
+        case CTEX_CHANNEL_SEMANTIC_HEIGHT:
+            return ctex::image::ChannelSemantic::height;
+        case CTEX_CHANNEL_SEMANTIC_OCCLUSION:
+            return ctex::image::ChannelSemantic::occlusion;
+        case CTEX_CHANNEL_SEMANTIC_EMISSION:
+            return ctex::image::ChannelSemantic::emission;
+        case CTEX_CHANNEL_SEMANTIC_SUBSURFACE:
+            return ctex::image::ChannelSemantic::subsurface;
+    }
+    throw_boundary(CTEX_RESULT_UNSUPPORTED_OPERATION, CTEX_DIAGNOSTIC_UNSUPPORTED_CHANNEL_SEMANTIC,
+                   "channel_semantic=" + std::to_string(value));
+}
+
+void validate_structure_size(std::uint32_t provided, std::uint32_t minimum, std::uint32_t current,
+                             std::string_view field) {
+    if (provided < minimum || provided > current) {
+        throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_INVALID_DESCRIPTOR_SIZE,
+                       std::string(field) + "=" + std::to_string(provided) +
+                           " expected_size=" + std::to_string(current));
+    }
+}
+
+ctex::image::RgbColor rgb_color(const ctex_rgb_color& color) {
+    if (!std::isfinite(color.red) || !std::isfinite(color.green) || !std::isfinite(color.blue)) {
+        throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_INVALID_COLOR_COMPONENT,
+                       "RGB components must be finite");
+    }
+    static_cast<void>(color_space(color.color_space));
+    return {color.red, color.green, color.blue};
+}
+
+void validate_color_bit_depth(std::uint32_t value) {
+    if (!valid_channel_bit_depth(value)) {
+        throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_INVALID_COLOR_BIT_DEPTH,
+                       "storage_bit_depth=" + std::to_string(value));
+    }
+}
+
+ctex_cube_lut* create_cube_lut(const ctex_allocator_state& allocator, std::string_view source) {
+    void* storage = allocate_storage(allocator, sizeof(ctex_cube_lut), alignof(ctex_cube_lut));
+    try {
+        return ::new (storage) ctex_cube_lut(allocator, source);
+    } catch (...) {
+        deallocate_storage(allocator, storage, sizeof(ctex_cube_lut), alignof(ctex_cube_lut));
+        throw;
+    }
+}
+
 ctex::doc::PartitionSourceKind partition_source_kind(std::uint32_t kind) {
     switch (kind) {
         case CTEX_PARTITION_SOURCE_MATERIAL:
@@ -522,6 +614,11 @@ bool ctex_host_memory_resource::do_is_equal(const std::pmr::memory_resource& oth
 ctex_document::ctex_document(ctex_allocator_state allocator_value)
     : allocator(allocator_value), memory_resource(allocator_value), value(&memory_resource) {}
 
+ctex_cube_lut::ctex_cube_lut(ctex_allocator_state allocator_value, std::string_view source)
+    : allocator(allocator_value),
+      memory_resource(allocator_value),
+      value(ctex::image::CubeLut::from_cube(source, &memory_resource)) {}
+
 extern "C" ctex_version ctex_get_version(void) {
     return {
         CTEX_VERSION_MAJOR,
@@ -532,6 +629,234 @@ extern "C" ctex_version ctex_get_version(void) {
 }
 
 extern "C" ctex_version ctex_get_abi_version(void) { return ctex_get_version(); }
+
+extern "C" ctex_color_space ctex_get_working_color_space(void) {
+    return CTEX_COLOR_SPACE_LINEAR_REC709;
+}
+
+extern "C" ctex_result ctex_color_space_get_name(std::uint32_t value, char* buffer,
+                                                 std::size_t buffer_size,
+                                                 std::size_t* out_required_size) {
+    return call_boundary("ctex_color_space_get_name", [&] {
+        if (out_required_size == nullptr) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                           "out_required_size=null");
+        }
+        const std::string_view name = ctex::image::color_space_name(color_space(value));
+        const std::size_t required_size = name.size() + 1;
+        *out_required_size = required_size;
+        validate_string_buffer(buffer, buffer_size, required_size);
+        if (buffer != nullptr) {
+            std::memcpy(buffer, name.data(), name.size());
+            buffer[name.size()] = '\0';
+        }
+    });
+}
+
+extern "C" ctex_result ctex_channel_get_color_policy(std::uint32_t semantic_value,
+                                                     ctex_channel_color_policy* out_policy) {
+    return call_boundary("ctex_channel_get_color_policy", [&] {
+        if (out_policy == nullptr) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                           "out_policy=null");
+        }
+        validate_structure_size(out_policy->size, CTEX_CHANNEL_COLOR_POLICY_V1_SIZE,
+                                CTEX_CHANNEL_COLOR_POLICY_CURRENT_SIZE, "out_policy.size");
+        const ctex::image::ChannelSemantic semantic = channel_semantic(semantic_value);
+        *out_policy = {
+            .size = CTEX_CHANNEL_COLOR_POLICY_CURRENT_SIZE,
+            .color_valued = ctex::image::is_color_valued(semantic) ? 1U : 0U,
+            .recommended_bit_depth = ctex::image::recommended_bit_depth(semantic),
+        };
+    });
+}
+
+extern "C" ctex_result ctex_resolve_input_color_space(
+    std::uint32_t declaration_value, std::uint32_t semantic_value,
+    ctex_resolved_input_color_space* out_resolved) {
+    return call_boundary("ctex_resolve_input_color_space", [&] {
+        if (out_resolved == nullptr) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                           "out_resolved=null");
+        }
+        validate_structure_size(out_resolved->size, CTEX_RESOLVED_INPUT_COLOR_SPACE_V1_SIZE,
+                                CTEX_RESOLVED_INPUT_COLOR_SPACE_CURRENT_SIZE, "out_resolved.size");
+        const ctex::image::ResolvedInputSpace resolved = ctex::image::resolve_input_space(
+            input_color_space(declaration_value), channel_semantic(semantic_value));
+        *out_resolved = {
+            .size = CTEX_RESOLVED_INPUT_COLOR_SPACE_CURRENT_SIZE,
+            .color_space = static_cast<std::uint32_t>(resolved.color_space),
+            .inferred = resolved.inferred ? 1U : 0U,
+        };
+    });
+}
+
+extern "C" ctex_result ctex_color_convert(const ctex_rgb_color* input,
+                                          std::uint32_t destination_color_space,
+                                          ctex_rgb_color* out_color) {
+    return call_boundary("ctex_color_convert", [&] {
+        if (input == nullptr || out_color == nullptr) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                           input == nullptr ? "input=null" : "out_color=null");
+        }
+        const ctex::image::ColorSpace source = color_space(input->color_space);
+        const ctex::image::ColorSpace destination = color_space(destination_color_space);
+        const ctex::image::RgbColor converted =
+            ctex::image::convert_color(rgb_color(*input), source, destination);
+        *out_color = {
+            .red = converted.red,
+            .green = converted.green,
+            .blue = converted.blue,
+            .color_space = destination_color_space,
+        };
+    });
+}
+
+extern "C" ctex_result ctex_color_input_to_working(const ctex_rgb_color* input,
+                                                   std::uint32_t semantic_value,
+                                                   ctex_rgb_color* out_color) {
+    return call_boundary("ctex_color_input_to_working", [&] {
+        if (input == nullptr || out_color == nullptr) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                           input == nullptr ? "input=null" : "out_color=null");
+        }
+        const ctex::image::ColorSpace source = color_space(input->color_space);
+        const ctex::image::RgbColor converted = ctex::image::input_to_working_space(
+            rgb_color(*input), declared_input_color_space(source),
+            channel_semantic(semantic_value));
+        *out_color = {
+            .red = converted.red,
+            .green = converted.green,
+            .blue = converted.blue,
+            .color_space = CTEX_COLOR_SPACE_LINEAR_REC709,
+        };
+    });
+}
+
+extern "C" ctex_result ctex_channel_get_bit_depth_warning(std::uint32_t semantic_value,
+                                                          std::uint32_t selected_bit_depth,
+                                                          ctex_bit_depth_warning* out_warning) {
+    return call_boundary("ctex_channel_get_bit_depth_warning", [&] {
+        if (out_warning == nullptr) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                           "out_warning=null");
+        }
+        validate_structure_size(out_warning->size, CTEX_BIT_DEPTH_WARNING_V1_SIZE,
+                                CTEX_BIT_DEPTH_WARNING_CURRENT_SIZE, "out_warning.size");
+        validate_color_bit_depth(selected_bit_depth);
+        const ctex::image::ChannelSemantic semantic = channel_semantic(semantic_value);
+        const std::optional<ctex::image::BitDepthWarning> warning =
+            ctex::image::bit_depth_warning(semantic, static_cast<std::uint8_t>(selected_bit_depth));
+        *out_warning = {
+            .size = CTEX_BIT_DEPTH_WARNING_CURRENT_SIZE,
+            .warning = warning.has_value() ? 1U : 0U,
+            .selected_bit_depth = selected_bit_depth,
+            .recommended_bit_depth = ctex::image::recommended_bit_depth(semantic),
+        };
+    });
+}
+
+extern "C" ctex_result ctex_accumulate_height(const double* contributions,
+                                              std::size_t contribution_count,
+                                              std::uint32_t storage_bit_depth,
+                                              double* out_accumulated) {
+    return call_boundary("ctex_accumulate_height", [&] {
+        if (out_accumulated == nullptr || (contributions == nullptr && contribution_count != 0)) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                           out_accumulated == nullptr
+                               ? "out_accumulated=null"
+                               : "contributions=null with nonzero contribution_count");
+        }
+        validate_color_bit_depth(storage_bit_depth);
+        for (std::size_t index = 0; index < contribution_count; ++index) {
+            if (!std::isfinite(contributions[index])) {
+                throw_boundary(CTEX_RESULT_INVALID_ARGUMENT,
+                               CTEX_DIAGNOSTIC_INVALID_COLOR_COMPONENT,
+                               "contribution is not finite at index=" + std::to_string(index));
+            }
+        }
+        const std::span<const double> values =
+            contribution_count == 0 ? std::span<const double>{}
+                                    : std::span<const double>(contributions, contribution_count);
+        const double accumulated =
+            ctex::image::accumulate_height(values, static_cast<std::uint8_t>(storage_bit_depth));
+        if (!std::isfinite(accumulated)) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_INVALID_COLOR_COMPONENT,
+                           "height accumulation is not finite");
+        }
+        *out_accumulated = accumulated;
+    });
+}
+
+extern "C" ctex_result ctex_quantize_unorm8(double value, std::uint32_t x, std::uint32_t y,
+                                            std::uint32_t dither, std::uint8_t* out_value) {
+    return call_boundary("ctex_quantize_unorm8", [&] {
+        if (out_value == nullptr) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                           "out_value=null");
+        }
+        if (!std::isfinite(value)) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_INVALID_COLOR_COMPONENT,
+                           "value is not finite");
+        }
+        if (dither > 1) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_INVALID_DESCRIPTOR_VALUE,
+                           "dither=" + std::to_string(dither));
+        }
+        *out_value = ctex::image::quantize_unorm8(value, x, y, dither != 0);
+    });
+}
+
+extern "C" ctex_result ctex_cube_lut_create(const char* cube_source, std::size_t cube_source_size,
+                                            ctex_cube_lut** out_lut) {
+    return call_boundary("ctex_cube_lut_create", [&] {
+        if (out_lut == nullptr) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                           "out_lut=null");
+        }
+        *out_lut = nullptr;
+        if (cube_source == nullptr) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                           "cube_source=null");
+        }
+        try {
+            *out_lut = create_cube_lut(current_allocator(),
+                                       std::string_view(cube_source, cube_source_size));
+        } catch (const std::invalid_argument& error) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_INVALID_CUBE_LUT,
+                           error.what());
+        }
+    });
+}
+
+extern "C" void ctex_cube_lut_destroy(ctex_cube_lut* lut) {
+    if (lut == nullptr) {
+        return;
+    }
+    const ctex_allocator_state allocator = lut->allocator;
+    lut->~ctex_cube_lut();
+    deallocate_storage(allocator, lut, sizeof(ctex_cube_lut), alignof(ctex_cube_lut));
+}
+
+extern "C" ctex_result ctex_cube_lut_apply_preview(const ctex_cube_lut* lut,
+                                                   const ctex_rgb_color* input,
+                                                   ctex_rgb_color* out_color) {
+    return call_boundary("ctex_cube_lut_apply_preview", [&] {
+        if (lut == nullptr || input == nullptr || out_color == nullptr) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                           "lut, input and out_color are required");
+        }
+        const ctex::image::RgbColor working = ctex::image::convert_color(
+            rgb_color(*input), color_space(input->color_space), ctex::image::working_color_space());
+        const ctex::image::RgbColor preview = lut->value.apply(working);
+        *out_color = {
+            .red = preview.red,
+            .green = preview.green,
+            .blue = preview.blue,
+            .color_space = CTEX_COLOR_SPACE_LINEAR_REC709,
+        };
+    });
+}
 
 extern "C" ctex_result ctex_set_log_sink(const ctex_log_sink_descriptor* descriptor) {
     return call_boundary("ctex_set_log_sink", [descriptor] { install_log_sink(descriptor); });

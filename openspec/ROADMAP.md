@@ -141,9 +141,11 @@ channel metadata. Full-surface coverage (14.8) now has a requirement-granular
 manifest and tested checker over all 24 capabilities. The first full-surface
 slice exposes texture-set channel enumeration, extensible descriptors,
 enablement, per-channel precision and memory reporting to C hosts while routing
-persistent tiled storage through the captured allocator. The gate correctly
-remains red, naming the 238 runtime requirements that still lack C entry points;
-those gaps must be implemented before the task can close.
+persistent tiled storage through the captured allocator. A second slice exposes
+the complete headless colour-management policy, transforms, precision
+operations, deterministic dithering and preview-only `.cube` LUTs. The gate
+correctly remains red, naming the 227 runtime requirements that still lack C
+entry points; those gaps must be implemented before the task can close.
 
 ## Milestones
 

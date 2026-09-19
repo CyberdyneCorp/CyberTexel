@@ -21,7 +21,19 @@
       {"requirement": "Allocation control", "symbols": ["ctex_set_allocator"]}
     ]},
     {"name": "cli-headless", "kind": "non-runtime", "rationale": "The CLI consumes the C ABI and is not itself a library operation.", "evidence": ["task 15"]},
-    {"name": "color-management", "kind": "runtime", "requirements": []},
+    {"name": "color-management", "kind": "runtime", "requirements": [
+      {"requirement": "Declared working space", "symbols": ["ctex_get_working_color_space", "ctex_color_space_get_name"]},
+      {"requirement": "Per-channel colour semantics", "symbols": ["ctex_channel_get_color_policy", "ctex_color_input_to_working", "ctex_texture_set_get_channel_info"]},
+      {"requirement": "Input colour space declaration", "symbols": ["ctex_resolve_input_color_space", "ctex_color_input_to_working"]},
+      {"requirement": "Supported transfer functions and primaries", "symbols": ["ctex_color_space_get_name", "ctex_color_convert"]},
+      {"requirement": "Colour lookup tables", "symbols": ["ctex_cube_lut_create", "ctex_cube_lut_apply_preview", "ctex_cube_lut_destroy"]},
+      {"requirement": "Bit depth policy", "symbols": ["ctex_channel_get_color_policy", "ctex_channel_get_bit_depth_warning"]},
+      {"requirement": "Precision promotion for derived operations", "symbols": ["ctex_accumulate_height"]},
+      {"requirement": "Dithering on quantization", "symbols": ["ctex_quantize_unorm8"]},
+      {"requirement": "Colour values are addressable in the working space", "symbols": ["ctex_color_convert"]},
+      {"requirement": "Round-trip fidelity", "symbols": ["ctex_color_convert"]},
+      {"requirement": "Colour management is testable without a display", "symbols": ["ctex_color_convert", "ctex_cube_lut_apply_preview", "ctex_accumulate_height", "ctex_quantize_unorm8"]}
+    ]},
     {"name": "device-gate", "kind": "non-runtime", "rationale": "Device performance policy is repository and CI evidence.", "evidence": ["task 17"]},
     {"name": "editable-authoring", "kind": "runtime", "requirements": []},
     {"name": "examples", "kind": "non-runtime", "rationale": "Examples consume the bindings and are not library operations.", "evidence": ["task 16"]},

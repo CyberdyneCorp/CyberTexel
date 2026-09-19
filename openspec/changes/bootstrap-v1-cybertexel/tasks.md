@@ -667,9 +667,13 @@ evidence, while runtime capabilities require symbols for every requirement. The
 first implementation slice makes the complete texture-set channel contract
 reachable from C: built-in and extensible descriptors, enumeration, enablement,
 precision overrides, descriptor inspection and memory reporting. Its persistent
-tiled metadata and pixel storage preserve the document allocator. The gate now
-refuses 238 unmapped runtime requirements by name and remains outside the green
-aggregate until those entry points exist.
+tiled metadata and pixel storage preserve the document allocator. The next
+slice exposes the complete colour-management contract: declared spaces,
+per-channel policy, automatic input resolution, headless transforms, bit-depth
+warnings, higher-precision accumulation, deterministic dithering and
+preview-only `.cube` LUTs. LUT allocations preserve the captured host allocator.
+The gate refuses 227 unmapped runtime requirements by name and remains outside
+the green aggregate until those entry points exist.
 
 ## 1. Foundation
 

@@ -31,12 +31,15 @@ RgbColor read_triplet(std::istringstream& line, std::string_view field) {
 
 }  // namespace
 
-CubeLut CubeLut::from_cube(std::string_view source) {
+CubeLut CubeLut::from_cube(std::string_view source, std::pmr::memory_resource* memory_resource) {
+    if (memory_resource == nullptr) {
+        throw std::invalid_argument(".cube LUT requires a memory resource");
+    }
     std::istringstream input{std::string(source)};
     std::size_t size = 0;
     RgbColor domain_min{0.0, 0.0, 0.0};
     RgbColor domain_max{1.0, 1.0, 1.0};
-    std::vector<RgbColor> values;
+    std::pmr::vector<RgbColor> values(memory_resource);
     std::string source_line;
 
     while (std::getline(input, source_line)) {
@@ -84,7 +87,7 @@ CubeLut CubeLut::from_cube(std::string_view source) {
 }
 
 CubeLut::CubeLut(std::size_t size, RgbColor domain_min, RgbColor domain_max,
-                 std::vector<RgbColor> values)
+                 std::pmr::vector<RgbColor> values)
     : size_(size), domain_min_(domain_min), domain_max_(domain_max), values_(std::move(values)) {}
 
 RgbColor CubeLut::apply(RgbColor color) const noexcept {

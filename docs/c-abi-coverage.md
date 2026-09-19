@@ -20,6 +20,7 @@ requirement.
 
 The gate is intentionally red while task 14.8 is in progress. The current C ABI
 fully maps its boundary requirements and records the implemented document and
-texture-set operations, but 238 runtime requirements still lack C entry points.
+texture-set and colour-management operations, but 227 runtime requirements still
+lack C entry points.
 The gate is not part of the aggregate `just check` until that count reaches zero;
 its unit tests run in the normal tooling suite throughout the migration.

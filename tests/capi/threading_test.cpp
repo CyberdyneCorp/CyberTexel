@@ -1,9 +1,11 @@
 #include <ctex/capi.h>
 
 #include <barrier>
+#include <cmath>
 #include <cstddef>
 #include <functional>
 #include <string>
+#include <string_view>
 #include <thread>
 
 namespace {
@@ -61,6 +63,38 @@ void populate_document(ctex_document* document, std::string prefix, std::barrier
     result.completed = true;
 }
 
+bool immutable_lut_is_concurrent() {
+    constexpr std::string_view cube_source =
+        "LUT_3D_SIZE 2\n1 1 1\n0 1 1\n1 0 1\n0 0 1\n"
+        "1 1 0\n0 1 0\n1 0 0\n0 0 0\n";
+    ctex_cube_lut* lut = nullptr;
+    if (ctex_cube_lut_create(cube_source.data(), cube_source.size(), &lut) != CTEX_RESULT_SUCCESS) {
+        return false;
+    }
+    std::barrier start(3);
+    bool first_passed = true;
+    bool second_passed = true;
+    const auto apply = [&](double input, bool& passed) {
+        start.arrive_and_wait();
+        for (std::size_t index = 0; index < 1024; ++index) {
+            const ctex_rgb_color source{input, 0.5, 0.75, CTEX_COLOR_SPACE_LINEAR_REC709};
+            ctex_rgb_color output{};
+            if (ctex_cube_lut_apply_preview(lut, &source, &output) != CTEX_RESULT_SUCCESS ||
+                std::abs(output.red - (1.0 - input)) > 1e-12) {
+                passed = false;
+                return;
+            }
+        }
+    };
+    std::thread first(apply, 0.25, std::ref(first_passed));
+    std::thread second(apply, 0.75, std::ref(second_passed));
+    start.arrive_and_wait();
+    first.join();
+    second.join();
+    ctex_cube_lut_destroy(lut);
+    return first_passed && second_passed;
+}
+
 }  // namespace
 
 int main() {
@@ -94,5 +128,5 @@ int main() {
 
     ctex_document_destroy(first);
     ctex_document_destroy(second);
-    return independent_documents && isolated_diagnostics ? 0 : 1;
+    return independent_documents && isolated_diagnostics && immutable_lut_is_concurrent() ? 0 : 1;
 }
