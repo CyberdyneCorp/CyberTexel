@@ -57,6 +57,9 @@ Foundation implementation is in progress.
 - A labeled host-transport scenario suite mapping every specification scenario
   to executable coverage or its explicitly scheduled binding, save, or
   reference-device performance integration.
+- Versioned canonical stroke reconstruction from batched timestamped 3D
+  samples, with a documented fixed grid and stabilizer recurrence,
+  radius-relative spacing, continuous sweep links, and discrete-alpha tips.
 - Linear Rec. 709 working-space and sRGB transfer functions with unclamped HDR
   conversion.
 - Native and sanitizer test presets plus a registry-driven determinism gate that

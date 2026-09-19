@@ -117,7 +117,7 @@ ctex_add_module(
     DEPENDS image mesh graph
     SOURCES src/doc/channels.cpp src/doc/document.cpp src/doc/material_graph.cpp
 )
-ctex_add_module(paint DEPENDS doc emit pick)
+ctex_add_module(paint DEPENDS doc emit pick SOURCES src/paint/paint.cpp src/paint/stroke.cpp)
 ctex_add_module(maps DEPENDS image doc)
 ctex_add_module(
     xport
@@ -279,6 +279,14 @@ if(BUILD_TESTING)
     ctex_configure_cpp_target(ctex_host_transport_identity_test)
     target_link_libraries(ctex_host_transport_identity_test PRIVATE ctex_emit ctex_graph)
     add_test(NAME host-transport-identity COMMAND ctex_host_transport_identity_test)
+
+    add_executable(ctex_stroke_reconstruction_test tests/paint/stroke_reconstruction_test.cpp)
+    ctex_configure_cpp_target(ctex_stroke_reconstruction_test)
+    target_link_libraries(
+        ctex_stroke_reconstruction_test
+        PRIVATE ctex_paint ctex_doc ctex_emit ctex_pick ctex_mesh ctex_graph ctex_image
+    )
+    add_test(NAME stroke-reconstruction COMMAND ctex_stroke_reconstruction_test)
 
     add_executable(ctex_document_test tests/doc/document_test.cpp)
     ctex_configure_cpp_target(ctex_document_test)

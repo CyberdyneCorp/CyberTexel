@@ -303,6 +303,13 @@ tasks. Rust binding parity, save integration and numeric reference-device
 budgets remain explicitly assigned to 14.13, 12.3–12.4 and 17.6 rather than
 being simulated by the C++ suite. The host-transport milestone is otherwise
 complete; painting begins with canonical input sample reconstruction (9.1).
+Task 9.1 defines reconstruction version 1 with nanosecond timestamps, a 1 ms
+fixed grid, `1e-6` positional tolerance, redundant time-linear sample removal
+and the specified radius/time-constant stabilizer recurrence. Arc-length
+spacing emits one canonical stamp sequence with complete resolved properties;
+continuous tips add links and a closing endpoint sweep, while discrete-alpha
+tips retain separated deposition events without implicit gap coverage.
+Pressure and tilt mapping (9.2) is next.
 
 ## 1. Foundation
 
@@ -421,7 +428,7 @@ complete; painting begins with canonical input sample reconstruction (9.1).
 
 ## 9. Painting
 
-- [ ] 9.1 Versioned canonical sample reconstruction, timestamp-based stabilization, spacing, continuous sweeps and discrete alpha tips
+- [x] 9.1 Versioned canonical sample reconstruction, timestamp-based stabilization, spacing, continuous sweeps and discrete alpha tips
 - [ ] 9.2 Pressure and tilt mapping with response curves; no-pressure devices at full pressure
 - [ ] 9.3 Deterministic jitter, taper, stabilizer, constraints
 - [ ] 9.4 Symmetry planes and radial symmetry, emitted within one stroke
