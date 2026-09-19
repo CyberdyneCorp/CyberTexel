@@ -7,23 +7,22 @@ gate described in `build-packaging`, whose subject is **what is compiled into a
 shipped binary** — including trees vendored outside the manifest and
 dependencies fetched at configure time.
 
-No dependency is vendored yet. The table below records what the founding
-specification commits to, so the audit has something to check against from the
-first commit rather than from the first release.
-
 ## Included dependencies
 
 | Component | Licence | Revision | Role |
 |---|---|---|---|
 | LodePNG | Zlib | `ed6fe5825c6a4fbb7f58ab35a4231c7543cd452a` | Slice-A PNG decoding and encoding |
+| [Kongruent minikong](https://github.com/armory3d/armorpaint/tree/c5ccdf27818a36e67decb691009a3db457d59ab3/base/sources/kong) | Zlib | `c5ccdf27818a36e67decb691009a3db457d59ab3` | Context-isolated WGSL compiler backend |
 
-The upstream licence text is copied at `thirdparty/licenses/lodepng.txt`.
+The upstream licence texts are copied at `thirdparty/licenses/lodepng.txt` and
+`thirdparty/licenses/kongruent.txt`. ArmorPaint's minikong tree is derived from
+Kongruent revision `1b0f3b70673122e3b20701cdb434781a065555d7`; CyberTexel's
+local changes are recorded in `thirdparty/kong/CYBERTEXEL_CHANGES.md`.
 
 ## Planned
 
 | Component | Licence | Role | Task |
 |---|---|---|---|
-| [Kong](https://github.com/Kode/Kongruent) (minikong, via [ArmorPaint](https://github.com/armory3d/armorpaint)) | zlib | Shader emission backend: one IR to HLSL, SPIR-V, MSL and WGSL | 6.8 |
 | Image decoders and encoders — to be selected | permissive only | PNG, JPEG, TGA, BMP, TIFF, OpenEXR, Radiance HDR, PSD | 2.1 |
 
 Each entry gains its pinned revision and its full licence text here when it is

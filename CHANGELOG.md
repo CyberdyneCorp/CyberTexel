@@ -80,6 +80,8 @@ Foundation implementation is in progress.
 - Instance-owned host node registries with checked CPU and target-specific
   emission callbacks, deterministic replay eligibility, parity fixtures,
   registry-aware validation, and lossless preservation of unknown node types.
+- Vendored Kongruent minikong with context-owned compiler and WGSL backend state,
+  deterministic wrapper reuse, and concurrent independent compilation.
 - README architecture diagram and a current, implementation-scoped feature list.
 
 ### Changed

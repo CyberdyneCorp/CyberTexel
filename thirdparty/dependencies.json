@@ -8,6 +8,14 @@
             "license_file": "thirdparty/licenses/lodepng.txt",
             "revision": "ed6fe5825c6a4fbb7f58ab35a4231c7543cd452a",
             "source": "https://github.com/lvandeve/lodepng"
+        },
+        {
+            "name": "Kongruent minikong",
+            "discovery_name": "kong",
+            "license": "Zlib",
+            "license_file": "thirdparty/licenses/kongruent.txt",
+            "revision": "c5ccdf27818a36e67decb691009a3db457d59ab3",
+            "source": "https://github.com/armory3d/armorpaint/tree/c5ccdf27818a36e67decb691009a3db457d59ab3/base/sources/kong"
         }
     ]
 }

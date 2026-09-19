@@ -122,6 +122,9 @@ test-graph-validation: build
 test-graph-host-nodes: build
     ctest --test-dir build/headless --output-on-failure -R '^material-graph-host-nodes$'
 
+test-kong-context: build
+    ctest --test-dir build/headless --output-on-failure -R '^kong-context$'
+
 examples:
     @just _unimplemented examples 16.2
 

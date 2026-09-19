@@ -7,7 +7,7 @@ decisions taken and questions still open.
 ## Status
 
 Implementation started. 24 capabilities, 332 requirements, 400 scenarios and
-222 tasks, 32 done. Foundation and the complete headless color-management
+222 tasks, 33 done. Foundation and the complete headless color-management
 scenario suite are green. Slice-A now has memory-buffer PNG input/output with
 8/16-bit preservation and hostile-input ceilings; full image-format breadth
 remains scheduled for slice D. Extensible channel descriptors and sparse
@@ -61,6 +61,10 @@ Hosts can register versioned material node declarations in isolated registries
 with checked CPU and per-target emission callbacks. Registrations declare
 determinism, resource dependencies, targets and parity fixtures; unknown types
 round-trip opaquely while registry-aware validation marks them non-emittable.
+ArmorPaint's Kongruent-derived minikong compiler is now pinned and attributed.
+Its active parser, IR, token-cache, built-in-type and WGSL backend state is owned
+by isolated contexts, allowing deterministic wrapper reuse and concurrent
+compilation across independent contexts.
 
 ## Milestones
 
@@ -139,11 +143,10 @@ them rather than drifting.
 3. **Reference devices.** `device-gate` requires at least one desktop and one
    tablet, named with full configuration. Which machines, and who owns them for
    CI, is not settled. Resolve in slice A through task 17.1 before recording any performance claim.
-4. **Kong's concurrency wrapper.** Design decision 3 says wrap its global state in
-   a context object rather than snapshot and restore around every call as
-   ArmorPaint does. Whether the vendored source tolerates that cleanly is
-   unverified. Task 6.8; if it does not, the fallback is ArmorPaint's approach
-   plus a serialization point, and that should be recorded here.
+4. **Additional Kong targets.** Task 6.8 proved that the active common compiler
+   and WGSL backend tolerate context-owned state without a process-wide lock.
+   The retained HLSL, Metal and SPIR-V backends remain unlinked until task 6.11;
+   isolate each adapter before enabling it rather than reintroducing globals.
 5. **Instance deletion policy.** `texture-document` allows either refusing the
    deletion of a referenced entry or converting its instances to independent
    copies, and makes it the caller's choice. Whether hosts actually want the

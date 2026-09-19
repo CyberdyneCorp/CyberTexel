@@ -59,6 +59,9 @@ The current implementation provides:
   missing resources, missing groups, and unreachable nodes. Versioned
   [host node types](docs/host-node-types.md) provide checked CPU/emission
   callbacks, replay eligibility, parity fixtures, and lossless opaque fallback.
+- An isolated [Kong shader compiler context](docs/kong-backend.md) that compiles
+  Kong source to WGSL deterministically and supports concurrent independent
+  compiler instances.
 - Strict C++20 builds, sanitizer coverage, OpenSpec validation, dependency
   layering checks, licence auditing, and deterministic-output gates.
 

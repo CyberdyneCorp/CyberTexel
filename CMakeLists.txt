@@ -41,6 +41,23 @@ set_target_properties(ctex_lodepng PROPERTIES POSITION_INDEPENDENT_CODE ON)
 
 include(cmake/CyberTexelModules.cmake)
 
+add_library(
+    ctex_kong
+    STATIC
+        thirdparty/kong/kong.c
+        thirdparty/kong/kong_cstyle.c
+        thirdparty/kong/kong_wgsl.c
+        thirdparty/kong/stb_ds.c
+)
+target_include_directories(ctex_kong SYSTEM PRIVATE "${PROJECT_SOURCE_DIR}/thirdparty/kong")
+set_target_properties(
+    ctex_kong
+    PROPERTIES
+        C_STANDARD 11
+        C_EXTENSIONS OFF
+        POSITION_INDEPENDENT_CODE ON
+)
+
 ctex_add_module(
     image
     SOURCES
@@ -73,7 +90,15 @@ ctex_add_module(
         src/graph/validation.cpp
         src/graph/host_nodes.cpp
 )
-ctex_add_module(emit DEPENDS graph image)
+ctex_add_module(
+    emit
+    DEPENDS graph image
+    SOURCES
+        src/emit/emit.cpp
+        src/emit/kong_context.cpp
+)
+target_include_directories(ctex_emit SYSTEM PRIVATE "${PROJECT_SOURCE_DIR}/thirdparty/kong")
+target_link_libraries(ctex_emit PRIVATE ctex_kong)
 ctex_add_module(
     doc
     DEPENDS image mesh graph
@@ -88,7 +113,7 @@ ctex_add_module(exec DEPENDS emit image)
 ctex_add_module(capi DEPENDS image mesh pick graph emit doc paint maps xport io exec)
 
 ctex_add_library()
-target_link_libraries(cybertexel PUBLIC ctex_lodepng)
+target_link_libraries(cybertexel PUBLIC ctex_lodepng ctex_kong)
 
 include(CTest)
 if(BUILD_TESTING)
@@ -233,6 +258,11 @@ if(BUILD_TESTING)
     ctex_configure_cpp_target(ctex_graph_host_nodes_test)
     target_link_libraries(ctex_graph_host_nodes_test PRIVATE ctex_graph ctex_image)
     add_test(NAME material-graph-host-nodes COMMAND ctex_graph_host_nodes_test)
+
+    add_executable(ctex_kong_context_test tests/emit/kong_context_test.cpp)
+    ctex_configure_cpp_target(ctex_kong_context_test)
+    target_link_libraries(ctex_kong_context_test PRIVATE ctex_emit)
+    add_test(NAME kong-context COMMAND ctex_kong_context_test)
 
     add_executable(ctex_material_graph_output_test tests/doc/material_graph_test.cpp)
     ctex_configure_cpp_target(ctex_material_graph_output_test)

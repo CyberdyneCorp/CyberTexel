@@ -66,6 +66,8 @@ jobs:
       run: just test-graph-validation
     - name: Host material nodes
       run: just test-graph-host-nodes
+    - name: Kong context isolation
+      run: just test-kong-context
     - name: Test suite
       run: just test
 
