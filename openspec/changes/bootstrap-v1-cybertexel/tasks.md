@@ -309,7 +309,13 @@ and the specified radius/time-constant stabilizer recurrence. Arc-length
 spacing emits one canonical stamp sequence with complete resolved properties;
 continuous tips add links and a closing endpoint sweep, while discrete-alpha
 tips retain separated deposition events without implicit gap coverage.
-Pressure and tilt mapping (9.2) is next.
+Task 9.2 adds independently enabled, normalized piecewise-linear response
+curves and output ranges for pressure-driven radius, opacity, hardness, flow
+and rotation plus tilt-driven rotation and elongation. Missing pressure
+evaluates at one, tilt magnitude and azimuth are explicit, pressure and tilt
+interpolate with the canonical path, and each resolved radius determines the
+following spacing interval. Deterministic jitter, taper and constraints (9.3)
+are next.
 
 ## 1. Foundation
 
@@ -429,7 +435,7 @@ Pressure and tilt mapping (9.2) is next.
 ## 9. Painting
 
 - [x] 9.1 Versioned canonical sample reconstruction, timestamp-based stabilization, spacing, continuous sweeps and discrete alpha tips
-- [ ] 9.2 Pressure and tilt mapping with response curves; no-pressure devices at full pressure
+- [x] 9.2 Pressure and tilt mapping with response curves; no-pressure devices at full pressure
 - [ ] 9.3 Deterministic jitter, taper, stabilizer, constraints
 - [ ] 9.4 Symmetry planes and radial symmetry, emitted within one stroke
 - [ ] 9.5 Externally resolved stamp ingestion

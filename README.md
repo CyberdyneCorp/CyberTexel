@@ -37,7 +37,8 @@ The current implementation provides:
 - Versioned [canonical stroke reconstruction](docs/stroke-reconstruction.md)
   from strictly timestamped 3D samples, with redundant-sample invariance, a
   documented fixed stabilization grid and recurrence, radius-relative spacing,
-  continuous sweep links, and separated discrete-alpha tip events.
+  continuous sweep links, separated discrete-alpha tip events, and independent
+  pressure/tilt response curves for resolved brush properties.
 - Sparse tiled image storage for one-to-four-channel 8-bit, 16-bit, and
   floating-point pixels, with tile-level dirty tracking and monotonic channel
   and per-tile [content revisions](docs/host-transport-revisions.md), plus

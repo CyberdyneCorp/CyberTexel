@@ -13,11 +13,19 @@ struct PathPoint {
     Vec3d position;
     StrokeFrame frame;
     std::uint64_t timestamp_nanoseconds;
+    double pressure;
+    Vec2d tilt;
 };
 
 bool finite(double value) { return std::isfinite(value); }
 
 bool finite(Vec3d value) { return finite(value.x) && finite(value.y) && finite(value.z); }
+
+bool finite(Vec2d value) { return finite(value.x) && finite(value.y); }
+
+double interpolate(double start, double end, double amount) {
+    return start + (end - start) * amount;
+}
 
 Vec3d add(Vec3d left, Vec3d right) {
     return {left.x + right.x, left.y + right.y, left.z + right.z};
@@ -52,6 +60,10 @@ Vec3d normalized(Vec3d value, std::string_view role) {
 
 Vec3d interpolate(Vec3d start, Vec3d end, double amount) {
     return add(start, multiply(subtract(end, start), amount));
+}
+
+Vec2d interpolate(Vec2d start, Vec2d end, double amount) {
+    return {interpolate(start.x, end.x, amount), interpolate(start.y, end.y, amount)};
 }
 
 StrokeFrame orthonormalized(StrokeFrame frame) {
@@ -91,9 +103,63 @@ bool near(Vec3d left, Vec3d right) {
     return length(subtract(left, right)) <= stroke_position_tolerance;
 }
 
+bool near(Vec2d left, Vec2d right) {
+    return std::hypot(left.x - right.x, left.y - right.y) <= stroke_position_tolerance;
+}
+
+bool near(double left, double right) { return std::abs(left - right) <= stroke_position_tolerance; }
+
 bool near(StrokeFrame left, StrokeFrame right) {
     return near(left.tangent, right.tangent) && near(left.bitangent, right.bitangent) &&
            near(left.normal, right.normal);
+}
+
+double effective_pressure(const StrokeInputSample& sample) { return sample.pressure.value_or(1.0); }
+
+void validate_curve(const ResponseCurve& curve) {
+    if (curve.points.size() < 2 || curve.points.front().input != 0.0 ||
+        curve.points.back().input != 1.0) {
+        throw StrokeResolutionError(
+            "response curves require at least two points spanning input 0 through 1");
+    }
+    double previous_input = -1.0;
+    for (const ResponseCurvePoint point : curve.points) {
+        if (!finite(point.input) || !finite(point.output) || point.input < 0.0 ||
+            point.input > 1.0 || point.output < 0.0 || point.output > 1.0 ||
+            point.input <= previous_input) {
+            throw StrokeResolutionError(
+                "response curve inputs must increase and inputs and outputs must be normalized");
+        }
+        previous_input = point.input;
+    }
+}
+
+void validate_mapping(const ResponseMapping& mapping) {
+    validate_curve(mapping.curve);
+    if (!finite(mapping.minimum_output) || !finite(mapping.maximum_output) ||
+        mapping.minimum_output > mapping.maximum_output) {
+        throw StrokeResolutionError("response mapping output range is invalid");
+    }
+}
+
+void validate_input_mapping(const StrokeInputMapping& mapping) {
+    validate_mapping(mapping.pressure_radius);
+    validate_mapping(mapping.pressure_opacity);
+    validate_mapping(mapping.pressure_hardness);
+    validate_mapping(mapping.pressure_flow);
+    validate_mapping(mapping.pressure_rotation);
+    validate_mapping(mapping.tilt_rotation);
+    validate_mapping(mapping.tilt_elongation);
+    if (mapping.pressure_radius.minimum_output <= 0.0 ||
+        mapping.pressure_opacity.minimum_output < 0.0 ||
+        mapping.pressure_opacity.maximum_output > 1.0 ||
+        mapping.pressure_hardness.minimum_output < 0.0 ||
+        mapping.pressure_hardness.maximum_output > 1.0 ||
+        mapping.pressure_flow.minimum_output < 0.0 || mapping.pressure_flow.maximum_output > 1.0 ||
+        mapping.tilt_rotation.minimum_output < 0.0 || mapping.tilt_rotation.maximum_output > 1.0 ||
+        mapping.tilt_elongation.minimum_output <= 0.0) {
+        throw StrokeResolutionError("response mapping range is invalid for its property");
+    }
 }
 
 void validate_settings(const StrokeSettings& settings) {
@@ -123,12 +189,18 @@ void validate_settings(const StrokeSettings& settings) {
         throw StrokeResolutionError(
             "stabilizer radius and time constant must be finite and non-negative");
     }
+    validate_input_mapping(settings.input_mapping);
 }
 
 void validate_sample(const StrokeInputSample& sample) {
     if (!finite(sample.position) || !finite(sample.frame.tangent) ||
         !finite(sample.frame.bitangent) || !finite(sample.frame.normal)) {
         throw StrokeResolutionError("stroke sample contains a non-finite value");
+    }
+    if ((sample.pressure &&
+         (!finite(*sample.pressure) || *sample.pressure < 0.0 || *sample.pressure > 1.0)) ||
+        !finite(sample.tilt) || std::hypot(sample.tilt.x, sample.tilt.y) > 1.0) {
+        throw StrokeResolutionError("stroke pressure and tilt must be normalized");
     }
     static_cast<void>(orthonormalized(sample.frame));
 }
@@ -144,7 +216,10 @@ bool redundant(const StrokeInputSample& start, const StrokeInputSample& middle,
         .normal = interpolate(start.frame.normal, end.frame.normal, amount),
     };
     return near(middle.position, interpolate(start.position, end.position, amount)) &&
-           near(middle.frame, expected_frame);
+           near(middle.frame, expected_frame) &&
+           near(effective_pressure(middle),
+                interpolate(effective_pressure(start), effective_pressure(end), amount)) &&
+           near(middle.tilt, interpolate(start.tilt, end.tilt, amount));
 }
 
 std::vector<StrokeInputSample> remove_redundant_samples(
@@ -170,6 +245,8 @@ PathPoint interpolate(const StrokeInputSample& start, const StrokeInputSample& e
         .position = interpolate(start.position, end.position, amount),
         .frame = interpolate(start.frame, end.frame, amount),
         .timestamp_nanoseconds = timestamp,
+        .pressure = interpolate(effective_pressure(start), effective_pressure(end), amount),
+        .tilt = interpolate(start.tilt, end.tilt, amount),
     };
 }
 
@@ -184,7 +261,8 @@ std::optional<std::uint64_t> next_grid_time(std::uint64_t timestamp) {
 std::vector<PathPoint> reconstruct_time_grid(std::span<const StrokeInputSample> samples) {
     std::vector<PathPoint> result;
     result.push_back({samples.front().position, orthonormalized(samples.front().frame),
-                      samples.front().timestamp_nanoseconds});
+                      samples.front().timestamp_nanoseconds, effective_pressure(samples.front()),
+                      samples.front().tilt});
     std::optional<std::uint64_t> grid = next_grid_time(samples.front().timestamp_nanoseconds);
     for (std::size_t index = 1; index < samples.size(); ++index) {
         const StrokeInputSample& start = samples[index - 1];
@@ -193,7 +271,8 @@ std::vector<PathPoint> reconstruct_time_grid(std::span<const StrokeInputSample> 
             result.push_back(interpolate(start, end, *grid));
             grid = next_grid_time(*grid);
         }
-        result.push_back({end.position, orthonormalized(end.frame), end.timestamp_nanoseconds});
+        result.push_back({end.position, orthonormalized(end.frame), end.timestamp_nanoseconds,
+                          effective_pressure(end), end.tilt});
         if (grid && *grid == end.timestamp_nanoseconds) {
             grid = next_grid_time(*grid);
         }
@@ -228,19 +307,56 @@ PathPoint interpolate(const PathPoint& start, const PathPoint& end, double amoun
         .position = interpolate(start.position, end.position, amount),
         .frame = interpolate(start.frame, end.frame, amount),
         .timestamp_nanoseconds = start.timestamp_nanoseconds,
+        .pressure = interpolate(start.pressure, end.pressure, amount),
+        .tilt = interpolate(start.tilt, end.tilt, amount),
     };
 }
 
+double evaluate(const ResponseCurve& curve, double input) {
+    const auto upper = std::upper_bound(
+        curve.points.begin(), curve.points.end(), input,
+        [](double value, const ResponseCurvePoint& point) { return value < point.input; });
+    if (upper == curve.points.begin()) {
+        return upper->output;
+    }
+    if (upper == curve.points.end()) {
+        return curve.points.back().output;
+    }
+    const ResponseCurvePoint& end = *upper;
+    const ResponseCurvePoint& start = *(upper - 1);
+    const double amount = (input - start.input) / (end.input - start.input);
+    return interpolate(start.output, end.output, amount);
+}
+
+double mapped(const ResponseMapping& mapping, double input) {
+    return interpolate(mapping.minimum_output, mapping.maximum_output,
+                       evaluate(mapping.curve, input));
+}
+
+double multiplied(double base, const ResponseMapping& mapping, double input) {
+    return mapping.enabled ? base * mapped(mapping, input) : base;
+}
+
 Stamp make_stamp(const PathPoint& point, const StrokeSettings& settings, std::uint64_t ordinal) {
+    const StrokeInputMapping& mapping = settings.input_mapping;
+    const double tilt_amount = std::hypot(point.tilt.x, point.tilt.y);
+    double rotation = settings.rotation_radians;
+    if (mapping.pressure_rotation.enabled) {
+        rotation += mapped(mapping.pressure_rotation, point.pressure);
+    }
+    if (mapping.tilt_rotation.enabled && tilt_amount > stroke_position_tolerance) {
+        rotation +=
+            std::atan2(point.tilt.y, point.tilt.x) * mapped(mapping.tilt_rotation, tilt_amount);
+    }
     return {
         .position = point.position,
         .frame = point.frame,
-        .radius = settings.radius,
-        .opacity = settings.opacity,
-        .hardness = settings.hardness,
-        .rotation_radians = settings.rotation_radians,
-        .elongation = settings.elongation,
-        .flow = settings.flow,
+        .radius = multiplied(settings.radius, mapping.pressure_radius, point.pressure),
+        .opacity = multiplied(settings.opacity, mapping.pressure_opacity, point.pressure),
+        .hardness = multiplied(settings.hardness, mapping.pressure_hardness, point.pressure),
+        .rotation_radians = rotation,
+        .elongation = multiplied(settings.elongation, mapping.tilt_elongation, tilt_amount),
+        .flow = multiplied(settings.flow, mapping.pressure_flow, point.pressure),
         .tip_resource_identity = settings.tip_resource_identity,
         .ordinal = ordinal,
     };
@@ -262,8 +378,7 @@ ResolvedStroke space_stamps(std::span<const PathPoint> path, const StrokeSetting
         .swept_segments = {},
     };
     append_stamp(result, path.front(), settings);
-    const double spacing = settings.spacing_fraction * settings.radius;
-    double distance_to_next = spacing;
+    double distance_to_next = settings.spacing_fraction * result.stamps.back().radius;
     for (std::size_t index = 1; index < path.size(); ++index) {
         const PathPoint& start = path[index - 1];
         const PathPoint& end = path[index];
@@ -277,7 +392,7 @@ ResolvedStroke space_stamps(std::span<const PathPoint> path, const StrokeSetting
             append_stamp(result, interpolate(start, end, event_distance / segment_length),
                          settings);
             consumed = event_distance;
-            distance_to_next = spacing;
+            distance_to_next = settings.spacing_fraction * result.stamps.back().radius;
         }
         distance_to_next -= segment_length - consumed;
     }

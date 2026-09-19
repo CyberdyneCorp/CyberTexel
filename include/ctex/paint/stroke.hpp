@@ -3,6 +3,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <optional>
 #include <span>
 #include <stdexcept>
 #include <string>
@@ -24,6 +25,12 @@ struct Vec3d {
     friend constexpr bool operator==(Vec3d, Vec3d) noexcept = default;
 };
 
+struct Vec2d {
+    double x{};
+    double y{};
+    friend constexpr bool operator==(Vec2d, Vec2d) noexcept = default;
+};
+
 struct StrokeFrame {
     Vec3d tangent{1.0, 0.0, 0.0};
     Vec3d bitangent{0.0, 1.0, 0.0};
@@ -35,6 +42,8 @@ struct StrokeInputSample {
     Vec3d position;
     StrokeFrame frame;
     std::uint64_t timestamp_nanoseconds{};
+    std::optional<double> pressure;
+    Vec2d tilt;
     friend constexpr bool operator==(const StrokeInputSample&,
                                      const StrokeInputSample&) noexcept = default;
 };
@@ -45,6 +54,38 @@ struct StabilizerSettings {
     double radius{};
     double time_constant_seconds{};
     friend constexpr bool operator==(StabilizerSettings, StabilizerSettings) noexcept = default;
+};
+
+struct ResponseCurvePoint {
+    double input{};
+    double output{};
+    friend constexpr bool operator==(ResponseCurvePoint, ResponseCurvePoint) noexcept = default;
+};
+
+struct ResponseCurve {
+    std::vector<ResponseCurvePoint> points{{0.0, 0.0}, {1.0, 1.0}};
+    friend bool operator==(const ResponseCurve&, const ResponseCurve&) = default;
+};
+
+struct ResponseMapping {
+    bool enabled{};
+    ResponseCurve curve;
+    double minimum_output{};
+    double maximum_output{1.0};
+    friend bool operator==(const ResponseMapping&, const ResponseMapping&) = default;
+};
+
+struct StrokeInputMapping {
+    ResponseMapping pressure_radius{
+        .enabled = true, .curve = {}, .minimum_output = 0.01, .maximum_output = 1.0};
+    ResponseMapping pressure_opacity;
+    ResponseMapping pressure_hardness;
+    ResponseMapping pressure_flow;
+    ResponseMapping pressure_rotation;
+    ResponseMapping tilt_rotation;
+    ResponseMapping tilt_elongation{
+        .enabled = false, .curve = {}, .minimum_output = 1.0, .maximum_output = 2.0};
+    friend bool operator==(const StrokeInputMapping&, const StrokeInputMapping&) = default;
 };
 
 struct StrokeSettings {
@@ -59,6 +100,7 @@ struct StrokeSettings {
     double flow{1.0};
     std::string tip_resource_identity{"builtin.circle"};
     StabilizerSettings stabilizer;
+    StrokeInputMapping input_mapping;
     friend bool operator==(const StrokeSettings&, const StrokeSettings&) = default;
 };
 
