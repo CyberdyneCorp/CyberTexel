@@ -271,6 +271,9 @@ There is **no build or link dependency** between CyberTexel and its siblings.
 The seams are a format and an interface, following CyberRemesherAndUV's
 `pipeline-bridge` precedent: CyberTexel defines the mesh-map set it consumes and
 a provider interface; CyberRemesherAndUV implements the baking behind it.
+The opt-in [provider example](examples/cyber_remesher_and_uv/README.md) shows
+that integration against the sibling's stable C ABI without changing the
+default dependency graph.
 
 ## Planned capabilities
 

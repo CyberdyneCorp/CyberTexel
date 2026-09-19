@@ -13,6 +13,11 @@ find_package(Threads REQUIRED)
 option(CTEX_WARNINGS_AS_ERRORS "Treat compiler warnings in CyberTexel sources as errors" ON)
 option(CTEX_ENABLE_SANITIZERS "Enable address and undefined-behaviour sanitizers" OFF)
 option(CTEX_ENABLE_VULKAN_EXECUTOR "Build the optional owned Vulkan executor" OFF)
+option(
+    CTEX_BUILD_CYBER_REMESHER_EXAMPLE
+    "Build the optional CyberRemesherAndUV bake-provider example"
+    OFF
+)
 
 if(CTEX_ENABLE_SANITIZERS)
     if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
@@ -215,6 +220,21 @@ ctex_add_library()
 target_link_libraries(cybertexel PUBLIC ctex_lodepng ctex_kong Threads::Threads)
 if(CTEX_ENABLE_VULKAN_EXECUTOR)
     target_link_libraries(cybertexel PUBLIC volk::volk)
+endif()
+
+# This is deliberately an example-only dependency. The library and its default
+# build never discover or link CyberRemesherAndUV.
+if(CTEX_BUILD_CYBER_REMESHER_EXAMPLE)
+    find_package(CyberRemesher CONFIG REQUIRED)
+    add_executable(
+        ctex_cyber_remesher_provider_example
+        examples/cyber_remesher_and_uv/provider.cpp
+    )
+    ctex_configure_cpp_target(ctex_cyber_remesher_provider_example)
+    target_link_libraries(
+        ctex_cyber_remesher_provider_example
+        PRIVATE cybertexel cyber::capi
+    )
 endif()
 
 include(CTest)

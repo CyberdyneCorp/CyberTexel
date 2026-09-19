@@ -32,6 +32,14 @@
             "license_file": "thirdparty/licenses/volk.txt",
             "revision": "f2a16e3e19c2349b873343b2dc38a1d4c25af23a",
             "source": "https://github.com/zeux/volk"
+        },
+        {
+            "name": "CyberRemesherAndUV",
+            "discovery_name": "CyberRemesher",
+            "license": "MIT",
+            "license_file": "thirdparty/licenses/cyber-remesher-and-uv.txt",
+            "revision": "f3f38bdc93269f90d60564c22422cc80dcd5a016",
+            "source": "https://github.com/CyberdyneCorp/CyberRemesherAndUV"
         }
     ]
 }
