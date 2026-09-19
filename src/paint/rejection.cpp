@@ -97,14 +97,18 @@ DepthContextIndex validate_depth_contexts(const TextureSpaceRaster& surface,
     return contexts;
 }
 
-void validate_settings(const RejectionSettings& settings) {
+RejectionSettings resolve_settings(const RejectionSettings& settings,
+                                   ToolParameterReport& parameter_report) {
     if ((settings.symmetry_depth_policy != SymmetryDepthPolicy::require_consistent_per_instance &&
-         settings.symmetry_depth_policy != SymmetryDepthPolicy::disable_for_derived_symmetry) ||
-        !finite(settings.depth_bias) || settings.depth_bias < 0.0 ||
-        !finite(settings.minimum_normal_dot) || settings.minimum_normal_dot < -1.0 ||
-        settings.minimum_normal_dot > 1.0) {
-        throw std::invalid_argument("paint rejection thresholds are invalid");
+         settings.symmetry_depth_policy != SymmetryDepthPolicy::disable_for_derived_symmetry)) {
+        throw std::invalid_argument("paint rejection symmetry policy is invalid");
     }
+    RejectionSettings resolved = settings;
+    resolved.depth_bias = validate_tool_parameter(rejection_depth_bias_parameter,
+                                                  settings.depth_bias, parameter_report);
+    resolved.minimum_normal_dot = validate_tool_parameter(
+        rejection_minimum_normal_dot_parameter, settings.minimum_normal_dot, parameter_report);
+    return resolved;
 }
 
 void validate_view_directions(const TextureSpaceRaster& surface, const RejectionSettings& settings,
@@ -197,30 +201,33 @@ RejectedCoverageRaster evaluate_rejected_coverage(const TextureSpaceRaster& surf
                                                   const RejectionSettings& settings,
                                                   const RejectionInput& input) {
     detail::validate_surface_raster(surface);
-    validate_settings(settings);
-    validate_view_directions(surface, settings, input);
+    ToolParameterReport parameter_report;
+    const RejectionSettings resolved_settings = resolve_settings(settings, parameter_report);
+    validate_view_directions(surface, resolved_settings, input);
     const ResolvedStroke validated = ingest_resolved_stroke(stroke);
     RejectedCoverageRaster output{
         .coverage = {.width = surface.width,
                      .height = surface.height,
                      .values = std::vector<double>(surface.texels.size(), 0.0)},
         .stamp_events = {},
-        .report = {.depth_disposition = depth_disposition(validated, settings)}};
+        .report = {.depth_disposition = depth_disposition(validated, resolved_settings),
+                   .resolved_settings = resolved_settings,
+                   .parameter_report = std::move(parameter_report)}};
     output.stamp_events.reserve(validated.stamps.size());
     for (const Stamp& stamp : validated.stamps) {
         output.stamp_events.push_back({.stamp_ordinal = stamp.ordinal,
                                        .values = std::vector<double>(surface.texels.size(), 0.0)});
     }
     const DepthContextIndex contexts = validate_depth_contexts(
-        surface, validated, settings, output.report.depth_disposition, input);
-    const EvaluationContext context{surface, settings, contexts, output.report.depth_disposition,
-                                    output.report};
+        surface, validated, resolved_settings, output.report.depth_disposition, input);
+    const EvaluationContext context{surface, resolved_settings, contexts,
+                                    output.report.depth_disposition, output.report};
     const auto ending_segments = segment_ending_at(validated);
     for (std::size_t texel = 0; texel < surface.texels.size(); ++texel) {
         if (!surface.covered(texel)) {
             continue;
         }
-        if (settings.backface_enabled &&
+        if (resolved_settings.backface_enabled &&
             !faces_camera(surface.texels[texel], input.view_directions[texel])) {
             ++output.report.backface_rejected_texels;
             continue;
@@ -239,7 +246,7 @@ RejectedCoverageRaster evaluate_rejected_coverage(const TextureSpaceRaster& surf
     return output;
 }
 
-double alpha_discard_threshold(const AlphaDiscardSettings& settings) {
+AlphaDiscardThresholdResult alpha_discard_threshold(const AlphaDiscardSettings& settings) {
     if (settings.format != AlphaDiscardFormat::unorm8 &&
         settings.format != AlphaDiscardFormat::unorm16 &&
         settings.format != AlphaDiscardFormat::floating_point) {
@@ -248,17 +255,23 @@ double alpha_discard_threshold(const AlphaDiscardSettings& settings) {
     const double default_threshold = settings.format == AlphaDiscardFormat::unorm8
                                          ? default_alpha_discard_8_bit
                                          : default_alpha_discard_high_precision;
-    const double threshold = settings.threshold.value_or(default_threshold);
-    if (!finite(threshold) || threshold < 0.0 || threshold > 1.0) {
-        throw std::invalid_argument("alpha discard threshold must be normalized and finite");
+    ToolParameterReport parameter_report;
+    double threshold = default_threshold;
+    if (settings.threshold) {
+        const ToolParameterDescriptor descriptor{"alpha_discard.threshold", default_threshold, 0.0,
+                                                 1.0};
+        threshold = validate_tool_parameter(descriptor, *settings.threshold, parameter_report);
     }
-    return threshold;
+    return {.threshold = threshold, .parameter_report = std::move(parameter_report)};
 }
 
 AlphaDiscardResult apply_alpha_discard(std::span<const double> accumulated_strength,
                                        const AlphaDiscardSettings& settings) {
-    AlphaDiscardResult result{
-        .threshold = alpha_discard_threshold(settings), .retained_strength = {}, .write_mask = {}};
+    AlphaDiscardThresholdResult threshold = alpha_discard_threshold(settings);
+    AlphaDiscardResult result{.threshold = threshold.threshold,
+                              .retained_strength = {},
+                              .write_mask = {},
+                              .parameter_report = std::move(threshold.parameter_report)};
     result.retained_strength.reserve(accumulated_strength.size());
     result.write_mask.reserve(accumulated_strength.size());
     for (const double strength : accumulated_strength) {

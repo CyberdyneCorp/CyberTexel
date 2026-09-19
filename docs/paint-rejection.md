@@ -10,9 +10,9 @@ Each `DepthProjectionContext` pairs every texture-space surface texel with its
 top-left-origin viewport position and projected depth, plus the visible depth
 buffer produced by the same transform. A contribution is occluded when its
 surface depth is greater than the visible depth plus `depth_bias`. The default
-bias is `1e-4`; callers can configure any finite non-negative value. Projected
-texels outside the viewport have no comparable depth sample and are not rejected
-by this test.
+bias is `1e-4`, and finite values are clamped to `[0, 1,000,000]` projected-depth
+units. Projected texels outside the viewport have no comparable depth sample
+and are not rejected by this test.
 
 Depth can be disabled for an operation. Symmetric strokes must make one of two
 explicit choices:
@@ -36,7 +36,7 @@ across rendering batches.
 Angle rejection compares the normalized interpolated surface normal with the
 resolved stamp hit normal. Swept segments interpolate their endpoint hit
 normals. The default minimum dot product is `0.5`, and the threshold is
-configurable from `-1` through `1`.
+clamped from `-1` through `1`.
 
 Backface rejection uses the geometric triangle normal rather than the
 interpolated shading normal. Mesh indices use counter-clockwise winding when
@@ -51,4 +51,10 @@ default threshold is `0.1` for 8-bit channels and `0.004` for 16-bit and
 floating-point channels. A strength below the threshold skips the output write;
 the returned `retained_strength` remains byte-for-byte numerically equal to the
 input accumulation so a later stamp can continue building it. Callers may
-provide a normalized custom threshold.
+provide a custom threshold, with finite values clamped to `[0, 1]`.
+
+`RejectedCoverageRaster::report` exposes the resolved rejection settings and
+their clamp report. `alpha_discard_threshold` returns an
+`AlphaDiscardThresholdResult`, and `apply_alpha_discard` propagates the same
+threshold and clamp report into `AlphaDiscardResult`. Non-finite thresholds are
+refused.

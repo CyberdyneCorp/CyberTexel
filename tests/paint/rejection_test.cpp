@@ -251,6 +251,49 @@ bool alpha_discard_uses_precision_defaults_without_losing_accumulation() {
                   "alpha discard erased accumulated deposition below the write threshold");
 }
 
+bool rejection_parameters_are_bounded_reported_and_used() {
+    const TextureSpaceRaster samples = surface({texel({0.8, 0.0, 0.6})});
+    const std::array<Vec2d, 1> screen{Vec2d{0.5, 0.5}};
+    const std::array<double, 1> projected_depth{0.50005};
+    const std::array<double, 1> visible_depth{0.5};
+    const std::array contexts{depth_context(screen, projected_depth, visible_depth)};
+    const RejectedCoverageRaster depth = evaluate_rejected_coverage(
+        samples, one_stamp_stroke(),
+        {.depth_enabled = true,
+         .depth_bias = -1.0,
+         .symmetry_depth_policy = SymmetryDepthPolicy::require_consistent_per_instance,
+         .angle_enabled = false,
+         .minimum_normal_dot = default_angle_rejection_dot,
+         .backface_enabled = false},
+        {.depth_contexts = contexts, .view_directions = {}});
+    const RejectedCoverageRaster angle = evaluate_rejected_coverage(
+        samples, one_stamp_stroke(),
+        {.depth_enabled = false,
+         .depth_bias = default_depth_rejection_bias,
+         .symmetry_depth_policy = SymmetryDepthPolicy::require_consistent_per_instance,
+         .angle_enabled = true,
+         .minimum_normal_dot = 2.0,
+         .backface_enabled = false});
+    const std::array<double, 2> strength{0.5, 1.0};
+    const AlphaDiscardResult alpha =
+        apply_alpha_discard(strength, {.format = AlphaDiscardFormat::unorm8, .threshold = 2.0});
+
+    return expect(depth.coverage.values == std::vector<double>({0.0}) &&
+                      depth.report.resolved_settings.depth_bias == 0.0 &&
+                      depth.report.parameter_report.clamp_for("rejection.depth_bias") ==
+                          ToolParameterClamp{"rejection.depth_bias", -1.0, 0.0},
+                  "resolved depth bias did not drive rejection or report its clamp") &&
+           expect(angle.coverage.values == std::vector<double>({0.0}) &&
+                      angle.report.resolved_settings.minimum_normal_dot == 1.0 &&
+                      angle.report.parameter_report.clamp_for("rejection.minimum_normal_dot") ==
+                          ToolParameterClamp{"rejection.minimum_normal_dot", 2.0, 1.0},
+                  "resolved angle threshold did not drive rejection or report its clamp") &&
+           expect(alpha.threshold == 1.0 && alpha.write_mask == std::vector<std::uint8_t>({0, 1}) &&
+                      alpha.parameter_report.clamp_for("alpha_discard.threshold") ==
+                          ToolParameterClamp{"alpha_discard.threshold", 2.0, 1.0},
+                  "resolved alpha threshold did not drive writes or report its clamp");
+}
+
 bool invalid_rejection_inputs_are_refused() {
     const TextureSpaceRaster samples = surface({texel()});
     bool view_refused = false;
@@ -286,6 +329,7 @@ int main() {
                    symmetry_requires_consistent_depth_or_reports_disabled_derived_depth() &&
                    backface_rejection_uses_counter_clockwise_geometric_normal() &&
                    alpha_discard_uses_precision_defaults_without_losing_accumulation() &&
+                   rejection_parameters_are_bounded_reported_and_used() &&
                    invalid_rejection_inputs_are_refused()
                ? 0
                : 1;

@@ -4,16 +4,22 @@
 #include <cstddef>
 #include <cstdint>
 #include <ctex/paint/coverage.hpp>
+#include <ctex/paint/parameters.hpp>
 #include <optional>
 #include <span>
 #include <vector>
 
 namespace ctex::paint {
 
-inline constexpr double default_depth_rejection_bias = 1.0e-4;
-inline constexpr double default_angle_rejection_dot = 0.5;
 inline constexpr double default_alpha_discard_8_bit = 0.1;
 inline constexpr double default_alpha_discard_high_precision = 0.004;
+inline constexpr ToolParameterDescriptor rejection_depth_bias_parameter{"rejection.depth_bias",
+                                                                        1.0e-4, 0.0, 1'000'000.0};
+inline constexpr ToolParameterDescriptor rejection_minimum_normal_dot_parameter{
+    "rejection.minimum_normal_dot", 0.5, -1.0, 1.0};
+inline constexpr double default_depth_rejection_bias = rejection_depth_bias_parameter.default_value;
+inline constexpr double default_angle_rejection_dot =
+    rejection_minimum_normal_dot_parameter.default_value;
 
 enum class SymmetryDepthPolicy : std::uint8_t {
     require_consistent_per_instance,
@@ -56,6 +62,8 @@ struct RejectionReport {
     std::size_t depth_rejected_contributions{};
     std::size_t angle_rejected_contributions{};
     std::size_t backface_rejected_texels{};
+    RejectionSettings resolved_settings;
+    ToolParameterReport parameter_report;
 };
 
 struct RejectedStampCoverage {
@@ -84,9 +92,16 @@ struct AlphaDiscardResult {
     double threshold{};
     std::vector<double> retained_strength;
     std::vector<std::uint8_t> write_mask;
+    ToolParameterReport parameter_report;
 };
 
-[[nodiscard]] double alpha_discard_threshold(const AlphaDiscardSettings& settings);
+struct AlphaDiscardThresholdResult {
+    double threshold{};
+    ToolParameterReport parameter_report;
+};
+
+[[nodiscard]] AlphaDiscardThresholdResult alpha_discard_threshold(
+    const AlphaDiscardSettings& settings);
 [[nodiscard]] AlphaDiscardResult apply_alpha_discard(std::span<const double> accumulated_strength,
                                                      const AlphaDiscardSettings& settings = {});
 

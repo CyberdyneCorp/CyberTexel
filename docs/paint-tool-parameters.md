@@ -77,6 +77,9 @@ The currently routed paint-tool parameters are:
 | `projection.triplanar.scale` | 1 | 0.000001 | 1,000,000 | repetitions per surface unit |
 | `projection.triplanar.offset.x` | 0 | -1 | 1 | periodic image coordinate |
 | `projection.triplanar.offset.y` | 0 | -1 | 1 | periodic image coordinate |
+| `rejection.depth_bias` | 0.0001 | 0 | 1,000,000 | projected-depth units |
+| `rejection.minimum_normal_dot` | 0.5 | -1 | 1 | dot product |
+| `alpha_discard.threshold` | 0.1 (8-bit); 0.004 (16-bit/float) | 0 | 1 | normalized |
 
 `StrokeResolver::settings()` exposes the resolved settings and
 `parameter_report()` exposes their clamps. Brush and Eraser consume the
