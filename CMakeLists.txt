@@ -404,6 +404,15 @@ if(BUILD_TESTING)
     ctex_configure_cpp_target(ctex_smart_mask_test)
     target_link_libraries(ctex_smart_mask_test PRIVATE ctex_doc ctex_graph ctex_image ctex_mesh)
     add_test(NAME smart-mask-instances COMMAND ctex_smart_mask_test)
+    add_test(
+        NAME smart-material-scenario-matrix
+        COMMAND
+            "${CTEX_PYTHON3_EXECUTABLE}"
+            tests/tools/check_smart_material_scenario_matrix.py
+    )
+    set_tests_properties(
+        smart-material-scenario-matrix PROPERTIES WORKING_DIRECTORY "${PROJECT_SOURCE_DIR}"
+    )
 
     add_executable(ctex_host_transport_revisions_test tests/doc/revisions_test.cpp)
     ctex_configure_cpp_target(ctex_host_transport_revisions_test)
@@ -1217,5 +1226,16 @@ if(BUILD_TESTING)
     set_property(
         TEST version-consistency mesh-maps
         APPEND PROPERTY LABELS project-io-scenario
+    )
+    set_property(
+        TEST
+            smart-material-serialization
+            smart-mask-instances
+            smart-material-resources
+            preset-shelf-library
+            texture-document
+            mesh-map-generators
+            smart-material-scenario-matrix
+        APPEND PROPERTY LABELS smart-materials-scenario
     )
 endif()

@@ -7,7 +7,7 @@ decisions taken and questions still open.
 ## Status
 
 Implementation started. 24 capabilities, 332 requirements, 400 scenarios and
-222 tasks, 124 done. Foundation and the complete headless color-management
+222 tasks, 125 done. Foundation and the complete headless color-management
 scenario suite are green. Slice-A now has memory-buffer PNG input/output with
 8/16-bit preservation and hostile-input ceilings; full image-format breadth
 remains scheduled for slice D. Extensible channel descriptors and sparse
@@ -115,7 +115,8 @@ resolution. Smart materials and masks now instantiate as independent,
 parameterised texture-set fragments with remapped stable entry identities,
 per-entry preset origin, inspectable mixed-content reports, and one history step
 per application regardless of fragment size. The complete smart-materials
-scenario matrix (13.10) is next.
+scenario matrix now maps all fifteen requirements to labeled executable evidence
+and fails when the spec or evidence drifts. The C ABI foundation (14.1) is next.
 
 ## Milestones
 

@@ -186,6 +186,8 @@ The current implementation provides:
   smart materials, smart masks, brushes, stroke presets, generators, and export
   presets with stable identities, metadata, sorted tags, embedded thumbnails,
   and per-kind format-version refusal before resolution.
+  [Scenario coverage](docs/smart-material-scenarios.md) maps every smart-material
+  requirement to the labeled executable evidence that enforces it.
 - An isolated [Kong shader compiler context](docs/kong-backend.md) that compiles
   Kong source deterministically to WGSL, MSL, binary SPIR-V, or HLSL, supports
   concurrent independent targets, and reports unsupported requests explicitly.

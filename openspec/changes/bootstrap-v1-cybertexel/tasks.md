@@ -821,7 +821,7 @@ are next.
 - [x] 13.7 Shelf and library enumeration with metadata and thumbnails
 - [x] 13.8 Versioned presets and their refusals
 - [x] 13.9 One-step application and origin recording
-- [ ] 13.10 `smart-materials` scenarios as tests
+- [x] 13.10 `smart-materials` scenarios as tests
 
 ## 14. Bindings
 

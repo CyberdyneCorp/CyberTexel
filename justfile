@@ -95,6 +95,9 @@ test-smart-mask-instances: build
 test-smart-material-resources: build
     ctest --test-dir build/headless --output-on-failure -R '^smart-material-resources$'
 
+test-smart-material-scenarios: build
+    ctest --test-dir build/headless --output-on-failure -L '^smart-materials-scenario$'
+
 test-preset-shelf-library: build
     ctest --test-dir build/headless --output-on-failure -R '^preset-shelf-library$'
 
