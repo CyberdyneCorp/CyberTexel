@@ -155,6 +155,9 @@ test-preview-emission: (_require "spirv-val" "SPIRV-Tools") build
 test-material-emission: (_require "spirv-val" "SPIRV-Tools") build
     ctest --test-dir build/headless --output-on-failure -R '^material-emission'
 
+test-executor-registry: build
+    ctest --test-dir build/headless --output-on-failure -R '^executor-(registry|environment-pin)$'
+
 test-shader-emission-scenarios: (_require "spirv-val" "SPIRV-Tools") build
     ctest --test-dir build/headless --output-on-failure -L '^shader-emission-scenario$'
 

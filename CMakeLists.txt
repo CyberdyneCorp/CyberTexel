@@ -445,6 +445,18 @@ if(BUILD_TESTING)
     )
     add_test(NAME material-graph-output COMMAND ctex_material_graph_output_test)
 
+    add_executable(ctex_executor_registry_test tests/exec/executor_registry_test.cpp)
+    ctex_configure_cpp_target(ctex_executor_registry_test)
+    target_link_libraries(
+        ctex_executor_registry_test PRIVATE ctex_exec ctex_emit ctex_graph ctex_image
+    )
+    add_test(NAME executor-registry COMMAND ctex_executor_registry_test)
+    add_test(
+        NAME executor-environment-pin
+        COMMAND ctex_executor_registry_test --process-environment
+    )
+    set_tests_properties(executor-environment-pin PROPERTIES ENVIRONMENT "CTEX_EXECUTOR=cpu")
+
     add_test(
         NAME shader-emission-determinism
         COMMAND "${CTEX_PYTHON3_EXECUTABLE}" tools/check_determinism.py shader-emission

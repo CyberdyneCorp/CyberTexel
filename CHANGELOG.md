@@ -110,6 +110,9 @@ Foundation implementation is in progress.
   target/feature-aware immutable caching, and deterministic artifacts.
 - Labeled material-graph and shader-emission scenario suites mapping every
   OpenSpec scenario to native, external-validation, policy, or determinism tests.
+- Executor interface and registry with deterministic discovery, explicit
+  availability, automatic/explicit/environment selection, pinned defaults, and
+  checked recovery-aware fallback reports.
 - Kong cube-texture lowering across all four retained shader targets.
 - README architecture diagram and a current, implementation-scoped feature list.
 

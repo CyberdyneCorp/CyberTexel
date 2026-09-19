@@ -203,8 +203,14 @@ whole result by graph, target, features and resources. Eleven material-graph and
 twenty-two shader-emission labeled CTests map every scenario; focused
 determinism and licence tests are part of the shader label. Execution-side
 completion retirement, executor image parity and reference-host execution
-extend the named scenarios in tasks 7.3, 7.5 and 18.2. Executor discovery and
-selection (7.1) is next.
+extend the named scenarios in tasks 7.3, 7.5 and 18.2.
+
+Task 7.1 defines an instance-owned executor registry with stable descriptors,
+sorted discovery, explicit runtime availability and deterministic automatic,
+explicit, pinned and `CTEX_EXECUTOR` selection. Unknown environment values keep
+automatic policy and are reported. Structured fallback reports name the failure
+and refuse to claim CPU fallback before recovery restoration. The actual CPU
+reference implementation (7.2) is next.
 
 ## 1. Foundation
 
@@ -297,7 +303,7 @@ selection (7.1) is next.
 
 ## 7. Execution
 
-- [ ] 7.1 Executor interface, enumeration, selection, environment pin, fallback reporting
+- [x] 7.1 Executor interface, enumeration, selection, environment pin, fallback reporting
 - [ ] 7.2 CPU reference executor: UV-space rasterization, its own depth and UV buffers, every operation
 - [ ] 7.3 Host-executed route: GPU-resident authority, completion tokens, atomic revision publication, stale-result rejection and recovery before fallback
 - [ ] 7.4 Device capability reporting feeding emission

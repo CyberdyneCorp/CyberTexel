@@ -86,14 +86,18 @@ The current implementation provides:
   documented GGX metallic/roughness model, explicit environment and analytic
   light contracts, defined fallback lighting, and unlit inspection for every
   supplied channel.
+- Instance-owned [executor discovery and selection](docs/executor-selection.md)
+  with stable enumeration, runtime availability, explicit and `CTEX_EXECUTOR`
+  process defaults, deterministic automatic policy, and recovery-aware fallback
+  reports.
 - Strict C++20 builds, sanitizer coverage, OpenSpec validation, dependency
   layering checks, licence auditing, deterministic-output gates, and labeled
   [material-graph](docs/material-graph-scenarios.md) and
   [shader-emission](docs/shader-emission-scenarios.md) scenario suites.
 
-The editable layer document, painting engine, complete graph-to-target shader
-emission, host transport, project IO, language bindings, and complete export
-workflow remain roadmap work and are not presented as implemented APIs yet.
+The editable layer document, painting engine, executor implementations, host
+transport, project IO, language bindings, and complete export workflow remain
+roadmap work and are not presented as implemented APIs yet.
 
 ## Architecture
 
