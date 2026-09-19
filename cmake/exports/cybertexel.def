@@ -41,6 +41,15 @@ EXPORTS
     ctex_paint_filter_surface_tangent_vector
     ctex_paint_plan_island_padding
     ctex_paint_plan_work
+    ctex_paint_preview_session_cancel
+    ctex_paint_preview_session_commit
+    ctex_paint_preview_session_create
+    ctex_paint_preview_session_destroy
+    ctex_paint_preview_session_finalize
+    ctex_paint_preview_session_get_changed_tiles
+    ctex_paint_preview_session_get_info
+    ctex_paint_preview_session_get_pixels
+    ctex_paint_preview_session_write_pixel
     ctex_paint_rejection_init
     ctex_paint_seam_dilation_init
     ctex_paint_surface_map_cache_clear

@@ -1,6 +1,7 @@
 #ifndef CTEX_PAINT_PARAMETERS_HPP
 #define CTEX_PAINT_PARAMETERS_HPP
 
+#include <memory_resource>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -16,14 +17,18 @@ struct ToolParameterDescriptor {
 };
 
 struct ToolParameterClamp {
-    std::string name;
+    std::pmr::string name;
     double supplied{};
     double resolved{};
     friend bool operator==(const ToolParameterClamp&, const ToolParameterClamp&) = default;
 };
 
 struct ToolParameterReport {
-    std::vector<ToolParameterClamp> clamps;
+    ToolParameterReport(
+        std::pmr::memory_resource* memory_resource = std::pmr::get_default_resource())
+        : clamps(memory_resource) {}
+
+    std::pmr::vector<ToolParameterClamp> clamps;
 
     friend bool operator==(const ToolParameterReport&, const ToolParameterReport&) = default;
 

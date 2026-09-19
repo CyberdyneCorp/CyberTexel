@@ -80,7 +80,8 @@ typedef enum ctex_diagnostic_code {
     CTEX_DIAGNOSTIC_INVALID_PAINT_WORK = 44,
     CTEX_DIAGNOSTIC_INVALID_PAINT_DILATION = 45,
     CTEX_DIAGNOSTIC_INVALID_PAINT_FILTER = 46,
-    CTEX_DIAGNOSTIC_INVALID_PAINT_SURFACE_CACHE = 47
+    CTEX_DIAGNOSTIC_INVALID_PAINT_SURFACE_CACHE = 47,
+    CTEX_DIAGNOSTIC_INVALID_PAINT_PREVIEW = 48
 } ctex_diagnostic_code;
 
 typedef enum ctex_log_severity {
@@ -124,6 +125,7 @@ typedef struct ctex_cube_lut ctex_cube_lut;
 typedef struct ctex_mesh ctex_mesh;
 typedef struct ctex_paint_dilation_session ctex_paint_dilation_session;
 typedef struct ctex_paint_surface_map_cache ctex_paint_surface_map_cache;
+typedef struct ctex_paint_preview_session ctex_paint_preview_session;
 
 #define CTEX_MAX_MESH_VERTEX_COUNT ((size_t)100000000)
 #define CTEX_MAX_MESH_TRIANGLE_COUNT ((size_t)100000000)
@@ -530,6 +532,39 @@ typedef struct ctex_paint_tile_coordinate {
     uint32_t x;
     uint32_t y;
 } ctex_paint_tile_coordinate;
+
+typedef enum ctex_paint_preview_state {
+    CTEX_PAINT_PREVIEW_PROVISIONAL = 0,
+    CTEX_PAINT_PREVIEW_FINAL = 1,
+    CTEX_PAINT_PREVIEW_COMMITTED = 2,
+    CTEX_PAINT_PREVIEW_CANCELLED = 3
+} ctex_paint_preview_state;
+
+typedef struct ctex_paint_preview_info {
+    uint32_t size;
+    uint32_t state;
+    uint32_t width;
+    uint32_t height;
+    uint32_t component_count;
+    uint32_t scalar_representation;
+    uint32_t bit_depth;
+    size_t pixel_byte_count;
+    uint32_t resolved_dilation_radius;
+    uint32_t dilation_radius_clamped;
+    size_t dilated_texel_count;
+    size_t zero_gradient_texel_count;
+    uint64_t baseline_epoch;
+    uint64_t baseline_revision;
+    uint64_t preview_epoch;
+    uint64_t preview_revision;
+    uint64_t committed_epoch;
+    uint64_t committed_revision;
+    size_t changed_tile_count;
+    double maximum_component_error;
+} ctex_paint_preview_info;
+
+#define CTEX_PAINT_PREVIEW_INFO_V1_SIZE ((uint32_t)sizeof(ctex_paint_preview_info))
+#define CTEX_PAINT_PREVIEW_INFO_CURRENT_SIZE ((uint32_t)sizeof(ctex_paint_preview_info))
 
 typedef struct ctex_paint_work_descriptor {
     uint32_t size;
@@ -1384,6 +1419,36 @@ CTEX_API ctex_result ctex_texture_set_get_channel_info(
 CTEX_API ctex_result ctex_texture_set_get_memory_report(const ctex_document* document,
                                                         const char* texture_set_id,
                                                         ctex_texture_set_memory_report* out_report);
+
+/*
+ * Creates an isolated copy-on-write preview for one enabled channel. The
+ * document must outlive the session. Pixel buffers are tightly packed,
+ * row-major, interleaved bytes in the channel's authored storage format.
+ */
+CTEX_API ctex_result ctex_paint_preview_session_create(ctex_document* document,
+                                                       const char* texture_set_id,
+                                                       const char* semantic_id,
+                                                       ctex_paint_preview_session** out_session);
+CTEX_API void ctex_paint_preview_session_destroy(ctex_paint_preview_session* session);
+CTEX_API ctex_result ctex_paint_preview_session_write_pixel(ctex_paint_preview_session* session,
+                                                            uint32_t x, uint32_t y,
+                                                            const void* pixel, size_t pixel_size);
+CTEX_API ctex_result ctex_paint_preview_session_get_info(const ctex_paint_preview_session* session,
+                                                         ctex_paint_preview_info* out_info);
+CTEX_API ctex_result
+ctex_paint_preview_session_get_pixels(const ctex_paint_preview_session* session, void* pixel_buffer,
+                                      size_t pixel_buffer_size, size_t* out_required_size);
+CTEX_API ctex_result ctex_paint_preview_session_get_changed_tiles(
+    const ctex_paint_preview_session* session, ctex_paint_tile_coordinate* tiles,
+    size_t tile_capacity, size_t* out_tile_count);
+CTEX_API ctex_result ctex_paint_preview_session_finalize(ctex_paint_preview_session* session,
+                                                         const uint8_t* coverage,
+                                                         size_t coverage_count,
+                                                         uint32_t dilation_radius,
+                                                         ctex_paint_preview_info* out_info);
+CTEX_API ctex_result ctex_paint_preview_session_commit(ctex_paint_preview_session* session,
+                                                       ctex_paint_preview_info* out_info);
+CTEX_API ctex_result ctex_paint_preview_session_cancel(ctex_paint_preview_session* session);
 
 /*
  * Diagnostics are local to the calling thread. The returned pointer is owned by

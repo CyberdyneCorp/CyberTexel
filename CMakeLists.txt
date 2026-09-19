@@ -389,6 +389,10 @@ if(BUILD_TESTING)
         ctex_configure_c_target(ctex_capi_paint_surface_cache_test)
         target_link_libraries(ctex_capi_paint_surface_cache_test PRIVATE cybertexel_c)
         add_test(NAME c-abi-paint-surface-cache COMMAND ctex_capi_paint_surface_cache_test)
+        add_executable(ctex_capi_paint_preview_test tests/capi/paint_preview_test.c)
+        ctex_configure_c_target(ctex_capi_paint_preview_test)
+        target_link_libraries(ctex_capi_paint_preview_test PRIVATE cybertexel_c)
+        add_test(NAME c-abi-paint-preview COMMAND ctex_capi_paint_preview_test)
         if(UNIX AND NOT APPLE)
             add_test(
                 NAME c-abi-export-surface

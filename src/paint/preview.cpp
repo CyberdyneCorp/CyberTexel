@@ -120,12 +120,14 @@ const image::TiledImage& source_pixels(const doc::TextureChannels& channels,
 
 class PaintPreviewSession::Impl {
 public:
-    Impl(const doc::TextureChannels& channels, std::string_view channel_semantic)
+    Impl(const doc::TextureChannels& channels, std::string_view channel_semantic,
+         std::pmr::memory_resource* memory_resource)
         : channels_identity_(&channels),
           source_pixels_identity_(&source_pixels(channels, channel_semantic)),
-          channel_semantic_(channel_semantic),
+          channel_semantic_(channel_semantic, memory_resource),
           baseline_(source_pixels_identity_->revision_cursor()),
-          preview_(*source_pixels_identity_) {}
+          preview_(*source_pixels_identity_),
+          parameter_report_(memory_resource) {}
 
     void write_pixel(std::uint32_t x, std::uint32_t y, std::span<const std::byte> pixel) {
         require_state(state_, PaintPreviewState::provisional, "write a preview pixel");
@@ -148,7 +150,14 @@ public:
         dilated_texel_count_ = dilation.dilated_texel_count;
         zero_gradient_texel_count_ = dilation.zero_gradient_texel_count;
         dilation_radius_ = dilation.radius;
-        parameter_report_ = dilation.parameter_report;
+        parameter_report_.clamps.clear();
+        for (const ToolParameterClamp& clamp : dilation.parameter_report.clamps) {
+            parameter_report_.clamps.push_back(
+                {.name = std::pmr::string(clamp.name,
+                                          parameter_report_.clamps.get_allocator().resource()),
+                 .supplied = clamp.supplied,
+                 .resolved = clamp.resolved});
+        }
         state_ = PaintPreviewState::final;
         return preview_;
     }
@@ -191,7 +200,7 @@ public:
 private:
     const doc::TextureChannels* channels_identity_;
     const image::TiledImage* source_pixels_identity_;
-    std::string channel_semantic_;
+    std::pmr::string channel_semantic_;
     image::RevisionCursor baseline_;
     image::TiledImage preview_;
     PaintPreviewState state_{PaintPreviewState::provisional};
@@ -202,11 +211,40 @@ private:
 };
 
 PaintPreviewSession::PaintPreviewSession(const doc::TextureChannels& document_channels,
-                                         std::string_view channel_semantic)
-    : impl_(std::make_unique<Impl>(document_channels, channel_semantic)) {}
-PaintPreviewSession::~PaintPreviewSession() = default;
-PaintPreviewSession::PaintPreviewSession(PaintPreviewSession&&) noexcept = default;
-PaintPreviewSession& PaintPreviewSession::operator=(PaintPreviewSession&&) noexcept = default;
+                                         std::string_view channel_semantic,
+                                         std::pmr::memory_resource* memory_resource) {
+    static_cast<void>(source_pixels(document_channels, channel_semantic));
+    memory_resource_ =
+        memory_resource != nullptr ? memory_resource : std::pmr::get_default_resource();
+    std::pmr::polymorphic_allocator<Impl> allocator(memory_resource_);
+    impl_ = allocator.allocate(1);
+    try {
+        std::construct_at(impl_, document_channels, channel_semantic, memory_resource_);
+    } catch (...) {
+        allocator.deallocate(impl_, 1);
+        impl_ = nullptr;
+        throw;
+    }
+}
+
+PaintPreviewSession::~PaintPreviewSession() {
+    if (impl_ != nullptr) {
+        std::destroy_at(impl_);
+        std::pmr::polymorphic_allocator<Impl>(memory_resource_).deallocate(impl_, 1);
+    }
+}
+
+PaintPreviewSession::PaintPreviewSession(PaintPreviewSession&& other) noexcept
+    : impl_(std::exchange(other.impl_, nullptr)),
+      memory_resource_(std::exchange(other.memory_resource_, nullptr)) {}
+
+PaintPreviewSession& PaintPreviewSession::operator=(PaintPreviewSession&& other) noexcept {
+    if (this != &other) {
+        this->~PaintPreviewSession();
+        ::new (this) PaintPreviewSession(std::move(other));
+    }
+    return *this;
+}
 
 void PaintPreviewSession::write_pixel(std::uint32_t x, std::uint32_t y,
                                       std::span<const std::byte> pixel) {

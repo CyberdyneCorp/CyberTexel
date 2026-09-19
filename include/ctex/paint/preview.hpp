@@ -6,6 +6,7 @@
 #include <ctex/doc/channels.hpp>
 #include <ctex/paint/seam_dilation.hpp>
 #include <memory>
+#include <memory_resource>
 #include <span>
 #include <string_view>
 #include <vector>
@@ -27,7 +28,8 @@ struct PaintPreviewCommitReport {
 class PaintPreviewSession {
 public:
     PaintPreviewSession(const doc::TextureChannels& document_channels,
-                        std::string_view channel_semantic);
+                        std::string_view channel_semantic,
+                        std::pmr::memory_resource* memory_resource = nullptr);
     ~PaintPreviewSession();
     PaintPreviewSession(PaintPreviewSession&&) noexcept;
     PaintPreviewSession& operator=(PaintPreviewSession&&) noexcept;
@@ -52,7 +54,8 @@ public:
 
 private:
     class Impl;
-    std::unique_ptr<Impl> impl_;
+    Impl* impl_{};
+    std::pmr::memory_resource* memory_resource_{};
 };
 
 }  // namespace ctex::paint

@@ -7,6 +7,11 @@ use the image store's copy-on-write tiles, so provisional painting cannot change
 the document's pixels, revision, generation counters, dirty flags, or sparse
 allocation state.
 
+Native callers may supply a memory resource for the session's persistent
+metadata; omitting it preserves the standard default-resource behavior. Pixel
+tiles continue to use the source channel's resource so copy-on-write sharing
+and publication remain valid.
+
 The session has four explicit states:
 
 - `provisional`: accepts paint writes and exposes an undilated interactive
@@ -31,3 +36,12 @@ committed image and retained final preview share the exact immutable tile
 payloads; `PaintPreviewCommitReport` consequently reports a maximum component
 error of zero, along with the baseline, preview and committed revisions and the
 changed tile set.
+
+The C ABI exposes the same state machine through
+`ctex_paint_preview_session_create`. A session is tied to one enabled document
+channel; writes remain isolated, `finalize` applies dilation, and `commit`
+refuses a changed source revision. Callers can inspect versioned metadata,
+tightly packed authored-format pixels, and changed tile coordinates before or
+after publication. `cancel` discards an uncommitted session. The document must
+outlive its sessions, and every persistent session allocation uses the
+allocator captured by that document.

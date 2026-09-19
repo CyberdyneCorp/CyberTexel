@@ -65,6 +65,7 @@ int main(void) {
     ctex_document* document = NULL;
     ctex_cube_lut* lut = NULL;
     ctex_paint_dilation_session* dilation_session = NULL;
+    ctex_paint_preview_session* preview_session = NULL;
     const double dilation_pixels[3] = {-1.0, 2.0, -1.0};
     const uint8_t dilation_coverage[3] = {0, 1, 0};
     const ctex_paint_dilation_tile_descriptor dilation_tile = {
@@ -94,6 +95,9 @@ int main(void) {
     char texture_set_id[128] = {0};
     size_t texture_set_id_size = 0;
     size_t texture_set_count = 0;
+    const uint8_t preview_pixel[3] = {10, 20, 30};
+    uint8_t preview_coverage[16 * 16] = {0};
+    ctex_paint_preview_info preview_info = {.size = CTEX_PAINT_PREVIEW_INFO_CURRENT_SIZE};
 
     if (ctex_set_allocator(&allocator) != CTEX_RESULT_SUCCESS ||
         ctex_document_create(&document) != CTEX_RESULT_SUCCESS || document == NULL ||
@@ -129,10 +133,18 @@ int main(void) {
         texture_set_count != 1 ||
         ctex_texture_set_set_channel_enabled(document, texture_set_id, "pbr.base_color", 1, 0) !=
             CTEX_RESULT_SUCCESS ||
+        ctex_paint_preview_session_create(document, texture_set_id, "pbr.base_color",
+                                          &preview_session) != CTEX_RESULT_SUCCESS ||
+        ctex_paint_preview_session_write_pixel(preview_session, 0, 0, preview_pixel,
+                                               sizeof(preview_pixel)) != CTEX_RESULT_SUCCESS ||
+        ctex_paint_preview_session_finalize(preview_session, preview_coverage,
+                                            sizeof(preview_coverage), UINT32_MAX,
+                                            &preview_info) != CTEX_RESULT_SUCCESS ||
         capture.allocation_count <= successful_allocation_count) {
         return 4;
     }
     successful_allocation_count = capture.allocation_count;
+    ctex_paint_preview_session_destroy(preview_session);
     ctex_document_destroy(document);
     ctex_cube_lut_destroy(lut);
     ctex_paint_dilation_session_destroy(dilation_session);

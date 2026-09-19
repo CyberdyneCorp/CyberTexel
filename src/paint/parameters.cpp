@@ -30,7 +30,9 @@ double validate_tool_parameter(const ToolParameterDescriptor& descriptor, double
     const double resolved = std::clamp(supplied, descriptor.minimum, descriptor.maximum);
     if (resolved != supplied) {
         report.clamps.push_back(
-            {.name = std::string(descriptor.name), .supplied = supplied, .resolved = resolved});
+            {.name = std::pmr::string(descriptor.name, report.clamps.get_allocator().resource()),
+             .supplied = supplied,
+             .resolved = resolved});
     }
     return resolved;
 }

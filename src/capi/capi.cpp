@@ -13,6 +13,7 @@
 #include <ctex/paint/coverage.hpp>
 #include <ctex/paint/deposition.hpp>
 #include <ctex/paint/masking.hpp>
+#include <ctex/paint/preview.hpp>
 #include <ctex/paint/seam_dilation.hpp>
 #include <ctex/paint/seam_filter.hpp>
 #include <ctex/paint/stroke.hpp>
@@ -141,6 +142,30 @@ struct ctex_paint_surface_map_cache {
     std::size_t hits{};
     std::size_t misses{};
     std::size_t invalidated_entries{};
+};
+
+struct ctex_paint_preview_session {
+    ctex_paint_preview_session(ctex_allocator_state allocator_value, ctex_document* document_value,
+                               std::string_view texture_set_id_value,
+                               std::string_view semantic_id_value,
+                               ctex::doc::TextureChannels& channels)
+        : allocator(allocator_value),
+          memory_resource(allocator_value),
+          document(document_value),
+          texture_set_id(texture_set_id_value, &memory_resource),
+          semantic_id(semantic_id_value, &memory_resource),
+          baseline(channels.pixels(semantic_id_value).revision_cursor()),
+          preview(channels, semantic_id_value, &document_value->memory_resource) {}
+
+    ctex_allocator_state allocator;
+    ctex_host_memory_resource memory_resource;
+    ctex_document* document;
+    std::pmr::string texture_set_id;
+    std::pmr::string semantic_id;
+    ctex::image::RevisionCursor baseline;
+    ctex::image::RevisionCursor committed;
+    double maximum_component_error{};
+    ctex::paint::PaintPreviewSession preview;
 };
 
 namespace {
@@ -383,6 +408,23 @@ ctex_paint_surface_map_cache* create_paint_surface_map_cache(
     }
 }
 
+ctex_paint_preview_session* create_paint_preview_session(const ctex_allocator_state& allocator,
+                                                         ctex_document* document,
+                                                         std::string_view texture_set_id,
+                                                         std::string_view semantic_id,
+                                                         ctex::doc::TextureChannels& channels) {
+    void* storage = allocate_storage(allocator, sizeof(ctex_paint_preview_session),
+                                     alignof(ctex_paint_preview_session));
+    try {
+        return ::new (storage)
+            ctex_paint_preview_session(allocator, document, texture_set_id, semantic_id, channels);
+    } catch (...) {
+        deallocate_storage(allocator, storage, sizeof(ctex_paint_preview_session),
+                           alignof(ctex_paint_preview_session));
+        throw;
+    }
+}
+
 std::size_t texture_set_id_buffer_size(const std::vector<std::string>& identifiers) {
     std::size_t required_size = 0;
     for (const std::string& identifier : identifiers) {
@@ -574,6 +616,72 @@ std::uint32_t storage_bit_depth(const ctex::doc::TextureChannels& channels,
             return 32;
     }
     throw std::logic_error("channel has an unknown storage type");
+}
+
+std::vector<ctex::image::TileCoordinate> paint_preview_changed_tiles(
+    const ctex_paint_preview_session& session) {
+    const ctex::image::TiledImage& pixels = session.preview.preview_pixels();
+    if (pixels.revision_cursor().epoch == session.baseline.epoch) {
+        return pixels.changed_tiles_after(session.baseline.revision).coordinates;
+    }
+    std::vector<ctex::image::TileCoordinate> result;
+    result.reserve(static_cast<std::size_t>(pixels.tile_columns()) * pixels.tile_rows());
+    for (std::uint32_t y = 0; y < pixels.tile_rows(); ++y) {
+        for (std::uint32_t x = 0; x < pixels.tile_columns(); ++x) {
+            result.push_back({x, y});
+        }
+    }
+    return result;
+}
+
+ctex_paint_preview_info paint_preview_info(const ctex_paint_preview_session& session) {
+    const ctex::image::TiledImage& pixels = session.preview.preview_pixels();
+    const ctex::image::PixelFormat format = pixels.format();
+    const ctex::image::RevisionCursor preview = pixels.revision_cursor();
+    const std::size_t pixel_byte_count =
+        static_cast<std::size_t>(pixels.width()) * pixels.height() * pixels.pixel_bytes();
+    return {
+        .size = CTEX_PAINT_PREVIEW_INFO_CURRENT_SIZE,
+        .state = static_cast<std::uint32_t>(session.preview.state()),
+        .width = pixels.width(),
+        .height = pixels.height(),
+        .component_count = format.channel_count,
+        .scalar_representation = format.channel_type == ctex::image::ChannelType::float32
+                                     ? CTEX_SCALAR_REPRESENTATION_FLOATING_POINT
+                                     : CTEX_SCALAR_REPRESENTATION_UNSIGNED_NORMALIZED,
+        .bit_depth = static_cast<std::uint32_t>(format.bytes_per_channel() * 8),
+        .pixel_byte_count = pixel_byte_count,
+        .resolved_dilation_radius = session.preview.dilation_radius(),
+        .dilation_radius_clamped =
+            session.preview.parameter_report().clamp_for("seam_dilation.radius").has_value(),
+        .dilated_texel_count = session.preview.dilated_texel_count(),
+        .zero_gradient_texel_count = session.preview.zero_gradient_texel_count(),
+        .baseline_epoch = session.baseline.epoch,
+        .baseline_revision = session.baseline.revision,
+        .preview_epoch = preview.epoch,
+        .preview_revision = preview.revision,
+        .committed_epoch = session.committed.epoch,
+        .committed_revision = session.committed.revision,
+        .changed_tile_count = paint_preview_changed_tiles(session).size(),
+        .maximum_component_error = session.maximum_component_error,
+    };
+}
+
+void validate_paint_preview_info(ctex_paint_preview_info* out_info) {
+    if (out_info == nullptr) {
+        throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                       "out_info=null");
+    }
+    if (out_info->size < CTEX_PAINT_PREVIEW_INFO_V1_SIZE ||
+        out_info->size > CTEX_PAINT_PREVIEW_INFO_CURRENT_SIZE) {
+        throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_INVALID_DESCRIPTOR_SIZE,
+                       "out_info.size=" + std::to_string(out_info->size));
+    }
+}
+
+[[noreturn]] void throw_invalid_paint_preview(const std::exception& error) {
+    throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_INVALID_PAINT_PREVIEW,
+                   error.what());
 }
 
 ctex::image::ColorSpace color_space(std::uint32_t value) {
@@ -4221,6 +4329,182 @@ extern "C" ctex_result ctex_texture_set_get_memory_report(
             .mesh_map_pixel_bytes = report.mesh_map_pixel_bytes,
             .total_resident_bytes = report.total_resident_bytes,
         };
+    });
+}
+
+extern "C" ctex_result ctex_paint_preview_session_create(ctex_document* document,
+                                                         const char* texture_set_id,
+                                                         const char* semantic_id,
+                                                         ctex_paint_preview_session** out_session) {
+    return call_boundary("ctex_paint_preview_session_create", [&] {
+        if (out_session == nullptr) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                           "out_session=null");
+        }
+        *out_session = nullptr;
+        if (document == nullptr) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                           "document=null");
+        }
+        ctex::doc::TextureSet& texture_set = require_texture_set(*document, texture_set_id);
+        ctex::doc::TextureChannels& channels = texture_set.channels();
+        static_cast<void>(require_channel(channels, semantic_id));
+        if (!channels.is_enabled(semantic_id)) {
+            throw_boundary(CTEX_RESULT_MISSING_RESOURCE, CTEX_DIAGNOSTIC_MISSING_CHANNEL,
+                           "paint preview channel is not enabled");
+        }
+        *out_session = create_paint_preview_session(document->allocator, document, texture_set_id,
+                                                    semantic_id, channels);
+    });
+}
+
+extern "C" void ctex_paint_preview_session_destroy(ctex_paint_preview_session* session) {
+    if (session == nullptr) {
+        return;
+    }
+    const ctex_allocator_state allocator = session->allocator;
+    session->~ctex_paint_preview_session();
+    deallocate_storage(allocator, session, sizeof(ctex_paint_preview_session),
+                       alignof(ctex_paint_preview_session));
+}
+
+extern "C" ctex_result ctex_paint_preview_session_write_pixel(ctex_paint_preview_session* session,
+                                                              std::uint32_t x, std::uint32_t y,
+                                                              const void* pixel,
+                                                              std::size_t pixel_size) {
+    return call_boundary("ctex_paint_preview_session_write_pixel", [&] {
+        if (session == nullptr || pixel == nullptr) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                           session == nullptr ? "session=null" : "pixel=null");
+        }
+        if (pixel_size != session->preview.preview_pixels().pixel_bytes()) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_INVALID_PAINT_PREVIEW,
+                           "pixel size does not match the preview channel format");
+        }
+        try {
+            session->preview.write_pixel(x, y, {static_cast<const std::byte*>(pixel), pixel_size});
+        } catch (const std::invalid_argument& error) {
+            throw_invalid_paint_preview(error);
+        } catch (const std::logic_error& error) {
+            throw_invalid_paint_preview(error);
+        }
+    });
+}
+
+extern "C" ctex_result ctex_paint_preview_session_get_info(
+    const ctex_paint_preview_session* session, ctex_paint_preview_info* out_info) {
+    return call_boundary("ctex_paint_preview_session_get_info", [&] {
+        if (session == nullptr) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                           "session=null");
+        }
+        validate_paint_preview_info(out_info);
+        *out_info = paint_preview_info(*session);
+    });
+}
+
+extern "C" ctex_result ctex_paint_preview_session_get_pixels(
+    const ctex_paint_preview_session* session, void* pixel_buffer, std::size_t pixel_buffer_size,
+    std::size_t* out_required_size) {
+    return call_boundary("ctex_paint_preview_session_get_pixels", [&] {
+        if (session == nullptr || out_required_size == nullptr) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                           session == nullptr ? "session=null" : "out_required_size=null");
+        }
+        const ctex::image::TiledImage& pixels = session->preview.preview_pixels();
+        const std::size_t required_size =
+            static_cast<std::size_t>(pixels.width()) * pixels.height() * pixels.pixel_bytes();
+        *out_required_size = required_size;
+        validate_string_buffer(static_cast<char*>(pixel_buffer), pixel_buffer_size, required_size);
+        if (pixel_buffer == nullptr) {
+            return;
+        }
+        auto* destination = static_cast<std::byte*>(pixel_buffer);
+        for (std::uint32_t y = 0; y < pixels.height(); ++y) {
+            for (std::uint32_t x = 0; x < pixels.width(); ++x) {
+                const std::span<const std::byte> pixel = pixels.read_pixel(x, y);
+                std::memcpy(destination, pixel.data(), pixel.size());
+                destination += pixel.size();
+            }
+        }
+    });
+}
+
+extern "C" ctex_result ctex_paint_preview_session_get_changed_tiles(
+    const ctex_paint_preview_session* session, ctex_paint_tile_coordinate* tiles,
+    std::size_t tile_capacity, std::size_t* out_tile_count) {
+    return call_boundary("ctex_paint_preview_session_get_changed_tiles", [&] {
+        if (session == nullptr || out_tile_count == nullptr) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                           session == nullptr ? "session=null" : "out_tile_count=null");
+        }
+        const std::vector<ctex::image::TileCoordinate> changed =
+            paint_preview_changed_tiles(*session);
+        *out_tile_count = changed.size();
+        validate_output_array(tiles, tile_capacity, changed.size(), "tiles");
+        for (std::size_t index = 0; index < changed.size(); ++index) {
+            tiles[index] = {changed[index].x, changed[index].y};
+        }
+    });
+}
+
+extern "C" ctex_result ctex_paint_preview_session_finalize(ctex_paint_preview_session* session,
+                                                           const std::uint8_t* coverage,
+                                                           std::size_t coverage_count,
+                                                           std::uint32_t dilation_radius,
+                                                           ctex_paint_preview_info* out_info) {
+    return call_boundary("ctex_paint_preview_session_finalize", [&] {
+        if (session == nullptr || coverage == nullptr) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                           session == nullptr ? "session=null" : "coverage=null");
+        }
+        validate_paint_preview_info(out_info);
+        try {
+            static_cast<void>(
+                session->preview.finalize({coverage, coverage_count}, dilation_radius));
+        } catch (const std::invalid_argument& error) {
+            throw_invalid_paint_preview(error);
+        } catch (const std::logic_error& error) {
+            throw_invalid_paint_preview(error);
+        }
+        *out_info = paint_preview_info(*session);
+    });
+}
+
+extern "C" ctex_result ctex_paint_preview_session_commit(ctex_paint_preview_session* session,
+                                                         ctex_paint_preview_info* out_info) {
+    return call_boundary("ctex_paint_preview_session_commit", [&] {
+        if (session == nullptr) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                           "session=null");
+        }
+        validate_paint_preview_info(out_info);
+        try {
+            ctex::doc::TextureChannels& channels =
+                session->document->value.texture_set(session->texture_set_id).channels();
+            const ctex::paint::PaintPreviewCommitReport report = session->preview.commit(channels);
+            session->committed = report.committed;
+            session->maximum_component_error = report.maximum_component_error;
+        } catch (const std::invalid_argument& error) {
+            throw_invalid_paint_preview(error);
+        } catch (const std::logic_error& error) {
+            throw_invalid_paint_preview(error);
+        }
+        *out_info = paint_preview_info(*session);
+    });
+}
+
+extern "C" ctex_result ctex_paint_preview_session_cancel(ctex_paint_preview_session* session) {
+    return call_boundary("ctex_paint_preview_session_cancel", [&] {
+        if (session == nullptr) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                           "session=null");
+        }
+        try {
+            session->preview.cancel();
+        } catch (const std::logic_error& error) {
+            throw_invalid_paint_preview(error);
+        }
     });
 }
 
