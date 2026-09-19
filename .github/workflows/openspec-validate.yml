@@ -70,6 +70,8 @@ jobs:
       run: just test-kong-context
     - name: Graph emission
       run: just test-graph-emission
+    - name: Device-independent pass plans
+      run: just test-pass-plan
     - name: Test suite
       run: just test
 

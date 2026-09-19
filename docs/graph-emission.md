@@ -2,8 +2,10 @@
 
 `ctex/emit/graph_emission.hpp` lowers the reachable portion of a material graph
 to a deterministic sequence of WGSL statements. The result is an expression
-program intended for a generated shader function body; complete entry points,
-resource layouts, and pass plans arrive in tasks 6.10–6.15.
+program intended for a generated shader function body. Device-independent
+[pass plans](pass-plans.md) now define resource generations, layouts, bindings,
+state, and commands; target-specific entry-point integration follows in tasks
+6.11–6.16.
 
 Each intermediate variable is derived from the stable node ID and output socket
 identifier. A node inside a group is additionally qualified by the stable group

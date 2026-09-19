@@ -7,7 +7,7 @@ decisions taken and questions still open.
 ## Status
 
 Implementation started. 24 capabilities, 332 requirements, 400 scenarios and
-222 tasks, 34 done. Foundation and the complete headless color-management
+222 tasks, 35 done. Foundation and the complete headless color-management
 scenario suite are green. Slice-A now has memory-buffer PNG input/output with
 8/16-bit preservation and hostile-input ceilings; full image-format breadth
 remains scheduled for slice D. Extensible channel descriptors and sparse
@@ -69,6 +69,10 @@ Reachability-driven WGSL expression emission now gives every intermediate a
 stable node/socket-derived name, qualifies it by every enclosing group instance,
 inserts declared socket coercions at use sites, and memoizes fan-out so a node is
 emitted once. A byte-comparison fixture now covers shader-emission determinism.
+Device-independent pass plans now name versioned logical textures and tile-aware
+subresources, reject uninitialized access and unordered hazards, derive
+submission lifetimes, and carry the complete binding, layout, render-state, and
+draw/dispatch data a host needs without exposing a device handle.
 
 ## Milestones
 

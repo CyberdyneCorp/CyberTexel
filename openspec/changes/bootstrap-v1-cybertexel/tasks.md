@@ -170,7 +170,10 @@ sources stay unlinked until their context adapters arrive in 6.11. Task 6.9 adds
 reachability-driven WGSL expression emission with stable node/socket names,
 complete nested-group qualification, code-generation coercions, attribution,
 single-emission fan-out, and a byte-comparison determinism fixture. Pass-plan
-resource generations, access and synchronization declarations (6.10) are next.
+task 6.10 adds versioned logical textures, mip/layer/tile subresources, explicit
+load/store access and transitive hazard dependencies, derived submission
+lifetimes, ordered binding and buffer layouts, target state, and validated
+draw/dispatch commands without device handles. Target adapters (6.11) are next.
 
 ## 1. Foundation
 
@@ -253,7 +256,7 @@ resource generations, access and synchronization declarations (6.10) are next.
 - [x] 6.7 Host-registered node types with CPU and emission semantics, replay eligibility and parity fixtures; opaque preservation of unknown types
 - [x] 6.8 Vendor Kong under `thirdparty/`, wrap its global state in a context object, attribute it
 - [x] 6.9 Emission: result naming, group qualification, single-emission fan-out
-- [ ] 6.10 Pass plan: logical resource generations, subresource access, dependencies, lifetimes, bindings, layouts, draw/dispatch and state
+- [x] 6.10 Pass plan: logical resource generations, subresource access, dependencies, lifetimes, bindings, layouts, draw/dispatch and state
 - [ ] 6.11 Target languages WGSL, MSL, SPIR-V, HLSL; unsupported-target refusal
 - [ ] 6.12 Feature-gated emission and layer-stack pass splitting at the binding budget
 - [ ] 6.13 Emission cache keyed by graph, target and feature set

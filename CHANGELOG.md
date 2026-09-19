@@ -84,6 +84,9 @@ Foundation implementation is in progress.
   deterministic wrapper reuse, and concurrent independent compilation.
 - Reachability-driven WGSL expression emission with deterministic node and group
   names, emission-time coercion, attribution comments, and fan-out memoization.
+- Validated device-independent render and compute pass plans with versioned
+  logical textures, tile-aware subresource hazards, derived lifetimes, explicit
+  bindings/layouts, render state, and draw or dispatch commands.
 - README architecture diagram and a current, implementation-scoped feature list.
 
 ### Changed

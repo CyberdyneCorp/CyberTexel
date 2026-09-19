@@ -65,12 +65,16 @@ The current implementation provides:
 - Deterministic [material graph expression emission](docs/graph-emission.md)
   with node-derived result names, complete nested-group qualification,
   emission-time socket coercion, node attribution, and single-emission fan-out.
+- Validated, device-independent [pass plans](docs/pass-plans.md) with logical
+  resource generations, mip/layer/tile access ranges, dependency hazards,
+  derived lifetimes, explicit bindings and layouts, render state, and
+  draw/dispatch commands.
 - Strict C++20 builds, sanitizer coverage, OpenSpec validation, dependency
   layering checks, licence auditing, and deterministic-output gates.
 
-The layer stack, painting engine, shader emission, host transport, project IO,
-bindings, and complete export workflow remain roadmap work and are not presented
-as implemented APIs yet.
+The layer stack, painting engine, complete target shader emission, host
+transport, project IO, language bindings, and complete export workflow remain
+roadmap work and are not presented as implemented APIs yet.
 
 ## Architecture
 

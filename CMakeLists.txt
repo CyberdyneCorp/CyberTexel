@@ -96,6 +96,7 @@ ctex_add_module(
     SOURCES
         src/emit/emit.cpp
         src/emit/kong_context.cpp
+        src/emit/pass_plan.cpp
 )
 target_include_directories(ctex_emit SYSTEM PRIVATE "${PROJECT_SOURCE_DIR}/thirdparty/kong")
 target_link_libraries(ctex_emit PRIVATE ctex_kong)
@@ -268,6 +269,11 @@ if(BUILD_TESTING)
     ctex_configure_cpp_target(ctex_graph_emission_test)
     target_link_libraries(ctex_graph_emission_test PRIVATE ctex_emit ctex_graph)
     add_test(NAME graph-emission COMMAND ctex_graph_emission_test)
+
+    add_executable(ctex_pass_plan_test tests/emit/pass_plan_test.cpp)
+    ctex_configure_cpp_target(ctex_pass_plan_test)
+    target_link_libraries(ctex_pass_plan_test PRIVATE ctex_emit ctex_graph)
+    add_test(NAME pass-plan COMMAND ctex_pass_plan_test)
 
     add_executable(ctex_material_graph_output_test tests/doc/material_graph_test.cpp)
     ctex_configure_cpp_target(ctex_material_graph_output_test)

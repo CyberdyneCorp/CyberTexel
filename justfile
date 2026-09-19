@@ -128,6 +128,9 @@ test-kong-context: build
 test-graph-emission: build
     ctest --test-dir build/headless --output-on-failure -R '^graph-emission$'
 
+test-pass-plan: build
+    ctest --test-dir build/headless --output-on-failure -R '^pass-plan$'
+
 examples:
     @just _unimplemented examples 16.2
 
