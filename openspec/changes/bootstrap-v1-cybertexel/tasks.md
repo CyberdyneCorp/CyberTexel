@@ -232,8 +232,14 @@ normalized integer parity at one code value unfiltered and two when filtered
 absolute-plus-relative bounds of `1e-6 + 1e-5 * magnitude`, widened to
 `5e-6 + 5e-5 * magnitude` after filtering. The executable comparator refuses
 shape mismatches and non-finite values and reports the first index, measured
-deviation and allowed bound. The committed fixture corpus and CI gate (7.6) are
-next.
+deviation and allowed bound.
+Task 7.6 commits three document, stroke, camera, material and UV-mesh cases
+covering 8-bit, 16-bit, float, filtered, depth and coverage outputs. The CPU
+renderer uses the reference rasterizer and shared blend formulas. The generic
+gate measures every available executor, fails malformed or missing renderers and
+names case, channel and deviation on drift. Compiled routes without a device are
+printed as `unmeasured`, never counted as passing; the same `just gate-parity`
+command runs in CI. Cancellation, progress and execution bounds (7.7) are next.
 
 ## 1. Foundation
 
@@ -331,7 +337,7 @@ next.
 - [x] 7.3 Host-executed route: GPU-resident authority, completion tokens, atomic revision publication, stale-result rejection and recovery before fallback
 - [x] 7.4 Device capability reporting feeding emission
 - [x] 7.5 Declared parity tolerances per bit depth and for filtered values
-- [ ] 7.6 Parity fixture corpus and the CI gate, with unmeasured executors reported
+- [x] 7.6 Parity fixture corpus and the CI gate, with unmeasured executors reported
 - [ ] 7.7 Cancellation, progress, worker bound, memory ceiling and its refusals
 - [ ] 7.8 Optional owned-GPU executor (first backend), behind a build flag
 - [ ] 7.9 `execution-backends` scenarios as tests

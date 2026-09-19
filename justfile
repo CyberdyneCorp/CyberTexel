@@ -220,10 +220,11 @@ gate-abi-diff:
 gate-example-coverage:
     @just _unimplemented gate-example-coverage 16.5
 
-# Every executor agrees with the CPU reference within the declared tolerance.
-# Device-dependent: run where the hardware exists.
+# Every available executor agrees with the CPU reference within the declared
+# tolerance; compiled routes without a device are reported as unmeasured.
 gate-parity:
-    @just _unimplemented gate-parity 7.6
+    just build
+    ./build/headless/ctex_executor_parity_gate
 
 # Budgeted operations measured on a named reference device.
 # Device-dependent: run where the hardware exists.

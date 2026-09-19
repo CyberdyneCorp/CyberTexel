@@ -28,6 +28,37 @@ than allowing NaNs to hide drift.
 
 `compare_parity` refuses different value counts, reports the maximum absolute
 deviation, and records the first failing value with its reference, measurement,
-deviation, allowed bound and index. Task 7.6 builds the committed cross-executor
-fixture corpus and CI gate on this policy; it will add case and semantic-channel
-names around these value-level diagnostics.
+deviation, allowed bound and index. The cross-executor gate adds fixture and
+semantic-channel names around these value-level diagnostics.
+
+## Committed corpus and gate
+
+`tests/fixtures/executor_parity/corpus.hpp` is the versioned corpus. Its three
+cases commit all inputs needed for repeatable execution rather than referring to
+mutable application state:
+
+- a document extent, tile and channel precision;
+- a stroke centre, radius and opacity;
+- an OpenGL clip-space camera and viewport;
+- a base/layer material and named blend formula; and
+- an indexed UV triangle.
+
+The corpus covers unfiltered 8-bit, filtered 16-bit and filtered floating-point
+colour, plus depth and coverage. Its CPU renderer uses the production reference
+UV rasterizer, shared material blend formulas, and a fixed quarter-texel bilinear
+sample for channels declared filtered. These are conformance inputs, not a claim
+that the later paint engine and stroke model are already complete; their tasks
+extend the corpus with their operation records as those APIs land.
+
+`run_parity_gate` locates exactly one available CPU reference, renders its result,
+then measures every other available executor by named fixture and semantic
+channel. It rejects malformed/empty corpus data, malformed renderer output,
+duplicate executor identities, and an available executor without a renderer. A
+drift failure records the fixture, channel, value index, measured deviation and
+allowed deviation.
+
+Compiled executors whose device or host attachment is absent are emitted as
+`unmeasured`; they are never rendered or counted as passing. `just gate-parity`
+runs on GPU-free CI, prints the CPU reference and every unmeasured route, and
+will automatically measure an optional backend once that backend is compiled,
+available and bound to the corpus renderer.

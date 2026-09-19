@@ -105,6 +105,9 @@ The current implementation provides:
 - Numeric [cross-executor parity tolerances](docs/executor-parity.md) for
   normalized 8-bit and 16-bit channels and absolute-plus-relative floating-point
   channels, with separately bounded filtered values and measured diagnostics.
+- A committed document/stroke/camera/material parity corpus and CI gate that
+  measures every available executor against the CPU reference and explicitly
+  reports compiled but unavailable routes as unmeasured.
 - Strict C++20 builds, sanitizer coverage, OpenSpec validation, dependency
   layering checks, licence auditing, deterministic-output gates, and labeled
   [material-graph](docs/material-graph-scenarios.md) and

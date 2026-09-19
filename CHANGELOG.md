@@ -43,6 +43,9 @@ Foundation implementation is in progress.
 - Executable cross-executor parity policy with numeric unfiltered and filtered
   tolerances for 8-bit UNORM, 16-bit UNORM and floating-point values, including
   absolute/relative comparison and first-failure diagnostics.
+- A committed executor corpus spanning documents, strokes, cameras, materials,
+  UV rasterization, depth, coverage and all declared value classes, with a CI
+  gate that names backend drift and reports unavailable executors as unmeasured.
 - Semantic input-colour defaults, preview-only 3D LUTs, structured precision
   warnings, promoted height accumulation and deterministic ordered dithering.
 - Slice-A memory-buffer PNG decoding and encoding with 8/16-bit preservation,

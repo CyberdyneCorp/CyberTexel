@@ -76,6 +76,8 @@ jobs:
       run: just test-graph-emission
     - name: Device-independent pass plans
       run: just test-pass-plan
+    - name: Executor parity corpus
+      run: just gate-parity
     - name: Test suite
       run: just test
 
