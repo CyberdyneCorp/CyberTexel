@@ -75,16 +75,14 @@ TopologyIndex index_topology(std::span<const FillTriangleTopology> topology) {
     return result;
 }
 
-std::set<std::uint32_t> connected_triangles(std::uint32_t seed, const FillScopeRequest& request) {
-    if (!std::isfinite(request.maximum_angle_degrees) || request.maximum_angle_degrees < 0.0 ||
-        request.maximum_angle_degrees > 180.0) {
-        throw std::invalid_argument("connected fill angle must be between 0 and 180 degrees");
-    }
-    const TopologyIndex topology = index_topology(request.triangle_topology);
+std::set<std::uint32_t> connected_triangles(std::uint32_t seed,
+                                            std::span<const FillTriangleTopology> triangle_topology,
+                                            double maximum_angle_degrees) {
+    const TopologyIndex topology = index_topology(triangle_topology);
     if (!topology.contains(seed)) {
         throw std::invalid_argument("picked triangle is absent from fill topology");
     }
-    const double minimum_dot = std::cos(request.maximum_angle_degrees * std::numbers::pi / 180.0);
+    const double minimum_dot = std::cos(maximum_angle_degrees * std::numbers::pi / 180.0);
     std::set<std::uint32_t> selected{seed};
     std::deque<std::uint32_t> pending{seed};
     while (!pending.empty()) {
@@ -185,6 +183,7 @@ FillScopeResult resolve_fill_scope(const CachedSurfaceMaps& surface,
     FillScopeResult result{.width = surface.surface.width,
                            .height = surface.surface.height,
                            .scope = request.scope,
+                           .parameter_report = {},
                            .values = std::vector<double>(texel_count, 0.0),
                            .selected_triangle_ids = {},
                            .selected_texel_count = 0};
@@ -201,7 +200,10 @@ FillScopeResult resolve_fill_scope(const CachedSurfaceMaps& surface,
             select_triangles(surface, result.values, std::set<std::uint32_t>{seed_triangle});
             result.selected_triangle_ids = {seed_triangle};
         } else if (request.scope == FillScope::connected_by_angle) {
-            const std::set<std::uint32_t> selected = connected_triangles(seed_triangle, request);
+            const double maximum_angle = validate_tool_parameter(
+                connected_angle_parameter, request.maximum_angle_degrees, result.parameter_report);
+            const std::set<std::uint32_t> selected =
+                connected_triangles(seed_triangle, request.triangle_topology, maximum_angle);
             select_triangles(surface, result.values, selected);
             result.selected_triangle_ids = {selected.begin(), selected.end()};
         } else if (request.scope == FillScope::uv_island) {

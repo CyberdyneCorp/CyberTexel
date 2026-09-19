@@ -15,7 +15,10 @@ All modes return dimensions, owned normalized values, selected texel and
 triangle counts, and the selection kind. Screen modes also preserve BVH
 traversal counters. A screen selection refuses surface maps from an older mesh
 revision. Invalid dimensions, coverage, identities, region geometry, picks,
-topology, and angle limits are refused before a result is returned.
+and topology are refused before a result is returned. The connected-polygon
+angle shares Fill's 45-degree default and `[0, 180]` bounds. Its resolved value
+drives expansion, clamp information is propagated through
+`SelectionResult::parameter_report`, and non-finite angles are refused.
 
 `SelectionResult::as_paint_restriction()` supplies an active restriction to
 `PaintMaskInputs`. `store_selection_mask()` validates and copies the region into

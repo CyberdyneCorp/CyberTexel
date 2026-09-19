@@ -23,6 +23,7 @@ struct SelectionResult {
     std::uint32_t width{};
     std::uint32_t height{};
     SelectionKind kind{SelectionKind::screen_rectangle};
+    ToolParameterReport parameter_report;
     std::vector<double> values;
     std::vector<std::uint32_t> selected_triangle_ids;
     std::size_t selected_texel_count{};

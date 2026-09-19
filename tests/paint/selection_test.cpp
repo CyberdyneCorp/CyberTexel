@@ -159,6 +159,11 @@ bool polygon_modes_and_stored_mask_preserve_regions() {
                                  .picked_texel = 0,
                                  .maximum_angle_degrees = 45.0,
                                  .triangle_topology = graph});
+    const SelectionResult clamped =
+        select_polygon(surface, {.mode = PolygonSelectionMode::connected_by_angle,
+                                 .picked_texel = 0,
+                                 .maximum_angle_degrees = -1.0,
+                                 .triangle_topology = graph});
     const StoredSelectionMask stored = store_selection_mask(connected);
     connected.values[0] = 0.0;
     return expect(triangle.values == std::vector<double>({1, 1, 0, 0, 0, 0}) &&
@@ -169,7 +174,13 @@ bool polygon_modes_and_stored_mask_preserve_regions() {
                   "UV-island polygon selection crossed an island boundary") &&
            expect(stored.values == std::vector<double>({1, 1, 1, 1, 0, 0}) &&
                       stored.view().values.data() == stored.values.data(),
-                  "stored selection mask did not own an independent region copy");
+                  "stored selection mask did not own an independent region copy") &&
+           expect(clamped.selected_triangle_ids == std::vector<std::uint32_t>({0}) &&
+                      clamped.parameter_report.clamp_for("paint.connected.maximum_angle_degrees") ==
+                          ToolParameterClamp{.name = "paint.connected.maximum_angle_degrees",
+                                             .supplied = -1.0,
+                                             .resolved = 0.0},
+                  "polygon selection did not propagate its resolved angle and clamp report");
 }
 
 bool stale_and_inconsistent_inputs_are_refused() {
@@ -188,6 +199,7 @@ bool stale_and_inconsistent_inputs_are_refused() {
     const SelectionResult inconsistent{.width = 2,
                                        .height = 1,
                                        .kind = SelectionKind::screen_lasso,
+                                       .parameter_report = {},
                                        .values = {1.0, 0.5},
                                        .selected_triangle_ids = {0},
                                        .selected_texel_count = 1};

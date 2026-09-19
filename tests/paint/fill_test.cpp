@@ -2,6 +2,7 @@
 #include <cmath>
 #include <ctex/paint/fill.hpp>
 #include <iostream>
+#include <limits>
 #include <optional>
 #include <string_view>
 #include <utility>
@@ -137,6 +138,22 @@ bool fill_applies_material_through_masks_and_rejection() {
                   "fill did not shade the resolved region from the active material");
 }
 
+bool connected_angle_is_bounded_reported_and_used() {
+    const CachedSurfaceMaps maps = surface_maps();
+    const auto triangles = topology();
+    FillScopeRequest request = scope_request(FillScope::connected_by_angle, 0);
+    request.maximum_angle_degrees = 200.0;
+    request.triangle_topology = triangles;
+    const FillScopeResult result = resolve_fill_scope(maps, request);
+    return expect(result.selected_triangle_ids == std::vector<std::uint32_t>({0, 1, 2, 3}),
+                  "the resolved connected angle did not drive fill traversal") &&
+           expect(result.parameter_report.clamp_for("paint.connected.maximum_angle_degrees") ==
+                      ToolParameterClamp{.name = "paint.connected.maximum_angle_degrees",
+                                         .supplied = 200.0,
+                                         .resolved = 180.0},
+                  "the connected fill angle clamp was not reported");
+}
+
 bool invalid_fill_is_refused() {
     CachedSurfaceMaps maps = surface_maps();
     bool missing_pick_refused = false;
@@ -152,6 +169,15 @@ bool invalid_fill_is_refused() {
     } catch (const std::invalid_argument&) {
         missing_topology_refused = true;
     }
+    bool non_finite_angle_refused = false;
+    try {
+        FillScopeRequest request = scope_request(FillScope::connected_by_angle, 0);
+        request.maximum_angle_degrees = std::numeric_limits<double>::infinity();
+        request.triangle_topology = topology();
+        static_cast<void>(resolve_fill_scope(maps, request));
+    } catch (const std::invalid_argument&) {
+        non_finite_angle_refused = true;
+    }
     maps.triangle_identity[0] = no_surface_triangle;
     bool inconsistent_maps_refused = false;
     try {
@@ -159,7 +185,8 @@ bool invalid_fill_is_refused() {
     } catch (const std::invalid_argument&) {
         inconsistent_maps_refused = true;
     }
-    return expect(missing_pick_refused && missing_topology_refused && inconsistent_maps_refused,
+    return expect(missing_pick_refused && missing_topology_refused && non_finite_angle_refused &&
+                      inconsistent_maps_refused,
                   "invalid fill request or surface maps were not refused");
 }
 
@@ -167,7 +194,8 @@ bool invalid_fill_is_refused() {
 
 int main() {
     return all_six_fill_scopes_select_their_exact_regions() &&
-                   fill_applies_material_through_masks_and_rejection() && invalid_fill_is_refused()
+                   fill_applies_material_through_masks_and_rejection() &&
+                   connected_angle_is_bounded_reported_and_used() && invalid_fill_is_refused()
                ? 0
                : 1;
 }

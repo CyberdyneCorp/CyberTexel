@@ -27,7 +27,9 @@ struct FillTriangleTopology {
     std::vector<std::uint32_t> adjacent_triangles;
 };
 
-inline constexpr double default_fill_angle_degrees = 45.0;
+inline constexpr ToolParameterDescriptor connected_angle_parameter{
+    "paint.connected.maximum_angle_degrees", 45.0, 0.0, 180.0};
+inline constexpr double default_fill_angle_degrees = connected_angle_parameter.default_value;
 
 struct FillScopeRequest {
     FillScope scope{FillScope::whole_set};
@@ -41,6 +43,7 @@ struct FillScopeResult {
     std::uint32_t width{};
     std::uint32_t height{};
     FillScope scope{FillScope::whole_set};
+    ToolParameterReport parameter_report;
     std::vector<double> values;
     std::vector<std::uint32_t> selected_triangle_ids;
     std::size_t selected_texel_count{};
