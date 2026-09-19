@@ -44,6 +44,10 @@ struct SurfaceMapLookup {
     bool cache_hit{};
 };
 
+[[nodiscard]] CachedSurfaceMaps build_surface_maps(const mesh::MeshView& mesh,
+                                                   mesh::MeshRevision mesh_revision,
+                                                   const SurfaceMapRequest& request);
+
 class SurfaceMapCache {
 public:
     SurfaceMapCache();

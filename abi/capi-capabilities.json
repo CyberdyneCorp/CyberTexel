@@ -71,6 +71,7 @@
       {"requirement": "UV seam dilation", "symbols": ["ctex_paint_seam_dilation_init", "ctex_paint_dilate_uv_seams"]},
       {"requirement": "Dilation is deferred within a stroke", "symbols": ["ctex_paint_dilation_session_create", "ctex_paint_dilation_session_stage_tile", "ctex_paint_dilation_session_get_preview", "ctex_paint_dilation_session_finish", "ctex_paint_dilation_session_destroy"]},
       {"requirement": "Seam-aware filtering and padding", "symbols": ["ctex_paint_filter_surface_scalar", "ctex_paint_filter_surface_tangent_vector", "ctex_paint_plan_island_padding", "ctex_paint_apply_island_padding"]},
+      {"requirement": "Cached UV-space maps", "symbols": ["ctex_paint_surface_map_cache_create", "ctex_paint_surface_map_cache_lookup", "ctex_paint_surface_map_cache_get_statistics", "ctex_paint_surface_map_cache_clear", "ctex_paint_surface_map_cache_destroy"]},
       {"requirement": "Alpha discard", "symbols": ["ctex_paint_evaluate_tile_deposition"]},
       {"requirement": "Per-stroke coverage accumulation", "symbols": ["ctex_paint_evaluate_tile_deposition"]},
       {"requirement": "Flow separate from opacity", "symbols": ["ctex_paint_evaluate_tile_deposition"]},

@@ -43,6 +43,11 @@ EXPORTS
     ctex_paint_plan_work
     ctex_paint_rejection_init
     ctex_paint_seam_dilation_init
+    ctex_paint_surface_map_cache_clear
+    ctex_paint_surface_map_cache_create
+    ctex_paint_surface_map_cache_destroy
+    ctex_paint_surface_map_cache_get_statistics
+    ctex_paint_surface_map_cache_lookup
     ctex_paint_work_init
     ctex_paint_evaluate_tile_deposition
     ctex_paint_evaluate_tile_coverage

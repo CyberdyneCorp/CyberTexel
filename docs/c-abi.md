@@ -252,6 +252,17 @@ island texels unchanged, and returns caller-owned pixels. Planning and applying
 both use count-only queries and leave result structures and arrays unchanged
 when an output buffer is too small.
 
+`ctex_paint_surface_map_cache` retains immutable, allocator-routed UV-space map
+bundles keyed by mesh revision, partition identity, UV set, dimensions and tile
+origin. A lookup exposes interpolated surface texels, coverage, exact
+source-triangle identities and UV-island identities through optional
+caller-owned buffers. Passing no buffers performs a sizing lookup; a following
+copy is a cache hit. The info structure is always updated with required sizes
+before buffer validation, while undersized buffers themselves remain unchanged.
+Changing a mesh revision invalidates every old entry, and selecting another UV
+set invalidates every tile for that partition. Statistics report entries, hits,
+misses and invalidations; clearing also resets those counters.
+
 `ctex_paint_evaluate_tile_deposition` evaluates the same bounded tile through
 per-stamp deposition and alpha discard. Non-building mode reports maximum
 coverage and maximum `opacity * flow * coverage`; explicit build-up mode applies
@@ -319,6 +330,7 @@ The contract is stated per entry-point family:
 | `ctex_get_working_color_space`, `ctex_color_space_get_name`, `ctex_channel_get_color_policy`, `ctex_channel_get_bit_depth_warning`, `ctex_resolve_input_color_space`, `ctex_color_convert`, `ctex_color_input_to_working`, `ctex_accumulate_height`, `ctex_quantize_unorm8` | Stateless, process-safe and callable concurrently from any thread |
 | `ctex_image_decode_memory`, `ctex_image_encode_memory`, `ctex_stroke_settings_init`, `ctex_stroke_resolve`, `ctex_stroke_preset_serialize`, `ctex_stroke_preset_deserialize`, `ctex_paint_evaluate_tile_coverage`, `ctex_paint_evaluate_material_coordinates`, `ctex_paint_rejection_init`, `ctex_paint_evaluate_rejected_coverage`, `ctex_paint_work_init`, `ctex_paint_plan_work`, `ctex_paint_seam_dilation_init`, `ctex_paint_dilate_uv_seams`, `ctex_paint_filter_surface_scalar`, `ctex_paint_filter_surface_tangent_vector`, `ctex_paint_plan_island_padding`, `ctex_paint_apply_island_padding`, `ctex_paint_combine_masks`, `ctex_paint_evaluate_tile_deposition`, `ctex_paint_blend_snapshot` | Stateless and safe to call concurrently; inputs are borrowed only for the call and outputs are caller-owned |
 | `ctex_paint_dilation_session_create`, `ctex_paint_dilation_session_destroy`, `ctex_paint_dilation_session_stage_tile`, `ctex_paint_dilation_session_get_preview`, `ctex_paint_dilation_session_finish` | Distinct sessions are independent and may be used concurrently; callers serialize staging, preview, finish and destruction of the same session |
+| `ctex_paint_surface_map_cache_create`, `ctex_paint_surface_map_cache_destroy`, `ctex_paint_surface_map_cache_clear`, `ctex_paint_surface_map_cache_get_statistics`, `ctex_paint_surface_map_cache_lookup` | Distinct caches are independent and may be used concurrently; callers serialize lookup, statistics, clearing and destruction of the same cache, and keep each mesh alive for its lookup call |
 | `ctex_cube_lut_create` | Process-safe; each successful call creates independent immutable state and captures the active allocator |
 | `ctex_cube_lut_apply_preview` | Safe to call concurrently, including against the same immutable LUT handle |
 | `ctex_cube_lut_destroy` | The caller ensures no application call is using that handle; distinct handles may be destroyed concurrently |

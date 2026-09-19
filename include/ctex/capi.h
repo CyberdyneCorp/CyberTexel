@@ -79,7 +79,8 @@ typedef enum ctex_diagnostic_code {
     CTEX_DIAGNOSTIC_INVALID_PAINT_REJECTION = 43,
     CTEX_DIAGNOSTIC_INVALID_PAINT_WORK = 44,
     CTEX_DIAGNOSTIC_INVALID_PAINT_DILATION = 45,
-    CTEX_DIAGNOSTIC_INVALID_PAINT_FILTER = 46
+    CTEX_DIAGNOSTIC_INVALID_PAINT_FILTER = 46,
+    CTEX_DIAGNOSTIC_INVALID_PAINT_SURFACE_CACHE = 47
 } ctex_diagnostic_code;
 
 typedef enum ctex_log_severity {
@@ -122,9 +123,11 @@ typedef struct ctex_document ctex_document;
 typedef struct ctex_cube_lut ctex_cube_lut;
 typedef struct ctex_mesh ctex_mesh;
 typedef struct ctex_paint_dilation_session ctex_paint_dilation_session;
+typedef struct ctex_paint_surface_map_cache ctex_paint_surface_map_cache;
 
 #define CTEX_MAX_MESH_VERTEX_COUNT ((size_t)100000000)
 #define CTEX_MAX_MESH_TRIANGLE_COUNT ((size_t)100000000)
+#define CTEX_NO_SURFACE_TRIANGLE UINT32_MAX
 #define CTEX_NO_UV_ISLAND UINT32_MAX
 
 typedef enum ctex_partition_source_kind {
@@ -703,6 +706,72 @@ typedef struct ctex_paint_island_padding_info {
 #define CTEX_PAINT_ISLAND_PADDING_INFO_CURRENT_SIZE \
     ((uint32_t)sizeof(ctex_paint_island_padding_info))
 
+typedef struct ctex_paint_surface_map_request {
+    uint32_t size;
+    size_t partition_index;
+    const char* uv_set;
+    uint32_t width;
+    uint32_t height;
+    ctex_vec2d tile_origin;
+} ctex_paint_surface_map_request;
+
+#define CTEX_PAINT_SURFACE_MAP_REQUEST_V1_SIZE ((uint32_t)sizeof(ctex_paint_surface_map_request))
+#define CTEX_PAINT_SURFACE_MAP_REQUEST_CURRENT_SIZE \
+    ((uint32_t)sizeof(ctex_paint_surface_map_request))
+
+typedef struct ctex_paint_surface_texel {
+    ctex_vec3d position;
+    ctex_vec3d normal;
+    ctex_vec3d geometric_normal;
+    ctex_vec2d uv;
+    uint32_t triangle;
+} ctex_paint_surface_texel;
+
+typedef struct ctex_paint_surface_map_info {
+    uint32_t size;
+    uint32_t cache_hit;
+    uint64_t mesh_revision;
+    size_t required_texture_set_id_size;
+    size_t required_uv_set_size;
+    size_t required_texel_count;
+} ctex_paint_surface_map_info;
+
+#define CTEX_PAINT_SURFACE_MAP_INFO_V1_SIZE ((uint32_t)sizeof(ctex_paint_surface_map_info))
+#define CTEX_PAINT_SURFACE_MAP_INFO_CURRENT_SIZE ((uint32_t)sizeof(ctex_paint_surface_map_info))
+
+typedef struct ctex_paint_surface_map_buffers {
+    uint32_t size;
+    char* texture_set_id;
+    size_t texture_set_id_size;
+    char* uv_set;
+    size_t uv_set_size;
+    ctex_paint_surface_texel* surface_texels;
+    size_t surface_texel_capacity;
+    uint8_t* coverage;
+    size_t coverage_capacity;
+    uint32_t* triangle_identity;
+    size_t triangle_identity_capacity;
+    uint32_t* uv_island_identity;
+    size_t uv_island_identity_capacity;
+} ctex_paint_surface_map_buffers;
+
+#define CTEX_PAINT_SURFACE_MAP_BUFFERS_V1_SIZE ((uint32_t)sizeof(ctex_paint_surface_map_buffers))
+#define CTEX_PAINT_SURFACE_MAP_BUFFERS_CURRENT_SIZE \
+    ((uint32_t)sizeof(ctex_paint_surface_map_buffers))
+
+typedef struct ctex_paint_surface_map_statistics {
+    uint32_t size;
+    size_t entries;
+    size_t hits;
+    size_t misses;
+    size_t invalidated_entries;
+} ctex_paint_surface_map_statistics;
+
+#define CTEX_PAINT_SURFACE_MAP_STATISTICS_V1_SIZE \
+    ((uint32_t)sizeof(ctex_paint_surface_map_statistics))
+#define CTEX_PAINT_SURFACE_MAP_STATISTICS_CURRENT_SIZE \
+    ((uint32_t)sizeof(ctex_paint_surface_map_statistics))
+
 typedef struct ctex_paint_deposition_descriptor {
     uint32_t size;
     uint32_t mode;
@@ -1218,6 +1287,17 @@ CTEX_API ctex_result ctex_paint_plan_island_padding(
 CTEX_API ctex_result ctex_paint_apply_island_padding(
     const ctex_paint_island_padding_descriptor* padding, ctex_paint_island_padding_info* out_info,
     double* pixels, size_t pixel_capacity, size_t* out_pixel_count);
+
+/* Owns allocator-routed immutable surface maps shared by paint operations. */
+CTEX_API ctex_result ctex_paint_surface_map_cache_create(ctex_paint_surface_map_cache** out_cache);
+CTEX_API void ctex_paint_surface_map_cache_destroy(ctex_paint_surface_map_cache* cache);
+CTEX_API ctex_result ctex_paint_surface_map_cache_clear(ctex_paint_surface_map_cache* cache);
+CTEX_API ctex_result ctex_paint_surface_map_cache_get_statistics(
+    const ctex_paint_surface_map_cache* cache, ctex_paint_surface_map_statistics* out_statistics);
+CTEX_API ctex_result ctex_paint_surface_map_cache_lookup(
+    ctex_paint_surface_map_cache* cache, const ctex_mesh* mesh,
+    const ctex_paint_surface_map_request* request, ctex_paint_surface_map_info* out_info,
+    const ctex_paint_surface_map_buffers* buffers);
 
 /* Intersects every active normalized mask for one bounded tile. */
 CTEX_API ctex_result ctex_paint_combine_masks(uint32_t width, uint32_t height,

@@ -385,6 +385,10 @@ if(BUILD_TESTING)
         ctex_configure_c_target(ctex_capi_paint_seam_filter_test)
         target_link_libraries(ctex_capi_paint_seam_filter_test PRIVATE cybertexel_c)
         add_test(NAME c-abi-paint-seam-filter COMMAND ctex_capi_paint_seam_filter_test)
+        add_executable(ctex_capi_paint_surface_cache_test tests/capi/paint_surface_cache_test.c)
+        ctex_configure_c_target(ctex_capi_paint_surface_cache_test)
+        target_link_libraries(ctex_capi_paint_surface_cache_test PRIVATE cybertexel_c)
+        add_test(NAME c-abi-paint-surface-cache COMMAND ctex_capi_paint_surface_cache_test)
         if(UNIX AND NOT APPLE)
             add_test(
                 NAME c-abi-export-surface

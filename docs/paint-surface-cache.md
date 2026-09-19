@@ -23,6 +23,9 @@ Cache keys include the texture-set partition, UV set, raster dimensions and
 tile origin. Multiple tiles and texture sets can coexist. A repeated lookup
 returns the same shared bundle without rebuilding its geometry or maps, so a
 face fill followed by an island fill can reuse the first lookup directly.
+`build_surface_maps` exposes the same validated, deterministic construction
+without retention for boundary adapters that provide their own allocator-routed
+cache; `SurfaceMapCache` uses that builder for every miss.
 
 `MeshBinding` revisions are process-unique. On the first lookup after
 `MeshBinding::replace`, the cache removes every entry from the old revision

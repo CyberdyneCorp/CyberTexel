@@ -37,12 +37,12 @@ std::uint64_t coordinate_bits(double value) {
     return std::bit_cast<std::uint64_t>(value == 0.0 ? 0.0 : value);
 }
 
-CacheKey cache_key(const mesh::MeshBinding& binding, const SurfaceMapRequest& request) {
-    const mesh::MeshDescriptor& descriptor = binding.view().descriptor();
+CacheKey cache_key(const mesh::MeshView& mesh, const SurfaceMapRequest& request) {
+    const mesh::MeshDescriptor& descriptor = mesh.descriptor();
     if (request.partition_index >= descriptor.partitions.size()) {
         throw std::out_of_range("surface-map partition index is outside the mesh partitions");
     }
-    static_cast<void>(binding.view().uv_set(request.uv_set));
+    static_cast<void>(mesh.uv_set(request.uv_set));
     if (request.raster.width == 0 || request.raster.height == 0 ||
         !std::isfinite(request.raster.tile_origin.x) ||
         !std::isfinite(request.raster.tile_origin.y) ||
@@ -65,10 +65,10 @@ CacheKey cache_key(const mesh::MeshBinding& binding, const SurfaceMapRequest& re
             .tile_y = coordinate_bits(request.raster.tile_origin.y)};
 }
 
-SourceData collect_source(const mesh::MeshBinding& binding, const SurfaceMapRequest& request) {
-    const mesh::MeshDescriptor& descriptor = binding.view().descriptor();
+SourceData collect_source(const mesh::MeshView& mesh, const SurfaceMapRequest& request) {
+    const mesh::MeshDescriptor& descriptor = mesh.descriptor();
     const mesh::MeshPartition& partition = descriptor.partitions[request.partition_index];
-    const mesh::UvSetView& uv_set = binding.view().uv_set(request.uv_set);
+    const mesh::UvSetView& uv_set = mesh.uv_set(request.uv_set);
     SourceData source{.texture_set_id = mesh::texture_set_stable_id(
                           partition.kind, partition.stable_key, request.uv_set),
                       .positions = {},
@@ -88,7 +88,7 @@ SourceData collect_source(const mesh::MeshBinding& binding, const SurfaceMapRequ
     for (const mesh::Vec2f value : uv_set.values) {
         source.uv.push_back({value.x, value.y});
     }
-    for (std::size_t triangle = 0; triangle < binding.view().triangle_count(); ++triangle) {
+    for (std::size_t triangle = 0; triangle < mesh.triangle_count(); ++triangle) {
         if (descriptor.face_partition_indices[triangle] != request.partition_index) {
             continue;
         }
@@ -194,17 +194,17 @@ std::vector<std::uint32_t> triangle_islands(const mesh::MeshDescriptor& descript
     return islands;
 }
 
-CachedSurfaceMaps build_maps(const mesh::MeshBinding& binding, const SurfaceMapRequest& request,
-                             SourceData source) {
-    const mesh::UvSetView& uv_set = binding.view().uv_set(request.uv_set);
-    const auto islands = triangle_islands(binding.view().descriptor(), uv_set, source);
+CachedSurfaceMaps build_maps(const mesh::MeshView& mesh, mesh::MeshRevision mesh_revision,
+                             const SurfaceMapRequest& request, SourceData source) {
+    const mesh::UvSetView& uv_set = mesh.uv_set(request.uv_set);
+    const auto islands = triangle_islands(mesh.descriptor(), uv_set, source);
     TextureSpaceRaster surface = rasterize_texture_space(
         {source.positions, source.normals, source.uv, source.indices}, request.raster);
     const std::size_t texel_count = surface.texels.size();
     CachedSurfaceMaps maps{
         .texture_set_id = std::move(source.texture_set_id),
         .uv_set = std::string(request.uv_set),
-        .mesh_revision = binding.revision(),
+        .mesh_revision = mesh_revision,
         .surface = std::move(surface),
         .coverage = std::vector<std::uint8_t>(texel_count, 0),
         .triangle_identity = std::vector<std::uint32_t>(texel_count, no_surface_triangle),
@@ -229,10 +229,16 @@ bool same_partition(const CacheKey& first, const CacheKey& second) {
 
 }  // namespace
 
+CachedSurfaceMaps build_surface_maps(const mesh::MeshView& mesh, mesh::MeshRevision mesh_revision,
+                                     const SurfaceMapRequest& request) {
+    static_cast<void>(cache_key(mesh, request));
+    return build_maps(mesh, mesh_revision, request, collect_source(mesh, request));
+}
+
 class SurfaceMapCache::Impl {
 public:
     SurfaceMapLookup lookup(const mesh::MeshBinding& binding, const SurfaceMapRequest& request) {
-        const CacheKey key = cache_key(binding, request);
+        const CacheKey key = cache_key(binding.view(), request);
         const std::scoped_lock lock(mutex_);
         synchronize_mesh(binding.revision());
         invalidate_changed_uv(key);
@@ -241,9 +247,8 @@ public:
             return {.maps = found->second, .cache_hit = true};
         }
         ++statistics_.misses;
-        SourceData source = collect_source(binding, request);
         auto maps = std::make_shared<const CachedSurfaceMaps>(
-            build_maps(binding, request, std::move(source)));
+            build_surface_maps(binding.view(), binding.revision(), request));
         entries_.emplace(key, maps);
         statistics_.entries = entries_.size();
         return {.maps = std::move(maps), .cache_hit = false};

@@ -17,6 +17,7 @@
 #include <ctex/paint/seam_filter.hpp>
 #include <ctex/paint/stroke.hpp>
 #include <ctex/paint/stroke_preset.hpp>
+#include <ctex/paint/surface_cache.hpp>
 #include <ctex/paint/work.hpp>
 #include <exception>
 #include <iterator>
@@ -83,6 +84,63 @@ struct ctex_paint_dilation_session {
     bool radius_clamped{};
     bool finished{};
     std::size_t dilation_pass_count{};
+};
+
+struct ctex_paint_surface_map_cache_entry {
+    ctex_paint_surface_map_cache_entry(std::pmr::memory_resource* resource,
+                                       ctex::mesh::PartitionKind partition_kind_value,
+                                       std::string_view partition_key_value,
+                                       const ctex_paint_surface_map_request& request,
+                                       const ctex::paint::CachedSurfaceMaps& maps)
+        : partition_kind(partition_kind_value),
+          partition_key(partition_key_value, resource),
+          uv_set(request.uv_set, resource),
+          width(request.width),
+          height(request.height),
+          tile_origin(request.tile_origin),
+          texture_set_id(maps.texture_set_id.data(), maps.texture_set_id.size(), resource),
+          surface_texels(resource),
+          coverage(maps.coverage.begin(), maps.coverage.end(), resource),
+          triangle_identity(maps.triangle_identity.begin(), maps.triangle_identity.end(), resource),
+          uv_island_identity(maps.uv_island_identity.begin(), maps.uv_island_identity.end(),
+                             resource) {
+        surface_texels.reserve(maps.surface.texels.size());
+        for (const ctex::paint::SurfaceTexel& texel : maps.surface.texels) {
+            surface_texels.push_back({
+                .position = {texel.position.x, texel.position.y, texel.position.z},
+                .normal = {texel.normal.x, texel.normal.y, texel.normal.z},
+                .geometric_normal = {texel.geometric_normal.x, texel.geometric_normal.y,
+                                     texel.geometric_normal.z},
+                .uv = {texel.uv.x, texel.uv.y},
+                .triangle = texel.triangle,
+            });
+        }
+    }
+
+    ctex::mesh::PartitionKind partition_kind{};
+    std::pmr::string partition_key;
+    std::pmr::string uv_set;
+    std::uint32_t width{};
+    std::uint32_t height{};
+    ctex_vec2d tile_origin{};
+    std::pmr::string texture_set_id;
+    std::pmr::vector<ctex_paint_surface_texel> surface_texels;
+    std::pmr::vector<std::uint8_t> coverage;
+    std::pmr::vector<std::uint32_t> triangle_identity;
+    std::pmr::vector<std::uint32_t> uv_island_identity;
+};
+
+struct ctex_paint_surface_map_cache {
+    explicit ctex_paint_surface_map_cache(ctex_allocator_state allocator_value)
+        : allocator(allocator_value), memory_resource(allocator_value), entries(&memory_resource) {}
+
+    ctex_allocator_state allocator;
+    ctex_host_memory_resource memory_resource;
+    std::pmr::vector<ctex_paint_surface_map_cache_entry> entries;
+    std::uint64_t mesh_revision{};
+    std::size_t hits{};
+    std::size_t misses{};
+    std::size_t invalidated_entries{};
 };
 
 namespace {
@@ -308,6 +366,19 @@ ctex_paint_dilation_session* create_paint_dilation_session(const ctex_allocator_
     } catch (...) {
         deallocate_storage(allocator, storage, sizeof(ctex_paint_dilation_session),
                            alignof(ctex_paint_dilation_session));
+        throw;
+    }
+}
+
+ctex_paint_surface_map_cache* create_paint_surface_map_cache(
+    const ctex_allocator_state& allocator) {
+    void* storage = allocate_storage(allocator, sizeof(ctex_paint_surface_map_cache),
+                                     alignof(ctex_paint_surface_map_cache));
+    try {
+        return ::new (storage) ctex_paint_surface_map_cache(allocator);
+    } catch (...) {
+        deallocate_storage(allocator, storage, sizeof(ctex_paint_surface_map_cache),
+                           alignof(ctex_paint_surface_map_cache));
         throw;
     }
 }
@@ -2159,6 +2230,163 @@ void copy_capi_island_padding_plan(const ctex::paint::IslandPaddingPlan& plan,
     }
 }
 
+ctex::paint::SurfaceMapRequest capi_surface_map_request(
+    const ctex_mesh& mesh, const ctex_paint_surface_map_request& request) {
+    if (request.uv_set == nullptr) {
+        throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                       "request.uv_set is required");
+    }
+    if (request.partition_index >= mesh.state->partition_views.size()) {
+        throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_INVALID_PAINT_SURFACE_CACHE,
+                       "surface-map partition index is outside the mesh partitions");
+    }
+    if (std::ranges::find(mesh.state->uv_names, std::string_view(request.uv_set)) ==
+        mesh.state->uv_names.end()) {
+        throw_boundary(CTEX_RESULT_MISSING_RESOURCE, CTEX_DIAGNOSTIC_MISSING_UV_SET,
+                       "surface-map UV set is not present: " + std::string(request.uv_set));
+    }
+    static_cast<void>(bounded_paint_pixel_count(request.width, request.height,
+                                                CTEX_DIAGNOSTIC_INVALID_PAINT_SURFACE_CACHE));
+    if (!std::isfinite(request.tile_origin.x) || !std::isfinite(request.tile_origin.y)) {
+        throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_INVALID_PAINT_SURFACE_CACHE,
+                       "surface-map tile origin must be finite");
+    }
+    if (std::ranges::find(mesh.state->face_partition_indices,
+                          static_cast<std::uint32_t>(request.partition_index)) ==
+        mesh.state->face_partition_indices.end()) {
+        throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_INVALID_PAINT_SURFACE_CACHE,
+                       "surface-map texture set contains no faces");
+    }
+    return {
+        .partition_index = request.partition_index,
+        .uv_set = request.uv_set,
+        .raster = {.width = request.width,
+                   .height = request.height,
+                   .tile_origin = {request.tile_origin.x, request.tile_origin.y}},
+    };
+}
+
+bool capi_surface_map_key_matches(const ctex_paint_surface_map_cache_entry& entry,
+                                  ctex::mesh::PartitionKind partition_kind,
+                                  std::string_view partition_key,
+                                  const ctex_paint_surface_map_request& request) {
+    return entry.partition_kind == partition_kind && entry.partition_key == partition_key &&
+           entry.uv_set == request.uv_set && entry.width == request.width &&
+           entry.height == request.height && entry.tile_origin.x == request.tile_origin.x &&
+           entry.tile_origin.y == request.tile_origin.y;
+}
+
+bool capi_surface_map_same_partition(const ctex_paint_surface_map_cache_entry& entry,
+                                     ctex::mesh::PartitionKind partition_kind,
+                                     std::string_view partition_key) {
+    return entry.partition_kind == partition_kind && entry.partition_key == partition_key;
+}
+
+struct CapiSurfaceMapLookup {
+    const ctex_paint_surface_map_cache_entry* entry{};
+    bool cache_hit{};
+};
+
+CapiSurfaceMapLookup lookup_capi_surface_maps(ctex_paint_surface_map_cache& cache,
+                                              const ctex_mesh& mesh,
+                                              const ctex_paint_surface_map_request& request) {
+    const ctex::paint::SurfaceMapRequest converted_request =
+        capi_surface_map_request(mesh, request);
+    const ctex::mesh::MeshPartition& partition =
+        mesh.state->partition_views[request.partition_index];
+    if (cache.mesh_revision == mesh.state->revision) {
+        const auto found = std::ranges::find_if(cache.entries, [&](const auto& entry) {
+            return capi_surface_map_key_matches(entry, partition.kind, partition.stable_key,
+                                                request);
+        });
+        if (found != cache.entries.end()) {
+            ++cache.hits;
+            return {.entry = &*found, .cache_hit = true};
+        }
+    }
+
+    const ctex::mesh::MeshView mesh_view(mesh.state->descriptor());
+    const ctex::paint::CachedSurfaceMaps built =
+        ctex::paint::build_surface_maps(mesh_view, mesh.state->revision, converted_request);
+    ctex_paint_surface_map_cache_entry prepared(&cache.memory_resource, partition.kind,
+                                                partition.stable_key, request, built);
+    cache.entries.reserve(cache.entries.size() + 1);
+
+    if (cache.mesh_revision != 0 && cache.mesh_revision != mesh.state->revision) {
+        cache.invalidated_entries += cache.entries.size();
+        cache.entries.clear();
+    } else {
+        for (auto entry = cache.entries.begin(); entry != cache.entries.end();) {
+            if (capi_surface_map_same_partition(*entry, partition.kind, partition.stable_key) &&
+                entry->uv_set != request.uv_set) {
+                entry = cache.entries.erase(entry);
+                ++cache.invalidated_entries;
+            } else {
+                ++entry;
+            }
+        }
+    }
+    cache.mesh_revision = mesh.state->revision;
+    cache.entries.push_back(std::move(prepared));
+    ++cache.misses;
+    return {.entry = &cache.entries.back(), .cache_hit = false};
+}
+
+ctex_paint_surface_map_info capi_surface_map_info(const ctex_paint_surface_map_cache_entry& entry,
+                                                  bool cache_hit, std::uint64_t mesh_revision) {
+    return {
+        .size = CTEX_PAINT_SURFACE_MAP_INFO_CURRENT_SIZE,
+        .cache_hit = cache_hit ? 1U : 0U,
+        .mesh_revision = mesh_revision,
+        .required_texture_set_id_size = entry.texture_set_id.size() + 1,
+        .required_uv_set_size = entry.uv_set.size() + 1,
+        .required_texel_count = entry.surface_texels.size(),
+    };
+}
+
+void validate_capi_surface_map_buffers(const ctex_paint_surface_map_buffers& buffers,
+                                       const ctex_paint_surface_map_info& info) {
+    validate_structure_size(buffers.size, CTEX_PAINT_SURFACE_MAP_BUFFERS_V1_SIZE,
+                            CTEX_PAINT_SURFACE_MAP_BUFFERS_CURRENT_SIZE, "buffers.size");
+    validate_output_array(buffers.texture_set_id, buffers.texture_set_id_size,
+                          info.required_texture_set_id_size, "buffers.texture_set_id");
+    validate_output_array(buffers.uv_set, buffers.uv_set_size, info.required_uv_set_size,
+                          "buffers.uv_set");
+    validate_output_array(buffers.surface_texels, buffers.surface_texel_capacity,
+                          info.required_texel_count, "buffers.surface_texels");
+    validate_output_array(buffers.coverage, buffers.coverage_capacity, info.required_texel_count,
+                          "buffers.coverage");
+    validate_output_array(buffers.triangle_identity, buffers.triangle_identity_capacity,
+                          info.required_texel_count, "buffers.triangle_identity");
+    validate_output_array(buffers.uv_island_identity, buffers.uv_island_identity_capacity,
+                          info.required_texel_count, "buffers.uv_island_identity");
+}
+
+void copy_capi_surface_map_buffers(const ctex_paint_surface_map_cache_entry& entry,
+                                   const ctex_paint_surface_map_buffers& buffers) {
+    if (buffers.texture_set_id != nullptr) {
+        std::memcpy(buffers.texture_set_id, entry.texture_set_id.c_str(),
+                    entry.texture_set_id.size() + 1);
+    }
+    if (buffers.uv_set != nullptr) {
+        std::memcpy(buffers.uv_set, entry.uv_set.c_str(), entry.uv_set.size() + 1);
+    }
+    if (buffers.surface_texels != nullptr) {
+        std::copy(entry.surface_texels.begin(), entry.surface_texels.end(), buffers.surface_texels);
+    }
+    if (buffers.coverage != nullptr) {
+        std::copy(entry.coverage.begin(), entry.coverage.end(), buffers.coverage);
+    }
+    if (buffers.triangle_identity != nullptr) {
+        std::copy(entry.triangle_identity.begin(), entry.triangle_identity.end(),
+                  buffers.triangle_identity);
+    }
+    if (buffers.uv_island_identity != nullptr) {
+        std::copy(entry.uv_island_identity.begin(), entry.uv_island_identity.end(),
+                  buffers.uv_island_identity);
+    }
+}
+
 ctex::paint::RejectionSettings accept_all_rejection_settings() {
     return {
         .depth_enabled = false,
@@ -3422,6 +3650,97 @@ extern "C" ctex_result ctex_paint_apply_island_padding(
         } catch (const std::invalid_argument& error) {
             throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_INVALID_PAINT_FILTER,
                            error.what());
+        } catch (const std::length_error& error) {
+            throw_boundary(CTEX_RESULT_OVER_BUDGET, CTEX_DIAGNOSTIC_PAINT_LIMIT_EXCEEDED,
+                           error.what());
+        }
+    });
+}
+
+extern "C" ctex_result ctex_paint_surface_map_cache_create(
+    ctex_paint_surface_map_cache** out_cache) {
+    return call_boundary("ctex_paint_surface_map_cache_create", [&] {
+        if (out_cache == nullptr) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                           "out_cache is required");
+        }
+        *out_cache = nullptr;
+        *out_cache = create_paint_surface_map_cache(current_allocator());
+    });
+}
+
+extern "C" void ctex_paint_surface_map_cache_destroy(ctex_paint_surface_map_cache* cache) {
+    if (cache == nullptr) {
+        return;
+    }
+    const ctex_allocator_state allocator = cache->allocator;
+    cache->~ctex_paint_surface_map_cache();
+    deallocate_storage(allocator, cache, sizeof(ctex_paint_surface_map_cache),
+                       alignof(ctex_paint_surface_map_cache));
+}
+
+extern "C" ctex_result ctex_paint_surface_map_cache_clear(ctex_paint_surface_map_cache* cache) {
+    return call_boundary("ctex_paint_surface_map_cache_clear", [&] {
+        if (cache == nullptr) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                           "cache is required");
+        }
+        cache->entries.clear();
+        cache->mesh_revision = 0;
+        cache->hits = 0;
+        cache->misses = 0;
+        cache->invalidated_entries = 0;
+    });
+}
+
+extern "C" ctex_result ctex_paint_surface_map_cache_get_statistics(
+    const ctex_paint_surface_map_cache* cache, ctex_paint_surface_map_statistics* out_statistics) {
+    return call_boundary("ctex_paint_surface_map_cache_get_statistics", [&] {
+        if (cache == nullptr || out_statistics == nullptr) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                           "cache and out_statistics are required");
+        }
+        validate_structure_size(out_statistics->size, CTEX_PAINT_SURFACE_MAP_STATISTICS_V1_SIZE,
+                                CTEX_PAINT_SURFACE_MAP_STATISTICS_CURRENT_SIZE,
+                                "out_statistics.size");
+        *out_statistics = {
+            .size = CTEX_PAINT_SURFACE_MAP_STATISTICS_CURRENT_SIZE,
+            .entries = cache->entries.size(),
+            .hits = cache->hits,
+            .misses = cache->misses,
+            .invalidated_entries = cache->invalidated_entries,
+        };
+    });
+}
+
+extern "C" ctex_result ctex_paint_surface_map_cache_lookup(
+    ctex_paint_surface_map_cache* cache, const ctex_mesh* mesh,
+    const ctex_paint_surface_map_request* request, ctex_paint_surface_map_info* out_info,
+    const ctex_paint_surface_map_buffers* buffers) {
+    return call_boundary("ctex_paint_surface_map_cache_lookup", [&] {
+        if (cache == nullptr || mesh == nullptr || request == nullptr || out_info == nullptr) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                           "cache, mesh, request and out_info are required");
+        }
+        validate_structure_size(request->size, CTEX_PAINT_SURFACE_MAP_REQUEST_V1_SIZE,
+                                CTEX_PAINT_SURFACE_MAP_REQUEST_CURRENT_SIZE, "request.size");
+        validate_structure_size(out_info->size, CTEX_PAINT_SURFACE_MAP_INFO_V1_SIZE,
+                                CTEX_PAINT_SURFACE_MAP_INFO_CURRENT_SIZE, "out_info.size");
+        try {
+            const CapiSurfaceMapLookup lookup = lookup_capi_surface_maps(*cache, *mesh, *request);
+            const ctex_paint_surface_map_info info =
+                capi_surface_map_info(*lookup.entry, lookup.cache_hit, mesh->state->revision);
+            *out_info = info;
+            if (buffers != nullptr) {
+                validate_capi_surface_map_buffers(*buffers, info);
+                copy_capi_surface_map_buffers(*lookup.entry, *buffers);
+            }
+        } catch (const std::invalid_argument& error) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT,
+                           CTEX_DIAGNOSTIC_INVALID_PAINT_SURFACE_CACHE, error.what());
+        } catch (const std::out_of_range& error) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT,
+                           CTEX_DIAGNOSTIC_INVALID_PAINT_SURFACE_CACHE, error.what());
         } catch (const std::length_error& error) {
             throw_boundary(CTEX_RESULT_OVER_BUDGET, CTEX_DIAGNOSTIC_PAINT_LIMIT_EXCEEDED,
                            error.what());

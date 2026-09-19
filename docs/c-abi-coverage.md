@@ -21,7 +21,7 @@ requirement.
 The gate is intentionally red while task 14.8 is in progress. The current C ABI
 fully maps its boundary requirements and records the implemented document and
 texture-set, colour-management, read-only mesh-ingest, bounded in-memory image
-I/O and canonical stroke reconstruction operations, but 188 runtime requirements
+I/O and canonical stroke reconstruction operations, but 187 runtime requirements
 still lack C entry points. Mesh handles own allocator-routed
 copies of host buffers, expose named UV sets and revision changes, and enforce
 the declared 100,000,000-vertex and 100,000,000-triangle ceilings before reading
