@@ -461,6 +461,12 @@ component count and value in caller-declared order. Views and channel rasters
 are validated before sampling, with missing and overlapping matches refused.
 Optional per-texel material provenance is returned only when explicitly
 supplied, so channel-only picks cannot accidentally select a material.
+Colour-ID selection (10.10) compares a caller-picked colour against a validated
+map using an explicit linear-RGB Euclidean tolerance and returns an owned binary
+selection. Exact zero tolerance is never widened, and the result reports both
+its selected texel count and a distinct matched-or-empty status. Named views of
+the same selection serve paint restriction, mask-source and visibility-filter
+consumers without copying or changing its meaning.
 
 ## 1. Foundation
 
@@ -608,7 +614,7 @@ supplied, so channel-only picks cannot accidentally select a material.
 - [x] 10.7 Text with UTF-8 and supplied fonts
 - [x] 10.8 Particle with deterministic seeding
 - [x] 10.9 Picker across every enabled channel
-- [ ] 10.10 Colour ID selection with tolerance and its empty-selection reporting
+- [x] 10.10 Colour ID selection with tolerance and its empty-selection reporting
 - [ ] 10.11 Selection tool: rectangle, lasso, polygon fill; storable as a mask
 - [ ] 10.12 Parameter validation at every entry point; the no-inert-parameter audit
 - [ ] 10.13 `paint-tools` scenarios as tests

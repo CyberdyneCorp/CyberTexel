@@ -96,6 +96,9 @@ The current implementation provides:
   The [Picker tool](docs/picker-tool.md) resolves a surface hit to its exact
   texture-set/UDIM texel, returns every enabled channel, and optionally returns
   explicit per-texel material provenance.
+  [Colour-ID selection](docs/colour-id-selection.md) creates an explicit binary
+  region using a configurable linear-RGB tolerance, including an observable
+  empty result, for paint, mask, and visibility consumers.
 - Sparse tiled image storage for one-to-four-channel 8-bit, 16-bit, and
   floating-point pixels, with tile-level dirty tracking and monotonic channel
   and per-tile [content revisions](docs/host-transport-revisions.md), plus

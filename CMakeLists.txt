@@ -126,6 +126,7 @@ ctex_add_module(
         src/paint/blur_smear.cpp
         src/paint/brush.cpp
         src/paint/clone.cpp
+        src/paint/colour_id.cpp
         src/paint/coverage.cpp
         src/paint/decal_stencil.cpp
         src/paint/deposition.cpp
@@ -369,6 +370,14 @@ if(BUILD_TESTING)
         PRIVATE ctex_paint ctex_doc ctex_emit ctex_pick ctex_mesh ctex_graph ctex_image
     )
     add_test(NAME paint-picker COMMAND ctex_paint_picker_test)
+
+    add_executable(ctex_paint_colour_id_test tests/paint/colour_id_test.cpp)
+    ctex_configure_cpp_target(ctex_paint_colour_id_test)
+    target_link_libraries(
+        ctex_paint_colour_id_test
+        PRIVATE ctex_paint ctex_doc ctex_emit ctex_pick ctex_mesh ctex_graph ctex_image
+    )
+    add_test(NAME paint-colour-id COMMAND ctex_paint_colour_id_test)
 
     add_executable(ctex_paint_rejection_test tests/paint/rejection_test.cpp)
     ctex_configure_cpp_target(ctex_paint_rejection_test)
