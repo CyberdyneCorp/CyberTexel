@@ -59,6 +59,9 @@ The current implementation provides:
   missing resources, missing groups, and unreachable nodes. Versioned
   [host node types](docs/host-node-types.md) provide checked CPU/emission
   callbacks, replay eligibility, parity fixtures, and lossless opaque fallback.
+  Portable seeded-noise and shared twenty-mode blend formulas support
+  conformance fixtures, while canonical [material libraries](docs/material-library.md)
+  move stable, named graph presets between machines.
 - An isolated [Kong shader compiler context](docs/kong-backend.md) that compiles
   Kong source deterministically to WGSL, MSL, binary SPIR-V, or HLSL, supports
   concurrent independent targets, and reports unsupported requests explicitly.

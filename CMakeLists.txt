@@ -89,6 +89,8 @@ ctex_add_module(
         src/graph/document.cpp
         src/graph/serialization.cpp
         src/graph/catalogue.cpp
+        src/graph/material_library.cpp
+        src/graph/portable_nodes.cpp
         src/graph/groups.cpp
         src/graph/validation.cpp
         src/graph/host_nodes.cpp
@@ -265,6 +267,16 @@ if(BUILD_TESTING)
     ctex_configure_cpp_target(ctex_graph_host_nodes_test)
     target_link_libraries(ctex_graph_host_nodes_test PRIVATE ctex_graph ctex_image)
     add_test(NAME material-graph-host-nodes COMMAND ctex_graph_host_nodes_test)
+
+    add_executable(ctex_material_library_test tests/graph/material_library_test.cpp)
+    ctex_configure_cpp_target(ctex_material_library_test)
+    target_link_libraries(ctex_material_library_test PRIVATE ctex_graph ctex_image)
+    add_test(NAME material-graph-library COMMAND ctex_material_library_test)
+
+    add_executable(ctex_portable_nodes_test tests/graph/portable_nodes_test.cpp)
+    ctex_configure_cpp_target(ctex_portable_nodes_test)
+    target_link_libraries(ctex_portable_nodes_test PRIVATE ctex_graph ctex_image)
+    add_test(NAME material-graph-portable-nodes COMMAND ctex_portable_nodes_test)
 
     add_executable(ctex_kong_context_test tests/emit/kong_context_test.cpp)
     ctex_configure_cpp_target(ctex_kong_context_test)

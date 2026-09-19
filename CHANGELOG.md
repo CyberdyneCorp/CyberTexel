@@ -71,6 +71,9 @@ Foundation implementation is in progress.
 - A 52-type built-in material node catalogue with stable declarations, typed
   sockets, constrained properties, complete blend and normal modes, and
   formula-bearing scalar/vector math operations.
+- Portable deterministic Noise evaluation, one shared reference formula for all
+  twenty Blend modes, and canonical material libraries with stable preset
+  identity, thumbnails, transfer, and independent graph instantiation.
 - Reusable material node groups with workspace-owned subgraphs, transactional
   socket propagation across materials and nested groups, compatible value/link
   preservation, removed-link reporting, and typed recursion-path diagnostics.

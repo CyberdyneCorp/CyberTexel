@@ -195,6 +195,12 @@ radiance and irradiance encodings, the split-sum BRDF lookup, camera,
 environment controls and up to four analytic lights. The documented GGX model
 also defines deterministic fallback lighting when environment maps are absent.
 Complete material-graph and shader-emission scenario coverage (6.16) is next.
+Its material-graph integration now includes portable seeded Noise evaluation,
+one reference formula surface for all twenty Blend modes, and a canonical
+device-independent material library whose stable preset identities resolve to
+the same independently instantiated graph after transfer. The labeled scenario
+matrix and complete graph-to-target shader entry point remain before 6.16 can
+close.
 
 ## 1. Foundation
 

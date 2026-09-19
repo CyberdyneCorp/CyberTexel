@@ -6,9 +6,11 @@ sockets, and property declarations. Choice properties include their allowed
 values. `make_builtin_node` copies a declaration into a regular `GraphNode` with
 its defaults and an optional editor position.
 
-The catalogue declares structure and portable semantics. CPU evaluation,
-resource validation, and shader emission are separate roadmap tasks; a node's
-presence here does not imply that an executor can evaluate it yet.
+The catalogue declares structure and portable semantics. `portable_nodes.hpp`
+provides the conformance CPU formulas for seeded Noise and all twenty Blend
+modes; other catalogue entries remain declarations until their owning executor
+tasks land. Resource validation and shader emission remain separate from the
+catalogue, so a node's presence does not by itself imply executable semantics.
 
 ## Built-in families
 
@@ -19,11 +21,18 @@ presence here does not imply that an executor can evaluate it yet.
 | Colour and filter | Mix, Blend, Levels, Curves, Colour Ramp, Hue/Saturation/Value, Brightness/Contrast, Gamma, Invert, Quantize, Replace Colour, Colour Mask, Separate Colour, Combine Colour, Blur, Sharpen, Warp, Grayscale Conversion |
 | Vector and math | Math, Vector Math, Map Range, Clamp, Mapping, Normal Map, Mix Normal Map, Bump, Separate XYZ, Combine XYZ, Vector Rotate, Vector Transform, Float Curve, Vector Curves |
 
-The Blend node exposes the same complete set scheduled for the layer stack:
+The Blend node exposes the same complete set used by the shared
+`blend_colour` reference formula:
 Normal, Darken, Multiply, Color Burn, Lighten, Screen, Color Dodge, Add, Overlay,
 Soft Light, Linear Light, Difference, Exclusion, Subtract, Divide, Hue,
-Saturation, Color, Value, and Pass Through. Their shared formulas land with the
-layer-stack blend implementation rather than being duplicated in the catalogue.
+Saturation, Color, Value, and Pass Through. Node conformance fixtures and the
+future layer-stack implementation consume that one formula surface rather than
+maintaining independent CPU tables.
+
+Seeded Noise uses stable integer hashing, smooth value-noise interpolation and
+bounded fractal octaves. Equal coordinates, seed, scale, detail, roughness,
+lacunarity and distortion produce byte-identical CPU results. Its scalar factor
+and decorrelated RGB result remain normalized to `[0, 1]`.
 
 ## Scalar Math operations
 
