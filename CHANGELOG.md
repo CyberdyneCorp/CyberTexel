@@ -74,6 +74,9 @@ Foundation implementation is in progress.
 - Reusable material node groups with workspace-owned subgraphs, transactional
   socket propagation across materials and nested groups, compatible value/link
   preservation, removed-link reporting, and typed recursion-path diagnostics.
+- Emission-independent material graph validation with structured diagnostics for
+  required inputs, image resources, mesh maps, group references, and unreachable
+  nodes, including workspace ownership and linear reverse-CSR reachability.
 - README architecture diagram and a current, implementation-scoped feature list.
 
 ### Changed

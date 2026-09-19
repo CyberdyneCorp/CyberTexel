@@ -54,7 +54,9 @@ The current implementation provides:
   [built-in node catalogue](docs/material-node-catalogue.md) declares all input,
   texture, colour/filter, vector, and math node schemas, while reusable
   [node groups](docs/material-node-groups.md) propagate interface changes and
-  refuse recursive placement.
+  refuse recursive placement. Emission-independent
+  [graph validation](docs/material-graph-validation.md) reports required inputs,
+  missing resources, missing groups, and unreachable nodes.
 - Strict C++20 builds, sanitizer coverage, OpenSpec validation, dependency
   layering checks, licence auditing, and deterministic-output gates.
 

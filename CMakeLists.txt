@@ -70,6 +70,7 @@ ctex_add_module(
         src/graph/serialization.cpp
         src/graph/catalogue.cpp
         src/graph/groups.cpp
+        src/graph/validation.cpp
 )
 ctex_add_module(emit DEPENDS graph image)
 ctex_add_module(
@@ -221,6 +222,11 @@ if(BUILD_TESTING)
     ctex_configure_cpp_target(ctex_graph_groups_test)
     target_link_libraries(ctex_graph_groups_test PRIVATE ctex_graph ctex_image)
     add_test(NAME material-graph-groups COMMAND ctex_graph_groups_test)
+
+    add_executable(ctex_graph_validation_test tests/graph/validation_test.cpp)
+    ctex_configure_cpp_target(ctex_graph_validation_test)
+    target_link_libraries(ctex_graph_validation_test PRIVATE ctex_graph ctex_image)
+    add_test(NAME material-graph-validation COMMAND ctex_graph_validation_test)
 
     add_executable(ctex_material_graph_output_test tests/doc/material_graph_test.cpp)
     ctex_configure_cpp_target(ctex_material_graph_output_test)

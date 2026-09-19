@@ -153,7 +153,12 @@ boundary nodes. Interface versions and sockets propagate transactionally to all
 material and nested-group instances, preserving values and links only when name
 and type remain compatible and reporting displaced links. Deterministic
 dependency-path diagnostics refuse self and transitive recursion before node
-creation. Emission-independent graph validation (6.6) is next.
+creation. Task 6.6 validates graphs without invoking emission and returns
+deterministic structured diagnostics for unconnected required inputs, unavailable
+image resources and mesh maps, missing group definitions, and unreachable nodes.
+Workspace reports retain material/group ownership; reverse-CSR reachability is
+linear in nodes plus links. Host-registered node semantics and unknown-node
+preservation (6.7) are next.
 
 ## 1. Foundation
 
@@ -232,7 +237,7 @@ creation. Emission-independent graph validation (6.6) is next.
 - [x] 6.3 Socket typing, coercion rules, one-link-per-input, refusal of non-coercible links
 - [x] 6.4 Node catalogue: input, texture, colour and filter, vector and math
 - [x] 6.5 Node groups, socket propagation, recursion refusal
-- [ ] 6.6 Graph validation independent of emission
+- [x] 6.6 Graph validation independent of emission
 - [ ] 6.7 Host-registered node types with CPU and emission semantics, replay eligibility and parity fixtures; opaque preservation of unknown types
 - [ ] 6.8 Vendor Kong under `thirdparty/`, wrap its global state in a context object, attribute it
 - [ ] 6.9 Emission: result naming, group qualification, single-emission fan-out

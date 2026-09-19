@@ -116,6 +116,9 @@ test-graph-catalogue: build
 test-graph-groups: build
     ctest --test-dir build/headless --output-on-failure -R '^material-graph-groups$'
 
+test-graph-validation: build
+    ctest --test-dir build/headless --output-on-failure -R '^material-graph-validation$'
+
 examples:
     @just _unimplemented examples 16.2
 

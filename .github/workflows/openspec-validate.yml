@@ -62,6 +62,8 @@ jobs:
       run: just test-graph-catalogue
     - name: Material graph groups
       run: just test-graph-groups
+    - name: Material graph validation
+      run: just test-graph-validation
     - name: Test suite
       run: just test
 

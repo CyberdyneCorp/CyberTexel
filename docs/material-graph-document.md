@@ -65,3 +65,5 @@ The versioned built-in declarations and their math/normal formulas are listed in
 the [material node catalogue](material-node-catalogue.md).
 Reusable subgraphs, transactional interface propagation, and recursion refusal
 are documented in [material node groups](material-node-groups.md).
+Structured resource, required-input, and reachability checks are documented in
+[material graph validation](material-graph-validation.md).
