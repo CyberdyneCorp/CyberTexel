@@ -473,7 +473,7 @@ screen region are selected. Polygon selection reuses the canonical triangle,
 UV-island and connected-by-angle expansion rules. Active selection masks feed
 paint masking directly; validated stored masks own an independent copy. Screen
 operations preserve traversal accounting and refuse stale surface caches.
-Task 10.12 is in progress. Its shared parameter-validation seam owns documented
+Task 10.12 is complete. Its shared parameter-validation seam owns documented
 defaults and ranges for base stroke spacing, radius, opacity, hardness,
 rotation, elongation, flow and stabilization; it clamps finite out-of-range
 values and records supplied and resolved values for downstream consumers.
@@ -495,7 +495,11 @@ scale controls while exposing the resolved transforms and clamp reports.
 Planar extent axes plus triplanar scale and offsets are bounded and report every
 resolution before sampling. Depth bias, normal-angle rejection and
 format-dependent alpha discard now expose bounded resolved values and clamp
-reports. The complete behavioural no-inert audit still keeps 10.12 open.
+reports. Seam-dilation radius uses the same contract at direct, deferred,
+preview-finalization and bounded-work entry points. The repository gate keeps
+all 69 documented numeric controls tied to implementation identifiers and
+explicit output-changing behaviour tests; categorical controls and structural
+inputs remain validated by their owning operations.
 
 ## 1. Foundation
 
@@ -645,7 +649,7 @@ reports. The complete behavioural no-inert audit still keeps 10.12 open.
 - [x] 10.9 Picker across every enabled channel
 - [x] 10.10 Colour ID selection with tolerance and its empty-selection reporting
 - [x] 10.11 Selection tool: rectangle, lasso, polygon fill; storable as a mask
-- [ ] 10.12 Parameter validation at every entry point; the no-inert-parameter audit
+- [x] 10.12 Parameter validation at every entry point; the no-inert-parameter audit
 - [ ] 10.13 `paint-tools` scenarios as tests
 
 ## 11. Mesh maps

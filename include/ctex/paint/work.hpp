@@ -32,6 +32,8 @@ struct PaintWorkReport {
     std::size_t footprint_count{};
     std::size_t candidate_tile_visits{};
     std::vector<image::TileCoordinate> processed_tiles;
+    std::uint32_t dilation_radius{};
+    ToolParameterReport parameter_report;
 };
 
 using PaintTileProcessor = std::function<void(image::TileCoordinate)>;

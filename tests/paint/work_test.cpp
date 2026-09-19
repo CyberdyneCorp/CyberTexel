@@ -108,6 +108,23 @@ bool huge_canvas_metadata_does_not_cause_a_canvas_scan() {
                   "work planning scaled with huge canvas metadata instead of the footprint");
 }
 
+bool dilation_radius_is_bounded_and_reported_by_work_planning() {
+    const std::array footprints{paint::StampTexelFootprint{
+        .stamp_ordinal = 0, .minimum_x = 4, .minimum_y = 4, .maximum_x = 5, .maximum_y = 5}};
+    const std::uint32_t supplied = paint::maximum_seam_dilation_radius + 1;
+    const paint::PaintWorkReport report = paint::plan_paint_work({.canvas_width = 8,
+                                                                  .canvas_height = 8,
+                                                                  .tile_size = 4,
+                                                                  .dilation_radius = supplied,
+                                                                  .stamp_footprints = footprints});
+    return expect(report.dilation_radius == paint::maximum_seam_dilation_radius &&
+                      report.parameter_report.clamp_for("seam_dilation.radius") ==
+                          paint::ToolParameterClamp{"seam_dilation.radius", supplied,
+                                                    paint::maximum_seam_dilation_radius} &&
+                      report.processed_tiles.size() == 4,
+                  "paint work planning bypassed shared dilation-radius resolution");
+}
+
 bool invalid_requests_are_refused_before_processing() {
     const std::array invalid{paint::StampTexelFootprint{
         .stamp_ordinal = 0, .minimum_x = 4, .minimum_y = 0, .maximum_x = 4, .maximum_y = 1}};
@@ -146,6 +163,7 @@ int main() {
                    dilation_expansion_and_canvas_clipping_are_exact() &&
                    overlapping_frame_footprints_are_deduplicated_and_sorted() &&
                    huge_canvas_metadata_does_not_cause_a_canvas_scan() &&
+                   dilation_radius_is_bounded_and_reported_by_work_planning() &&
                    invalid_requests_are_refused_before_processing()
                ? 0
                : 1;

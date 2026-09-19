@@ -165,11 +165,19 @@ DilatedUvTile provisional_tile(UvTileCoordinate coordinate, const SeamDilationRa
 
 }  // namespace
 
+std::uint32_t resolve_seam_dilation_radius(std::uint32_t requested, ToolParameterReport& report) {
+    return static_cast<std::uint32_t>(
+        validate_tool_parameter(seam_dilation_radius_parameter, requested, report));
+}
+
 SeamDilationResult dilate_uv_seams(const SeamDilationRaster& source,
                                    std::span<const std::uint8_t> coverage, std::uint32_t radius) {
     const std::size_t texel_count = checked_texel_count(source);
     validate_coverage(coverage, texel_count);
-    SeamDilationResult result{.raster = source};
+    ToolParameterReport parameter_report;
+    radius = resolve_seam_dilation_radius(radius, parameter_report);
+    SeamDilationResult result{
+        .raster = source, .radius = radius, .parameter_report = std::move(parameter_report)};
     if (radius == 0) {
         return result;
     }
@@ -195,7 +203,8 @@ SeamDilationResult dilate_uv_seams(const SeamDilationRaster& source,
 
 class DeferredStrokeDilation::Impl {
 public:
-    explicit Impl(std::uint32_t radius) : radius_(radius) {}
+    explicit Impl(std::uint32_t radius)
+        : radius_(resolve_seam_dilation_radius(radius, parameter_report_)) {}
 
     void stage_tile(UvTileCoordinate coordinate, const SeamDilationRaster& raster,
                     std::span<const std::uint8_t> coverage) {
@@ -222,7 +231,11 @@ public:
         if (finished_) {
             return output_;
         }
-        StrokeDilationOutput preview;
+        StrokeDilationOutput preview{.state = DilationPreviewState::provisional,
+                                     .tiles = {},
+                                     .dilation_pass_count = 0,
+                                     .radius = radius_,
+                                     .parameter_report = parameter_report_};
         preview.tiles.reserve(staged_.size());
         for (const StagedTile& tile : staged_) {
             preview.tiles.push_back(provisional_tile(tile.coordinate, tile.raster));
@@ -234,8 +247,11 @@ public:
         if (finished_) {
             return output_;
         }
-        StrokeDilationOutput completed{
-            .state = DilationPreviewState::final, .tiles = {}, .dilation_pass_count = 0};
+        StrokeDilationOutput completed{.state = DilationPreviewState::final,
+                                       .tiles = {},
+                                       .dilation_pass_count = 0,
+                                       .radius = radius_,
+                                       .parameter_report = parameter_report_};
         completed.tiles.reserve(staged_.size());
         for (const StagedTile& tile : staged_) {
             SeamDilationResult result = dilate_uv_seams(tile.raster, tile.coverage, radius_);
@@ -253,6 +269,7 @@ public:
 
     bool finished() const noexcept { return finished_; }
     std::uint32_t radius() const noexcept { return radius_; }
+    const ToolParameterReport& parameter_report() const noexcept { return parameter_report_; }
 
 private:
     struct StagedTile {
@@ -261,6 +278,7 @@ private:
         std::vector<std::uint8_t> coverage;
     };
 
+    ToolParameterReport parameter_report_;
     std::uint32_t radius_;
     bool finished_{};
     std::vector<StagedTile> staged_;
@@ -289,5 +307,9 @@ const StrokeDilationOutput& DeferredStrokeDilation::finish() { return impl_->fin
 bool DeferredStrokeDilation::finished() const noexcept { return impl_->finished(); }
 
 std::uint32_t DeferredStrokeDilation::radius() const noexcept { return impl_->radius(); }
+
+const ToolParameterReport& DeferredStrokeDilation::parameter_report() const noexcept {
+    return impl_->parameter_report();
+}
 
 }  // namespace ctex::paint

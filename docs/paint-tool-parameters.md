@@ -80,12 +80,31 @@ The currently routed paint-tool parameters are:
 | `rejection.depth_bias` | 0.0001 | 0 | 1,000,000 | projected-depth units |
 | `rejection.minimum_normal_dot` | 0.5 | -1 | 1 | dot product |
 | `alpha_discard.threshold` | 0.1 (8-bit); 0.004 (16-bit/float) | 0 | 1 | normalized |
+| `seam_dilation.radius` | 2 | 0 | 4,096 | texels |
 
 `StrokeResolver::settings()` exposes the resolved settings and
 `parameter_report()` exposes their clamps. Brush and Eraser consume the
 resolved stroke, so they cannot bypass or reinterpret the parameter decision.
-Stamp-count taper extents must remain integral after range resolution. Disabled
-tapers resolve their otherwise inert extent to zero. The remaining tool
-descriptors and entry points are tracked by roadmap task 10.12; that task
-remains incomplete until the behavioral no-inert audit also covers every
-documented parameter.
+The `gate-paint-parameter-audit` check keeps this table in exact correspondence
+with implementation identifiers and explicit `parameter-audit` markers placed
+beside behavioral assertions in the paint tests. It currently audits 69 numeric
+controls. Stamp-count taper extents must remain integral after range resolution.
+Disabled tapers resolve their otherwise inert extent to zero.
+
+## Audit scope
+
+The table inventories user-adjustable numeric controls whose defaults and
+inclusive bounds are meaningful. Every row is resolved before use, reports a
+clamp, and has a named behavior test demonstrating that its resolved value
+changes an operation result. The same resolver is reused by every available
+entry point for that control; tests cover alternate routes where a control has
+more than one route, such as retained decals and direct, deferred, preview and
+work-planning seam dilation.
+
+Finite-domain choices such as modes, alignment, enable flags and inversion are
+validated by their owning operation and exercised by that tool's behavior
+tests; numeric minimum and maximum values do not apply to them. Positions,
+frames, picked identities, image and raster dimensions, masks, topology,
+resource identities and caller-owned pixel data are structural operation inputs
+rather than adjustable numeric controls. Their shape, domain and consistency
+validation remains with the owning operation and is outside this table.

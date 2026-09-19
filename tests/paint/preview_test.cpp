@@ -117,6 +117,21 @@ bool final_preview_is_isolated_and_becomes_the_exact_commit() {
                   "preview commit parity or changed-tile report is incorrect");
 }
 
+bool finalization_uses_and_reports_the_bounded_dilation_radius() {
+    doc::TextureChannels document = height_channel(3);
+    paint::PaintPreviewSession session(document, "pbr.height");
+    session.write_pixel(1, 0, float_bytes(0.5F));
+    const std::array<std::uint8_t, 3> coverage{0, 1, 0};
+    const std::uint32_t supplied = paint::maximum_seam_dilation_radius + 1;
+    const image::TiledImage& final = session.finalize(coverage, supplied);
+    return expect(session.dilation_radius() == paint::maximum_seam_dilation_radius &&
+                      session.parameter_report().clamp_for("seam_dilation.radius") ==
+                          paint::ToolParameterClamp{"seam_dilation.radius", supplied,
+                                                    paint::maximum_seam_dilation_radius} &&
+                      std::abs(read_float(final, 0) - 0.5F) < 1.0e-6F,
+                  "preview finalization bypassed shared dilation-radius resolution");
+}
+
 bool document_changes_make_the_preview_stale() {
     doc::TextureChannels document = height_channel(2);
     paint::PaintPreviewSession session(document, "pbr.height");
@@ -185,6 +200,7 @@ bool cancellation_discards_the_in_flight_result() {
 int main() {
     return quantized_preview_formats_round_trip_exactly() &&
                    final_preview_is_isolated_and_becomes_the_exact_commit() &&
+                   finalization_uses_and_reports_the_bounded_dilation_radius() &&
                    document_changes_make_the_preview_stale() &&
                    invalid_finalization_is_transactional_and_final_is_immutable() &&
                    cancellation_discards_the_in_flight_result()

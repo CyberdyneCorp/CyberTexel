@@ -18,6 +18,7 @@ bool expect(bool condition, std::string_view message) {
     return condition;
 }
 
+// parameter-audit: colour_id.tolerance
 bool tolerance_selects_only_matching_ids() {
     const std::array pixels{
         ColourValue{1.0F, 0.0F, 0.0F, 1.0F}, ColourValue{0.98F, 0.01F, 0.0F, 0.25F},

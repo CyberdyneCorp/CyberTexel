@@ -4,13 +4,21 @@
 #include <compare>
 #include <cstddef>
 #include <cstdint>
+#include <ctex/paint/parameters.hpp>
 #include <memory>
 #include <span>
 #include <vector>
 
 namespace ctex::paint {
 
-inline constexpr std::uint32_t default_seam_dilation_radius = 2;
+inline constexpr std::uint32_t maximum_seam_dilation_radius = 4'096;
+inline constexpr ToolParameterDescriptor seam_dilation_radius_parameter{
+    "seam_dilation.radius", 2.0, 0.0, maximum_seam_dilation_radius};
+inline constexpr std::uint32_t default_seam_dilation_radius =
+    static_cast<std::uint32_t>(seam_dilation_radius_parameter.default_value);
+
+[[nodiscard]] std::uint32_t resolve_seam_dilation_radius(std::uint32_t requested,
+                                                         ToolParameterReport& report);
 
 struct SeamDilationRaster {
     std::uint32_t width{};
@@ -23,6 +31,8 @@ struct SeamDilationResult {
     SeamDilationRaster raster;
     std::size_t dilated_texel_count{};
     std::size_t zero_gradient_texel_count{};
+    std::uint32_t radius{};
+    ToolParameterReport parameter_report;
 };
 
 [[nodiscard]] SeamDilationResult dilate_uv_seams(
@@ -48,6 +58,8 @@ struct StrokeDilationOutput {
     DilationPreviewState state{DilationPreviewState::provisional};
     std::vector<DilatedUvTile> tiles;
     std::size_t dilation_pass_count{};
+    std::uint32_t radius{};
+    ToolParameterReport parameter_report;
 };
 
 class DeferredStrokeDilation {
@@ -65,6 +77,7 @@ public:
     [[nodiscard]] const StrokeDilationOutput& finish();
     [[nodiscard]] bool finished() const noexcept;
     [[nodiscard]] std::uint32_t radius() const noexcept;
+    [[nodiscard]] const ToolParameterReport& parameter_report() const noexcept;
 
 private:
     class Impl;

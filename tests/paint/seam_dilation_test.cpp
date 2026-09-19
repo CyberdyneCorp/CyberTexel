@@ -47,13 +47,38 @@ bool every_component_is_extrapolated_without_clamping() {
                   "seam dilation did not extrapolate every channel independently");
 }
 
+// parameter-audit: seam_dilation.radius
 bool zero_radius_disables_dilation() {
     const SeamDilationRaster source = scalar_raster({-1.0, 2.0, 3.0, -1.0});
     const std::array<std::uint8_t, 4> coverage{0, 1, 1, 0};
     const auto result = dilate_uv_seams(source, coverage, 0);
+    const auto enabled = dilate_uv_seams(source, coverage, 1);
     return expect(result.raster.pixels == source.pixels && result.dilated_texel_count == 0 &&
                       result.zero_gradient_texel_count == 0,
-                  "a zero dilation radius changed the raster");
+                  "a zero dilation radius changed the raster") &&
+           expect(enabled.raster.pixels != source.pixels && enabled.dilated_texel_count == 2,
+                  "a positive dilation radius did not change the raster");
+}
+
+bool radius_is_bounded_and_reported_at_direct_and_deferred_entries() {
+    const SeamDilationRaster source = scalar_raster({-1.0, 2.0, -1.0});
+    const std::array<std::uint8_t, 3> coverage{0, 1, 0};
+    const std::uint32_t supplied = maximum_seam_dilation_radius + 1;
+    const ToolParameterClamp expected{"seam_dilation.radius", supplied,
+                                      maximum_seam_dilation_radius};
+    const SeamDilationResult direct = dilate_uv_seams(source, coverage, supplied);
+    DeferredStrokeDilation deferred(supplied);
+    deferred.stage_tile({}, source, coverage);
+    const StrokeDilationOutput& final = deferred.finish();
+    return expect(direct.radius == maximum_seam_dilation_radius &&
+                      direct.parameter_report.clamp_for("seam_dilation.radius") == expected &&
+                      direct.raster.pixels == std::vector<double>({2.0, 2.0, 2.0}),
+                  "direct seam dilation did not use or report its bounded radius") &&
+           expect(deferred.radius() == maximum_seam_dilation_radius &&
+                      deferred.parameter_report().clamp_for("seam_dilation.radius") == expected &&
+                      final.radius == maximum_seam_dilation_radius &&
+                      final.parameter_report.clamp_for("seam_dilation.radius") == expected,
+                  "deferred seam dilation bypassed shared radius resolution");
 }
 
 bool a_thin_island_uses_reported_zero_gradient_extrapolation() {
@@ -151,6 +176,7 @@ int main() {
     return extrapolation_preserves_a_gradient() &&
                    every_component_is_extrapolated_without_clamping() &&
                    zero_radius_disables_dilation() &&
+                   radius_is_bounded_and_reported_at_direct_and_deferred_entries() &&
                    a_thin_island_uses_reported_zero_gradient_extrapolation() &&
                    long_stroke_defers_all_tiles_until_finish() &&
                    staging_after_finish_and_invalid_inputs_are_transactional() &&

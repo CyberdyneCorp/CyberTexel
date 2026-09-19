@@ -106,6 +106,8 @@ bool batching_and_redundant_samples_are_invariant() {
                   "a redundant time-linear sample changed the resolved stamps");
 }
 
+// parameter-audit: stroke.stabilizer.radius
+// parameter-audit: stroke.stabilizer.time_constant_seconds
 bool stabilizer_follows_the_documented_timestamp_recurrence() {
     StrokeSettings settings;
     settings.radius = 2.0;
@@ -137,6 +139,7 @@ bool a_fast_continuous_flick_emits_covering_sweeps() {
                   "continuous sweep did not connect the canonical stamp sequence");
 }
 
+// parameter-audit: stroke.spacing_fraction
 bool discrete_alpha_tips_remain_separated() {
     StrokeSettings settings;
     settings.tip_mode = TipMode::discrete_alpha;
@@ -150,6 +153,12 @@ bool discrete_alpha_tips_remain_separated() {
                   "discrete-alpha spacing did not preserve visible tip separation");
 }
 
+// parameter-audit: stroke.radius
+// parameter-audit: stroke.opacity
+// parameter-audit: stroke.hardness
+// parameter-audit: stroke.rotation_radians
+// parameter-audit: stroke.elongation
+// parameter-audit: stroke.flow
 bool every_stamp_carries_the_resolved_contract() {
     StrokeSettings settings;
     settings.spacing_fraction = 1.0;
@@ -192,6 +201,16 @@ bool default_pen_mapping_changes_only_radius() {
                   "default pen mapping changed a property other than radius");
 }
 
+// parameter-audit: stroke.input.pressure_radius.minimum_output
+// parameter-audit: stroke.input.pressure_radius.maximum_output
+// parameter-audit: stroke.input.pressure_opacity.minimum_output
+// parameter-audit: stroke.input.pressure_opacity.maximum_output
+// parameter-audit: stroke.input.pressure_hardness.minimum_output
+// parameter-audit: stroke.input.pressure_hardness.maximum_output
+// parameter-audit: stroke.input.pressure_flow.minimum_output
+// parameter-audit: stroke.input.pressure_flow.maximum_output
+// parameter-audit: stroke.input.pressure_rotation.minimum_output
+// parameter-audit: stroke.input.pressure_rotation.maximum_output
 bool pressure_properties_have_independent_curves_and_ranges() {
     StrokeSettings settings;
     settings.radius = 10.0;
@@ -226,6 +245,10 @@ bool missing_pressure_is_full_pressure() {
                   "a device without pressure did not evaluate at full pressure");
 }
 
+// parameter-audit: stroke.input.tilt_rotation.minimum_output
+// parameter-audit: stroke.input.tilt_rotation.maximum_output
+// parameter-audit: stroke.input.tilt_elongation.minimum_output
+// parameter-audit: stroke.input.tilt_elongation.maximum_output
 bool tilt_maps_azimuth_and_magnitude() {
     StrokeSettings settings;
     settings.rotation_radians = 0.25;
@@ -271,6 +294,11 @@ bool pressure_mapped_radius_drives_following_spacing() {
                   "pressure-mapped radius did not determine the following stamp spacing");
 }
 
+// parameter-audit: stroke.jitter.position_fraction
+// parameter-audit: stroke.jitter.radius_fraction
+// parameter-audit: stroke.jitter.rotation_radians
+// parameter-audit: stroke.jitter.opacity
+// parameter-audit: stroke.jitter.flow
 bool jitter_is_seeded_by_stroke_and_ordinal() {
     StrokeSettings settings;
     settings.spacing_fraction = 1.0;
@@ -305,6 +333,8 @@ bool jitter_is_seeded_by_stroke_and_ordinal() {
                   "a configured jitter target remained unchanged");
 }
 
+// parameter-audit: stroke.taper.floor
+// parameter-audit: stroke.taper.entry.extent
 bool stamp_count_taper_reaches_full_on_the_tenth_stamp() {
     StrokeSettings settings;
     settings.spacing_fraction = 1.0;
@@ -323,6 +353,7 @@ bool stamp_count_taper_reaches_full_on_the_tenth_stamp() {
                   "radius-only taper changed opacity");
 }
 
+// parameter-audit: stroke.taper.exit.extent
 bool distance_taper_applies_at_both_ends() {
     StrokeSettings settings;
     settings.spacing_fraction = 1.0;
@@ -355,6 +386,7 @@ bool straight_line_constraint_ignores_intermediate_positions() {
                   "straight-line constraint retained an intermediate positional bend");
 }
 
+// parameter-audit: stroke.constraint.grid_step
 bool axis_and_grid_constraints_transform_the_path() {
     StrokeSettings axis_settings;
     axis_settings.spacing_fraction = 4.0;
@@ -417,6 +449,7 @@ bool three_plane_symmetry_emits_eight_transformed_frames() {
                   "mirror symmetry did not transform the complete coordinate frame");
 }
 
+// parameter-audit: stroke.symmetry.radial_count
 bool radial_symmetry_supports_each_object_axis() {
     StrokeSettings z_settings;
     z_settings.symmetry.radial_count = 6;

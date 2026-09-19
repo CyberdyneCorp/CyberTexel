@@ -47,6 +47,8 @@ public:
     [[nodiscard]] PaintPreviewState state() const noexcept;
     [[nodiscard]] std::size_t dilated_texel_count() const noexcept;
     [[nodiscard]] std::size_t zero_gradient_texel_count() const noexcept;
+    [[nodiscard]] std::uint32_t dilation_radius() const noexcept;
+    [[nodiscard]] const ToolParameterReport& parameter_report() const noexcept;
 
 private:
     class Impl;

@@ -31,6 +31,11 @@ spec-validate: (_require "openspec" "1.8")
 gate-capability-index: (_require "python3" "3.10")
     python3 tools/check_capability_index.py
 
+# Every documented paint parameter is implemented and has explicit behaviour evidence.
+gate-paint-parameter-audit: (_require "python3" "3.10")
+    python3 tests/tools/test_check_paint_parameter_audit.py
+    python3 tools/check_paint_parameter_audit.py
+
 # Counts, for the README and for sanity.
 spec-stats:
     @printf 'capabilities: %s\n' "$(ls openspec/changes/bootstrap-v1-cybertexel/specs | wc -l | tr -d ' ')"
@@ -350,7 +355,7 @@ gate-budgets:
 
 # Everything that needs no device. This is what CI runs and what a contributor
 # runs before pushing.
-check: spec-validate gate-capability-index gate-layering gate-licence \
+check: spec-validate gate-capability-index gate-paint-parameter-audit gate-layering gate-licence \
        gate-version-consistency gate-determinism gate-binding-parity \
        gate-example-coverage gate-abi-diff format-check
 

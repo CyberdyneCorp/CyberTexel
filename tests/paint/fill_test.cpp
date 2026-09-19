@@ -138,6 +138,7 @@ bool fill_applies_material_through_masks_and_rejection() {
                   "fill did not shade the resolved region from the active material");
 }
 
+// parameter-audit: paint.connected.maximum_angle_degrees
 bool connected_angle_is_bounded_reported_and_used() {
     const CachedSurfaceMaps maps = surface_maps();
     const auto triangles = topology();

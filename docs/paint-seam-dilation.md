@@ -4,7 +4,10 @@
 painting and export. `dilate_uv_seams` accepts a one-to-four-component floating
 point raster plus the binary geometry coverage map produced by the
 [surface-map cache](paint-surface-cache.md). Its radius defaults to two texels;
-zero returns the source unchanged.
+zero returns the source unchanged, and larger values are clamped to 4,096.
+Direct dilation returns the resolved radius and clamp report. Deferred stroke
+dilation, preview finalization and bounded-work planning use the same resolver
+and expose the same decision through their output or session report.
 
 For every uncovered texel within the Euclidean radius, the operation finds the
 nearest covered texel. Equal-distance ownership is deterministic in row-major

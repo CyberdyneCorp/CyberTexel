@@ -108,6 +108,8 @@ bool depth_rejection_can_be_disabled_per_operation() {
         "disabled depth rejection still required or applied a depth buffer");
 }
 
+// parameter-audit: rejection.depth_bias
+// parameter-audit: rejection.minimum_normal_dot
 bool depth_bias_and_angle_threshold_are_configurable() {
     const TextureSpaceRaster samples = surface({texel({0.8, 0.0, 0.6})});
     const std::array<Vec2d, 1> screen{Vec2d{0.5, 0.5}};
@@ -223,6 +225,7 @@ bool backface_rejection_uses_counter_clockwise_geometric_normal() {
                   "disabled backface rejection still discarded an away-facing texel");
 }
 
+// parameter-audit: alpha_discard.threshold
 bool alpha_discard_uses_precision_defaults_without_losing_accumulation() {
     const std::array<double, 4> strength{0.003, 0.004, 0.099, 0.1};
     const auto eight_bit = apply_alpha_discard(

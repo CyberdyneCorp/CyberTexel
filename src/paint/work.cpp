@@ -94,16 +94,22 @@ void add_tiles(const ExpandedFootprint& footprint, std::uint32_t tile_size,
 
 PaintWorkReport plan_paint_work(const PaintWorkRequest& request) {
     validate_request(request);
+    ToolParameterReport parameter_report;
+    PaintWorkRequest resolved_request = request;
+    resolved_request.dilation_radius =
+        resolve_seam_dilation_radius(request.dilation_radius, parameter_report);
     const std::uint32_t tile_columns = divide_rounding_up(request.canvas_width, request.tile_size);
     const std::uint32_t tile_rows = divide_rounding_up(request.canvas_height, request.tile_size);
     PaintWorkReport report{
         .canvas_tile_count = static_cast<std::uint64_t>(tile_columns) * tile_rows,
         .footprint_count = request.stamp_footprints.size(),
         .candidate_tile_visits = 0,
-        .processed_tiles = {}};
+        .processed_tiles = {},
+        .dilation_radius = resolved_request.dilation_radius,
+        .parameter_report = std::move(parameter_report)};
     std::set<std::uint64_t> tiles;
     for (const StampTexelFootprint& footprint : request.stamp_footprints) {
-        add_tiles(expand(footprint, request), request.tile_size, tiles,
+        add_tiles(expand(footprint, resolved_request), request.tile_size, tiles,
                   report.candidate_tile_visits);
     }
     report.processed_tiles.reserve(tiles.size());

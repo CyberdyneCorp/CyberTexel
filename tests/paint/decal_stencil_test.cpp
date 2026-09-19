@@ -69,6 +69,7 @@ DecalPlacement placement(const CachedSurfaceMaps& surface, double rotation = 0.0
         surface, 0, {.rotation_radians = rotation, .uniform_scale = 1.0, .axis_scale = {1.0, 1.0}});
 }
 
+// parameter-audit: decal.rotation_radians
 bool retained_decal_edits_without_repicking_and_rasterizes_explicitly() {
     const CachedSurfaceMaps surface = decal_surface();
     const std::array layer{channel("pbr.base_color", {0.0F, 0.0F})};
@@ -136,6 +137,11 @@ RejectedCoverageRaster coverage(std::initializer_list<double> values) {
             .report = {}};
 }
 
+// parameter-audit: stencil.position.x
+// parameter-audit: stencil.position.y
+// parameter-audit: stencil.rotation_radians
+// parameter-audit: stencil.scale.x
+// parameter-audit: stencil.scale.y
 bool stencil_is_screen_anchored_transformable_and_invertible() {
     const ToolOpacityImage image{.width = 2, .height = 1, .opacity = {0.0, 1.0}};
     const std::array<Vec2d, 3> positions{Vec2d{-0.25, 0.0}, Vec2d{0.25, 0.0}, Vec2d{0.75, 0.0}};
@@ -150,12 +156,23 @@ bool stencil_is_screen_anchored_transformable_and_invertible() {
     const StencilMaskResult translated = resolve_stencil_mask(
         3, 1, positions, image,
         {.position = {0.5, 0.0}, .rotation_radians = 0.0, .scale = {1.0, 1.0}});
+    const ToolOpacityImage vertical_image{.width = 1, .height = 2, .opacity = {0.0, 1.0}};
+    const std::array<Vec2d, 3> vertical_positions{Vec2d{0.0, -0.75}, Vec2d{0.0, -0.25},
+                                                  Vec2d{0.0, 0.25}};
+    const StencilMaskResult translated_y = resolve_stencil_mask(
+        3, 1, vertical_positions, vertical_image,
+        {.position = {0.0, 0.5}, .rotation_radians = 0.0, .scale = {1.0, 1.0}});
+    const StencilMaskResult scaled_y =
+        resolve_stencil_mask(3, 1, vertical_positions, vertical_image,
+                             {.position = {}, .rotation_radians = 0.0, .scale = {1.0, 2.0}});
     return expect(ordinary.values == std::vector<double>({0, 1, 0}) &&
                       inverted.values == std::vector<double>({1, 0, 1}),
                   "stencil opacity or inversion did not stay in screen space") &&
            expect(rotated.values == std::vector<double>({1, 0, 0}) &&
                       scaled.values == std::vector<double>({0, 1, 1}) &&
-                      translated.values == std::vector<double>({0, 0, 1}),
+                      translated.values == std::vector<double>({0, 0, 1}) &&
+                      translated_y.values == std::vector<double>({0, 0, 1}) &&
+                      scaled_y.values == std::vector<double>({1, 1, 0}),
                   "stencil position, rotation or scale did not affect its screen mask");
 }
 
@@ -215,6 +232,9 @@ bool invalid_decal_and_stencil_inputs_are_refused() {
                   "invalid decal or stencil input was not refused");
 }
 
+// parameter-audit: decal.uniform_scale
+// parameter-audit: decal.axis_scale.x
+// parameter-audit: decal.axis_scale.y
 bool decal_and_stencil_parameters_are_bounded_and_reported() {
     const CachedSurfaceMaps surface = decal_surface();
     const DecalPlacement placed =
@@ -237,6 +257,8 @@ bool decal_and_stencil_parameters_are_bounded_and_reported() {
          .scale = {0.0, maximum_tool_transform_extent * 2.0}});
 
     return expect(placed.transform == frame.resolved_transform &&
+                      frame.scale ==
+                          Vec2d{1.0, stroke_position_tolerance * stroke_position_tolerance} &&
                       frame.parameter_report.clamps.size() == 4 &&
                       frame.parameter_report.clamp_for("decal.rotation_radians") ==
                           ToolParameterClamp{"decal.rotation_radians", 10.0,

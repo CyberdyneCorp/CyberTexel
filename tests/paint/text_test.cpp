@@ -70,6 +70,7 @@ bool utf8_tracking_and_all_alignments_are_rasterized() {
                   "left, centre or right line alignment did not affect glyph placement");
 }
 
+// parameter-audit: text.tracking_em
 bool tracking_is_bounded_reported_and_used() {
     const TextRaster raster =
         rasterize_text(font(), "AA", {.tracking_em = 20.0, .alignment = TextAlignment::left});
@@ -104,6 +105,7 @@ CachedSurfaceMaps surface() {
             .uv_island_identity = {0}};
 }
 
+// parameter-audit: text.size
 bool requested_size_is_applied_through_the_decal_frame() {
     const std::array layer{channel("pbr.base_color", 0.0F)};
     const std::array<double, 1> selection{0.5};

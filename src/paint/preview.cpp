@@ -147,6 +147,8 @@ public:
         preview_ = std::move(finalized);
         dilated_texel_count_ = dilation.dilated_texel_count;
         zero_gradient_texel_count_ = dilation.zero_gradient_texel_count;
+        dilation_radius_ = dilation.radius;
+        parameter_report_ = dilation.parameter_report;
         state_ = PaintPreviewState::final;
         return preview_;
     }
@@ -183,6 +185,8 @@ public:
     PaintPreviewState state() const noexcept { return state_; }
     std::size_t dilated_texel_count() const noexcept { return dilated_texel_count_; }
     std::size_t zero_gradient_texel_count() const noexcept { return zero_gradient_texel_count_; }
+    std::uint32_t dilation_radius() const noexcept { return dilation_radius_; }
+    const ToolParameterReport& parameter_report() const noexcept { return parameter_report_; }
 
 private:
     const doc::TextureChannels* channels_identity_;
@@ -193,6 +197,8 @@ private:
     PaintPreviewState state_{PaintPreviewState::provisional};
     std::size_t dilated_texel_count_{};
     std::size_t zero_gradient_texel_count_{};
+    std::uint32_t dilation_radius_{};
+    ToolParameterReport parameter_report_;
 };
 
 PaintPreviewSession::PaintPreviewSession(const doc::TextureChannels& document_channels,
@@ -238,6 +244,14 @@ std::size_t PaintPreviewSession::dilated_texel_count() const noexcept {
 
 std::size_t PaintPreviewSession::zero_gradient_texel_count() const noexcept {
     return impl_->zero_gradient_texel_count();
+}
+
+std::uint32_t PaintPreviewSession::dilation_radius() const noexcept {
+    return impl_->dilation_radius();
+}
+
+const ToolParameterReport& PaintPreviewSession::parameter_report() const noexcept {
+    return impl_->parameter_report();
 }
 
 }  // namespace ctex::paint

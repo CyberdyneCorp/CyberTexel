@@ -82,6 +82,8 @@ ParticleSimulationResult simulate(const ParticleMesh& buffers, const ParticleEmi
     return simulate_particles(index, mesh_binding, bindings, emitter, requested);
 }
 
+// parameter-audit: particle.count
+// parameter-audit: particle.randomness
 bool deterministic_seed_controls_the_complete_simulation() {
     const ParticleMesh buffers;
     ParticleSettings randomized = settings();
@@ -100,6 +102,14 @@ bool deterministic_seed_controls_the_complete_simulation() {
                   "configured particle count was not emitted");
 }
 
+// parameter-audit: particle.lifetime_seconds
+// parameter-audit: particle.initial_speed
+// parameter-audit: particle.mass
+// parameter-audit: particle.gravity.x
+// parameter-audit: particle.gravity.y
+// parameter-audit: particle.gravity.z
+// parameter-audit: particle.friction
+// parameter-audit: particle.restitution
 bool lifetime_speed_mass_gravity_friction_and_restitution_are_active() {
     const ParticleMesh buffers;
     const ParticleEmitter vertical{.position = {1.0, 1.0, 1.0}, .direction = {0.0, 0.0, -1.0}};
@@ -117,6 +127,15 @@ bool lifetime_speed_mass_gravity_friction_and_restitution_are_active() {
     falling.initial_speed = 0.0;
     falling.gravity = {0.0, 0.0, -4.0};
     const ParticleSimulationResult gravity_result = simulate(buffers, vertical, falling);
+
+    const ParticleEmitter axis_emitter{.position = {1.0, 1.0, 1.03}, .direction = {0.0, 0.0, -1.0}};
+    const ParticleSimulationResult axis_base = simulate(buffers, axis_emitter, settings());
+    ParticleSettings gravity_x = settings();
+    gravity_x.gravity.x = 0.25;
+    const ParticleSimulationResult gravity_x_result = simulate(buffers, axis_emitter, gravity_x);
+    ParticleSettings gravity_y = settings();
+    gravity_y.gravity.y = 0.25;
+    const ParticleSimulationResult gravity_y_result = simulate(buffers, axis_emitter, gravity_y);
 
     const ParticleEmitter angled{.position = {1.0, 1.0, 1.0}, .direction = {1.0, 0.0, -1.0}};
     ParticleSettings slippery = settings();
@@ -137,6 +156,16 @@ bool lifetime_speed_mass_gravity_friction_and_restitution_are_active() {
            expect(
                gravity_result.contacts.size() == 1 && gravity_result.contacts[0].time_seconds > 0.6,
                "particle gravity did not accelerate a stationary particle into the mesh") &&
+           expect(axis_base.contacts.size() == 1 && gravity_x_result.contacts.size() == 1 &&
+                      gravity_y_result.contacts.size() == 1,
+                  "lateral-gravity fixture did not reach the particle surface") &&
+           expect(
+               gravity_x_result.contacts[0].position.x > axis_base.contacts[0].position.x &&
+                   near(gravity_x_result.contacts[0].position.y,
+                        axis_base.contacts[0].position.y) &&
+                   gravity_y_result.contacts[0].position.y > axis_base.contacts[0].position.y &&
+                   near(gravity_y_result.contacts[0].position.x, axis_base.contacts[0].position.x),
+               "particle gravity axes did not independently change the contact position") &&
            expect(slippery_result.final_states[0].velocity.x > 1.0 &&
                       slippery_result.final_states[0].velocity.z > 0.5 &&
                       near(rough_result.final_states[0].velocity.x, 0.0) &&

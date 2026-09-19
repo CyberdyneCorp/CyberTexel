@@ -119,6 +119,7 @@ SmearSettings smear_settings(std::span<const SmearMapping> mappings) {
             .mappings = mappings};
 }
 
+// parameter-audit: blur.radius
 bool blur_is_separable_configurable_and_snapshot_based() {
     const std::array layer{channel("pbr.roughness", {0.0F, 0.0F, 1.0F, 0.0F, 0.0F})};
     const auto radius_one = linear_blur_neighborhoods(5, 1);
@@ -137,6 +138,7 @@ bool blur_is_separable_configurable_and_snapshot_based() {
                   "blur radius did not change its declared separable footprint and output");
 }
 
+// parameter-audit: smear.strength
 bool smear_drags_snapshot_content_with_strength_and_masks() {
     const std::array layer{channel("pbr.base_color", {0.0F, 0.2F, 0.4F, 0.6F}, 3)};
     const auto mappings = drag_from_left(4);
@@ -202,6 +204,8 @@ bool blur_transforms_normals_in_both_separable_passes() {
         "separable blur lost tangent-frame orientation across a mirrored seam");
 }
 
+// parameter-audit: smear.footprint.radius_x
+// parameter-audit: smear.footprint.radius_y
 bool blur_and_smear_parameters_are_bounded_and_reported() {
     const std::array layer{channel("pbr.roughness", {0.0F})};
     const auto neighborhoods = linear_blur_neighborhoods(1, 1);
@@ -211,7 +215,8 @@ bool blur_and_smear_parameters_are_bounded_and_reported() {
 
     SmearSettings clamped_settings = smear_settings(mappings);
     clamped_settings.strength = 2.0;
-    clamped_settings.footprint = {.radius_x = maximum_blur_smear_radius + 1, .radius_y = 0};
+    clamped_settings.footprint = {.radius_x = maximum_blur_smear_radius + 1,
+                                  .radius_y = maximum_blur_smear_radius + 1};
     const SmearResult smear = apply_smear(stroke(), coverage({1}), layer, clamped_settings);
 
     bool zero_footprint_refused = false;
@@ -236,10 +241,12 @@ bool blur_and_smear_parameters_are_bounded_and_reported() {
                        ToolParameterClamp{.name = "blur.radius", .supplied = 0.0, .resolved = 1.0},
                "blur radius was not bounded, reported, and used") &&
            expect(smear.strength == 1.0 &&
-                      smear.footprint == SamplingFootprint{maximum_blur_smear_radius, 0} &&
-                      smear.parameter_report.clamps.size() == 2 &&
+                      smear.footprint ==
+                          SamplingFootprint{maximum_blur_smear_radius, maximum_blur_smear_radius} &&
+                      smear.parameter_report.clamps.size() == 3 &&
                       smear.parameter_report.clamp_for("smear.strength") &&
-                      smear.parameter_report.clamp_for("smear.footprint.radius_x"),
+                      smear.parameter_report.clamp_for("smear.footprint.radius_x") &&
+                      smear.parameter_report.clamp_for("smear.footprint.radius_y"),
                   "smear parameters were not bounded, reported, and used") &&
            expect(zero_footprint_refused && non_finite_strength_refused,
                   "a structurally invalid smear request was accepted");

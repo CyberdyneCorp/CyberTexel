@@ -107,6 +107,8 @@ bool camera_projection_applies_only_to_visible_framed_surface() {
                   "camera projection did not shade the visible surface from its snapshot");
 }
 
+// parameter-audit: projection.planar.extent.x
+// parameter-audit: projection.planar.extent.y
 bool planar_projection_uses_its_centered_frame_and_extent() {
     const CachedSurfaceMaps maps = framed_surface();
     const std::array layer{channel("pbr.base_color", {0.0F, 0.0F, 0.0F, 0.0F, 0.0F})};
@@ -115,6 +117,18 @@ bool planar_projection_uses_its_centered_frame_and_extent() {
         {.mapping = PlanarProjection{
              .frame = {.origin = {}, .u_axis = {1.0, 0.0, 0.0}, .v_axis = {0.0, 1.0, 0.0}},
              .extent = {2.0, 2.0}}});
+    const CachedSurfaceMaps axis_maps = surface({texel({0.75, 0.0, 0.0}), texel({0.0, 0.75, 0.0})});
+    const std::array axis_layer{channel("pbr.base_color", {0.0F, 0.0F})};
+    const ProjectionResult narrow_x = apply_projection(
+        axis_maps, axis_layer, material(),
+        {.mapping = PlanarProjection{
+             .frame = {.origin = {}, .u_axis = {1.0, 0.0, 0.0}, .v_axis = {0.0, 1.0, 0.0}},
+             .extent = {1.0, 2.0}}});
+    const ProjectionResult narrow_y = apply_projection(
+        axis_maps, axis_layer, material(),
+        {.mapping = PlanarProjection{
+             .frame = {.origin = {}, .u_axis = {1.0, 0.0, 0.0}, .v_axis = {0.0, 1.0, 0.0}},
+             .extent = {2.0, 1.0}}});
 
     return expect(result.samples[0].source_indices[0] == 0 &&
                       result.samples[1].source_indices[0] == 1 &&
@@ -122,10 +136,16 @@ bool planar_projection_uses_its_centered_frame_and_extent() {
                   "planar projection did not map its centered finite frame") &&
            expect(result.samples[4].source_indices[0] == 1,
                   "planar projection excluded its positive frame boundary") &&
+           expect(narrow_x.samples[0].count == 0 && narrow_x.samples[1].count == 1 &&
+                      narrow_y.samples[0].count == 1 && narrow_y.samples[1].count == 0,
+                  "planar extent axes did not independently change projected coverage") &&
            expect(result.strength == std::vector<double>({1.0, 0.8, 0.6, 0.0, 0.8}),
                   "planar projection did not preserve sampled image opacity");
 }
 
+// parameter-audit: projection.triplanar.scale
+// parameter-audit: projection.triplanar.offset.x
+// parameter-audit: projection.triplanar.offset.y
 bool triplanar_projection_blends_normal_weighted_repeating_planes() {
     const double root_half = std::sqrt(0.5);
     const CachedSurfaceMaps maps = surface({texel({0.25, 0.75, 0.25}, {root_half, 0.5, 0.5})});
@@ -139,6 +159,12 @@ bool triplanar_projection_blends_normal_weighted_repeating_planes() {
     const ProjectionResult offset =
         apply_projection(maps, layer, material({1.0, 1.0, 1.0, 1.0}),
                          {.mapping = TriplanarProjection{.scale = 1.0, .offset = {0.5, 0.5}}});
+    const ProjectionResult offset_x =
+        apply_projection(maps, layer, material({1.0, 1.0, 1.0, 1.0}),
+                         {.mapping = TriplanarProjection{.scale = 1.0, .offset = {0.5, 0.0}}});
+    const ProjectionResult offset_y =
+        apply_projection(maps, layer, material({1.0, 1.0, 1.0, 1.0}),
+                         {.mapping = TriplanarProjection{.scale = 1.0, .offset = {0.0, 0.5}}});
     const ProjectionSample& sample = result.samples[0];
 
     return expect(sample.count == 3 &&
@@ -153,6 +179,9 @@ bool triplanar_projection_blends_normal_weighted_repeating_planes() {
                   "triplanar projection did not opacity-weight its material samples") &&
            expect(scaled.samples[0].source_indices == std::array<std::size_t, 3>{1, 1, 1} &&
                       offset.samples[0].source_indices == std::array<std::size_t, 3>{0, 1, 3} &&
+                      offset_x.samples[0].source_indices != sample.source_indices &&
+                      offset_y.samples[0].source_indices != sample.source_indices &&
+                      offset_x.samples[0].source_indices != offset_y.samples[0].source_indices &&
                       near(scaled.sampled_material[0].pixels[0].r, 0.2F) &&
                       near(offset.sampled_material[0].pixels[0].r, 0.2F),
                   "triplanar scale or offset did not affect repeating coordinates");
