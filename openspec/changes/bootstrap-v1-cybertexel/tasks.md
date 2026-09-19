@@ -258,7 +258,10 @@ task 7.9 labeled suite maps all eighteen `execution-backends` scenarios to the
 registry, CPU, host, bounded-work, Vulkan, capability, parity and layering
 tests. Its 16K staged fill exercises the execution contract ahead of the paint
 tool, and the enabled Vulkan recipe remains the real-device lifecycle check.
-Host transport (8.1) is next.
+Task 8.1 adds one monotonic content sequence to each enabled channel and records
+the latest channel sequence on every logical tile. Revision reads are metadata
+only, sparse clear tiles remain allocation-free, and byte-identical writes do
+not advance either value. Delta history and coalescing (8.2) are next.
 
 ## 1. Foundation
 
@@ -363,7 +366,7 @@ Host transport (8.1) is next.
 
 ## 8. Host transport
 
-- [ ] 8.1 Channel and per-tile revisions, advancing on change
+- [x] 8.1 Channel and per-tile revisions, advancing on change
 - [ ] 8.2 Delta query since a caller-held revision; completeness and coalescing
 - [ ] 8.3 Stale-revision detection and the full-resynchronization signal
 - [ ] 8.4 Explicit asynchronous tile readback into caller-owned buffers; no implicit readback on delta queries

@@ -75,6 +75,9 @@ test-channels: build
 test-document: build
     ctest --test-dir build/headless --output-on-failure -R '^texture-document$'
 
+test-host-transport-revisions: build
+    ctest --test-dir build/headless --output-on-failure -R '^host-transport-revisions$'
+
 test-mesh: build
     ctest --test-dir build/headless --output-on-failure -R '^mesh-ingest$'
 

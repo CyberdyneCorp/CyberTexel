@@ -210,6 +210,13 @@ if(BUILD_TESTING)
     target_link_libraries(ctex_channels_test PRIVATE ctex_doc ctex_mesh ctex_graph ctex_image)
     add_test(NAME document-channels COMMAND ctex_channels_test)
 
+    add_executable(ctex_host_transport_revisions_test tests/doc/revisions_test.cpp)
+    ctex_configure_cpp_target(ctex_host_transport_revisions_test)
+    target_link_libraries(
+        ctex_host_transport_revisions_test PRIVATE ctex_doc ctex_mesh ctex_graph ctex_image
+    )
+    add_test(NAME host-transport-revisions COMMAND ctex_host_transport_revisions_test)
+
     add_executable(ctex_document_test tests/doc/document_test.cpp)
     ctex_configure_cpp_target(ctex_document_test)
     target_link_libraries(ctex_document_test PRIVATE ctex_doc ctex_mesh ctex_graph ctex_image)

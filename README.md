@@ -35,7 +35,8 @@ material catalogue. See [the roadmap](openspec/ROADMAP.md).
 The current implementation provides:
 
 - Sparse tiled image storage for one-to-four-channel 8-bit, 16-bit, and
-  floating-point pixels, with tile-level dirty tracking.
+  floating-point pixels, with tile-level dirty tracking and monotonic channel
+  and per-tile [content revisions](docs/host-transport-revisions.md).
 - Linear Rec. 709 and sRGB colour transforms, semantic input policies,
   preview-only 3D LUTs, ordered dithering, and promoted-precision operations.
 - Memory-buffer PNG decoding and encoding with 8/16-bit preservation,
@@ -121,9 +122,9 @@ The current implementation provides:
   [shader-emission](docs/shader-emission-scenarios.md), and
   [execution-backend](docs/execution-backend-scenarios.md) scenario suites.
 
-The editable layer document, painting engine, remaining executor work, host
-transport, project IO, language bindings, and complete export workflow remain
-roadmap work and are not presented as implemented APIs yet.
+The editable layer document, painting engine, remaining host transport, project
+IO, language bindings, and complete export workflow remain roadmap work and are
+not presented as implemented APIs yet.
 
 ## Architecture
 

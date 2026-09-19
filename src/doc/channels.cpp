@@ -200,6 +200,15 @@ const image::TiledImage& TextureChannels::pixels(std::string_view semantic_id) c
     return *channel.pixels;
 }
 
+ChannelRevision TextureChannels::channel_revision(std::string_view semantic_id) const {
+    return pixels(semantic_id).revision();
+}
+
+TileRevision TextureChannels::tile_revision(std::string_view semantic_id,
+                                            image::TileCoordinate tile) const {
+    return pixels(semantic_id).tile_revision(tile);
+}
+
 std::size_t TextureChannels::enabled_channel_count() const noexcept {
     return static_cast<std::size_t>(
         std::count_if(channels_.begin(), channels_.end(),

@@ -51,6 +51,7 @@ TiledImage::TiledImage(std::uint32_t width, std::uint32_t height, PixelFormat fo
     }
     tiles_.resize(tile_count);
     dirty_.resize(tile_count, false);
+    tile_revisions_.resize(tile_count, 0);
 }
 
 std::size_t TiledImage::resident_pixel_bytes() const noexcept {
@@ -67,6 +68,10 @@ TileExtent TiledImage::tile_extent(TileCoordinate tile) const {
         std::min(tile_size_, width_ - origin_x),
         std::min(tile_size_, height_ - origin_y),
     };
+}
+
+Revision TiledImage::tile_revision(TileCoordinate tile) const {
+    return tile_revisions_[tile_index(tile)];
 }
 
 bool TiledImage::is_tile_allocated(TileCoordinate tile) const {
@@ -107,10 +112,19 @@ void TiledImage::write_pixel(std::uint32_t x, std::uint32_t y, std::span<const s
     if (pixel.size() != pixel_bytes_) {
         throw std::invalid_argument("pixel size does not match the image format");
     }
+    const std::span<const std::byte> existing = read_pixel(x, y);
+    if (std::equal(pixel.begin(), pixel.end(), existing.begin(), existing.end())) {
+        return;
+    }
+    if (revision_ == std::numeric_limits<Revision>::max()) {
+        throw std::overflow_error("image revision space is exhausted");
+    }
     const TileCoordinate coordinate{x / tile_size_, y / tile_size_};
     const std::size_t index = tile_index(coordinate);
     auto& tile = allocate_tile(index);
     std::copy(pixel.begin(), pixel.end(), tile.begin() + pixel_offset(x, y));
+    ++revision_;
+    tile_revisions_[index] = revision_;
     dirty_[index] = true;
 }
 

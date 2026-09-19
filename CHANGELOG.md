@@ -25,6 +25,8 @@ Foundation implementation is in progress.
   sources and CMake packages.
 - Sparse tiled pixel storage for one-to-four-channel 8-bit, 16-bit and
   floating-point formats, with tile dirty tracking.
+- Monotonic content revisions on every enabled channel and logical tile, with
+  metadata-only reads and no revision change for byte-identical writes.
 - Linear Rec. 709 working-space and sRGB transfer functions with unclamped HDR
   conversion.
 - Native and sanitizer test presets plus a registry-driven determinism gate that
