@@ -73,7 +73,8 @@ typedef enum ctex_diagnostic_code {
     CTEX_DIAGNOSTIC_INVALID_STROKE_PRESET = 37,
     CTEX_DIAGNOSTIC_INVALID_PAINT_COVERAGE = 38,
     CTEX_DIAGNOSTIC_PAINT_LIMIT_EXCEEDED = 39,
-    CTEX_DIAGNOSTIC_INVALID_PAINT_BLEND = 40
+    CTEX_DIAGNOSTIC_INVALID_PAINT_BLEND = 40,
+    CTEX_DIAGNOSTIC_INVALID_PAINT_MASK = 41
 } ctex_diagnostic_code;
 
 typedef enum ctex_log_severity {
@@ -391,16 +392,45 @@ typedef enum ctex_alpha_discard_format {
     CTEX_ALPHA_DISCARD_FLOATING_POINT = 2
 } ctex_alpha_discard_format;
 
+typedef struct ctex_paint_mask_view {
+    const double* values;
+    size_t value_count;
+} ctex_paint_mask_view;
+
+typedef struct ctex_paint_mask_inputs_descriptor {
+    uint32_t size;
+    const ctex_paint_mask_view* active_layer_masks;
+    size_t active_layer_mask_count;
+    const ctex_paint_mask_view* colour_id_selection;
+    const ctex_paint_mask_view* geometry_selection;
+    const ctex_paint_mask_view* screen_selection;
+    const ctex_paint_mask_view* uv_island_selection;
+} ctex_paint_mask_inputs_descriptor;
+
+#define CTEX_PAINT_MASK_INPUTS_DESCRIPTOR_V1_SIZE \
+    ((uint32_t)sizeof(ctex_paint_mask_inputs_descriptor))
+#define CTEX_PAINT_MASK_INPUTS_DESCRIPTOR_CURRENT_SIZE \
+    ((uint32_t)sizeof(ctex_paint_mask_inputs_descriptor))
+
+typedef struct ctex_paint_mask_info {
+    uint32_t size;
+    size_t active_input_count;
+} ctex_paint_mask_info;
+
+#define CTEX_PAINT_MASK_INFO_V1_SIZE ((uint32_t)sizeof(ctex_paint_mask_info))
+#define CTEX_PAINT_MASK_INFO_CURRENT_SIZE ((uint32_t)sizeof(ctex_paint_mask_info))
+
 typedef struct ctex_paint_deposition_descriptor {
     uint32_t size;
     uint32_t mode;
     uint32_t alpha_discard_format;
     uint32_t has_custom_alpha_discard_threshold;
     double custom_alpha_discard_threshold;
+    const ctex_paint_mask_inputs_descriptor* masks;
 } ctex_paint_deposition_descriptor;
 
 #define CTEX_PAINT_DEPOSITION_DESCRIPTOR_V1_SIZE \
-    ((uint32_t)sizeof(ctex_paint_deposition_descriptor))
+    ((uint32_t)offsetof(ctex_paint_deposition_descriptor, masks))
 #define CTEX_PAINT_DEPOSITION_DESCRIPTOR_CURRENT_SIZE \
     ((uint32_t)sizeof(ctex_paint_deposition_descriptor))
 
@@ -826,6 +856,13 @@ CTEX_API ctex_result ctex_paint_evaluate_tile_coverage(
     const ctex_mesh* mesh, const ctex_paint_tile_coverage_descriptor* tile,
     const ctex_resolved_stroke_descriptor* stroke, double* coverage, size_t coverage_capacity,
     size_t* out_coverage_count);
+
+/* Intersects every active normalized mask for one bounded tile. */
+CTEX_API ctex_result ctex_paint_combine_masks(uint32_t width, uint32_t height,
+                                              const ctex_paint_mask_inputs_descriptor* masks,
+                                              ctex_paint_mask_info* out_info, double* combined_mask,
+                                              size_t combined_mask_capacity,
+                                              size_t* out_combined_mask_count);
 
 /* Evaluates per-stamp deposition and alpha discard for one bounded UV tile. */
 CTEX_API ctex_result ctex_paint_evaluate_tile_deposition(

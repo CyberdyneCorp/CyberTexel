@@ -127,6 +127,37 @@ static int discrete_tips_do_not_synthesize_sweeps(void) {
     return passed;
 }
 
+static int deposition_mask_extension_is_append_only(
+    ctex_mesh* mesh, const ctex_paint_tile_coverage_descriptor* tile,
+    const ctex_resolved_stroke_descriptor* stroke, ctex_paint_deposition_descriptor* deposition,
+    ctex_paint_deposition_info* info, ctex_paint_deposition_sample* sample, size_t* count) {
+    const double layer_value = 0.5;
+    const double screen_value = 0.5;
+    const ctex_paint_mask_view layer = {&layer_value, 1};
+    const ctex_paint_mask_view screen = {&screen_value, 1};
+    const ctex_paint_mask_inputs_descriptor masks = {
+        .size = CTEX_PAINT_MASK_INPUTS_DESCRIPTOR_CURRENT_SIZE,
+        .active_layer_masks = &layer,
+        .active_layer_mask_count = 1,
+        .screen_selection = &screen,
+    };
+    deposition->masks = &masks;
+    deposition->size = CTEX_PAINT_DEPOSITION_DESCRIPTOR_V1_SIZE;
+    int passed =
+        expect(ctex_paint_evaluate_tile_deposition(mesh, tile, stroke, deposition, info, sample, 1,
+                                                   count) == CTEX_RESULT_SUCCESS) &&
+        expect(near(sample->strength, 0.1));
+    deposition->size = CTEX_PAINT_DEPOSITION_DESCRIPTOR_CURRENT_SIZE;
+    if (passed) {
+        passed =
+            expect(ctex_paint_evaluate_tile_deposition(mesh, tile, stroke, deposition, info, sample,
+                                                       1, count) == CTEX_RESULT_SUCCESS) &&
+            expect(near(sample->non_building_coverage, 0.25) && near(sample->strength, 0.025));
+    }
+    deposition->masks = NULL;
+    return passed;
+}
+
 static int deposition_accumulates_and_discards_canonical_stamps(void) {
     ctex_mesh* mesh = coverage_mesh();
     const ctex_paint_tile_coverage_descriptor tile = {
@@ -145,9 +176,13 @@ static int deposition_accumulates_and_discards_canonical_stamps(void) {
         .stamps = stamps,
         .stamp_count = 3,
     };
-    ctex_paint_deposition_descriptor deposition = {CTEX_PAINT_DEPOSITION_DESCRIPTOR_CURRENT_SIZE,
-                                                   CTEX_PAINT_DEPOSITION_NON_BUILDING,
-                                                   CTEX_ALPHA_DISCARD_UNORM8, 1, 0.25};
+    ctex_paint_deposition_descriptor deposition = {
+        .size = CTEX_PAINT_DEPOSITION_DESCRIPTOR_CURRENT_SIZE,
+        .mode = CTEX_PAINT_DEPOSITION_NON_BUILDING,
+        .alpha_discard_format = CTEX_ALPHA_DISCARD_UNORM8,
+        .has_custom_alpha_discard_threshold = 1,
+        .custom_alpha_discard_threshold = 0.25,
+    };
     ctex_paint_deposition_info info = {.size = CTEX_PAINT_DEPOSITION_INFO_CURRENT_SIZE};
     ctex_paint_deposition_sample sample = {-1.0, -1.0, -1.0, -1.0, 7};
     size_t count = 0;
@@ -173,6 +208,10 @@ static int deposition_accumulates_and_discards_canonical_stamps(void) {
                         near(sample.build_up_deposition, 0.0) && near(sample.strength, 0.1) &&
                         near(sample.retained_strength, 0.1) && sample.write == 0);
     }
+    if (passed) {
+        passed = deposition_mask_extension_is_append_only(mesh, &tile, &stroke, &deposition, &info,
+                                                          &sample, &count);
+    }
     deposition.mode = CTEX_PAINT_DEPOSITION_BUILD_UP;
     deposition.alpha_discard_format = CTEX_ALPHA_DISCARD_FLOATING_POINT;
     deposition.has_custom_alpha_discard_threshold = 0;
@@ -197,6 +236,65 @@ static int deposition_accumulates_and_discards_canonical_stamps(void) {
                         info.alpha_discard_threshold_clamped == 1 && sample.write == 0);
     }
     ctex_mesh_destroy(mesh);
+    return passed;
+}
+
+static int paint_mask_classes_intersect_before_deposition(void) {
+    const double layer_a_values[2] = {0.5, 1.0};
+    const double layer_b_values[2] = {1.0, 0.5};
+    const ctex_paint_mask_view layers[2] = {{layer_a_values, 2}, {layer_b_values, 2}};
+    const double colour_values[2] = {0.8, 1.0};
+    const double geometry_values[2] = {0.5, 1.0};
+    const double screen_values[2] = {0.25, 1.0};
+    const double island_values[2] = {1.0, 0.5};
+    const ctex_paint_mask_view colour = {colour_values, 2};
+    const ctex_paint_mask_view geometry = {geometry_values, 2};
+    const ctex_paint_mask_view screen = {screen_values, 2};
+    const ctex_paint_mask_view island = {island_values, 2};
+    ctex_paint_mask_inputs_descriptor masks = {
+        .size = CTEX_PAINT_MASK_INPUTS_DESCRIPTOR_CURRENT_SIZE,
+        .active_layer_masks = layers,
+        .active_layer_mask_count = 2,
+        .colour_id_selection = &colour,
+        .geometry_selection = &geometry,
+        .screen_selection = &screen,
+        .uv_island_selection = &island,
+    };
+    ctex_paint_mask_info info = {.size = CTEX_PAINT_MASK_INFO_CURRENT_SIZE};
+    double combined[2] = {-1.0, -1.0};
+    size_t count = 0;
+    int passed = expect(ctex_paint_combine_masks(2, 1, &masks, &info, NULL, 0, &count) ==
+                        CTEX_RESULT_SUCCESS) &&
+                 expect(count == 2 && info.active_input_count == 6);
+    if (passed) {
+        passed = expect(ctex_paint_combine_masks(2, 1, &masks, &info, combined, 1, &count) ==
+                        CTEX_RESULT_BUFFER_TOO_SMALL) &&
+                 expect(combined[0] == -1.0 && combined[1] == -1.0);
+    }
+    if (passed) {
+        passed = expect(ctex_paint_combine_masks(2, 1, &masks, &info, combined, 2, &count) ==
+                        CTEX_RESULT_SUCCESS) &&
+                 expect(near(combined[0], 0.05) && near(combined[1], 0.25));
+    }
+    if (passed) {
+        passed = expect(ctex_paint_combine_masks(2, 1, NULL, &info, combined, 2, &count) ==
+                        CTEX_RESULT_SUCCESS) &&
+                 expect(info.active_input_count == 0 && near(combined[0], 1.0) &&
+                        near(combined[1], 1.0));
+    }
+    {
+        const double invalid_values[2] = {1.0, NAN};
+        const ctex_paint_mask_view invalid = {invalid_values, 2};
+        masks.geometry_selection = &invalid;
+        combined[0] = -2.0;
+        if (passed) {
+            passed =
+                expect(ctex_paint_combine_masks(2, 1, &masks, &info, combined, 2, &count) ==
+                       CTEX_RESULT_INVALID_ARGUMENT) &&
+                expect(ctex_get_last_diagnostic_code() == CTEX_DIAGNOSTIC_INVALID_PAINT_MASK) &&
+                expect(combined[0] == -2.0);
+        }
+    }
     return passed;
 }
 
@@ -317,6 +415,7 @@ int main(void) {
     return continuous_and_external_strokes_produce_tile_coverage() &&
                    discrete_tips_do_not_synthesize_sweeps() &&
                    deposition_accumulates_and_discards_canonical_stamps() &&
+                   paint_mask_classes_intersect_before_deposition() &&
                    snapshot_blending_uses_deposition_write_mask() &&
                    invalid_inputs_are_stable_diagnostics()
                ? 0

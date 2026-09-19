@@ -12,6 +12,7 @@
 #include <ctex/paint/blending.hpp>
 #include <ctex/paint/coverage.hpp>
 #include <ctex/paint/deposition.hpp>
+#include <ctex/paint/masking.hpp>
 #include <ctex/paint/stroke.hpp>
 #include <ctex/paint/stroke_preset.hpp>
 #include <exception>
@@ -1596,6 +1597,91 @@ void copy_deposition_samples(const ctex::paint::DepositionRaster& deposition,
     }
 }
 
+ctex::paint::PaintMaskView paint_mask_view(const ctex_paint_mask_view& mask,
+                                           std::string_view name) {
+    if (mask.values == nullptr && mask.value_count != 0) {
+        throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                       std::string(name) + ".values=null with nonzero value_count");
+    }
+    return {mask.value_count == 0 ? std::span<const double>{}
+                                  : std::span<const double>(mask.values, mask.value_count)};
+}
+
+std::optional<ctex::paint::PaintMaskView> optional_paint_mask(const ctex_paint_mask_view* mask,
+                                                              std::string_view name) {
+    return mask == nullptr
+               ? std::nullopt
+               : std::optional<ctex::paint::PaintMaskView>(paint_mask_view(*mask, name));
+}
+
+struct PaintMaskStorage {
+    std::vector<ctex::paint::PaintMaskView> active_layer_masks;
+    std::optional<ctex::paint::PaintMaskView> colour_id_selection;
+    std::optional<ctex::paint::PaintMaskView> geometry_selection;
+    std::optional<ctex::paint::PaintMaskView> screen_selection;
+    std::optional<ctex::paint::PaintMaskView> uv_island_selection;
+
+    [[nodiscard]] ctex::paint::PaintMaskInputs inputs() const {
+        return {
+            .active_layer_masks = active_layer_masks,
+            .colour_id_selection = colour_id_selection,
+            .geometry_selection = geometry_selection,
+            .screen_selection = screen_selection,
+            .uv_island_selection = uv_island_selection,
+        };
+    }
+};
+
+PaintMaskStorage paint_mask_storage(const ctex_paint_mask_inputs_descriptor* descriptor) {
+    PaintMaskStorage result;
+    if (descriptor == nullptr) {
+        return result;
+    }
+    validate_structure_size(descriptor->size, CTEX_PAINT_MASK_INPUTS_DESCRIPTOR_V1_SIZE,
+                            CTEX_PAINT_MASK_INPUTS_DESCRIPTOR_CURRENT_SIZE, "masks.size");
+    if (descriptor->active_layer_masks == nullptr && descriptor->active_layer_mask_count != 0) {
+        throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                       "masks.active_layer_masks=null with nonzero active_layer_mask_count");
+    }
+    result.active_layer_masks.reserve(descriptor->active_layer_mask_count);
+    for (std::size_t index = 0; index < descriptor->active_layer_mask_count; ++index) {
+        result.active_layer_masks.push_back(
+            paint_mask_view(descriptor->active_layer_masks[index],
+                            "masks.active_layer_masks[" + std::to_string(index) + "]"));
+    }
+    result.colour_id_selection =
+        optional_paint_mask(descriptor->colour_id_selection, "masks.colour_id_selection");
+    result.geometry_selection =
+        optional_paint_mask(descriptor->geometry_selection, "masks.geometry_selection");
+    result.screen_selection =
+        optional_paint_mask(descriptor->screen_selection, "masks.screen_selection");
+    result.uv_island_selection =
+        optional_paint_mask(descriptor->uv_island_selection, "masks.uv_island_selection");
+    return result;
+}
+
+const ctex_paint_mask_inputs_descriptor* deposition_masks(
+    const ctex_paint_deposition_descriptor& descriptor) {
+    constexpr std::size_t masks_end = offsetof(ctex_paint_deposition_descriptor, masks) +
+                                      sizeof(ctex_paint_deposition_descriptor::masks);
+    return descriptor.size >= masks_end ? descriptor.masks : nullptr;
+}
+
+ctex::paint::RejectedCoverageRaster apply_capi_paint_masks(
+    const ctex::paint::RejectedCoverageRaster& rejected,
+    const ctex_paint_mask_inputs_descriptor* descriptor) {
+    if (descriptor == nullptr) {
+        return rejected;
+    }
+    const PaintMaskStorage storage = paint_mask_storage(descriptor);
+    try {
+        return ctex::paint::apply_paint_masks(rejected, storage.inputs());
+    } catch (const std::invalid_argument& error) {
+        throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_INVALID_PAINT_MASK,
+                       error.what());
+    }
+}
+
 ctex::graph::ColourValue paint_colour(ctex_vec4f value) {
     return {value.x, value.y, value.z, value.w};
 }
@@ -2256,6 +2342,41 @@ extern "C" ctex_result ctex_paint_evaluate_tile_coverage(
     });
 }
 
+extern "C" ctex_result ctex_paint_combine_masks(std::uint32_t width, std::uint32_t height,
+                                                const ctex_paint_mask_inputs_descriptor* masks,
+                                                ctex_paint_mask_info* out_info,
+                                                double* combined_mask,
+                                                std::size_t combined_mask_capacity,
+                                                std::size_t* out_combined_mask_count) {
+    return call_boundary("ctex_paint_combine_masks", [&] {
+        if (out_info == nullptr || out_combined_mask_count == nullptr) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                           out_info == nullptr ? "out_info=null" : "out_combined_mask_count=null");
+        }
+        validate_structure_size(out_info->size, CTEX_PAINT_MASK_INFO_V1_SIZE,
+                                CTEX_PAINT_MASK_INFO_CURRENT_SIZE, "out_info.size");
+        const std::size_t pixel_count =
+            bounded_paint_pixel_count(width, height, CTEX_DIAGNOSTIC_INVALID_PAINT_MASK);
+        *out_combined_mask_count = pixel_count;
+        validate_output_array(combined_mask, combined_mask_capacity, pixel_count, "combined_mask");
+        const PaintMaskStorage storage = paint_mask_storage(masks);
+        try {
+            const ctex::paint::CombinedPaintMask result =
+                ctex::paint::combine_paint_masks(width, height, storage.inputs());
+            *out_info = {
+                .size = CTEX_PAINT_MASK_INFO_CURRENT_SIZE,
+                .active_input_count = result.active_input_count,
+            };
+            if (combined_mask != nullptr) {
+                std::copy(result.values.begin(), result.values.end(), combined_mask);
+            }
+        } catch (const std::invalid_argument& error) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_INVALID_PAINT_MASK,
+                           error.what());
+        }
+    });
+}
+
 extern "C" ctex_result ctex_paint_evaluate_tile_deposition(
     const ctex_mesh* mesh, const ctex_paint_tile_coverage_descriptor* tile,
     const ctex_resolved_stroke_descriptor* stroke,
@@ -2284,8 +2405,10 @@ extern "C" ctex_result ctex_paint_evaluate_tile_deposition(
             const ctex::paint::RejectedCoverageRaster rejected =
                 ctex::paint::evaluate_rejected_coverage(surface, converted_stroke,
                                                         accept_all_rejection_settings());
+            const ctex::paint::RejectedCoverageRaster masked =
+                apply_capi_paint_masks(rejected, deposition_masks(*descriptor));
             const ctex::paint::DepositionRaster deposited =
-                ctex::paint::evaluate_deposition(converted_stroke, rejected, mode);
+                ctex::paint::evaluate_deposition(converted_stroke, masked, mode);
             const ctex::paint::AlphaDiscardResult discarded =
                 ctex::paint::apply_alpha_discard(deposited.strength, discard_settings);
             validate_output_array(samples, sample_capacity, texel_count, "samples");
