@@ -46,6 +46,7 @@ An `ExposedSmartMaterialParameter` declares:
   boolean;
 - a default whose value exactly matches that type; and
 - an optional finite inclusive numeric range; and
+- a binding state; and
 - one or more ordered bindings to graph input sockets or node properties.
 
 Ranges require both endpoints, must be ordered, and apply to every component of
@@ -64,6 +65,13 @@ copy atomically. Its report lists every updated target. Refused, unknown,
 wrong-type and out-of-range updates leave the preset byte-identical. The
 declared default remains the reset value; per-instance parameter state arrives
 through independent [smart-mask instances](smart-masks.md).
+
+Schema 1 and 2 parameters predate stored binding targets. Migration preserves
+their identity, display metadata, type, default and range with the
+`legacy_unbound` binding state and no invented target. Such declarations are
+read-only: an attempted update returns `read_only_parameter` and leaves the
+preset unchanged. Current authored parameters use `bound` and require at least
+one live binding, preserving the no-inert-parameter rule.
 
 ## Anchor points
 
@@ -101,17 +109,24 @@ identifier and is never filled with a neutral substitute.
 
 ## Canonical format
 
-`serialize_smart_material()` writes `CTEX_SMART_MATERIAL` schema 5. Text and
+`serialize_smart_material()` writes `CTEX_SMART_MATERIAL` schema 6. Text and
 embedded graph and pixel bytes are hexadecimal, so tabs, line breaks, arbitrary
 UTF-8 and binary pixels cannot alter record boundaries. Floating-point values
 use their exact IEEE bit patterns. Re-serializing a successfully decoded preset
 therefore returns the same bytes.
 
 `deserialize_smart_material()` rejects malformed envelopes, records appearing
-out of canonical order, invalid embedded graphs and unsupported schema
-versions. Schema migration and documented defaults for older versions belong
-to task 13.8; schema 5 is the only accepted version at this stage. Schema 1 was
-the definition-only precursor, schema 2 added content classification and pixels,
-schema 3 added parameter bindings, and schema 4 added anchors. All are
-intentionally refused until that migration is implemented rather than being
-partially interpreted.
+out of canonical order and invalid embedded graphs. It migrates schemas 1–5 to
+schema 6 before validation:
+
+- schema 1 entries default to `derived` content with no pixel payloads;
+- schema 1–2 parameters become read-only `legacy_unbound` declarations;
+- schemas before 4 default to no anchors or anchor references;
+- schemas before 5 infer sorted `image` resource declarations from non-empty
+  graph image values and image parameter defaults; and
+- schemas 3–5 parameters default to the `bound` state.
+
+Version zero and versions newer than 6 are refused with
+`unsupported_version`, and the diagnostic names the declared number. Parsing
+and migration occur in a temporary value, so a caller assigning the result
+cannot observe a partially applied future or malformed preset.

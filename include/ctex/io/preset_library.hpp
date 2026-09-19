@@ -51,6 +51,7 @@ struct ResolvedPreset {
 enum class PresetLibraryErrorCode : std::uint8_t {
     invalid_shelf,
     invalid_entry,
+    unsupported_version,
     unknown_shelf,
     unknown_preset,
 };
@@ -65,6 +66,7 @@ private:
 };
 
 void validate_preset_library(const PresetLibrary& library);
+[[nodiscard]] std::uint32_t current_preset_format_version(std::string_view kind);
 [[nodiscard]] std::vector<PresetShelfListing> enumerate_preset_shelves(
     const PresetLibrary& library);
 [[nodiscard]] std::vector<PresetListing> enumerate_presets(const PresetLibrary& library);

@@ -83,6 +83,8 @@ The system SHALL support a library of presets — materials, smart materials, sm
 ### Requirement: Versioned presets
 Every preset SHALL carry a schema version. An older preset SHALL load with unknown fields taking documented defaults; a newer one SHALL be refused by name rather than partially applied.
 
+Smart material schemas SHALL migrate definition-only entries to derived content, preserve pre-binding parameters as read-only legacy declarations, default absent anchors to empty, and infer absent image resource declarations from referenced image identities. Shelf validation SHALL apply the current version policy to all seven preset kinds before enumeration or resolution.
+
 #### Scenario: Forward compatibility
 - **WHEN** a preset declaring a newer schema version is loaded
 - **THEN** it SHALL be refused naming the version, and nothing SHALL be partially applied

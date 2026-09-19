@@ -14,7 +14,7 @@
 
 namespace ctex::doc {
 
-inline constexpr std::uint32_t current_smart_material_schema_version = 5;
+inline constexpr std::uint32_t current_smart_material_schema_version = 6;
 
 enum class SmartMaterialEntryKind : std::uint8_t { layer, group, mask, filter, generator };
 enum class SmartMaterialContentKind : std::uint8_t { derived, model_specific };
@@ -44,6 +44,7 @@ struct SmartMaterialEntry {
 };
 
 enum class SmartMaterialBindingTargetKind : std::uint8_t { input, property };
+enum class SmartMaterialParameterBindingState : std::uint8_t { bound, legacy_unbound };
 
 struct SmartMaterialParameterBinding {
     std::string entry_identifier;
@@ -62,6 +63,7 @@ struct ExposedSmartMaterialParameter {
     graph::SocketValue default_value{0.0};
     std::optional<double> minimum;
     std::optional<double> maximum;
+    SmartMaterialParameterBindingState binding_state{SmartMaterialParameterBindingState::bound};
     std::vector<SmartMaterialParameterBinding> bindings;
     friend bool operator==(const ExposedSmartMaterialParameter&,
                            const ExposedSmartMaterialParameter&) = default;
@@ -147,6 +149,7 @@ enum class SmartMaterialErrorCode : std::uint8_t {
     invalid_parameter_value,
     malformed_serialization,
     unknown_parameter,
+    read_only_parameter,
     unsupported_version,
     invalid_anchor_reference,
     anchor_ordering_violation,

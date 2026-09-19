@@ -819,7 +819,7 @@ are next.
 - [x] 13.5 Anchor points, ordering rule, cycle refusal, dependency-ordered evaluation
 - [x] 13.6 Portable resource resolution and self-contained packaging
 - [x] 13.7 Shelf and library enumeration with metadata and thumbnails
-- [ ] 13.8 Versioned presets and their refusals
+- [x] 13.8 Versioned presets and their refusals
 - [ ] 13.9 One-step application and origin recording
 - [ ] 13.10 `smart-materials` scenarios as tests
 

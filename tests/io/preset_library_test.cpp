@@ -1,6 +1,7 @@
 #include <algorithm>
 #include <array>
 #include <ctex/io/preset_library.hpp>
+#include <ctex/paint/stroke_preset.hpp>
 #include <iostream>
 #include <string_view>
 
@@ -8,6 +9,8 @@ namespace {
 
 using namespace ctex;
 using namespace ctex::io;
+
+static_assert(paint::current_stroke_preset_schema_version == 2);
 
 bool expect(bool condition, std::string_view message) {
     if (!condition) {
@@ -22,6 +25,20 @@ bool expect_error(Callable&& callable, PresetLibraryErrorCode code, std::string_
         callable();
     } catch (const PresetLibraryError& error) {
         return expect(error.code() == code, message);
+    } catch (...) {
+    }
+    return expect(false, message);
+}
+
+template <typename Callable>
+bool expect_error_text(Callable&& callable, PresetLibraryErrorCode code, std::string_view text,
+                       std::string_view message) {
+    try {
+        callable();
+    } catch (const PresetLibraryError& error) {
+        return expect(error.code() == code &&
+                          std::string_view(error.what()).find(text) != std::string_view::npos,
+                      message);
     } catch (...) {
     }
     return expect(false, message);
@@ -46,12 +63,13 @@ PresetShelf shelf(std::string identifier, std::string display_name, std::size_t 
         const std::size_t index = first + offset;
         const std::string asset_identifier = "presets/" + std::to_string(index);
         const std::string thumbnail_identifier = "thumbnails/" + std::to_string(index);
-        result.contents.assets.push_back({.identifier = asset_identifier,
-                                          .kind = std::string(kinds[offset]),
-                                          .format_version = static_cast<std::uint32_t>(index + 1),
-                                          .resource_dependencies = {},
-                                          .tiled_image_dependencies = {},
-                                          .payload = {static_cast<std::byte>(index)}});
+        result.contents.assets.push_back(
+            {.identifier = asset_identifier,
+             .kind = std::string(kinds[offset]),
+             .format_version = current_preset_format_version(kinds[offset]),
+             .resource_dependencies = {},
+             .tiled_image_dependencies = {},
+             .payload = {static_cast<std::byte>(index)}});
         result.contents.tiled_images.push_back(
             thumbnail(thumbnail_identifier, static_cast<std::byte>(index + 1)));
         result.entries.push_back({.asset_identifier = asset_identifier,
@@ -92,6 +110,7 @@ bool every_kind_enumerates_with_metadata_and_thumbnail() {
         const image::TiledImage restored = restore_tiled_image(listing.thumbnail);
         complete = listing.identifier == "presets/" + std::to_string(index) &&
                    listing.kind == expected_kinds[index] &&
+                   listing.format_version == current_preset_format_version(listing.kind) &&
                    listing.display_name == "Preset " + std::to_string(index) &&
                    listing.tags == std::vector<std::string>{"featured", "metal"} &&
                    listing.thumbnail.resource_id == "thumbnails/" + std::to_string(index) &&
@@ -99,6 +118,39 @@ bool every_kind_enumerates_with_metadata_and_thumbnail() {
     }
     return expect(complete,
                   "shelf enumeration omitted a preset kind, metadata field, or thumbnail");
+}
+
+bool future_versions_are_named_and_refused_before_resolution() {
+    const PresetLibrary baseline = complete_library();
+    const std::array kinds{asset_kind::material,      asset_kind::smart_material,
+                           asset_kind::smart_mask,    asset_kind::brush,
+                           asset_kind::stroke_preset, asset_kind::generator,
+                           asset_kind::export_preset};
+    bool complete = true;
+    for (std::string_view kind : kinds) {
+        PresetLibrary future = baseline;
+        auto asset = future.shelves.front().contents.assets.end();
+        for (PresetShelf& shelf : future.shelves) {
+            asset = std::find_if(
+                shelf.contents.assets.begin(), shelf.contents.assets.end(),
+                [&](const StandaloneAsset& candidate) { return candidate.kind == kind; });
+            if (asset != shelf.contents.assets.end()) {
+                break;
+            }
+        }
+        const std::string identifier = asset->identifier;
+        asset->format_version = current_preset_format_version(kind) + 1;
+        ResolvedPreset destination = resolve_preset(baseline, "presets/0");
+        const PresetListing before = destination.listing;
+        complete = complete &&
+                   expect_error_text([&] { destination = resolve_preset(future, identifier); },
+                                     PresetLibraryErrorCode::unsupported_version,
+                                     std::to_string(asset->format_version),
+                                     "future shelf preset version was not refused by name") &&
+                   expect(destination.listing == before,
+                          "future-version refusal partially replaced the destination preset");
+    }
+    return complete;
 }
 
 bool stable_identity_resolves_to_package() {
@@ -146,7 +198,8 @@ bool ambiguous_or_incomplete_shelves_are_refused() {
 int main() {
     return every_kind_enumerates_with_metadata_and_thumbnail() &&
                    stable_identity_resolves_to_package() &&
-                   ambiguous_or_incomplete_shelves_are_refused()
+                   ambiguous_or_incomplete_shelves_are_refused() &&
+                   future_versions_are_named_and_refused_before_resolution()
                ? 0
                : 1;
 }

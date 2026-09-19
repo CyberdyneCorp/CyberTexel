@@ -173,10 +173,16 @@ The current implementation provides:
   embedded graphs and typed, ranged, display-grouped exposed parameters. It
   keeps derived content definition-only while preserving and reporting
   model-specific painted pixels, and one atomic parameter update can drive
-  input sockets and node properties across multiple entries.
+  input sockets and node properties across multiple entries. Historical schemas
+  migrate with documented content, binding, anchor, and resource defaults;
+  future versions are refused before a destination can change.
 - Reusable [smart masks](docs/smart-masks.md) package derived mask, generator
   and filter graphs for layers or groups; every instance gets independent,
   typed parameter state without mutating the preset or sibling instances.
+- A unified [preset shelf library](docs/preset-library.md) enumerates materials,
+  smart materials, smart masks, brushes, stroke presets, generators, and export
+  presets with stable identities, metadata, sorted tags, embedded thumbnails,
+  and per-kind format-version refusal before resolution.
 - An isolated [Kong shader compiler context](docs/kong-backend.md) that compiles
   Kong source deterministically to WGSL, MSL, binary SPIR-V, or HLSL, supports
   concurrent independent targets, and reports unsupported requests explicitly.

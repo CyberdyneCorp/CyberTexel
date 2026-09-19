@@ -198,6 +198,38 @@ SmartMaterialPreset rich_preset() {
     };
 }
 
+std::string as_historical_schema(const SmartMaterialPreset& preset, std::uint32_t version) {
+    const std::string current = serialize_smart_material(preset);
+    std::string result;
+    std::size_t begin = 0;
+    while (begin < current.size()) {
+        const std::size_t end = current.find('\n', begin);
+        std::string line = current.substr(begin, end - begin);
+        const std::string_view tag = std::string_view(line).substr(0, line.find('\t'));
+        bool retain = true;
+        if (tag == "CTEX_SMART_MATERIAL") {
+            line = "CTEX_SMART_MATERIAL\t" + std::to_string(version);
+        } else if (tag == "ENTRY" && version == 1) {
+            line.erase(line.rfind('\t'));
+        } else if (tag == "PIXELS" && version == 1) {
+            retain = false;
+        } else if ((tag == "ANCHOR" || tag == "ANCHOR_REF") && version < 4) {
+            retain = false;
+        } else if (tag == "RESOURCE" && version < 5) {
+            retain = false;
+        } else if (tag == "PARAM") {
+            line.erase(line.rfind('\t'));
+        } else if (tag == "BIND" && version < 3) {
+            retain = false;
+        }
+        if (retain) {
+            result += line + '\n';
+        }
+        begin = end + 1;
+    }
+    return result;
+}
+
 const graph::SocketValue& input_value(const SmartMaterialPreset& preset, std::size_t entry_index,
                                       std::string_view identifier) {
     const auto& inputs = preset.stack[entry_index].graph->node(1).inputs;
@@ -382,10 +414,13 @@ bool invalid_fragments_are_refused() {
 bool malformed_and_future_serializations_are_refused() {
     const std::string valid = serialize_smart_material(rich_preset());
     std::string future = valid;
-    future.replace(0, std::string_view("CTEX_SMART_MATERIAL\t5").size(), "CTEX_SMART_MATERIAL\t6");
-    const bool future_refused = expect_error(
-        [&] { static_cast<void>(deserialize_smart_material(future)); },
-        SmartMaterialErrorCode::unsupported_version, "future smart material version was accepted");
+    future.replace(0, std::string_view("CTEX_SMART_MATERIAL\t6").size(), "CTEX_SMART_MATERIAL\t7");
+    SmartMaterialPreset destination = rich_preset();
+    const std::string before_future = serialize_smart_material(destination);
+    const bool future_refused =
+        expect_error_text([&] { destination = deserialize_smart_material(future); },
+                          SmartMaterialErrorCode::unsupported_version, "7",
+                          "future smart material version was not refused by name");
 
     std::string truncated = valid;
     truncated.erase(truncated.rfind("END\n"));
@@ -396,9 +431,79 @@ bool malformed_and_future_serializations_are_refused() {
     SmartMaterialPreset non_finite = rich_preset();
     non_finite.stack.front().opacity = std::numeric_limits<double>::infinity();
     return future_refused && truncated_refused &&
+           expect(serialize_smart_material(destination) == before_future,
+                  "future-version refusal partially replaced the destination preset") &&
            expect_error([&] { static_cast<void>(serialize_smart_material(non_finite)); },
                         SmartMaterialErrorCode::invalid_preset,
                         "non-finite smart material metadata was accepted");
+}
+
+bool historical_schemas_migrate_with_documented_defaults() {
+    const SmartMaterialPreset source = rich_preset();
+    bool complete = true;
+    for (std::uint32_t version = 1; version < current_smart_material_schema_version; ++version) {
+        SmartMaterialPreset migrated =
+            deserialize_smart_material(as_historical_schema(source, version));
+        complete =
+            complete &&
+            expect(migrated.schema_version == current_smart_material_schema_version,
+                   "historical smart material did not migrate to the current schema") &&
+            expect(deserialize_smart_material(serialize_smart_material(migrated)) == migrated,
+                   "migrated smart material did not serialize canonically");
+        if (version == 1) {
+            complete =
+                complete && expect(std::all_of(migrated.stack.begin(), migrated.stack.end(),
+                                               [](const SmartMaterialEntry& entry) {
+                                                   return entry.content_kind ==
+                                                              SmartMaterialContentKind::derived &&
+                                                          entry.pixel_payloads.empty();
+                                               }),
+                                   "schema 1 content did not take the documented derived default");
+        }
+        if (version <= 2) {
+            const std::string before = serialize_smart_material(migrated);
+            complete =
+                complete &&
+                expect(std::all_of(
+                           migrated.exposed_parameters.begin(), migrated.exposed_parameters.end(),
+                           [](const ExposedSmartMaterialParameter& parameter) {
+                               return parameter.binding_state ==
+                                          SmartMaterialParameterBindingState::legacy_unbound &&
+                                      parameter.bindings.empty();
+                           }),
+                       "schema 1 or 2 parameters were not preserved as legacy unbound") &&
+                expect_error(
+                    [&] {
+                        static_cast<void>(
+                            set_smart_material_parameter_value(migrated, "wear-amount", 0.8));
+                    },
+                    SmartMaterialErrorCode::read_only_parameter,
+                    "legacy unbound parameter accepted an inert update") &&
+                expect(serialize_smart_material(migrated) == before,
+                       "refused legacy parameter update changed the migrated preset");
+        } else {
+            complete =
+                complete && expect(migrated.exposed_parameters.front().binding_state ==
+                                       SmartMaterialParameterBindingState::bound,
+                                   "bound historical parameter did not take the bound default");
+        }
+        if (version < 4) {
+            complete = complete &&
+                       expect(migrated.anchor_entries.empty() && migrated.anchor_references.empty(),
+                              "pre-anchor schema did not take empty anchor defaults");
+        }
+    }
+
+    SmartMaterialPreset resource_source = rich_preset();
+    resource_source.stack[1].graph->set_input_value(1, "anchor",
+                                                    graph::ImageValue{"textures/grain.png"});
+    resource_source.resource_references = {{.identifier = "textures/grain.png", .kind = "image"}};
+    const SmartMaterialPreset migrated_resources =
+        deserialize_smart_material(as_historical_schema(resource_source, 4));
+    return complete && expect(migrated_resources.resource_references ==
+                                  std::vector<SmartMaterialResourceReference>{
+                                      {.identifier = "textures/grain.png", .kind = "image"}},
+                              "pre-resource schema did not infer declared image dependencies");
 }
 
 bool anchor_ordering_and_cycles_are_refused_atomically() {
@@ -489,6 +594,7 @@ int main() {
                    one_parameter_updates_every_bound_entry() &&
                    invalid_parameter_updates_are_atomic() && invalid_fragments_are_refused() &&
                    malformed_and_future_serializations_are_refused() &&
+                   historical_schemas_migrate_with_documented_defaults() &&
                    anchor_ordering_and_cycles_are_refused_atomically() &&
                    anchor_updates_are_dependency_ordered_and_bounded()
                ? 0

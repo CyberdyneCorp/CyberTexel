@@ -32,3 +32,18 @@ metadata, empty or duplicate tags, absent thumbnails, malformed shelf
 containers and kinds outside the seven supported shelf categories. Node groups
 remain valid standalone assets but are not shelf preset kinds in the current
 OpenSpec contract.
+
+## Format versions
+
+Every shelf asset carries a positive `format_version`.
+`current_preset_format_version()` exposes the version accepted for each of the
+seven kinds: material, smart mask, generator and export preset use version 1;
+brushes and stroke presets use the stroke-preset schema version 2; and smart
+materials use schema version 6. Older positive versions remain eligible for
+their domain loader's migration rules.
+
+Library validation refuses a version newer than the current version before a
+preset can be resolved or its destination replaced. The typed
+`unsupported_version` diagnostic names the preset kind, declared version and
+current version. This policy applies uniformly during enumeration and
+resolution, so an unsupported shelf cannot be partially exposed.

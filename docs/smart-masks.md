@@ -8,8 +8,10 @@ graph-free definitions are refused.
 
 The preset has its own `CTEX_SMART_MASK` schema and embeds the canonical smart
 material fragment. This keeps its asset kind explicit while reusing graph,
-binding and validation semantics. Schema 1 is the only accepted smart-mask
-version until the shared migration work in task 13.8.
+binding and validation semantics. Smart-mask schema 1 is current; future outer
+versions are refused by name. Its embedded smart-material definition migrates
+schemas 1–5 using the documented smart-material defaults before the complete
+mask is validated, so no partially migrated mask is returned.
 
 ## Instantiation
 

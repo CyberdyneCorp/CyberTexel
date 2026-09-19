@@ -1,5 +1,6 @@
 #include <algorithm>
 #include <array>
+#include <ctex/doc/smart_mask.hpp>
 #include <ctex/io/preset_library.hpp>
 #include <iterator>
 #include <map>
@@ -9,6 +10,8 @@
 
 namespace ctex::io {
 namespace {
+
+constexpr std::uint32_t current_stroke_format_version = 2;
 
 [[noreturn]] void shelf_error(PresetLibraryErrorCode code, std::string message) {
     throw PresetLibraryError(code, std::move(message));
@@ -20,6 +23,25 @@ bool supported_kind(std::string_view kind) {
                                asset_kind::stroke_preset, asset_kind::generator,
                                asset_kind::export_preset};
     return std::find(kinds.begin(), kinds.end(), kind) != kinds.end();
+}
+
+std::uint32_t format_version_for_kind(std::string_view kind) {
+    constexpr std::array versions{
+        std::pair{asset_kind::material, std::uint32_t{1}},
+        std::pair{asset_kind::smart_material, doc::current_smart_material_schema_version},
+        std::pair{asset_kind::smart_mask, doc::current_smart_mask_schema_version},
+        std::pair{asset_kind::brush, current_stroke_format_version},
+        std::pair{asset_kind::stroke_preset, current_stroke_format_version},
+        std::pair{asset_kind::generator, std::uint32_t{1}},
+        std::pair{asset_kind::export_preset, std::uint32_t{1}},
+    };
+    const auto found = std::find_if(versions.begin(), versions.end(),
+                                    [&](const auto& item) { return item.first == kind; });
+    if (found == versions.end()) {
+        shelf_error(PresetLibraryErrorCode::invalid_entry,
+                    "unsupported shelf preset kind '" + std::string(kind) + "'");
+    }
+    return found->second;
 }
 
 const StandaloneAsset& find_asset(const PresetShelf& shelf, std::string_view identifier) {
@@ -78,6 +100,14 @@ void validate_shelf(const PresetShelf& shelf, std::set<std::string_view, std::le
             shelf_error(PresetLibraryErrorCode::invalid_entry,
                         "shelf preset metadata or globally stable identity is invalid");
         }
+        const std::uint32_t current_version = format_version_for_kind(asset.kind);
+        if (asset.format_version > current_version) {
+            shelf_error(PresetLibraryErrorCode::unsupported_version,
+                        "preset '" + asset.identifier + "' of kind '" + asset.kind +
+                            "' declares unsupported future format version " +
+                            std::to_string(asset.format_version) + " (current " +
+                            std::to_string(current_version) + ")");
+        }
         validate_tags(entry);
         static_cast<void>(find_thumbnail(shelf, entry.thumbnail_resource_identifier));
     }
@@ -113,6 +143,10 @@ std::vector<PresetListing> enumerate_validated_shelf(const PresetShelf& shelf) {
 
 PresetLibraryError::PresetLibraryError(PresetLibraryErrorCode code, std::string message)
     : std::invalid_argument(std::move(message)), code_(code) {}
+
+std::uint32_t current_preset_format_version(std::string_view kind) {
+    return format_version_for_kind(kind);
+}
 
 void validate_preset_library(const PresetLibrary& library) {
     std::set<std::string_view, std::less<>> shelf_ids;
