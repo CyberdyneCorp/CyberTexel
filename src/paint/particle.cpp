@@ -84,6 +84,31 @@ void validate_settings(const ParticleEmitter& emitter, const ParticleSettings& s
     static_cast<void>(normalized(emitter.direction, "particle emitter direction"));
 }
 
+ParticleSettings resolve_parameters(const ParticleSettings& requested,
+                                    ToolParameterReport& report) {
+    ParticleSettings resolved = requested;
+    resolved.count = static_cast<std::uint32_t>(
+        validate_tool_parameter(particle_count_parameter, requested.count, report));
+    resolved.lifetime_seconds =
+        validate_tool_parameter(particle_lifetime_parameter, requested.lifetime_seconds, report);
+    resolved.initial_speed =
+        validate_tool_parameter(particle_initial_speed_parameter, requested.initial_speed, report);
+    resolved.mass = validate_tool_parameter(particle_mass_parameter, requested.mass, report);
+    resolved.gravity.x =
+        validate_tool_parameter(particle_gravity_x_parameter, requested.gravity.x, report);
+    resolved.gravity.y =
+        validate_tool_parameter(particle_gravity_y_parameter, requested.gravity.y, report);
+    resolved.gravity.z =
+        validate_tool_parameter(particle_gravity_z_parameter, requested.gravity.z, report);
+    resolved.friction =
+        validate_tool_parameter(particle_friction_parameter, requested.friction, report);
+    resolved.restitution =
+        validate_tool_parameter(particle_restitution_parameter, requested.restitution, report);
+    resolved.randomness =
+        validate_tool_parameter(particle_randomness_parameter, requested.randomness, report);
+    return resolved;
+}
+
 Vec3d random_unit_vector(ParticleRandom& random) {
     const double z = random.unit() * 2.0 - 1.0;
     const double angle = random.unit() * 2.0 * std::numbers::pi;
@@ -276,10 +301,16 @@ void multiply_mask(std::span<double> values, PaintMaskView mask, std::string_vie
 ParticleSimulationResult simulate_particles(
     pick::SpatialIndex& index, const mesh::MeshBinding& mesh,
     std::span<const pick::TextureSetBindingView> texture_sets, const ParticleEmitter& emitter,
-    const ParticleSettings& settings) {
+    const ParticleSettings& requested_settings) {
+    ToolParameterReport parameter_report;
+    const ParticleSettings settings = resolve_parameters(requested_settings, parameter_report);
     validate_settings(emitter, settings, texture_sets);
-    ParticleSimulationResult result{
-        .seed = settings.seed, .emitted_count = settings.count, .contacts = {}, .final_states = {}};
+    ParticleSimulationResult result{.resolved_settings = settings,
+                                    .parameter_report = std::move(parameter_report),
+                                    .seed = settings.seed,
+                                    .emitted_count = settings.count,
+                                    .contacts = {},
+                                    .final_states = {}};
     result.final_states.reserve(settings.count);
     ParticleRandom random(settings.seed);
     for (std::uint32_t particle = 0; particle < settings.count; ++particle) {

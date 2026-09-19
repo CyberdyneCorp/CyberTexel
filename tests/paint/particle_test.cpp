@@ -2,6 +2,7 @@
 #include <cmath>
 #include <ctex/paint/particle.hpp>
 #include <iostream>
+#include <limits>
 #include <stdexcept>
 #include <string>
 #include <string_view>
@@ -198,15 +199,44 @@ bool contacts_deposit_through_masks_and_channel_shading() {
                "particle deposition did not compose masks, rejection and channel shading");
 }
 
-bool invalid_particle_settings_are_refused() {
+bool particle_parameters_are_bounded_and_reported() {
     const ParticleMesh buffers;
-    ParticleSettings invalid = settings();
-    invalid.count = 0;
-    bool count_refused = false;
+    ParticleSettings requested = settings();
+    requested.count = 0;
+    requested.lifetime_seconds = 0.0;
+    requested.initial_speed = maximum_particle_speed + 1.0;
+    requested.mass = 0.0;
+    requested.gravity = {-maximum_particle_acceleration - 1.0, maximum_particle_acceleration + 1.0,
+                         maximum_particle_acceleration + 1.0};
+    requested.friction = 2.0;
+    requested.restitution = 2.0;
+    requested.randomness = 2.0;
+    const ParticleSimulationResult resolved =
+        simulate(buffers, {.position = {1.0, 1.0, 1.0}, .direction = {0.0, 0.0, -1.0}}, requested);
+    const ParticleSettings& actual = resolved.resolved_settings;
+    const ToolParameterReport& report = resolved.parameter_report;
+    const bool values_resolved =
+        actual.count == 1 && actual.lifetime_seconds == minimum_particle_lifetime_seconds &&
+        actual.initial_speed == maximum_particle_speed && actual.mass == minimum_particle_mass &&
+        actual.gravity.x == -maximum_particle_acceleration &&
+        actual.gravity.y == maximum_particle_acceleration &&
+        actual.gravity.z == maximum_particle_acceleration && actual.friction == 1.0 &&
+        actual.restitution == 1.0 && actual.randomness == 1.0 && resolved.emitted_count == 1;
+    const bool report_complete =
+        report.clamps.size() == 10 && report.clamp_for("particle.count") &&
+        report.clamp_for("particle.lifetime_seconds") &&
+        report.clamp_for("particle.initial_speed") && report.clamp_for("particle.mass") &&
+        report.clamp_for("particle.gravity.x") && report.clamp_for("particle.gravity.y") &&
+        report.clamp_for("particle.gravity.z") && report.clamp_for("particle.friction") &&
+        report.clamp_for("particle.restitution") && report.clamp_for("particle.randomness");
+
+    ParticleSettings non_finite = settings();
+    non_finite.mass = std::numeric_limits<double>::infinity();
+    bool non_finite_refused = false;
     try {
-        static_cast<void>(simulate(buffers, {}, invalid));
+        static_cast<void>(simulate(buffers, {}, non_finite));
     } catch (const std::invalid_argument&) {
-        count_refused = true;
+        non_finite_refused = true;
     }
     bool bindings_refused = false;
     try {
@@ -228,8 +258,10 @@ bool invalid_particle_settings_are_refused() {
     } catch (const std::invalid_argument&) {
         stale_surface_refused = true;
     }
-    return expect(count_refused && bindings_refused && stale_surface_refused,
-                  "invalid particle count, bindings or stale surface were not refused");
+    return expect(values_resolved && report_complete,
+                  "particle parameters were not bounded, reported, and used") &&
+           expect(non_finite_refused && bindings_refused && stale_surface_refused,
+                  "non-finite particle input, missing bindings or stale surface was not refused");
 }
 
 }  // namespace
@@ -238,7 +270,7 @@ int main() {
     return deterministic_seed_controls_the_complete_simulation() &&
                    lifetime_speed_mass_gravity_friction_and_restitution_are_active() &&
                    contacts_deposit_through_masks_and_channel_shading() &&
-                   invalid_particle_settings_are_refused()
+                   particle_parameters_are_bounded_and_reported()
                ? 0
                : 1;
 }

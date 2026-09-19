@@ -23,7 +23,23 @@ library distribution. Replaying identical mesh data, emitter, settings and seed
 therefore produces exactly equal ordered contacts and final states. Contacts are
 ordered first by particle ordinal and then by collision ordinal. Simulation is
 bounded to 100,000 particles, 60 seconds per particle and 16 contacts per
-particle; invalid values are refused before simulation.
+particle. The complete numeric contract is:
+
+| Control | Default | Minimum | Maximum |
+|---|---:|---:|---:|
+| Count | 1 | 1 | 100,000 |
+| Lifetime (seconds) | 1 | 0.000001 | 60 |
+| Initial speed | 1 | 0 | 1,000,000 |
+| Mass | 1 | 0.000001 | 1,000,000 |
+| Gravity, each axis | `(0, -9.81, 0)` | -1,000,000 | 1,000,000 |
+| Friction | 0.5 | 0 | 1 |
+| Restitution | 0 | 0 | 1 |
+| Randomness | 0 | 0 | 1 |
+
+Finite values outside these ranges are clamped. `ParticleSimulationResult`
+returns both `resolved_settings` and `parameter_report`; those settings drive
+the simulation. Non-finite values, an invalid emitter direction and missing
+texture-set bindings are refused before simulation.
 
 `apply_particles` maps contacts only onto the matching texture-set ID, UDIM tile
 and source-triangle texel of a current `CachedSurfaceMaps` revision. Multiple

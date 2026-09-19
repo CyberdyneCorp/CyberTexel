@@ -25,6 +25,8 @@ struct ToolParameterClamp {
 struct ToolParameterReport {
     std::vector<ToolParameterClamp> clamps;
 
+    friend bool operator==(const ToolParameterReport&, const ToolParameterReport&) = default;
+
     [[nodiscard]] std::optional<ToolParameterClamp> clamp_for(std::string_view name) const;
 };
 

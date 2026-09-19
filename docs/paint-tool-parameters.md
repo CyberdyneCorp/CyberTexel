@@ -53,6 +53,16 @@ The currently routed paint-tool parameters are:
 | `colour_id.tolerance` | 0 | 0 | √3 | normalized linear-RGB distance |
 | `text.tracking_em` | 0 | -10 | 10 | em |
 | `text.size` | 1 | 0.000001 | 1,000,000 | surface units per em |
+| `particle.count` | 1 | 1 | 100,000 | particles |
+| `particle.lifetime_seconds` | 1 | 0.000001 | 60 | seconds |
+| `particle.initial_speed` | 1 | 0 | 1,000,000 | surface units per second |
+| `particle.mass` | 1 | 0.000001 | 1,000,000 | relative mass |
+| `particle.gravity.x` | 0 | -1,000,000 | 1,000,000 | surface units per second² |
+| `particle.gravity.y` | -9.81 | -1,000,000 | 1,000,000 | surface units per second² |
+| `particle.gravity.z` | 0 | -1,000,000 | 1,000,000 | surface units per second² |
+| `particle.friction` | 0.5 | 0 | 1 | normalized |
+| `particle.restitution` | 0 | 0 | 1 | normalized |
+| `particle.randomness` | 0 | 0 | 1 | normalized |
 
 `StrokeResolver::settings()` exposes the resolved settings and
 `parameter_report()` exposes their clamps. Brush and Eraser consume the
