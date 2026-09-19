@@ -11,6 +11,50 @@ namespace {
 
 using CoordinateKey = std::pair<std::uint32_t, std::uint32_t>;
 
+std::uint8_t channel_count(ChannelOrder order) {
+    switch (order) {
+        case ChannelOrder::r:
+            return 1;
+        case ChannelOrder::rg:
+            return 2;
+        case ChannelOrder::rgb:
+            return 3;
+        case ChannelOrder::rgba:
+            return 4;
+    }
+    return 0;
+}
+
+ChannelOrder channel_order(std::uint8_t count) {
+    switch (count) {
+        case 1:
+            return ChannelOrder::r;
+        case 2:
+            return ChannelOrder::rg;
+        case 3:
+            return ChannelOrder::rgb;
+        case 4:
+            return ChannelOrder::rgba;
+        default:
+            throw std::invalid_argument("tile layout requires one to four channels");
+    }
+}
+
+bool valid_layout(const TileMemoryLayout& layout) {
+    const image::PixelFormat format{layout.component_type, channel_count(layout.channel_order)};
+    if (layout.width == 0 || layout.height == 0 || !format.is_valid() ||
+        layout.component_byte_order != ComponentByteOrder::native ||
+        layout.tile_contiguity != TileContiguity::separate_buffers ||
+        layout.pixel_stride_bytes != format.bytes_per_pixel()) {
+        return false;
+    }
+    if (layout.width > std::numeric_limits<std::size_t>::max() / layout.pixel_stride_bytes ||
+        layout.row_pitch_bytes != layout.width * layout.pixel_stride_bytes) {
+        return false;
+    }
+    return layout.height <= std::numeric_limits<std::size_t>::max() / layout.row_pitch_bytes;
+}
+
 bool validate_destinations(std::span<const TileReadbackDestination> destinations,
                            TileResidency expected_residency, std::string& error) {
     std::set<CoordinateKey> coordinates;
@@ -21,6 +65,14 @@ bool validate_destinations(std::span<const TileReadbackDestination> destinations
         }
         if (destination.output.empty()) {
             error = "tile readback output buffer must not be empty";
+            return false;
+        }
+        if (!valid_layout(destination.layout)) {
+            error = "tile readback memory layout is invalid";
+            return false;
+        }
+        if (destination.output.size() != destination.layout.byte_size()) {
+            error = "tile readback output buffer does not match its memory layout";
             return false;
         }
         const auto coordinate = destination.version.coordinate;
@@ -63,6 +115,32 @@ std::vector<std::byte> stage_cpu_tile(const image::TiledImage& image,
 
 }  // namespace
 
+TileMemoryLayout tile_memory_layout(const doc::TextureChannels& channels,
+                                    std::string_view semantic_id,
+                                    image::TileCoordinate coordinate) {
+    const image::TiledImage& image = channels.pixels(semantic_id);
+    const image::TileExtent extent = image.tile_extent(coordinate);
+    const image::PixelFormat format = image.format();
+    const std::size_t pixel_stride = format.bytes_per_pixel();
+    if (extent.width > std::numeric_limits<std::size_t>::max() / pixel_stride) {
+        throw std::overflow_error("tile layout row pitch overflows");
+    }
+    const std::size_t row_pitch = static_cast<std::size_t>(extent.width) * pixel_stride;
+    if (extent.height > std::numeric_limits<std::size_t>::max() / row_pitch) {
+        throw std::overflow_error("tile layout byte size overflows");
+    }
+    return {
+        .width = extent.width,
+        .height = extent.height,
+        .row_pitch_bytes = row_pitch,
+        .pixel_stride_bytes = pixel_stride,
+        .channel_order = channel_order(format.channel_count),
+        .component_type = format.channel_type,
+        .component_byte_order = ComponentByteOrder::native,
+        .tile_contiguity = TileContiguity::separate_buffers,
+    };
+}
+
 TileReadback::TileReadback(std::vector<TileReadbackDestination> destinations,
                            TileReadbackStatus status, std::string detail)
     : destinations_(std::move(destinations)), status_(status), detail_(std::move(detail)) {}
@@ -89,14 +167,15 @@ TileReadback TileReadback::begin_cpu(const doc::TextureChannels& channels,
         staged.reserve(destinations.size());
         for (const TileReadbackDestination& destination : destinations) {
             const auto coordinate = destination.version.coordinate;
+            if (destination.layout != tile_memory_layout(channels, semantic_id, coordinate)) {
+                return failed("CPU tile readback memory layout does not match the tile");
+            }
             if (destination.version.revision != image.tile_revision(coordinate) ||
                 destination.version.generation != image.tile_generation(coordinate)) {
                 return failed("CPU tile readback version is stale");
             }
             staged.push_back(stage_cpu_tile(image, coordinate));
-            if (destination.output.size() != staged.back().size()) {
-                return failed("CPU tile readback output buffer has the wrong size");
-            }
+            // Destination validation and the exact native layout guarantee this size match.
         }
         if (image.revision_cursor() != cursor) {
             return failed("CPU tile readback changed while staging");
@@ -144,6 +223,7 @@ bool TileReadback::complete_host(std::span<const HostTileCompletion> completed_t
     }
     for (std::size_t index = 0; index < destinations_.size(); ++index) {
         if (completed_tiles[index].version != destinations_[index].version ||
+            completed_tiles[index].layout != destinations_[index].layout ||
             completed_tiles[index].bytes.size() != destinations_[index].output.size()) {
             status_ = TileReadbackStatus::failed;
             detail_ = "host tile readback completion does not match its request";

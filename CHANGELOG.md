@@ -36,6 +36,9 @@ Foundation implementation is in progress.
 - Move-only asynchronous tile readback operations for CPU- and host-resident
   versions, publishing exact named-tile payloads into caller buffers only after
   successful validation and completion.
+- Stable tile payload descriptors declaring visible dimensions, row pitch,
+  interleaved channel order, component representation and separate per-tile
+  buffers, with direct texture upload requiring no intermediate repack.
 - Linear Rec. 709 working-space and sRGB transfer functions with unclamped HDR
   conversion.
 - Native and sanitizer test presets plus a registry-driven determinism gate that

@@ -271,8 +271,12 @@ with no partial delta. Task 8.4 adds move-only asynchronous tile readbacks over
 exact named versions and caller buffers. CPU-resident requests complete through
 the same state model; host-resident requests accept an explicit completion
 payload. Pending, cancelled, failed, stale and malformed operations publish no
-bytes. Declaring the provisional native packed layout (8.5) is next, while the
-change-proportional index remains task 8.8.
+bytes. Task 8.5 makes the payload contract explicit: visible dimensions, tight
+row pitch, pixel stride, interleaved R/RG/RGB/RGBA order, native component type
+and byte order, and separate per-tile caller buffers are carried on requests
+and host completions. The direct-upload scenario proves the same buffer can
+feed a texture upload without repacking. Host-selected format negotiation (8.6)
+is next, while the change-proportional index remains task 8.8.
 
 ## 1. Foundation
 
@@ -381,7 +385,7 @@ change-proportional index remains task 8.8.
 - [x] 8.2 Delta query since a caller-held revision; completeness and coalescing
 - [x] 8.3 Stale-revision detection and the full-resynchronization signal
 - [x] 8.4 Explicit asynchronous tile readback into caller-owned buffers; no implicit readback on delta queries
-- [ ] 8.5 Declared, stable memory layout; direct-upload test
+- [x] 8.5 Declared, stable memory layout; direct-upload test
 - [ ] 8.6 Format negotiation and the host-owned conversion decision
 - [ ] 8.7 Releasable, budgeted snapshot tokens pin resource versions between query and readback
 - [ ] 8.8 Delta query cost independent of document tile count

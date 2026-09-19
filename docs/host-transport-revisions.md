@@ -47,13 +47,31 @@ matching `HostTileCompletion` payload per requested tile. A request exposes
 when `output_readable()` is true.
 
 The library publishes into caller buffers only after every tile, version,
-coordinate, and byte count validates. Stale CPU versions, malformed host
+coordinate, declared layout, and byte count validates. Stale CPU versions, malformed host
 completions, cancellation, failure, and completion arriving after cancellation
 leave every output span unchanged. The caller must keep those spans alive until
 the operation reaches a terminal state.
 
-Readback is never triggered by revision or delta queries. Task 8.4 uses the
-channel's current native format and tightly packed visible tile extent; task 8.5
-turns that provisional representation into a declared stable layout. Until
-snapshot tokens land in task 8.7, CPU readback requires the current cursor and
-fails rather than reading a stale version.
+## Stable tile memory layout
+
+`tile_memory_layout` declares the exact payload before a caller allocates its
+destination. `TileMemoryLayout` contains the visible tile width and height, byte
+row pitch, byte pixel stride, component type, component byte order, interleaved
+channel order, and batch contiguity. Readback requests and host completion
+records both carry that descriptor and must match exactly.
+
+Payload rows are top-to-bottom and pixels are left-to-right. Components are
+interleaved in `R`, `RG`, `RGB`, or `RGBA` order using the channel's native
+`uint8_unorm`, `uint16_unorm`, or `float32` representation and native byte
+order. Rows have no padding: `row_pitch_bytes` is `width *
+pixel_stride_bytes`, and `byte_size()` is `row_pitch_bytes * height`. Edge
+tiles contain only their visible extent. A multi-tile request uses one separate
+caller buffer per tile; tiles are never implicitly concatenated. This lets a
+host pass each completed buffer and its declared row pitch directly to a
+texture-upload API without rearranging pixels.
+
+Readback is never triggered by revision or delta queries. Format negotiation
+and host-selected conversion are task 8.6; this contract exposes the channel's
+current native format without silently converting it. Until snapshot tokens
+land in task 8.7, CPU readback requires the current cursor and fails rather than
+reading a stale version.

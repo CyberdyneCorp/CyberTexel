@@ -237,6 +237,14 @@ if(BUILD_TESTING)
     )
     add_test(NAME host-transport-readback COMMAND ctex_host_transport_readback_test)
 
+    add_executable(ctex_host_transport_layout_test tests/xport/layout_test.cpp)
+    ctex_configure_cpp_target(ctex_host_transport_layout_test)
+    target_link_libraries(
+        ctex_host_transport_layout_test
+        PRIVATE ctex_xport ctex_doc ctex_mesh ctex_graph ctex_image
+    )
+    add_test(NAME host-transport-layout COMMAND ctex_host_transport_layout_test)
+
     add_executable(ctex_document_test tests/doc/document_test.cpp)
     ctex_configure_cpp_target(ctex_document_test)
     target_link_libraries(ctex_document_test PRIVATE ctex_doc ctex_mesh ctex_graph ctex_image)

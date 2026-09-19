@@ -2,6 +2,7 @@
 #define CTEX_XPORT_READBACK_HPP
 
 #include <cstddef>
+#include <cstdint>
 #include <ctex/xport/delta.hpp>
 #include <span>
 #include <string>
@@ -12,13 +13,40 @@ namespace ctex::xport {
 
 enum class TileReadbackStatus : std::uint8_t { pending, complete, cancelled, failed };
 
+enum class ChannelOrder : std::uint8_t { r, rg, rgb, rgba };
+enum class ComponentByteOrder : std::uint8_t { native };
+enum class TileContiguity : std::uint8_t { separate_buffers };
+
+struct TileMemoryLayout {
+    std::uint32_t width;
+    std::uint32_t height;
+    std::size_t row_pitch_bytes;
+    std::size_t pixel_stride_bytes;
+    ChannelOrder channel_order;
+    image::ChannelType component_type;
+    ComponentByteOrder component_byte_order;
+    TileContiguity tile_contiguity;
+
+    friend constexpr bool operator==(TileMemoryLayout, TileMemoryLayout) noexcept = default;
+
+    [[nodiscard]] constexpr std::size_t byte_size() const noexcept {
+        return row_pitch_bytes * height;
+    }
+};
+
+[[nodiscard]] TileMemoryLayout tile_memory_layout(const doc::TextureChannels& channels,
+                                                  std::string_view semantic_id,
+                                                  image::TileCoordinate coordinate);
+
 struct TileReadbackDestination {
     TileVersion version;
+    TileMemoryLayout layout;
     std::span<std::byte> output;
 };
 
 struct HostTileCompletion {
     TileVersion version;
+    TileMemoryLayout layout;
     std::span<const std::byte> bytes;
 };
 
