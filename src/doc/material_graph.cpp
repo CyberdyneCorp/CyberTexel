@@ -46,8 +46,8 @@ graph::NodeSocket output_socket(const ChannelDescriptor& channel) {
         };
     }
     return {
-        .identifier = channel.semantic_id,
-        .display_name = channel.semantic_id,
+        .identifier = {channel.semantic_id.begin(), channel.semantic_id.end()},
+        .display_name = {channel.semantic_id.begin(), channel.semantic_id.end()},
         .type = type,
         .value = std::move(value),
     };

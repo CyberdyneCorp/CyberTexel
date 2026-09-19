@@ -7,7 +7,7 @@ decisions taken and questions still open.
 ## Status
 
 Implementation started. 24 capabilities, 332 requirements, 400 scenarios and
-222 tasks, 131 done. Foundation and the complete headless color-management
+222 tasks, 132 done. Foundation and the complete headless color-management
 scenario suite are green. Slice-A now has memory-buffer PNG input/output with
 8/16-bit preservation and hostile-input ceilings; full image-format breadth
 remains scheduled for slice D. Extensible channel descriptors and sparse
@@ -132,12 +132,12 @@ serialization on one document, and keeps diagnostics thread-local. A synchronize
 two-document fixture exercises both state and diagnostic isolation. A
 silent-by-default process-wide host sink now routes categorized logs above its
 configured severity threshold, while every C failure exposes both English prose
-and an append-only machine-readable code. Host allocator callbacks (14.7) are
-in progress: the versioned process-wide configuration now validates callback
-pairs, preserves allocator provenance on opaque documents, and reports failure
-or misalignment by stable code. The captured allocator now also backs the core
-document's ordered texture-set index and stable-ID keys through a PMR boundary;
-texture-set-owned persistent storage remains before the task is complete.
+and an append-only machine-readable code. Host allocator callbacks validate
+callback pairs, preserve allocator provenance per opaque document, and report
+failure or misalignment by stable code. A core PMR boundary routes every
+persistent allocation reachable through the current C surface, including the
+document index, texture-set identity and descriptor fields, shared state and
+channel metadata. The full-surface coverage gate (14.8) is next.
 
 ## Milestones
 

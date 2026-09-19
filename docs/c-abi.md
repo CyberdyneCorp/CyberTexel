@@ -127,11 +127,16 @@ callbacks may run on the calling thread or a library worker thread, must be
 thread-safe, and must not throw. User data remains host-owned and must outlive
 all objects and work that captured it.
 
-Task 14.7 remains in progress: opaque document storage, the document's ordered
-texture-set index, and its stable-ID keys now use the captured allocator through
-a core `std::pmr::memory_resource`. Persistent storage inside each texture set is
-the remaining propagation step. Transient scratch allocations are intentionally
-outside the long-lived allocation contract.
+Opaque document storage and every persistent allocation reachable through the
+current C surface use the captured allocator through a core
+`std::pmr::memory_resource`. This includes the ordered texture-set index and
+keys, texture-set identity and descriptor strings, shared accounting state,
+preset-vector capacity, and channel descriptor/map storage. Native C++ callers
+use the standard default resource unless they provide another one. Temporary
+conversion and scratch allocations are intentionally outside the long-lived
+allocation contract. Any future C entry point that creates persistent state must
+propagate the owning document's resource; allocating such state from the process
+default is a contract violation.
 
 The Linux export surface is constrained by `cmake/exports/cybertexel.map`, macOS
 uses `cybertexel.exports`, and Windows uses `cybertexel.def`. The

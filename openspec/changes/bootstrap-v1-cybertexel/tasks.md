@@ -655,10 +655,11 @@ English prose. The first 14.7 allocator increment adds a versioned process-wide
 callback descriptor and
 captures its exact allocate/deallocate/user-data tuple in every new opaque
 document. Replacement is safe while older documents remain alive, null returns
-map to out-of-memory, and misaligned returns are rejected by stable code. The
-captured callbacks now back the core document's ordered texture-set index and
-stable-ID keys through `std::pmr::memory_resource`; the task remains open until
-they reach persistent storage owned inside each texture set.
+map to out-of-memory, and misaligned returns are rejected by stable code. A core
+`std::pmr::memory_resource` routes every persistent allocation reachable through
+the current C surface: the document index, stable keys, texture-set descriptor
+and identity strings, shared state, preset-vector capacity, and channel metadata.
+Future C entry points must propagate the owning document resource.
 
 ## 1. Foundation
 
@@ -862,7 +863,7 @@ they reach persistent storage owned inside each texture set.
 - [x] 14.4 ABI version query, stability rules, symbol and descriptor diff gate
 - [x] 14.5 Threading contract documentation and the two-document concurrency test
 - [x] 14.6 Host log sink and the English-plus-codes diagnostic rule
-- [ ] 14.7 Host allocator callbacks
+- [x] 14.7 Host allocator callbacks
 - [ ] 14.8 Full-surface coverage gate
 - [ ] 14.9 Python binding, numpy-native, typed exceptions, wheel packaging
 - [ ] 14.10 Swift package with a system target, idiomatic layer, automatic handle lifetime

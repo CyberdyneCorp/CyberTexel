@@ -82,14 +82,14 @@ ChannelDescriptor descriptor(std::string semantic_id, std::uint8_t components,
                              ChannelClassification classification, BlendingPolicy blending,
                              std::string export_mapping) {
     return {
-        std::move(semantic_id),
+        std::pmr::string(semantic_id.begin(), semantic_id.end()),
         components,
         ScalarRepresentation::unsigned_normalized,
         preferred_bits,
-        std::move(defaults),
+        std::pmr::vector<double>(defaults.begin(), defaults.end()),
         classification,
         blending,
-        std::move(export_mapping),
+        std::pmr::string(export_mapping.begin(), export_mapping.end()),
         true,
     };
 }
@@ -120,8 +120,16 @@ std::vector<ChannelDescriptor> metallic_roughness_channels() {
 
 TextureChannels::TextureChannels(std::uint32_t width, std::uint32_t height,
                                  std::uint8_t default_bit_depth,
-                                 std::span<const ChannelDescriptor> descriptors)
-    : width_(width), height_(height), default_bit_depth_(default_bit_depth) {
+                                 std::span<const ChannelDescriptor> descriptors,
+                                 std::pmr::memory_resource* memory_resource)
+    : width_(width),
+      height_(height),
+      default_bit_depth_(default_bit_depth),
+      memory_resource_(memory_resource),
+      channels_(memory_resource) {
+    if (memory_resource == nullptr) {
+        throw std::invalid_argument("texture channels require a memory resource");
+    }
     if (width == 0 || height == 0) {
         throw std::invalid_argument("channel storage dimensions must be non-zero");
     }
@@ -135,11 +143,24 @@ TextureChannels::TextureChannels(std::uint32_t width, std::uint32_t height,
 
 void TextureChannels::register_descriptor(ChannelDescriptor value) {
     validate_descriptor(value);
-    const std::string id = value.semantic_id;
-    const auto [unused, inserted] = channels_.emplace(id, ChannelEntry{std::move(value), nullptr});
+    const std::pmr::string id(value.semantic_id, memory_resource_);
+    ChannelDescriptor stored{
+        .semantic_id = std::pmr::string(value.semantic_id, memory_resource_),
+        .component_count = value.component_count,
+        .scalar_representation = value.scalar_representation,
+        .preferred_bit_depth = value.preferred_bit_depth,
+        .default_value = std::pmr::vector<double>(value.default_value.begin(),
+                                                  value.default_value.end(), memory_resource_),
+        .classification = value.classification,
+        .blending_policy = value.blending_policy,
+        .export_mapping = std::pmr::string(value.export_mapping, memory_resource_),
+        .evaluable = value.evaluable,
+    };
+    const auto [unused, inserted] = channels_.emplace(id, ChannelEntry{std::move(stored), nullptr});
     static_cast<void>(unused);
     if (!inserted) {
-        throw std::invalid_argument("channel semantic identifier is already registered: " + id);
+        throw std::invalid_argument("channel semantic identifier is already registered: " +
+                                    std::string(id.begin(), id.end()));
     }
 }
 
@@ -152,7 +173,7 @@ std::vector<std::string> TextureChannels::semantic_ids() const {
     result.reserve(channels_.size());
     for (const auto& [semantic_id, unused] : channels_) {
         static_cast<void>(unused);
-        result.push_back(semantic_id);
+        result.emplace_back(semantic_id.begin(), semantic_id.end());
     }
     return result;
 }

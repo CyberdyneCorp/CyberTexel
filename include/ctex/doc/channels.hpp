@@ -6,6 +6,7 @@
 #include <ctex/image/tiled_image.hpp>
 #include <map>
 #include <memory>
+#include <memory_resource>
 #include <optional>
 #include <span>
 #include <string>
@@ -23,14 +24,14 @@ enum class ChannelClassification { color, data };
 enum class BlendingPolicy { color, scalar, normal_vector, additive };
 
 struct ChannelDescriptor {
-    std::string semantic_id;
+    std::pmr::string semantic_id;
     std::uint8_t component_count;
     ScalarRepresentation scalar_representation;
     std::uint8_t preferred_bit_depth;
-    std::vector<double> default_value;
+    std::pmr::vector<double> default_value;
     ChannelClassification classification;
     BlendingPolicy blending_policy;
-    std::string export_mapping;
+    std::pmr::string export_mapping;
     bool evaluable = true;
 };
 
@@ -39,7 +40,8 @@ struct ChannelDescriptor {
 class TextureChannels {
 public:
     TextureChannels(std::uint32_t width, std::uint32_t height, std::uint8_t default_bit_depth,
-                    std::span<const ChannelDescriptor> descriptors = {});
+                    std::span<const ChannelDescriptor> descriptors = {},
+                    std::pmr::memory_resource* memory_resource = std::pmr::get_default_resource());
 
     void register_descriptor(ChannelDescriptor descriptor);
     [[nodiscard]] const ChannelDescriptor& descriptor(std::string_view semantic_id) const;
@@ -73,7 +75,8 @@ private:
     std::uint32_t width_;
     std::uint32_t height_;
     std::uint8_t default_bit_depth_;
-    std::map<std::string, ChannelEntry, std::less<>> channels_;
+    std::pmr::memory_resource* memory_resource_;
+    std::pmr::map<std::pmr::string, ChannelEntry, std::less<>> channels_;
 };
 
 }  // namespace ctex::doc

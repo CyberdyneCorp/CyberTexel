@@ -27,6 +27,13 @@ std::size_t& category_bytes(TextureSetMemoryState& state, TextureSetMemoryCatego
     throw std::invalid_argument("texture-set memory category is invalid");
 }
 
+std::pmr::memory_resource* require_memory_resource(std::pmr::memory_resource* memory_resource) {
+    if (memory_resource == nullptr) {
+        throw std::invalid_argument("texture storage requires a memory resource");
+    }
+    return memory_resource;
+}
+
 mesh::PartitionKind mesh_partition_kind(PartitionSourceKind kind) {
     switch (kind) {
         case PartitionSourceKind::material:
@@ -144,12 +151,31 @@ std::string texture_set_stable_id(const TextureSetDescriptor& descriptor) {
                                        descriptor.partition_key, descriptor.uv_set);
 }
 
-TextureSet::TextureSet(TextureSetDescriptor descriptor)
-    : descriptor_(std::move(descriptor)),
-      id_(texture_set_stable_id(descriptor_)),
-      channels_(descriptor_.width, descriptor_.height, descriptor_.default_bit_depth,
-                metallic_roughness_channels()),
-      memory_state_(std::make_shared<TextureSetMemoryState>()) {}
+TextureSet::TextureSet(TextureSetDescriptor descriptor, std::pmr::memory_resource* memory_resource)
+    : memory_resource_(require_memory_resource(memory_resource)),
+      display_name_(descriptor.display_name, memory_resource_),
+      partition_kind_(descriptor.partition_kind),
+      partition_key_(descriptor.partition_key, memory_resource_),
+      uv_set_(descriptor.uv_set, memory_resource_),
+      width_(descriptor.width),
+      height_(descriptor.height),
+      default_bit_depth_(descriptor.default_bit_depth),
+      id_(texture_set_stable_id(descriptor), memory_resource_),
+      channels_(width_, height_, default_bit_depth_, metallic_roughness_channels(),
+                memory_resource_),
+      memory_state_(std::allocate_shared<TextureSetMemoryState>(
+          std::pmr::polymorphic_allocator<TextureSetMemoryState>(memory_resource_))),
+      preset_applications_(memory_resource_) {}
+
+TextureSetDescriptor TextureSet::descriptor() const {
+    return {.display_name = {display_name_.begin(), display_name_.end()},
+            .partition_kind = partition_kind_,
+            .partition_key = {partition_key_.begin(), partition_key_.end()},
+            .uv_set = {uv_set_.begin(), uv_set_.end()},
+            .width = width_,
+            .height = height_,
+            .default_bit_depth = default_bit_depth_};
+}
 
 TextureSetMemoryAccount TextureSet::create_memory_account(TextureSetMemoryCategory category) const {
     return TextureSetMemoryAccount(memory_state_, category);
@@ -158,7 +184,7 @@ TextureSetMemoryAccount TextureSet::create_memory_account(TextureSetMemoryCatego
 TextureSetMemoryReport TextureSet::memory_report() const {
     const std::size_t channel_bytes = channels_.resident_pixel_bytes();
     const std::size_t map_bytes = memory_state_->mesh_map_pixel_bytes;
-    return {.texture_set_id = id_,
+    return {.texture_set_id = id(),
             .channel_pixel_bytes = channel_bytes,
             .mesh_map_pixel_bytes = map_bytes,
             .total_resident_bytes =
@@ -173,7 +199,7 @@ TextureDocument::TextureDocument(std::pmr::memory_resource* memory_resource)
 }
 
 TextureSet& TextureDocument::create_texture_set(TextureSetDescriptor descriptor) {
-    TextureSet texture_set(std::move(descriptor));
+    TextureSet texture_set(std::move(descriptor), memory_resource_);
     const std::string id = texture_set.id();
     const auto [found, inserted] =
         texture_sets_.emplace(std::pmr::string(id, memory_resource_), std::move(texture_set));

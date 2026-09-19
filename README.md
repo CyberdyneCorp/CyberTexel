@@ -202,8 +202,9 @@ The current implementation provides:
   caller serialization per shared handle, and keeps diagnostics thread-local.
   A silent-by-default host log sink provides severity/category routing and
   stable diagnostic codes alongside English messages for host localization.
-  The allocator foundation retains callback provenance per opaque handle so a
-  process-wide allocator can change without mismatched destruction.
+  Host allocator callbacks retain provenance per opaque handle and back all
+  persistent storage reachable through the current C surface, so the process
+  default can change without mismatched destruction.
 - An isolated [Kong shader compiler context](docs/kong-backend.md) that compiles
   Kong source deterministically to WGSL, MSL, binary SPIR-V, or HLSL, supports
   concurrent independent targets, and reports unsupported requests explicitly.

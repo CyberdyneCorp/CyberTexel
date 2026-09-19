@@ -11,7 +11,7 @@ namespace {
     throw SmartMaterialError(SmartMaterialErrorCode::invalid_preset, std::move(message));
 }
 
-void require_new_application(const std::vector<AppliedPresetApplication>& applications,
+void require_new_application(std::span<const AppliedPresetApplication> applications,
                              std::string_view identifier) {
     if (identifier.empty() || std::any_of(applications.begin(), applications.end(),
                                           [&](const AppliedPresetApplication& application) {
@@ -52,7 +52,7 @@ std::vector<std::string> remap_fragment_entries(SmartMaterialPreset& fragment,
     return result;
 }
 
-void require_new_entry_identities(const std::vector<AppliedPresetApplication>& applications,
+void require_new_entry_identities(std::span<const AppliedPresetApplication> applications,
                                   std::span<const std::string> identities) {
     for (const std::string& identity : identities) {
         for (const AppliedPresetApplication& application : applications) {
@@ -83,7 +83,7 @@ std::vector<AppliedPresetParameterValue> reset_fragment_parameters(SmartMaterial
     return values;
 }
 
-AppliedPresetApplication& find_application(std::vector<AppliedPresetApplication>& applications,
+AppliedPresetApplication& find_application(std::span<AppliedPresetApplication> applications,
                                            std::string_view identifier) {
     const auto found = std::find_if(applications.begin(), applications.end(),
                                     [&](const AppliedPresetApplication& application) {
@@ -96,7 +96,7 @@ AppliedPresetApplication& find_application(std::vector<AppliedPresetApplication>
 }
 
 const AppliedPresetApplication& find_entry_application(
-    const std::vector<AppliedPresetApplication>& applications, std::string_view entry_identifier) {
+    std::span<const AppliedPresetApplication> applications, std::string_view entry_identifier) {
     const auto found = std::find_if(
         applications.begin(), applications.end(), [&](const AppliedPresetApplication& application) {
             return std::any_of(application.fragment.stack.begin(), application.fragment.stack.end(),

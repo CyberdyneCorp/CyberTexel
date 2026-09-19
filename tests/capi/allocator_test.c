@@ -79,7 +79,7 @@ int main(void) {
         return 1;
     }
     if (ctex_document_create_texture_set(document, &texture_set) != CTEX_RESULT_SUCCESS ||
-        capture.allocation_count <= 1) {
+        capture.allocation_count < 13) {
         return 2;
     }
     successful_allocation_count = capture.allocation_count;

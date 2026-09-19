@@ -118,10 +118,12 @@ struct TextureSetDescriptor {
 
 class TextureSet {
 public:
-    explicit TextureSet(TextureSetDescriptor descriptor);
+    explicit TextureSet(
+        TextureSetDescriptor descriptor,
+        std::pmr::memory_resource* memory_resource = std::pmr::get_default_resource());
 
-    [[nodiscard]] const std::string& id() const noexcept { return id_; }
-    [[nodiscard]] const TextureSetDescriptor& descriptor() const noexcept { return descriptor_; }
+    [[nodiscard]] std::string id() const { return {id_.begin(), id_.end()}; }
+    [[nodiscard]] TextureSetDescriptor descriptor() const;
     [[nodiscard]] TextureChannels& channels() noexcept { return channels_; }
     [[nodiscard]] const TextureChannels& channels() const noexcept { return channels_; }
     [[nodiscard]] TextureSetMemoryAccount create_memory_account(
@@ -142,8 +144,7 @@ public:
     [[nodiscard]] std::size_t preset_undo_step_count() const noexcept {
         return preset_applications_.size();
     }
-    [[nodiscard]] const std::vector<AppliedPresetApplication>& preset_applications()
-        const noexcept {
+    [[nodiscard]] std::span<const AppliedPresetApplication> preset_applications() const noexcept {
         return preset_applications_;
     }
     [[nodiscard]] const SmartMaterialEntry& applied_entry(std::string_view entry_identifier) const;
@@ -152,11 +153,18 @@ public:
         std::string_view entry_identifier) const;
 
 private:
-    TextureSetDescriptor descriptor_;
-    std::string id_;
+    std::pmr::memory_resource* memory_resource_;
+    std::pmr::string display_name_;
+    PartitionSourceKind partition_kind_;
+    std::pmr::string partition_key_;
+    std::pmr::string uv_set_;
+    std::uint32_t width_;
+    std::uint32_t height_;
+    std::uint8_t default_bit_depth_;
+    std::pmr::string id_;
     TextureChannels channels_;
     std::shared_ptr<TextureSetMemoryState> memory_state_;
-    std::vector<AppliedPresetApplication> preset_applications_;
+    std::pmr::vector<AppliedPresetApplication> preset_applications_;
 };
 
 class TextureDocument {
