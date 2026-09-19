@@ -188,6 +188,10 @@ The current implementation provides:
   and per-kind format-version refusal before resolution.
   [Scenario coverage](docs/smart-material-scenarios.md) maps every smart-material
   requirement to the labeled executable evidence that enforces it.
+- A stable [C ABI foundation](docs/c-abi.md) with a prefix-only shared-library
+  export surface, opaque document handles, distinct integer result categories,
+  exception containment, and allocation-free per-thread diagnostics. The same
+  public header is compiled by a strict C11 consumer test.
 - An isolated [Kong shader compiler context](docs/kong-backend.md) that compiles
   Kong source deterministically to WGSL, MSL, binary SPIR-V, or HLSL, supports
   concurrent independent targets, and reports unsupported requests explicitly.

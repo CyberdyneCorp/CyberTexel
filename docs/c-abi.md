@@ -1,0 +1,29 @@
+# C ABI foundations
+
+The stable host boundary is the C header `ctex/capi.h`. Every exported symbol
+uses the `ctex_` prefix and the shared `cybertexel_c` library applies a platform
+export map that hides every other symbol. The regular `cybertexel` static target
+remains available for native static linkage. iOS consumes that static target.
+
+Library objects are represented by incomplete C types. A caller creates a
+`ctex_document*` with `ctex_document_create` and releases it exactly once with
+`ctex_document_destroy`; the structure behind that pointer is private and may
+change without changing the ABI. Destroying a null handle is permitted.
+
+Every fallible entry point returns `ctex_result`. Zero is success. The stable
+nonzero categories distinguish invalid arguments, missing resources,
+unsupported operations, allocation failure, budget refusal, cancellation and
+unexpected internal failures. C++ exceptions are caught by the C boundary and
+translated to one of those values.
+
+After a failed call, `ctex_get_last_result` returns the same result and
+`ctex_get_last_diagnostic` returns an English message naming the operation and
+the offending value. Diagnostic state belongs to the calling thread. The
+message is owned by CyberTexel, requires no caller allocation, and remains valid
+until the next fallible C entry point on that thread. A successful fallible call
+clears the diagnostic.
+
+The Linux export surface is constrained by `cmake/exports/cybertexel.map`, macOS
+uses `cybertexel.exports`, and Windows uses `cybertexel.def`. The
+`c-abi-export-surface` test inspects the produced Linux shared object and refuses
+any visible symbol outside `ctex_*`.

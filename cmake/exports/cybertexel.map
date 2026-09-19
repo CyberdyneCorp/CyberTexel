@@ -1,0 +1,6 @@
+{
+    global:
+        ctex_*;
+    local:
+        *;
+};

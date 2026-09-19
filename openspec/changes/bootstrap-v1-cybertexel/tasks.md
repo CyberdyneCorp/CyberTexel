@@ -627,6 +627,12 @@ now have their own canonical asset envelope around a derived-only mask,
 generator and filter fragment. Layer and group targets receive deep-copied
 instances with origin metadata and independent, atomically updated parameter
 state. Anchor ordering, cycle refusal and dependency-ordered evaluation (13.5)
+are complete, followed by portable resource packaging, shelf enumeration,
+versioned migration/refusal, atomic application with origin tracking, and the
+checked smart-material scenario matrix (13.6–13.10). Task 14.1 establishes the
+strict-C boundary: a shared artifact constrained by platform export maps, an
+opaque document handle, stable integer result categories, exception containment,
+and allocation-free per-thread diagnostics. Caller-owned two-call buffers (14.2)
 are next.
 
 ## 1. Foundation
@@ -825,7 +831,7 @@ are next.
 
 ## 14. Bindings
 
-- [ ] 14.1 C ABI: prefix, export map, opaque handles, result codes, diagnostics
+- [x] 14.1 C ABI: prefix, export map, opaque handles, result codes, diagnostics
 - [ ] 14.2 Caller-owned buffers with two-call sizing
 - [ ] 14.3 Versioned descriptors and the implausible-size refusal
 - [ ] 14.4 ABI version query, stability rules, symbol and descriptor diff gate

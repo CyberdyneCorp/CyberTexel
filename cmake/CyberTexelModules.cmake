@@ -1,5 +1,28 @@
 include_guard(GLOBAL)
 
+function(ctex_configure_c_target target)
+    target_compile_features(${target} PUBLIC c_std_11)
+    target_include_directories(
+        ${target}
+        PUBLIC
+            $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/include>
+            $<BUILD_INTERFACE:${PROJECT_BINARY_DIR}/generated/include>
+    )
+    set_target_properties(${target} PROPERTIES C_EXTENSIONS OFF)
+
+    if(MSVC)
+        target_compile_options(${target} PRIVATE /W4)
+        if(CTEX_WARNINGS_AS_ERRORS)
+            target_compile_options(${target} PRIVATE /WX)
+        endif()
+    else()
+        target_compile_options(${target} PRIVATE -Wall -Wextra -Wpedantic)
+        if(CTEX_WARNINGS_AS_ERRORS)
+            target_compile_options(${target} PRIVATE -Werror)
+        endif()
+    endif()
+endfunction()
+
 function(ctex_configure_cpp_target target)
     target_compile_features(${target} PUBLIC cxx_std_20)
     target_include_directories(
@@ -14,6 +37,7 @@ function(ctex_configure_cpp_target target)
         PROPERTIES
             CXX_EXTENSIONS OFF
             CXX_VISIBILITY_PRESET hidden
+            POSITION_INDEPENDENT_CODE ON
             VISIBILITY_INLINES_HIDDEN YES
     )
 
@@ -66,4 +90,43 @@ function(ctex_add_library)
             VERSION "${PROJECT_VERSION}"
             SOVERSION "${PROJECT_VERSION_MAJOR}"
     )
+
+    if(NOT CMAKE_SYSTEM_NAME STREQUAL "iOS")
+        add_library(cybertexel_c SHARED ${module_objects})
+        add_library(CyberTexel::capi_shared ALIAS cybertexel_c)
+        ctex_configure_cpp_target(cybertexel_c)
+        target_compile_definitions(cybertexel_c INTERFACE CTEX_SHARED)
+        set_target_properties(
+            cybertexel_c
+            PROPERTIES
+                VERSION "${PROJECT_VERSION}"
+                SOVERSION "${PROJECT_VERSION_MAJOR}"
+        )
+
+        if(APPLE)
+            target_link_options(
+                cybertexel_c
+                PRIVATE
+                    "LINKER:-exported_symbols_list,${PROJECT_SOURCE_DIR}/cmake/exports/cybertexel.exports"
+            )
+            set_property(
+                TARGET cybertexel_c
+                APPEND PROPERTY LINK_DEPENDS "${PROJECT_SOURCE_DIR}/cmake/exports/cybertexel.exports"
+            )
+        elseif(WIN32)
+            target_sources(
+                cybertexel_c PRIVATE "${PROJECT_SOURCE_DIR}/cmake/exports/cybertexel.def"
+            )
+        elseif(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
+            target_link_options(
+                cybertexel_c
+                PRIVATE
+                    "LINKER:--version-script=${PROJECT_SOURCE_DIR}/cmake/exports/cybertexel.map"
+            )
+            set_property(
+                TARGET cybertexel_c
+                APPEND PROPERTY LINK_DEPENDS "${PROJECT_SOURCE_DIR}/cmake/exports/cybertexel.map"
+            )
+        endif()
+    endif()
 endfunction()

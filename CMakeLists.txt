@@ -251,8 +251,14 @@ ctex_add_module(capi DEPENDS image mesh pick graph emit doc paint maps xport io 
 
 ctex_add_library()
 target_link_libraries(cybertexel PUBLIC ctex_lodepng ctex_kong Threads::Threads)
+if(TARGET cybertexel_c)
+    target_link_libraries(cybertexel_c PRIVATE ctex_lodepng ctex_kong Threads::Threads)
+endif()
 if(CTEX_ENABLE_VULKAN_EXECUTOR)
     target_link_libraries(cybertexel PUBLIC volk::volk)
+    if(TARGET cybertexel_c)
+        target_link_libraries(cybertexel_c PRIVATE volk::volk)
+    endif()
 endif()
 
 if(CTEX_BUILD_FUZZERS)
@@ -297,6 +303,26 @@ if(BUILD_TESTING)
     target_link_libraries(ctex_version_test PRIVATE cybertexel)
     set_target_properties(ctex_version_test PROPERTIES LINKER_LANGUAGE CXX)
     add_test(NAME version-consistency COMMAND ctex_version_test)
+
+    if(TARGET cybertexel_c)
+        add_library(ctex_capi_sibling STATIC tests/capi/sibling.c)
+        ctex_configure_c_target(ctex_capi_sibling)
+        add_executable(ctex_capi_foundation_test tests/capi/foundation_test.c)
+        ctex_configure_c_target(ctex_capi_foundation_test)
+        target_link_libraries(ctex_capi_foundation_test PRIVATE cybertexel_c ctex_capi_sibling)
+        add_test(NAME c-abi-foundation COMMAND ctex_capi_foundation_test)
+        if(UNIX AND NOT APPLE)
+            add_test(
+                NAME c-abi-export-surface
+                COMMAND
+                    "${CTEX_PYTHON3_EXECUTABLE}" tests/tools/check_capi_exports.py
+                    "$<TARGET_FILE:cybertexel_c>" "${CMAKE_NM}"
+            )
+            set_tests_properties(
+                c-abi-export-surface PROPERTIES WORKING_DIRECTORY "${PROJECT_SOURCE_DIR}"
+            )
+        endif()
+    endif()
 
     add_executable(ctex_tiled_image_test tests/image/tiled_image_test.cpp)
     ctex_configure_cpp_target(ctex_tiled_image_test)

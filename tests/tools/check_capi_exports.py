@@ -1,0 +1,48 @@
+#!/usr/bin/env python3
+
+from __future__ import annotations
+
+import subprocess
+import sys
+from pathlib import Path
+
+
+EXPECTED = {
+    "ctex_document_create",
+    "ctex_document_destroy",
+    "ctex_get_last_diagnostic",
+    "ctex_get_last_result",
+    "ctex_get_version",
+}
+
+
+def main() -> int:
+    if len(sys.argv) != 3:
+        print("usage: check_capi_exports.py LIBRARY NM", file=sys.stderr)
+        return 2
+    library = Path(sys.argv[1])
+    completed = subprocess.run(
+        [sys.argv[2], "-D", "--defined-only", "-g", str(library)],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    exports = {
+        line.split()[-1].split("@")[0]
+        for line in completed.stdout.splitlines()
+        if line.split()
+    }
+    unexpected = sorted(name for name in exports if not name.startswith("ctex_"))
+    missing = sorted(EXPECTED - exports)
+    if unexpected:
+        print(f"non-ctex exports: {', '.join(unexpected)}")
+    if missing:
+        print(f"missing C ABI exports: {', '.join(missing)}")
+    if unexpected or missing:
+        return 1
+    print(f"ok: {len(exports)} shared-library exports, all use the ctex_ prefix")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
