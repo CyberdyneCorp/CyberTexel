@@ -82,6 +82,8 @@ The current implementation provides:
   aligned or fixed UV sampling and explicitly refuses cross-texture-set clones.
   [Blur and Smear](docs/blur-and-smear.md) use surface-aware sampling over an
   immutable stroke-start snapshot, including tangent-frame-correct normal maps.
+  [Decal and Stencil](docs/decal-and-stencil.md) provide editable surface-frame
+  material projection and transformable, invertible screen-space restrictions.
 - Sparse tiled image storage for one-to-four-channel 8-bit, 16-bit, and
   floating-point pixels, with tile-level dirty tracking and monotonic channel
   and per-tile [content revisions](docs/host-transport-revisions.md), plus

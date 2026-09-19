@@ -423,6 +423,13 @@ stroke-direction mappings and combines configurable drag strength with canonical
 masked deposition. Tangent-space normals cross supplied seam frames and are
 renormalized before encoding, while neither tool can feed its own output back
 into the active stroke.
+Decal and Stencil (10.5) add explicit surface-frame and screen-frame projection
+paths. A retained decal owns its stable identities, original surface pick,
+editable rotation and scales, revision and pinned material; transform edits do
+not repick or rasterize, and rasterization is an explicit call. Stencil position,
+rotation, scale and inversion resolve only from screen positions and constrain
+the canonical masked deposition path. Project round-trip, tile invalidation and
+undo/redo for editable entries remain scheduled together in 20.4.
 
 ## 1. Foundation
 
@@ -565,7 +572,7 @@ into the active stroke.
 - [x] 10.2 Fill: all six scopes
 - [x] 10.3 Clone, aligned and fixed, with the cross-set refusal
 - [x] 10.4 Blur and Smear over a stroke-start snapshot
-- [ ] 10.5 Decal and Stencil; persistent editable decals through editable-authoring
+- [x] 10.5 Decal and Stencil; persistent editable decals through editable-authoring
 - [ ] 10.6 Projection, planar and triplanar
 - [ ] 10.7 Text with UTF-8 and supplied fonts
 - [ ] 10.8 Particle with deterministic seeding

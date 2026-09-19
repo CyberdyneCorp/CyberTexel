@@ -114,6 +114,9 @@ test-stroke-model-scenarios: build
 test-paint-coverage: build
     ctest --test-dir build/headless --output-on-failure -R '^paint-coverage$'
 
+test-paint-decal-stencil: build
+    ctest --test-dir build/headless --output-on-failure -R '^paint-decal-stencil$'
+
 test-paint-rejection: build
     ctest --test-dir build/headless --output-on-failure -R '^paint-rejection$'
 

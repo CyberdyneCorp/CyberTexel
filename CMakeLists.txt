@@ -127,6 +127,7 @@ ctex_add_module(
         src/paint/brush.cpp
         src/paint/clone.cpp
         src/paint/coverage.cpp
+        src/paint/decal_stencil.cpp
         src/paint/deposition.cpp
         src/paint/fill.cpp
         src/paint/masking.cpp
@@ -324,6 +325,14 @@ if(BUILD_TESTING)
         PRIVATE ctex_paint ctex_doc ctex_emit ctex_pick ctex_mesh ctex_graph ctex_image
     )
     add_test(NAME paint-coverage COMMAND ctex_paint_coverage_test)
+
+    add_executable(ctex_paint_decal_stencil_test tests/paint/decal_stencil_test.cpp)
+    ctex_configure_cpp_target(ctex_paint_decal_stencil_test)
+    target_link_libraries(
+        ctex_paint_decal_stencil_test
+        PRIVATE ctex_paint ctex_doc ctex_emit ctex_pick ctex_mesh ctex_graph ctex_image
+    )
+    add_test(NAME paint-decal-stencil COMMAND ctex_paint_decal_stencil_test)
 
     add_executable(ctex_paint_rejection_test tests/paint/rejection_test.cpp)
     ctex_configure_cpp_target(ctex_paint_rejection_test)
