@@ -233,29 +233,32 @@ void validate_settings(const StrokeSettings& settings) {
         settings.tip_mode != TipMode::discrete_alpha) {
         throw StrokeResolutionError("stroke tip mode is invalid");
     }
-    if (!finite(settings.spacing_fraction) ||
-        settings.spacing_fraction < minimum_spacing_fraction ||
-        settings.spacing_fraction > maximum_spacing_fraction) {
-        throw StrokeResolutionError("stroke spacing fraction must be between 0.01 and 4.0");
-    }
-    if (!finite(settings.radius) || settings.radius <= 0.0 || !finite(settings.opacity) ||
-        settings.opacity < 0.0 || settings.opacity > 1.0 || !finite(settings.hardness) ||
-        settings.hardness < 0.0 || settings.hardness > 1.0 || !finite(settings.rotation_radians) ||
-        !finite(settings.elongation) || settings.elongation <= 0.0 || !finite(settings.flow) ||
-        settings.flow < 0.0 || settings.flow > 1.0 || settings.tip_resource_identity.empty()) {
+    if (settings.tip_resource_identity.empty()) {
         throw StrokeResolutionError("stroke properties are invalid");
-    }
-    if (!finite(settings.stabilizer.radius) || settings.stabilizer.radius < 0.0 ||
-        !finite(settings.stabilizer.time_constant_seconds) ||
-        settings.stabilizer.time_constant_seconds < 0.0) {
-        throw StrokeResolutionError(
-            "stabilizer radius and time constant must be finite and non-negative");
     }
     validate_input_mapping(settings.input_mapping);
     validate_jitter(settings.jitter);
     validate_taper(settings.taper);
     validate_constraint(settings.constraint);
     validate_symmetry(settings.symmetry);
+}
+
+void resolve_base_parameters(StrokeSettings& settings, ToolParameterReport& report) {
+    settings.spacing_fraction =
+        validate_tool_parameter(stroke_spacing_parameter, settings.spacing_fraction, report);
+    settings.radius = validate_tool_parameter(stroke_radius_parameter, settings.radius, report);
+    settings.opacity = validate_tool_parameter(stroke_opacity_parameter, settings.opacity, report);
+    settings.hardness =
+        validate_tool_parameter(stroke_hardness_parameter, settings.hardness, report);
+    settings.rotation_radians =
+        validate_tool_parameter(stroke_rotation_parameter, settings.rotation_radians, report);
+    settings.elongation =
+        validate_tool_parameter(stroke_elongation_parameter, settings.elongation, report);
+    settings.flow = validate_tool_parameter(stroke_flow_parameter, settings.flow, report);
+    settings.stabilizer.radius = validate_tool_parameter(stroke_stabilizer_radius_parameter,
+                                                         settings.stabilizer.radius, report);
+    settings.stabilizer.time_constant_seconds = validate_tool_parameter(
+        stroke_stabilizer_time_parameter, settings.stabilizer.time_constant_seconds, report);
 }
 
 void validate_sample(const StrokeInputSample& sample) {
@@ -815,8 +818,7 @@ ResolvedStroke ingest_resolved_stroke(const ResolvedStroke& stroke) {
 
 StrokeResolver::StrokeResolver(StrokeSettings settings) : settings_(std::move(settings)) {
     try {
-        settings_.radius =
-            validate_tool_parameter(stroke_radius_parameter, settings_.radius, parameter_report_);
+        resolve_base_parameters(settings_, parameter_report_);
     } catch (const std::invalid_argument& error) {
         throw StrokeResolutionError(error.what());
     }

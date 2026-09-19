@@ -16,8 +16,10 @@ newlines, and embedded zero bytes are unambiguous. Every `double` is its exact
 64-bit IEEE representation in lowercase hexadecimal. Curves retain point order
 and exact inputs and outputs.
 
-Serialization validates the same settings accepted by `StrokeResolver` and
-only writes `current_stroke_preset_schema_version`. Empty names, invalid
+Serialization validates through `StrokeResolver` and only writes
+`current_stroke_preset_schema_version`. Because the serialized preset API has
+no clamp-report return channel, settings that would require normalization are
+refused rather than silently changed. Empty names, invalid or out-of-range
 settings, and attempts to write an older or future in-memory schema are
 refused. Re-serializing a successfully loaded current preset produces identical
 bytes.

@@ -555,22 +555,12 @@ bool malformed_external_strokes_are_rejected_without_mutation() {
 
 bool spacing_contract_has_versioned_defaults_and_bounds() {
     StrokeResolver defaults;
-    bool below_refused = false;
-    bool above_refused = false;
-    try {
-        StrokeSettings below;
-        below.spacing_fraction = minimum_spacing_fraction - 0.001;
-        static_cast<void>(StrokeResolver(below));
-    } catch (const StrokeResolutionError&) {
-        below_refused = true;
-    }
-    try {
-        StrokeSettings above;
-        above.spacing_fraction = maximum_spacing_fraction + 0.001;
-        static_cast<void>(StrokeResolver(above));
-    } catch (const StrokeResolutionError&) {
-        above_refused = true;
-    }
+    StrokeSettings below_settings;
+    below_settings.spacing_fraction = minimum_spacing_fraction - 0.001;
+    const StrokeResolver below(below_settings);
+    StrokeSettings above_settings;
+    above_settings.spacing_fraction = maximum_spacing_fraction + 0.001;
+    const StrokeResolver above(above_settings);
     StrokeSettings minimum;
     minimum.spacing_fraction = minimum_spacing_fraction;
     StrokeSettings maximum;
@@ -581,8 +571,11 @@ bool spacing_contract_has_versioned_defaults_and_bounds() {
                           canonical_stroke_reconstruction_version &&
                       defaults.settings().spacing_fraction == default_spacing_fraction,
                   "canonical reconstruction defaults changed without a version change") &&
-           expect(below_refused && above_refused,
-                  "spacing outside the declared inclusive bounds was accepted");
+           expect(below.settings().spacing_fraction == minimum_spacing_fraction &&
+                      above.settings().spacing_fraction == maximum_spacing_fraction &&
+                      below.parameter_report().clamp_for("stroke.spacing_fraction").has_value() &&
+                      above.parameter_report().clamp_for("stroke.spacing_fraction").has_value(),
+                  "spacing outside the declared bounds was not clamped and reported");
 }
 
 bool radius_uses_shared_bounds_and_reports_clamps() {
@@ -624,6 +617,37 @@ bool radius_uses_shared_bounds_and_reports_clamps() {
            expect(unchanged.parameter_report().clamps.empty(),
                   "an in-range default radius was reported as clamped") &&
            expect(non_finite_refused, "a non-finite radius was accepted or clamped");
+}
+
+bool base_parameters_share_bounds_and_reach_stamps() {
+    const StrokeInputSample input = sample(0.0, 0);
+    StrokeSettings settings;
+    settings.opacity = 2.0;
+    settings.hardness = -1.0;
+    settings.rotation_radians = 10.0;
+    settings.elongation = 0.0;
+    settings.flow = -1.0;
+    settings.stabilizer = {.radius = -1.0, .time_constant_seconds = 100.0};
+    StrokeResolver resolver(settings);
+    resolver.append_samples({&input, 1});
+    const ResolvedStroke stroke = resolver.resolve();
+    const Stamp& stamp = stroke.stamps.front();
+    const ToolParameterReport& report = resolver.parameter_report();
+    return expect(stamp.opacity == 1.0 && stamp.hardness == 0.0 &&
+                      stamp.rotation_radians == maximum_stroke_rotation_radians &&
+                      stamp.elongation == 0.01 && stamp.flow == 0.0,
+                  "resolved stamps did not use clamped base parameters") &&
+           expect(resolver.settings().stabilizer.radius == 0.0 &&
+                      resolver.settings().stabilizer.time_constant_seconds == 60.0,
+                  "stabilizer controls did not use their shared bounds") &&
+           expect(report.clamps.size() == 7 && report.clamp_for("stroke.opacity").has_value() &&
+                      report.clamp_for("stroke.hardness").has_value() &&
+                      report.clamp_for("stroke.rotation_radians").has_value() &&
+                      report.clamp_for("stroke.elongation").has_value() &&
+                      report.clamp_for("stroke.flow").has_value() &&
+                      report.clamp_for("stroke.stabilizer.radius").has_value() &&
+                      report.clamp_for("stroke.stabilizer.time_constant_seconds").has_value(),
+                  "base-parameter clamp report is incomplete");
 }
 
 bool invalid_input_is_rejected_without_partial_resolution() {
@@ -773,6 +797,7 @@ int main() {
                    malformed_external_strokes_are_rejected_without_mutation() &&
                    spacing_contract_has_versioned_defaults_and_bounds() &&
                    radius_uses_shared_bounds_and_reports_clamps() &&
+                   base_parameters_share_bounds_and_reach_stamps() &&
                    invalid_input_is_rejected_without_partial_resolution()
                ? 0
                : 1;

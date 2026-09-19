@@ -8,15 +8,23 @@ value, and resolved value to a `ToolParameterReport`; in-range values produce
 no report entry. Non-finite inputs and internally inconsistent descriptors are
 refused without modifying the report.
 
-The first routed parameter is `stroke.radius`:
+The routed base stroke parameters are:
 
 | Parameter | Default | Minimum | Maximum | Unit |
 |---|---:|---:|---:|---|
+| `stroke.spacing_fraction` | 0.1 | 0.01 | 4 | radius fraction |
 | `stroke.radius` | 1 | 0.000001 | 1,000,000 | caller-defined surface unit |
+| `stroke.opacity` | 1 | 0 | 1 | normalized |
+| `stroke.hardness` | 1 | 0 | 1 | normalized |
+| `stroke.rotation_radians` | 0 | -2π | 2π | radians |
+| `stroke.elongation` | 1 | 0.01 | 100 | ratio |
+| `stroke.flow` | 1 | 0 | 1 | normalized |
+| `stroke.stabilizer.radius` | 0 | 0 | 1,000,000 | caller-defined surface unit |
+| `stroke.stabilizer.time_constant_seconds` | 0 | 0 | 60 | seconds |
 
-`StrokeResolver::settings()` exposes the resolved radius and
-`parameter_report()` exposes its clamp. Brush and Eraser consume the resolved
-stroke, so they cannot bypass or reinterpret the parameter decision. The
-remaining tool descriptors and entry points are tracked by roadmap task 10.12;
-that task remains incomplete until the behavioral no-inert audit also covers
-every documented parameter.
+`StrokeResolver::settings()` exposes the resolved settings and
+`parameter_report()` exposes their clamps. Brush and Eraser consume the
+resolved stroke, so they cannot bypass or reinterpret the parameter decision.
+The remaining nested stroke controls, tool descriptors and entry points are
+tracked by roadmap task 10.12; that task remains incomplete until the
+behavioral no-inert audit also covers every documented parameter.

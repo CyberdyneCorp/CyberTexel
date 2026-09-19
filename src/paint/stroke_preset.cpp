@@ -341,7 +341,11 @@ void validate_preset(const StrokePreset& preset) {
         throw StrokePresetError("stroke preset requires a name");
     }
     try {
-        static_cast<void>(StrokeResolver(preset.settings));
+        const StrokeResolver resolver(preset.settings);
+        if (!resolver.parameter_report().clamps.empty()) {
+            throw StrokePresetError(
+                "stroke preset settings require normalization before serialization");
+        }
     } catch (const StrokeResolutionError& error) {
         throw StrokePresetError("stroke preset settings are invalid: " + std::string(error.what()));
     }

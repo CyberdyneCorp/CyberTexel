@@ -21,8 +21,25 @@ inline constexpr double maximum_spacing_fraction = 4.0;
 inline constexpr double default_stroke_radius = 1.0;
 inline constexpr double minimum_stroke_radius = stroke_position_tolerance;
 inline constexpr double maximum_stroke_radius = 1'000'000.0;
+inline constexpr double maximum_stroke_rotation_radians = 6.28318530717958647692;
 inline constexpr ToolParameterDescriptor stroke_radius_parameter{
     "stroke.radius", default_stroke_radius, minimum_stroke_radius, maximum_stroke_radius};
+inline constexpr ToolParameterDescriptor stroke_spacing_parameter{
+    "stroke.spacing_fraction", default_spacing_fraction, minimum_spacing_fraction,
+    maximum_spacing_fraction};
+inline constexpr ToolParameterDescriptor stroke_opacity_parameter{"stroke.opacity", 1.0, 0.0, 1.0};
+inline constexpr ToolParameterDescriptor stroke_hardness_parameter{"stroke.hardness", 1.0, 0.0,
+                                                                   1.0};
+inline constexpr ToolParameterDescriptor stroke_rotation_parameter{"stroke.rotation_radians", 0.0,
+                                                                   -maximum_stroke_rotation_radians,
+                                                                   maximum_stroke_rotation_radians};
+inline constexpr ToolParameterDescriptor stroke_elongation_parameter{"stroke.elongation", 1.0, 0.01,
+                                                                     100.0};
+inline constexpr ToolParameterDescriptor stroke_flow_parameter{"stroke.flow", 1.0, 0.0, 1.0};
+inline constexpr ToolParameterDescriptor stroke_stabilizer_radius_parameter{
+    "stroke.stabilizer.radius", 0.0, 0.0, maximum_stroke_radius};
+inline constexpr ToolParameterDescriptor stroke_stabilizer_time_parameter{
+    "stroke.stabilizer.time_constant_seconds", 0.0, 0.0, 60.0};
 
 struct Vec3d {
     double x{};
@@ -145,11 +162,11 @@ struct StrokeSettings {
     TipMode tip_mode{TipMode::continuous_sweep};
     double spacing_fraction{default_spacing_fraction};
     double radius{default_stroke_radius};
-    double opacity{1.0};
-    double hardness{1.0};
-    double rotation_radians{};
-    double elongation{1.0};
-    double flow{1.0};
+    double opacity{stroke_opacity_parameter.default_value};
+    double hardness{stroke_hardness_parameter.default_value};
+    double rotation_radians{stroke_rotation_parameter.default_value};
+    double elongation{stroke_elongation_parameter.default_value};
+    double flow{stroke_flow_parameter.default_value};
     std::string tip_resource_identity{"builtin.circle"};
     StabilizerSettings stabilizer;
     StrokeInputMapping input_mapping;
