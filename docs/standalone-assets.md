@@ -7,6 +7,8 @@ payload and format version plus explicit external-resource and tiled-image
 dependencies. The packaging layer does not reinterpret that payload.
 [Smart-material payloads](smart-material-serialization.md) use their canonical
 domain serializer before entering this container.
+[Smart-mask payloads](smart-masks.md) follow the same rule while retaining their
+distinct asset kind and schema.
 
 `package_standalone_asset` selects exactly one asset and only its declared
 dependencies from a source container. Unknown opaque sections are retained so

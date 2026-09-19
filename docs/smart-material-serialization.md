@@ -63,7 +63,7 @@ it to every bound target on a copy, revalidates the result, and publishes the
 copy atomically. Its report lists every updated target. Refused, unknown,
 wrong-type and out-of-range updates leave the preset byte-identical. The
 declared default remains the reset value; per-instance parameter state arrives
-with independent smart-mask instances in task 13.4.
+through independent [smart-mask instances](smart-masks.md).
 
 ## Canonical format
 

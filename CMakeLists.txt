@@ -134,6 +134,7 @@ ctex_add_module(
         src/doc/channels.cpp
         src/doc/document.cpp
         src/doc/material_graph.cpp
+        src/doc/smart_mask.cpp
         src/doc/smart_material.cpp
 )
 ctex_add_module(
@@ -386,6 +387,10 @@ if(BUILD_TESTING)
         ctex_smart_material_test PRIVATE ctex_doc ctex_graph ctex_image ctex_mesh
     )
     add_test(NAME smart-material-serialization COMMAND ctex_smart_material_test)
+    add_executable(ctex_smart_mask_test tests/doc/smart_mask_test.cpp)
+    ctex_configure_cpp_target(ctex_smart_mask_test)
+    target_link_libraries(ctex_smart_mask_test PRIVATE ctex_doc ctex_graph ctex_image ctex_mesh)
+    add_test(NAME smart-mask-instances COMMAND ctex_smart_mask_test)
 
     add_executable(ctex_host_transport_revisions_test tests/doc/revisions_test.cpp)
     ctex_configure_cpp_target(ctex_host_transport_revisions_test)

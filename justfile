@@ -89,6 +89,9 @@ test-document: build
 test-smart-material-serialization: build
     ctest --test-dir build/headless --output-on-failure -R '^smart-material-serialization$'
 
+test-smart-mask-instances: build
+    ctest --test-dir build/headless --output-on-failure -R '^smart-mask-instances$'
+
 test-host-transport-revisions: build
     ctest --test-dir build/headless --output-on-failure -R '^host-transport-revisions$'
 
