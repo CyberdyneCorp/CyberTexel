@@ -56,8 +56,8 @@ TiledImage::TiledImage(std::uint32_t width, std::uint32_t height, PixelFormat fo
 }
 
 std::size_t TiledImage::resident_pixel_bytes() const noexcept {
-    return static_cast<std::size_t>(std::count_if(tiles_.begin(), tiles_.end(),
-                                                  [](const auto& tile) { return !tile.empty(); })) *
+    return static_cast<std::size_t>(std::count_if(
+               tiles_.begin(), tiles_.end(), [](const auto& tile) { return tile != nullptr; })) *
            tile_bytes_;
 }
 
@@ -80,7 +80,11 @@ Generation TiledImage::tile_generation(TileCoordinate tile) const {
 }
 
 bool TiledImage::is_tile_allocated(TileCoordinate tile) const {
-    return !tiles_[tile_index(tile)].empty();
+    return tiles_[tile_index(tile)] != nullptr;
+}
+
+TileStorageHandle TiledImage::pin_tile_storage(TileCoordinate tile) const {
+    return tiles_[tile_index(tile)];
 }
 
 bool TiledImage::is_tile_dirty(TileCoordinate tile) const { return dirty_[tile_index(tile)]; }
@@ -104,10 +108,10 @@ std::span<const std::byte> TiledImage::read_pixel(std::uint32_t x, std::uint32_t
     }
     const TileCoordinate coordinate{x / tile_size_, y / tile_size_};
     const auto& tile = tiles_[tile_index(coordinate)];
-    if (tile.empty()) {
+    if (!tile) {
         return clear_pixel_;
     }
-    return std::span<const std::byte>(tile).subspan(pixel_offset(x, y), pixel_bytes_);
+    return std::span<const std::byte>(*tile).subspan(pixel_offset(x, y), pixel_bytes_);
 }
 
 void TiledImage::write_pixel(std::uint32_t x, std::uint32_t y, std::span<const std::byte> pixel) {
@@ -166,14 +170,18 @@ std::size_t TiledImage::pixel_offset(std::uint32_t x, std::uint32_t y) const noe
 
 std::vector<std::byte>& TiledImage::allocate_tile(std::size_t index) {
     auto& tile = tiles_[index];
-    if (!tile.empty()) {
-        return tile;
+    if (tile && tile.unique()) {
+        return *tile;
     }
-    tile.resize(tile_bytes_);
+    if (tile) {
+        tile = std::make_shared<std::vector<std::byte>>(*tile);
+        return *tile;
+    }
+    tile = std::make_shared<std::vector<std::byte>>(tile_bytes_);
     for (std::size_t offset = 0; offset < tile_bytes_; offset += pixel_bytes_) {
-        std::copy(clear_pixel_.begin(), clear_pixel_.end(), tile.begin() + offset);
+        std::copy(clear_pixel_.begin(), clear_pixel_.end(), tile->begin() + offset);
     }
-    return tile;
+    return *tile;
 }
 
 void TiledImage::begin_new_revision_epoch() noexcept {

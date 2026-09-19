@@ -19,8 +19,11 @@ the epoch or a tile generation refuses the change rather than wrapping.
 
 ## Delta queries
 
-`query_channel_delta` accepts the epoch-qualified cursor a host last synchronized
-and returns the current cursor plus every tile changed after the caller's value.
+The canonical `query_channel_delta` accepts a `SnapshotPool` and the
+epoch-qualified cursor a host last synchronized. An admitted query returns the
+current cursor, every tile changed after the caller's value, and a move-only
+`SnapshotToken`. `query_channel_delta_metadata` is the tokenless metadata helper
+used by internal validation and does not authorize later readback.
 Each row-major `TileVersion` carries the tile's latest revision, per-tile
 generation and residency. Repeated changes are coalesced: a tile appears once
 with its newest version, even when many operations touched it. CPU-authored
@@ -32,9 +35,8 @@ revision newer than the current value in the same epoch is rejected. An unknown
 cursor or any cursor from another epoch returns
 `DeltaQueryDisposition::full_resynchronization_required` with no partial tile
 list. The host must fully synchronize and retain the returned current cursor
-before incremental queries resume. Snapshot pinning and readback are later
-tasks. The current scan is linear in the logical tile count, with the
-change-proportional index scheduled for task 8.8.
+before incremental queries resume. The current scan is linear in the logical
+tile count, with the change-proportional index scheduled for task 8.8.
 
 ## Explicit tile readback
 
@@ -47,10 +49,10 @@ matching `HostTileCompletion` payload per requested tile. A request exposes
 when `output_readable()` is true.
 
 The library publishes into caller buffers only after every tile, version,
-coordinate, declared layout, and byte count validates. Stale CPU versions, malformed host
-completions, cancellation, failure, and completion arriving after cancellation
-leave every output span unchanged. The caller must keep those spans alive until
-the operation reaches a terminal state.
+coordinate, declared layout, and byte count validates. Stale CPU versions,
+malformed host completions, cancellation, failure, and completion arriving
+after cancellation leave every output span unchanged. The caller must keep
+those spans alive until the operation reaches a terminal state.
 
 ## Stable tile memory layout
 
@@ -72,9 +74,9 @@ texture-upload API without rearranging pixels.
 
 Readback is never triggered by revision or delta queries. Format negotiation
 does not run implicitly: without a selection, this contract exposes the
-channel's current native format. Until snapshot tokens land in task 8.7, CPU
-readback requires the current cursor and fails rather than reading a stale
-version.
+channel's current native format. The current-cursor overload remains available
+for immediate CPU work; synchronization uses the snapshot overload so a later
+edit cannot invalidate the requested version.
 
 ## Host-controlled format negotiation
 
@@ -100,3 +102,27 @@ rejects a forged selection, a selection for another channel format, or a
 destination layout that differs from the selected output. Thus a conversion can
 happen only after the host opts in, and the operation and resulting layout both
 report the format that was actually delivered.
+
+## Snapshot consistency and pressure
+
+`SnapshotPool` has an immutable pinned-byte ceiling. An admitted delta query
+returns a `SnapshotDelta` containing its metadata and an explicitly releasable
+`SnapshotToken`. The token lists the exact versions it retains, reports its
+retained bytes, and remains valid until `release()`; destruction is a fail-safe
+release. `SnapshotMemoryReport` exposes the ceiling, current pinned bytes,
+active token count, and unique pinned allocation count.
+
+CPU tiles use shared immutable allocation handles. The query retains those
+handles without reading or copying pixels. A later write to a pinned tile uses
+copy-on-write, so token-based readback still observes the exact bytes at the
+query cursor while the edit appears in the following delta. Readback refuses a
+released token or a tile version the token does not contain.
+
+The pool charges full physical tile allocations and counts the same allocation
+only once when several tokens retain it. Admission computes the incremental
+physical bytes before changing pool state. If that increment would cross the
+ceiling, the query returns `over_budget`, no token, and leaves the memory report
+unchanged. Releasing the last reference to an old version immediately returns
+its CPU allocation to the available snapshot budget; host-device completion
+will provide the corresponding reclamation fence when host-resident delta
+versions are integrated.

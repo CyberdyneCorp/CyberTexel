@@ -42,6 +42,9 @@ Foundation implementation is in progress.
 - Host-ordered tile readback format negotiation with explicit exact-only or
   conversion-enabled policy, reported conversions across 8/16-bit UNORM and
   float components, and an explicit no-common-format result.
+- Explicitly releasable, budgeted synchronization snapshots with unique
+  physical-allocation accounting and copy-on-write CPU tiles, preserving the
+  queried revision across later edits without implicit pixel readback.
 - Linear Rec. 709 working-space and sRGB transfer functions with unclamped HDR
   conversion.
 - Native and sanitizer test presets plus a registry-driven determinism gate that

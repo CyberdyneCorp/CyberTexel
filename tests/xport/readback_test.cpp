@@ -54,7 +54,8 @@ bool cpu_readback_copies_only_named_tiles() {
     channels.pixels("pbr.base_color").write_pixel(1, 2, first);
     channels.pixels("pbr.base_color").write_pixel(64, 0, unrequested);
     channels.pixels("pbr.base_color").write_pixel(64, 64, edge);
-    const auto delta = ctex::xport::query_channel_delta(channels, "pbr.base_color", initial_cursor);
+    const auto delta =
+        ctex::xport::query_channel_delta_metadata(channels, "pbr.base_color", initial_cursor);
 
     std::vector<std::byte> first_output(64 * 64 * 3, std::byte{0x7f});
     std::vector<std::byte> edge_output(6 * 6 * 3, std::byte{0x7f});
@@ -85,7 +86,8 @@ bool stale_cpu_readback_does_not_publish() {
     const auto initial_cursor = channels.channel_revision_cursor("pbr.base_color");
     const std::array first{std::byte{1}, std::byte{2}, std::byte{3}};
     channels.pixels("pbr.base_color").write_pixel(0, 0, first);
-    const auto delta = ctex::xport::query_channel_delta(channels, "pbr.base_color", initial_cursor);
+    const auto delta =
+        ctex::xport::query_channel_delta_metadata(channels, "pbr.base_color", initial_cursor);
     const std::array second{std::byte{5}, std::byte{8}, std::byte{13}};
     channels.pixels("pbr.base_color").write_pixel(0, 0, second);
 

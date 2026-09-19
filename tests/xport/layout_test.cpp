@@ -57,7 +57,8 @@ bool visible_edge_tile_uploads_directly() {
     const std::array last_pixel{std::byte{44}, std::byte{55}, std::byte{66}};
     channels.pixels("pbr.base_color").write_pixel(64, 64, first_pixel);
     channels.pixels("pbr.base_color").write_pixel(69, 65, last_pixel);
-    const auto delta = ctex::xport::query_channel_delta(channels, "pbr.base_color", before);
+    const auto delta =
+        ctex::xport::query_channel_delta_metadata(channels, "pbr.base_color", before);
     const TileCoordinate edge{1, 1};
     const TileMemoryLayout layout =
         ctex::xport::tile_memory_layout(channels, "pbr.base_color", edge);

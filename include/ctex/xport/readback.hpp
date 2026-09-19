@@ -5,6 +5,7 @@
 #include <cstdint>
 #include <ctex/xport/delta.hpp>
 #include <ctex/xport/format.hpp>
+#include <ctex/xport/snapshot.hpp>
 #include <optional>
 #include <span>
 #include <string>
@@ -69,6 +70,11 @@ public:
     [[nodiscard]] static TileReadback begin_cpu(
         const doc::TextureChannels& channels, std::string_view semantic_id,
         doc::ChannelRevisionCursor cursor, const ReadbackFormatSelection& format,
+        std::span<const TileReadbackDestination> destinations);
+    [[nodiscard]] static TileReadback begin_cpu(
+        const SnapshotToken& snapshot, std::span<const TileReadbackDestination> destinations);
+    [[nodiscard]] static TileReadback begin_cpu(
+        const SnapshotToken& snapshot, const ReadbackFormatSelection& format,
         std::span<const TileReadbackDestination> destinations);
     [[nodiscard]] static TileReadback begin_host(
         std::span<const TileReadbackDestination> destinations);

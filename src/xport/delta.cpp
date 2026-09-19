@@ -3,8 +3,9 @@
 
 namespace ctex::xport {
 
-ChannelDelta query_channel_delta(const doc::TextureChannels& channels, std::string_view semantic_id,
-                                 doc::ChannelRevisionCursor synchronized_cursor) {
+ChannelDelta query_channel_delta_metadata(const doc::TextureChannels& channels,
+                                          std::string_view semantic_id,
+                                          doc::ChannelRevisionCursor synchronized_cursor) {
     const image::TiledImage& image = channels.pixels(semantic_id);
     const doc::ChannelRevisionCursor current_cursor = image.revision_cursor();
     if (synchronized_cursor.epoch != current_cursor.epoch) {

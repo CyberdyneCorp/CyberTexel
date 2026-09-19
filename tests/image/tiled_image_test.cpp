@@ -85,6 +85,25 @@ bool test_sparse_clear_and_dirty_tracking() {
     return passed;
 }
 
+bool test_pinned_tile_storage_is_copy_on_write() {
+    TiledImage image(2, 1, PixelFormat{ChannelType::uint8_unorm, 3}, 2);
+    const std::array first{std::byte{1}, std::byte{2}, std::byte{3}};
+    const std::array second{std::byte{5}, std::byte{8}, std::byte{13}};
+    image.write_pixel(0, 0, first);
+    const auto pinned = image.pin_tile_storage({0, 0});
+    image.write_pixel(0, 0, second);
+    const auto current = image.pin_tile_storage({0, 0});
+
+    return expect(pinned && current && pinned.get() != current.get(),
+                  "writing a pinned tile did not create a new allocation") &&
+           expect(std::equal(first.begin(), first.end(), pinned->begin()),
+                  "copy-on-write changed the pinned tile version") &&
+           expect(std::equal(second.begin(), second.end(), image.read_pixel(0, 0).begin()),
+                  "copy-on-write did not publish the new tile version") &&
+           expect(image.resident_pixel_bytes() == image.tile_bytes(),
+                  "old pinned storage was double-counted as current image residency");
+}
+
 bool test_validation() {
     bool passed = true;
     passed &= expect_throws<std::invalid_argument>(
@@ -106,7 +125,7 @@ bool test_validation() {
 
 int main() {
     return test_formats_preserve_bytes() && test_sparse_clear_and_dirty_tracking() &&
-                   test_validation()
+                   test_pinned_tile_storage_is_copy_on_write() && test_validation()
                ? 0
                : 1;
 }

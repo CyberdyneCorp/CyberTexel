@@ -32,9 +32,9 @@ public:
     using std::invalid_argument::invalid_argument;
 };
 
-[[nodiscard]] ChannelDelta query_channel_delta(const doc::TextureChannels& channels,
-                                               std::string_view semantic_id,
-                                               doc::ChannelRevisionCursor synchronized_cursor);
+[[nodiscard]] ChannelDelta query_channel_delta_metadata(
+    const doc::TextureChannels& channels, std::string_view semantic_id,
+    doc::ChannelRevisionCursor synchronized_cursor);
 
 }  // namespace ctex::xport
 

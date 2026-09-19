@@ -106,10 +106,8 @@ std::size_t checked_tile_bytes(image::TileExtent extent, std::size_t pixel_bytes
     return pixels * pixel_bytes;
 }
 
-TileMemoryLayout make_tile_memory_layout(const image::TiledImage& image,
-                                         image::TileCoordinate coordinate,
+TileMemoryLayout make_tile_memory_layout(image::TileExtent extent,
                                          image::PixelFormat output_format) {
-    const image::TileExtent extent = image.tile_extent(coordinate);
     const std::size_t pixel_stride = output_format.bytes_per_pixel();
     if (extent.width > std::numeric_limits<std::size_t>::max() / pixel_stride) {
         throw std::overflow_error("tile layout row pitch overflows");
@@ -128,6 +126,12 @@ TileMemoryLayout make_tile_memory_layout(const image::TiledImage& image,
         .component_byte_order = ComponentByteOrder::native,
         .tile_contiguity = TileContiguity::separate_buffers,
     };
+}
+
+TileMemoryLayout make_tile_memory_layout(const image::TiledImage& image,
+                                         image::TileCoordinate coordinate,
+                                         image::PixelFormat output_format) {
+    return make_tile_memory_layout(image.tile_extent(coordinate), output_format);
 }
 
 double decode_component(std::span<const std::byte> bytes, image::ChannelType type) {
@@ -172,6 +176,25 @@ void encode_component(double value, image::ChannelType type, std::span<std::byte
     throw std::invalid_argument("unsupported readback output component type");
 }
 
+void append_pixel(std::span<const std::byte> pixel, const ReadbackFormatSelection& format,
+                  std::vector<std::byte>& result, std::size_t& offset) {
+    if (!format.converted()) {
+        std::copy(pixel.begin(), pixel.end(), result.begin() + offset);
+        offset += pixel.size();
+        return;
+    }
+    for (std::uint8_t channel = 0; channel < format.source_format.channel_count; ++channel) {
+        const std::size_t source_offset = channel * format.source_format.bytes_per_channel();
+        const std::size_t output_bytes = format.output_format.bytes_per_channel();
+        const double value =
+            decode_component(pixel.subspan(source_offset, format.source_format.bytes_per_channel()),
+                             format.source_format.channel_type);
+        encode_component(value, format.output_format.channel_type,
+                         std::span(result).subspan(offset, output_bytes));
+        offset += output_bytes;
+    }
+}
+
 std::vector<std::byte> stage_cpu_tile(const image::TiledImage& image,
                                       image::TileCoordinate coordinate,
                                       const ReadbackFormatSelection& format) {
@@ -184,23 +207,31 @@ std::vector<std::byte> stage_cpu_tile(const image::TiledImage& image,
     for (std::uint32_t y = 0; y < extent.height; ++y) {
         for (std::uint32_t x = 0; x < extent.width; ++x) {
             const auto pixel = image.read_pixel(origin_x + x, origin_y + y);
-            if (!format.converted()) {
-                std::copy(pixel.begin(), pixel.end(), result.begin() + offset);
-                offset += pixel.size();
-                continue;
-            }
-            for (std::uint8_t channel = 0; channel < format.source_format.channel_count;
-                 ++channel) {
-                const std::size_t source_offset =
-                    channel * format.source_format.bytes_per_channel();
-                const std::size_t output_bytes = format.output_format.bytes_per_channel();
-                const double value = decode_component(
-                    pixel.subspan(source_offset, format.source_format.bytes_per_channel()),
-                    format.source_format.channel_type);
-                encode_component(value, format.output_format.channel_type,
-                                 std::span(result).subspan(offset, output_bytes));
-                offset += output_bytes;
-            }
+            append_pixel(pixel, format, result, offset);
+        }
+    }
+    return result;
+}
+
+std::vector<std::byte> stage_pinned_tile(std::span<const std::byte> storage,
+                                         image::TileExtent extent, std::uint32_t tile_size,
+                                         const ReadbackFormatSelection& format) {
+    const std::size_t source_pixel_bytes = format.source_format.bytes_per_pixel();
+    const std::size_t physical_row_bytes = checked_tile_bytes({tile_size, 1}, source_pixel_bytes);
+    const std::size_t required_storage =
+        checked_tile_bytes({tile_size, tile_size}, source_pixel_bytes);
+    if (storage.size() != required_storage) {
+        throw std::logic_error("pinned tile storage has the wrong size");
+    }
+    std::vector<std::byte> result(
+        checked_tile_bytes(extent, format.output_format.bytes_per_pixel()));
+    std::size_t output_offset = 0;
+    for (std::uint32_t y = 0; y < extent.height; ++y) {
+        for (std::uint32_t x = 0; x < extent.width; ++x) {
+            const std::size_t source_offset =
+                (static_cast<std::size_t>(y) * physical_row_bytes) + (x * source_pixel_bytes);
+            append_pixel(storage.subspan(source_offset, source_pixel_bytes), format, result,
+                         output_offset);
         }
     }
     return result;
@@ -304,6 +335,58 @@ TileReadback TileReadback::begin_cpu(const doc::TextureChannels& channels,
         throw;
     } catch (const std::exception& exception) {
         return failed(exception.what());
+    }
+}
+
+TileReadback TileReadback::begin_cpu(const SnapshotToken& snapshot,
+                                     std::span<const TileReadbackDestination> destinations) {
+    const image::PixelFormat source_format = snapshot.source_format();
+    return begin_cpu(snapshot,
+                     ReadbackFormatSelection{
+                         source_format,
+                         source_format,
+                         ReadbackConversion::none,
+                     },
+                     destinations);
+}
+
+TileReadback TileReadback::begin_cpu(const SnapshotToken& snapshot,
+                                     const ReadbackFormatSelection& format,
+                                     std::span<const TileReadbackDestination> destinations) {
+    std::string error;
+    if (!validate_destinations(destinations, TileResidency::cpu, error)) {
+        return failed(std::move(error));
+    }
+    if (!snapshot.active()) {
+        return failed("CPU tile readback snapshot is released");
+    }
+    if (!format.is_valid() || format.source_format != snapshot.source_format()) {
+        return failed("CPU tile readback format selection does not match the snapshot");
+    }
+
+    try {
+        std::vector<std::vector<std::byte>> staged;
+        staged.reserve(destinations.size());
+        for (const TileReadbackDestination& destination : destinations) {
+            const auto pinned = snapshot.access(destination.version);
+            if (destination.layout !=
+                make_tile_memory_layout(pinned.extent, format.output_format)) {
+                return failed("CPU tile readback memory layout does not match the snapshot tile",
+                              format);
+            }
+            staged.push_back(
+                stage_pinned_tile(pinned.bytes, pinned.extent, pinned.tile_size, format));
+        }
+
+        std::vector<TileReadbackDestination> retained(destinations.begin(), destinations.end());
+        for (std::size_t index = 0; index < retained.size(); ++index) {
+            std::copy(staged[index].begin(), staged[index].end(), retained[index].output.begin());
+        }
+        return {std::move(retained), TileReadbackStatus::complete, {}, format};
+    } catch (const std::bad_alloc&) {
+        throw;
+    } catch (const std::exception& exception) {
+        return failed(exception.what(), format);
     }
 }
 

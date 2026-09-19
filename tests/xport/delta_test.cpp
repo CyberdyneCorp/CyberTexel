@@ -27,7 +27,7 @@ bool empty_query_moves_no_pixels() {
     channels.enable("pbr.base_color");
     const auto initial_cursor = channels.channel_revision_cursor("pbr.base_color");
     const ChannelDelta delta =
-        ctex::xport::query_channel_delta(channels, "pbr.base_color", initial_cursor);
+        ctex::xport::query_channel_delta_metadata(channels, "pbr.base_color", initial_cursor);
     return expect(delta.disposition == DeltaQueryDisposition::complete &&
                       delta.synchronized_cursor == initial_cursor &&
                       delta.current_cursor == initial_cursor && delta.changed_tiles.empty() &&
@@ -62,7 +62,7 @@ bool twenty_operations_are_complete_and_coalesced() {
 
     const std::size_t resident_before_query = channels.resident_pixel_bytes();
     const ChannelDelta complete =
-        ctex::xport::query_channel_delta(channels, "pbr.base_color", initial_cursor);
+        ctex::xport::query_channel_delta_metadata(channels, "pbr.base_color", initial_cursor);
     bool passed = true;
     passed &= expect(complete.disposition == DeltaQueryDisposition::complete &&
                          complete.synchronized_cursor == initial_cursor &&
@@ -84,7 +84,7 @@ bool twenty_operations_are_complete_and_coalesced() {
                      "delta query changed resident pixel storage");
 
     const ChannelDelta recent =
-        ctex::xport::query_channel_delta(channels, "pbr.base_color", cursor_after_twelve);
+        ctex::xport::query_channel_delta_metadata(channels, "pbr.base_color", cursor_after_twelve);
     passed &= expect(recent.changed_tiles.size() == operation_count - changed_tile_count,
                      "delta since the caller-held revision omitted or repeated a changed tile");
     for (const auto& version : recent.changed_tiles) {
@@ -94,7 +94,7 @@ bool twenty_operations_are_complete_and_coalesced() {
 
     const auto current_cursor = channels.channel_revision_cursor("pbr.base_color");
     const ChannelDelta current =
-        ctex::xport::query_channel_delta(channels, "pbr.base_color", current_cursor);
+        ctex::xport::query_channel_delta_metadata(channels, "pbr.base_color", current_cursor);
     passed &= expect(current.changed_tiles.empty(),
                      "querying from the current revision returned false changes");
     return passed;
@@ -106,7 +106,8 @@ bool future_revision_is_refused() {
     auto future = channels.channel_revision_cursor("pbr.base_color");
     ++future.revision;
     try {
-        static_cast<void>(ctex::xport::query_channel_delta(channels, "pbr.base_color", future));
+        static_cast<void>(
+            ctex::xport::query_channel_delta_metadata(channels, "pbr.base_color", future));
     } catch (const ctex::xport::DeltaQueryError&) {
         return true;
     } catch (const std::exception&) {
@@ -127,8 +128,8 @@ bool stale_cursor_requires_full_resynchronization() {
 
     const auto reset_cursor = channels.reset_revision_history("pbr.base_color");
     const ChannelDelta stale =
-        ctex::xport::query_channel_delta(channels, "pbr.base_color", stale_cursor);
-    const ChannelDelta unknown = ctex::xport::query_channel_delta(
+        ctex::xport::query_channel_delta_metadata(channels, "pbr.base_color", stale_cursor);
+    const ChannelDelta unknown = ctex::xport::query_channel_delta_metadata(
         channels, "pbr.base_color", ctex::doc::ChannelRevisionCursor{});
     bool passed = true;
     passed &=
@@ -147,7 +148,7 @@ bool stale_cursor_requires_full_resynchronization() {
     const std::array second_value{std::byte{5}, std::byte{8}, std::byte{13}};
     channels.pixels("pbr.base_color").write_pixel(0, 0, second_value);
     const ChannelDelta after_reset =
-        ctex::xport::query_channel_delta(channels, "pbr.base_color", reset_cursor);
+        ctex::xport::query_channel_delta_metadata(channels, "pbr.base_color", reset_cursor);
     passed &= expect(after_reset.disposition == DeltaQueryDisposition::complete &&
                          after_reset.changed_tiles.size() == 1 &&
                          after_reset.changed_tiles.front().revision == 1 &&

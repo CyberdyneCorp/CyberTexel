@@ -280,7 +280,11 @@ accepts an ordered host format list and an exact-only or conversion-enabled
 policy. It reports the selected source, output and conversion, supports every
 8/16-bit UNORM and float component pairing without changing channel count, and
 reports invalid declarations or no common format explicitly. Snapshot pinning
-(8.7) is next, while the change-proportional index remains task 8.8.
+(8.7) adds a ceiling-enforced pool, move-only explicitly releasable tokens,
+unique physical-allocation accounting and copy-on-write CPU tiles. The
+canonical delta query now admits and returns a token; a token-based readback
+keeps revision R immutable while an edit publishes R+1 for the following
+delta. The change-proportional index (8.8) is next.
 
 ## 1. Foundation
 
@@ -391,7 +395,7 @@ reports invalid declarations or no common format explicitly. Snapshot pinning
 - [x] 8.4 Explicit asynchronous tile readback into caller-owned buffers; no implicit readback on delta queries
 - [x] 8.5 Declared, stable memory layout; direct-upload test
 - [x] 8.6 Format negotiation and the host-owned conversion decision
-- [ ] 8.7 Releasable, budgeted snapshot tokens pin resource versions between query and readback
+- [x] 8.7 Releasable, budgeted snapshot tokens pin resource versions between query and readback
 - [ ] 8.8 Delta query cost independent of document tile count
 - [ ] 8.9 Preview transport through the same mechanism
 - [ ] 8.10 Stable identities for host-cached resources

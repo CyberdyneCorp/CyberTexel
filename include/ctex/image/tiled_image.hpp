@@ -4,6 +4,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <ctex/image/pixel_format.hpp>
+#include <memory>
 #include <span>
 #include <vector>
 
@@ -13,6 +14,7 @@ inline constexpr std::uint32_t default_tile_size = 64;
 using Revision = std::uint64_t;
 using RevisionEpoch = std::uint64_t;
 using Generation = std::uint64_t;
+using TileStorageHandle = std::shared_ptr<const std::vector<std::byte>>;
 
 struct RevisionCursor {
     RevisionEpoch epoch{};
@@ -56,6 +58,7 @@ public:
     [[nodiscard]] Revision tile_revision(TileCoordinate tile) const;
     [[nodiscard]] Generation tile_generation(TileCoordinate tile) const;
     [[nodiscard]] bool is_tile_allocated(TileCoordinate tile) const;
+    [[nodiscard]] TileStorageHandle pin_tile_storage(TileCoordinate tile) const;
     [[nodiscard]] bool is_tile_dirty(TileCoordinate tile) const;
     [[nodiscard]] std::vector<TileCoordinate> dirty_tiles() const;
 
@@ -79,7 +82,7 @@ private:
     std::size_t pixel_bytes_;
     std::size_t tile_bytes_;
     std::vector<std::byte> clear_pixel_;
-    std::vector<std::vector<std::byte>> tiles_;
+    std::vector<std::shared_ptr<std::vector<std::byte>>> tiles_;
     std::vector<bool> dirty_;
     RevisionEpoch revision_epoch_{1};
     Revision revision_{};

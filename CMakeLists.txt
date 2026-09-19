@@ -122,7 +122,12 @@ ctex_add_module(maps DEPENDS image doc)
 ctex_add_module(
     xport
     DEPENDS doc
-    SOURCES src/xport/xport.cpp src/xport/delta.cpp src/xport/format.cpp src/xport/readback.cpp
+    SOURCES
+        src/xport/xport.cpp
+        src/xport/delta.cpp
+        src/xport/format.cpp
+        src/xport/readback.cpp
+        src/xport/snapshot.cpp
 )
 ctex_add_module(io DEPENDS doc image)
 target_link_libraries(ctex_io PRIVATE ctex_lodepng)
@@ -252,6 +257,14 @@ if(BUILD_TESTING)
         PRIVATE ctex_xport ctex_doc ctex_mesh ctex_graph ctex_image
     )
     add_test(NAME host-transport-format COMMAND ctex_host_transport_format_test)
+
+    add_executable(ctex_host_transport_snapshot_test tests/xport/snapshot_test.cpp)
+    ctex_configure_cpp_target(ctex_host_transport_snapshot_test)
+    target_link_libraries(
+        ctex_host_transport_snapshot_test
+        PRIVATE ctex_xport ctex_doc ctex_mesh ctex_graph ctex_image
+    )
+    add_test(NAME host-transport-snapshot COMMAND ctex_host_transport_snapshot_test)
 
     add_executable(ctex_document_test tests/doc/document_test.cpp)
     ctex_configure_cpp_target(ctex_document_test)

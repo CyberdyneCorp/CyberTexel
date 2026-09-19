@@ -98,7 +98,7 @@ bool host_controls_conversion_or_refusal() {
     const auto before = channels.channel_revision_cursor("pbr.height");
     channels.pixels("pbr.height").write_pixel(0, 0, uint16_bytes(32768));
     channels.pixels("pbr.height").write_pixel(1, 0, uint16_bytes(65535));
-    const auto delta = ctex::xport::query_channel_delta(channels, "pbr.height", before);
+    const auto delta = ctex::xport::query_channel_delta_metadata(channels, "pbr.height", before);
     const ReadbackFormatSelection selection = *converted.selection;
     const auto layout = ctex::xport::tile_memory_layout(channels, "pbr.height", {0, 0}, selection);
     std::vector<std::byte> output(layout.byte_size(), std::byte{0x7f});
@@ -224,7 +224,8 @@ bool every_negotiated_component_conversion_is_executable() {
             channels.enable("test.value", bit_depth(source_type));
             const auto before = channels.channel_revision_cursor("test.value");
             channels.pixels("test.value").write_pixel(0, 0, half_sample(source_type));
-            const auto delta = ctex::xport::query_channel_delta(channels, "test.value", before);
+            const auto delta =
+                ctex::xport::query_channel_delta_metadata(channels, "test.value", before);
             const std::array accepted{PixelFormat{output_type, 1}};
             const auto negotiated = ctex::xport::negotiate_readback_format(
                 channels.pixels("test.value").format(), accepted,
@@ -270,7 +271,7 @@ bool forged_conversion_is_rejected_without_publication() {
     channels.enable("pbr.height", 16);
     const auto before = channels.channel_revision_cursor("pbr.height");
     channels.pixels("pbr.height").write_pixel(0, 0, uint16_bytes(65535));
-    const auto delta = ctex::xport::query_channel_delta(channels, "pbr.height", before);
+    const auto delta = ctex::xport::query_channel_delta_metadata(channels, "pbr.height", before);
     const ReadbackFormatSelection forged{
         .source_format = PixelFormat{ChannelType::uint16_unorm, 1},
         .output_format = PixelFormat{ChannelType::uint8_unorm, 1},
