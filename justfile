@@ -15,6 +15,10 @@ _require tool version:
 prereqs:
     @just _require python3 3.10
     @just _require openspec 1.8
+    @just _require cmake 3.24
+    @just _require c++ C++20
+    @just _require ninja 1.10
+    @just _require clang-format 14
     @echo "ok: prerequisites present for the checks that run without a build"
 
 # --- specification -----------------------------------------------------------
@@ -36,11 +40,60 @@ spec-stats:
 
 # --- build and test ----------------------------------------------------------
 
-build:
-    @just _unimplemented build 1.1
+build: (_require "cmake" "3.24") (_require "c++" "C++20") (_require "ninja" "1.10")
+    cmake --preset headless
+    cmake --build --preset headless
 
 test: build
-    @just _unimplemented test 1.7
+    ctest --preset headless
+    python3 -m unittest discover -s tests/tools -p 'test_*.py'
+
+test-sanitize: (_require "cmake" "3.24") (_require "c++" "C++20") (_require "ninja" "1.10")
+    cmake --preset headless-sanitize
+    cmake --build --preset headless-sanitize
+    ctest --preset headless-sanitize
+
+test-image: build
+    ctest --test-dir build/headless --output-on-failure -R '^tiled-image$'
+
+test-color: build
+    ctest --test-dir build/headless --output-on-failure -R '^color-management'
+
+test-png: build
+    ctest --test-dir build/headless --output-on-failure -R '^png-io$'
+
+test-channels: build
+    ctest --test-dir build/headless --output-on-failure -R '^document-channels$'
+
+test-document: build
+    ctest --test-dir build/headless --output-on-failure -R '^texture-document$'
+
+test-mesh: build
+    ctest --test-dir build/headless --output-on-failure -R '^mesh-ingest$'
+
+test-picking-index: build
+    ctest --test-dir build/headless --output-on-failure -R '^picking-spatial-index$'
+
+test-picking-rays: build
+    ctest --test-dir build/headless --output-on-failure -R '^picking-ray-construction$'
+
+test-picking-hit: build
+    ctest --test-dir build/headless --output-on-failure -R '^picking-hit-record$'
+
+test-picking-occlusion: build
+    ctest --test-dir build/headless --output-on-failure -R '^picking-occlusion$'
+
+test-picking-uv: build
+    ctest --test-dir build/headless --output-on-failure -R '^picking-uv-space$'
+
+test-picking-snap: build
+    ctest --test-dir build/headless --output-on-failure -R '^picking-surface-snap$'
+
+test-picking-regions: build
+    ctest --test-dir build/headless --output-on-failure -R '^picking-region-queries$'
+
+test-picking-boundaries: build
+    ctest --test-dir build/headless --output-on-failure -R '^picking-boundary-determinism$'
 
 examples:
     @just _unimplemented examples 16.2
@@ -48,11 +101,11 @@ examples:
 bench:
     @just _unimplemented bench 17.3
 
-format:
-    @just _unimplemented format 1.1
+format: (_require "clang-format" "14")
+    find src include tests -type f \( -name '*.c' -o -name '*.h' -o -name '*.cpp' -o -name '*.hpp' \) -print0 | xargs -0 clang-format -i
 
-format-check:
-    @just _unimplemented format-check 1.1
+format-check: (_require "clang-format" "14")
+    find src include tests -type f \( -name '*.c' -o -name '*.h' -o -name '*.cpp' -o -name '*.hpp' \) -print0 | xargs -0 clang-format --dry-run --Werror
 
 clean:
     rm -rf build out dist target
@@ -71,19 +124,23 @@ _unimplemented name task:
 
 # Module dependency rule: no cycles, nothing depends on exec, no backend leaks.
 gate-layering:
-    @just _unimplemented gate-layering 1.2
+    python3 tests/tools/test_check_layering.py
+    python3 tools/check_layering.py
 
 # Permissive-only dependencies, attribution complete, vendored trees audited.
 gate-licence:
-    @just _unimplemented gate-licence 1.4
+    python3 tests/tools/test_check_licenses.py
+    python3 tools/check_licenses.py
 
 # One version, consumed by build, ABI query and every binding manifest.
-gate-version-consistency:
-    @just _unimplemented gate-version-consistency 1.3
+gate-version-consistency: build
+    python3 tests/tools/test_check_version.py
+    python3 tools/check_version.py
+    ctest --test-dir build/headless --output-on-failure -R '^version-consistency$'
 
 # Emitted shaders, saved documents and exported textures are byte-identical.
 gate-determinism:
-    @just _unimplemented gate-determinism 1.7
+    python3 tools/check_determinism.py
 
 # Every C entry point reachable from Python, Swift and Rust.
 gate-binding-parity:

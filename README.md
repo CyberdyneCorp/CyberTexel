@@ -15,13 +15,15 @@ tiles stay on that device; completion records publish revisions, and explicit
 asynchronous readback serves save, export and CPU access. Rust/`wgpu` desktop
 apps, Swift/Metal iPad apps, Python scripts and the headless CLI all drive the
 same engine through its public contract. These are specified behaviors; the
-engine is not implemented yet.
+majority of the engine remains roadmap work.
 
-**Status.** Pre-implementation. The specification lives in [`openspec/`](openspec/);
+**Status.** Foundation implementation. The specification lives in [`openspec/`](openspec/);
 the founding change is
 [`openspec/changes/bootstrap-v1-cybertexel/`](openspec/changes/bootstrap-v1-cybertexel/)
-— proposal, design, twenty-four capability specs and the task plan. Nothing is built
-yet; `openspec/specs/` fills as the change is delivered and archived.
+— proposal, design, twenty-four capability specs and the task plan. The strict
+C++20 foundation, module gates, tiled image storage and headless colour
+management are in place; remaining capabilities follow the delivery order.
+`openspec/specs/` fills as the change is delivered and archived.
 
 The first delivery slice is a working desktop and mobile painting workflow:
 brush/eraser, tiled undo, save/reopen and PNG export on a real model. Resource
@@ -85,6 +87,14 @@ just check-spec   # specification checks; needs no build
 just check        # everything that needs no device
 just build test examples
 ```
+
+`just build` uses the native `headless` CMake preset. Shipped build presets also
+cover `linux-x64`, `macos-universal`, `windows-x64`, `ios-arm64` and
+`android-arm64`; the Android preset reads `ANDROID_NDK_HOME`.
+
+The current library and binding version is defined only in [`VERSION`](VERSION).
+The version gate checks CMake, the C ABI, the future container writer and the
+Python, Swift and Rust manifests for drift.
 
 Gates whose implementing task is not yet done exit non-zero and name that task,
 so `just check` cannot pass vacuously. See [CONTRIBUTING.md](CONTRIBUTING.md).

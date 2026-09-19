@@ -55,21 +55,89 @@ budgets block claiming slice A complete, not building its fixtures.
 
 ### Slice progress notes
 
-No implementation has started. Record completed subsets and next dependencies
-here until each corresponding full task can be checked.
+2026-09-18: Task 1.1 established the strict C++20 static-library target and
+native headless, Linux, macOS, Windows, iOS and Android presets. The task runner
+and CI now share the same named recipes (1.1a–1.1b). Task 1.2 added the
+twelve-module skeleton and an executable dependency/backend-isolation gate. Task
+1.3 made `VERSION` authoritative for CMake, the C ABI query, the container writer
+constant and all binding manifests. Task 1.4 added the permissive-only dependency
+manifest, attribution checks and discovery of vendored/CMake dependencies. Tiled
+image storage (1.5) now preserves 8/16/32-bit channel bytes, allocates sparse
+tiles and tracks dirty tiles. The 64×64 default remains configurable pending the
+task 3.9 history/upload measurement. Colour transforms (1.6) are next.
+Task 1.6 defines linear Rec. 709 as the working space and verifies unclamped
+sRGB conversion against fixed reference values. Test/sanitizer/determinism
+scaffolding (1.7) now runs through CTest/Python and a dedicated ASan+UBSan
+preset. The determinism registry fails empty categories until tasks 6.9, 12.1
+and 12.10 add real outputs. Task 1.8 covers every color-management scenario,
+including semantic defaults, LUT isolation, precision warnings, promoted
+accumulation and deterministic dithering. Minimal slice-A PNG IO is next.
+
+2026-09-18: The slice-A subset of tasks 2.1–2.4 and 2.7–2.9 now provides
+signature-selected, memory-buffer PNG decode/encode, native 8/16-bit channels,
+sRGB/caller/automatic declarations, extension mismatch reporting and limits
+checked before pixel allocation. Those full work packages remain unchecked
+until their other formats and scenarios land. Channels and texture sets are next.
+
+Task 3.2 is complete: the built-in nine-channel preset is expressed through the
+same extensible descriptors as custom semantics, channel precision is independent,
+and disabled channels own no `TiledImage`. Texture-set identity and partitioning
+(3.1) are next.
+
+The slice-A subset of task 3.1 binds stable partition keys to named UV sets with
+independent resolution, bit depth and channel storage. Identity does not depend
+on insertion order or display name. Tasks 3.1 and 4.1 are complete: the in-memory
+mesh view exposes validated attributes without writable access, requires exactly
+one partition assignment per face, supports every specified partition source,
+and derives the corresponding texture sets. The next dependency-ready slice-A
+work is mesh acceleration for picking (5.1); full named-set rasterization keeps
+task 4.2 open until the paint path exists.
+
+Task 5.1 is complete: picking owns a flat, median-split BVH with bounded leaves,
+iterative ray-candidate traversal, reuse on an unchanged mesh revision and a
+strong rebuild on replacement. `MeshBinding` supplies the revision mechanism
+needed by this consumer, but task 4.6 remains open until paint and mesh-map
+derived structures also use that revision. Task 5.2 is also complete with
+documented column-major, clip-depth and top-left viewport conventions, general
+matrix inversion, and tested perspective and orthographic world-space rays. Hit
+records and exact triangle intersection (5.3) are also complete: the nearest
+exact candidate reports every specified field, including independently computed
+smooth and geometric normals, named-set UV and UDIM, stable texture-set identity
+and per-face material ID. Task 5.4 uses an empty optional as a distinct normal
+miss. Ordered nearest/all-hits behavior (5.5) is next.
+
+Tasks 5.5 and 5.6 are complete. Nearest mode retains only the closest exact
+intersection; all-hits mode materializes every exact intersection ordered by
+world distance and triangle index. Backfaces are accepted by default or rejected
+per call using the documented counter-clockwise winding and geometric-normal
+rule. UV-space inverse picking (5.7) is next.
+
+Task 5.7 is complete with a flat, named-UV BVH keyed by mesh revision. Exact 2D
+barycentrics map a coordinate within the requested texture-set partition back to
+surface position, both normals, triangle and the remaining surface metadata;
+unowned coordinates are a normal miss. Task 5.8 adds revision-synchronized
+point-to-AABB pruning and exact closest-point projection for triangle interiors,
+edges, vertices and degenerate triangles. It returns the same complete hit record
+and treats an out-of-range surface as a normal miss. Task 5.9 adds accelerated
+screen rectangle and lasso queries plus exact world sphere and box queries.
+Screen triangles are clip-volume constrained, partial edge or vertex coverage is
+inclusive, and all results are sorted by triangle index. Task 5.10 assigns
+equivalent-distance shared-edge and shared-vertex nearest hits to the lowest
+triangle index, independent of BVH traversal; literal all-hits mode retains both
+in index order. Batched picking with cancellation and progress (5.11) is next.
 
 ## 1. Foundation
 
-- [ ] 1.1 CMake project, C++20, warnings as errors, presets for headless, macOS, Linux, Windows, iOS, Android
-- [ ] 1.1a `justfile` as the single task-runner entry point: build, test, format, examples, bench, clean, check, and one recipe per gate; unimplemented gates fail naming their task; prerequisites reported by name
-- [ ] 1.1b CI invokes the recipes rather than repeating their commands
-- [ ] 1.2 Module skeleton (`image`, `mesh`, `pick`, `graph`, `emit`, `doc`, `paint`, `maps`, `xport`, `io`, `exec`, `capi`) with the layering gate enforcing the dependency rule
-- [ ] 1.3 Single source of truth for the version; consumed by build, ABI query and all three binding manifests; version consistency gate
-- [ ] 1.4 Licence policy, attribution file, dependency audit gate covering vendored trees
-- [ ] 1.5 `image` module: tiled pixel buffers, formats, 8/16/32-bit channels, tile dirty tracking
-- [ ] 1.6 Colour transforms and the working space; headless transform tests against reference values
-- [ ] 1.7 Test harness, sanitizer job, determinism gate scaffolding
-- [ ] 1.8 `color-management` scenarios as tests
+- [x] 1.1 CMake project, C++20, warnings as errors, presets for headless, macOS, Linux, Windows, iOS, Android
+- [x] 1.1a `justfile` as the single task-runner entry point: build, test, format, examples, bench, clean, check, and one recipe per gate; unimplemented gates fail naming their task; prerequisites reported by name
+- [x] 1.1b CI invokes the recipes rather than repeating their commands
+- [x] 1.2 Module skeleton (`image`, `mesh`, `pick`, `graph`, `emit`, `doc`, `paint`, `maps`, `xport`, `io`, `exec`, `capi`) with the layering gate enforcing the dependency rule
+- [x] 1.3 Single source of truth for the version; consumed by build, ABI query and all three binding manifests; version consistency gate
+- [x] 1.4 Licence policy, attribution file, dependency audit gate covering vendored trees
+- [x] 1.5 `image` module: tiled pixel buffers, formats, 8/16/32-bit channels, tile dirty tracking
+- [x] 1.6 Colour transforms and the working space; headless transform tests against reference values
+- [x] 1.7 Test harness, sanitizer job, determinism gate scaffolding
+- [x] 1.8 `color-management` scenarios as tests
 
 ## 2. Image input and output
 
@@ -89,8 +157,8 @@ here until each corresponding full task can be checked.
 
 ## 3. Document
 
-- [ ] 3.1 Texture sets: partitioning, per-set resolution and bit depth, stable identity
-- [ ] 3.2 Semantic channel descriptors, built-in preset, per-channel precision and enablement, and no storage for disabled channels
+- [x] 3.1 Texture sets: partitioning, per-set resolution and bit depth, stable identity
+- [x] 3.2 Semantic channel descriptors, built-in preset, per-channel precision and enablement, and no storage for disabled channels
 - [ ] 3.3 Layer stack: entry kinds, nesting rules and their refusals, ordering
 - [ ] 3.4 Instances: reference semantics, own modulation, paint refusal, deletion policy, cycle refusal
 - [ ] 3.5 Blend modes, with the formula table and a test per mode
@@ -103,7 +171,7 @@ here until each corresponding full task can be checked.
 
 ## 4. Geometry input
 
-- [ ] 4.1 Mesh ingest interface, read-only guarantee, attribute description
+- [x] 4.1 Mesh ingest interface, read-only guarantee, attribute description
 - [ ] 4.2 Multiple UV sets; texture set binding to a named set
 - [ ] 4.3 UDIM tiles: on-demand allocation, addressing, cross-tile writes
 - [ ] 4.4 Atlases and their export-time regions
@@ -115,16 +183,16 @@ here until each corresponding full task can be checked.
 
 ## 5. Picking
 
-- [ ] 5.1 Spatial acceleration structure, built once, reused, invalidated by mesh revision
-- [ ] 5.2 Ray construction from screen position for perspective and orthographic projections
-- [ ] 5.3 Hit record: position, both normals, UV, texture set, UDIM tile, triangle, barycentric, material id, distance
-- [ ] 5.4 Miss as a distinct outcome
-- [ ] 5.5 Occlusion policy: nearest hit and all-hits ordered
-- [ ] 5.6 Backface policy with the documented winding convention
-- [ ] 5.7 UV-space picking as the inverse of surface picking
-- [ ] 5.8 Surface snapping within a maximum distance
-- [ ] 5.9 Region queries: rectangle, lasso, sphere, box
-- [ ] 5.10 Deterministic resolution at shared edges and vertices
+- [x] 5.1 Spatial acceleration structure, built once, reused, invalidated by mesh revision
+- [x] 5.2 Ray construction from screen position for perspective and orthographic projections
+- [x] 5.3 Hit record: position, both normals, UV, texture set, UDIM tile, triangle, barycentric, material id, distance
+- [x] 5.4 Miss as a distinct outcome
+- [x] 5.5 Occlusion policy: nearest hit and all-hits ordered
+- [x] 5.6 Backface policy with the documented winding convention
+- [x] 5.7 UV-space picking as the inverse of surface picking
+- [x] 5.8 Surface snapping within a maximum distance
+- [x] 5.9 Region queries: rectangle, lasso, sphere, box
+- [x] 5.10 Deterministic resolution at shared edges and vertices
 - [ ] 5.11 Batched picking with cancellation and progress
 - [ ] 5.12 `picking` scenarios as tests
 

@@ -11,6 +11,14 @@ No dependency is vendored yet. The table below records what the founding
 specification commits to, so the audit has something to check against from the
 first commit rather than from the first release.
 
+## Included dependencies
+
+| Component | Licence | Revision | Role |
+|---|---|---|---|
+| LodePNG | Zlib | `ed6fe5825c6a4fbb7f58ab35a4231c7543cd452a` | Slice-A PNG decoding and encoding |
+
+The upstream licence text is copied at `thirdparty/licenses/lodepng.txt`.
+
 ## Planned
 
 | Component | Licence | Role | Task |

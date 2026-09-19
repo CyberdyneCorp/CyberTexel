@@ -13,6 +13,62 @@ on:
 # check cannot pass locally and differ here. See build-packaging, "CI runs the
 # same recipes".
 jobs:
+  sanitizers:
+    name: address-and-undefined-behaviour
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    - uses: extractions/setup-just@v2
+    - name: Sanitized tests
+      run: just test-sanitize
+
+  build:
+    name: build-and-layering
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    - uses: extractions/setup-just@v2
+    - name: Build
+      run: just build
+    - name: Formatting
+      run: just format-check
+    - name: Module layering
+      run: just gate-layering
+    - name: Version consistency
+      run: just gate-version-consistency
+    - name: Dependency licences
+      run: just gate-licence
+    - name: Tiled image storage
+      run: just test-image
+    - name: Headless colour transforms
+      run: just test-color
+    - name: Slice-A PNG IO
+      run: just test-png
+    - name: Semantic document channels
+      run: just test-channels
+    - name: Texture-set document
+      run: just test-document
+    - name: Read-only mesh ingest
+      run: just test-mesh
+    - name: Picking spatial index
+      run: just test-picking-index
+    - name: Picking ray construction
+      run: just test-picking-rays
+    - name: Picking hit records
+      run: just test-picking-hit
+    - name: Picking occlusion and backfaces
+      run: just test-picking-occlusion
+    - name: UV-space picking
+      run: just test-picking-uv
+    - name: Surface snapping
+      run: just test-picking-snap
+    - name: Picking region queries
+      run: just test-picking-regions
+    - name: Picking shared-boundary determinism
+      run: just test-picking-boundaries
+    - name: Test suite
+      run: just test
+
   check-spec:
     name: check-spec
     runs-on: ubuntu-latest

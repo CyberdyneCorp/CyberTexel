@@ -1,0 +1,13 @@
+{
+    "schema": 1,
+    "dependencies": [
+        {
+            "name": "LodePNG",
+            "discovery_name": "LodePNG",
+            "license": "Zlib",
+            "license_file": "thirdparty/licenses/lodepng.txt",
+            "revision": "ed6fe5825c6a4fbb7f58ab35a4231c7543cd452a",
+            "source": "https://github.com/lvandeve/lodepng"
+        }
+    ]
+}

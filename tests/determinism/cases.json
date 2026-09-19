@@ -1,0 +1,20 @@
+{
+    "schema": 1,
+    "categories": [
+        {
+            "name": "shader-emission",
+            "task": "6.9",
+            "cases": []
+        },
+        {
+            "name": "project-save",
+            "task": "12.1",
+            "cases": []
+        },
+        {
+            "name": "texture-export",
+            "task": "12.10",
+            "cases": []
+        }
+    ]
+}

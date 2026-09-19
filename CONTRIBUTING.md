@@ -39,12 +39,28 @@ written to prevent. Do not stub one to green.
 | [`just`](https://github.com/casey/just) | 1.0 | every recipe |
 | Python | 3.10 | specification gates, bindings, examples |
 | [`openspec`](https://github.com/Fission-AI/OpenSpec) | 1.8 | specification validation |
-| CMake | 3.24 | building, once task 1.1 lands |
+| CMake | 3.24 | building and testing |
 | A C++20 toolchain | — | building |
 | Rust | stable | the Rust bindings |
 | Swift | 5.9 | the Swift package |
 
-Only the first three are needed today, because there is no code yet.
+The native foundation build also requires CMake, Ninja, a C++20 compiler and
+clang-format. Rust and Swift become required as their binding tasks land.
+
+## CMake presets
+
+Routine native builds go through `just build`, which configures and builds the
+`headless` preset. Direct preset selection is reserved for platform packaging
+and CI: `linux-x64`, `macos-universal`, `windows-x64`, `ios-arm64` and
+`android-arm64`. The iOS preset requires Xcode; the Android preset requires
+`ANDROID_NDK_HOME` to point at an installed NDK.
+
+## Dependencies
+
+Only permissively licensed dependencies may ship. Record every vendored,
+fetched or package dependency in `thirdparty/dependencies.json`, copy its own
+licence text into the repository, update `THIRD_PARTY_NOTICES.md`, and run
+`just gate-licence`. See [the dependency policy](docs/dependency-policy.md).
 
 ## The specification comes first
 

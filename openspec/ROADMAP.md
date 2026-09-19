@@ -6,8 +6,31 @@ decisions taken and questions still open.
 
 ## Status
 
-Pre-implementation. 24 capabilities, 332 requirements, 400 scenarios, 222 tasks,
-0 done. No source tree exists yet; task 1.1 creates it.
+Implementation started. 24 capabilities, 332 requirements, 400 scenarios and
+222 tasks, 23 done. Foundation and the complete headless color-management
+scenario suite are green. Slice-A now has memory-buffer PNG input/output with
+8/16-bit preservation and hostile-input ceilings; full image-format breadth
+remains scheduled for slice D. Extensible channel descriptors and sparse
+per-channel enablement are also complete. Read-only in-memory mesh ingest now
+validates attributes and total, non-overlapping face partitions, from which the
+document derives stable UV-bound texture sets with independent storage.
+Picking now reuses a flat CPU BVH and rebuilds it when its mesh revision changes.
+Perspective and orthographic screen positions also produce documented
+world-space rays without a GPU. Exact nearest intersections now return complete
+tool-facing hit records, while background rays return a distinct normal miss.
+Picking now also supports default nearest and distance-ordered all-hits
+occlusion, with documented per-call backface rejection.
+Named-UV BVHs now provide the inverse 2D-to-surface picking path without a
+linear face scan and rebuild on mesh revision changes.
+Surface snapping now uses the same revision-keyed world-space BVH to find the
+closest triangle point within a caller-supplied distance, including edge,
+vertex, and degenerate-triangle cases, and returns the complete hit record.
+Region selection now covers screen rectangles and lassos plus world spheres and
+axis-aligned boxes, with BVH pruning, exact triangle tests, documented inclusive
+partial coverage, deterministic ordering, and no GPU dependency.
+Nearest ray hits on shared edges and vertices now use a documented lowest-index
+ownership rule with regression coverage; literal all-hits queries continue to
+report each adjacent triangle in deterministic order.
 
 ## Milestones
 
@@ -76,10 +99,10 @@ performance result is implied by these requirements. Design decisions 8, 10–13
 These are unresolved and should be answered by the task that first depends on
 them rather than drifting.
 
-1. **Tile size.** `texture-document` requires a documented tile size and does not
-   pick one. It trades undo granularity against per-tile bookkeeping and against
-   a host's upload efficiency. Decide with a slice-A measurement in tasks 1.5 and 3.9, before
-   freezing storage and transport layouts.
+1. **Tile size.** Task 1.5 introduced a configurable 64×64 default without
+   freezing the transport layout. It trades undo granularity against per-tile
+   bookkeeping and host upload efficiency. Finalize it with the slice-A history
+   and upload measurement in task 3.9 before freezing storage and transport.
 2. **Parity tolerances.** `execution-backends` requires them stated per bit depth
    and for filtered values. The numbers do not exist yet; slice-A task 7.5 sets them, and
    setting them too loose makes the gate decorative.

@@ -1,0 +1,144 @@
+#include <algorithm>
+#include <ctex/image/tiled_image.hpp>
+#include <limits>
+#include <stdexcept>
+
+namespace ctex::image {
+namespace {
+
+std::size_t checked_multiply(std::size_t left, std::size_t right, const char* description) {
+    if (right != 0 && left > std::numeric_limits<std::size_t>::max() / right) {
+        throw std::overflow_error(description);
+    }
+    return left * right;
+}
+
+}  // namespace
+
+TiledImage::TiledImage(std::uint32_t width, std::uint32_t height, PixelFormat format,
+                       std::uint32_t tile_size, std::span<const std::byte> clear_pixel)
+    : width_(width),
+      height_(height),
+      tile_size_(tile_size),
+      tile_columns_(0),
+      tile_rows_(0),
+      format_(format),
+      pixel_bytes_(format.bytes_per_pixel()),
+      tile_bytes_(0) {
+    if (width == 0 || height == 0) {
+        throw std::invalid_argument("image dimensions must be non-zero");
+    }
+    if (!format.is_valid()) {
+        throw std::invalid_argument("pixel format must have one to four 8, 16 or 32-bit channels");
+    }
+    if (tile_size == 0) {
+        throw std::invalid_argument("tile size must be non-zero");
+    }
+    if (!clear_pixel.empty() && clear_pixel.size() != pixel_bytes_) {
+        throw std::invalid_argument("clear pixel size does not match the pixel format");
+    }
+
+    tile_columns_ = 1 + ((width - 1) / tile_size);
+    tile_rows_ = 1 + ((height - 1) / tile_size);
+    const std::size_t tile_pixels = checked_multiply(tile_size, tile_size, "tile area overflows");
+    tile_bytes_ = checked_multiply(tile_pixels, pixel_bytes_, "tile byte size overflows");
+    const std::size_t tile_count =
+        checked_multiply(tile_columns_, tile_rows_, "image tile count overflows");
+
+    clear_pixel_.assign(pixel_bytes_, std::byte{0});
+    if (!clear_pixel.empty()) {
+        std::copy(clear_pixel.begin(), clear_pixel.end(), clear_pixel_.begin());
+    }
+    tiles_.resize(tile_count);
+    dirty_.resize(tile_count, false);
+}
+
+std::size_t TiledImage::resident_pixel_bytes() const noexcept {
+    return static_cast<std::size_t>(std::count_if(tiles_.begin(), tiles_.end(),
+                                                  [](const auto& tile) { return !tile.empty(); })) *
+           tile_bytes_;
+}
+
+TileExtent TiledImage::tile_extent(TileCoordinate tile) const {
+    static_cast<void>(tile_index(tile));
+    const std::uint32_t origin_x = tile.x * tile_size_;
+    const std::uint32_t origin_y = tile.y * tile_size_;
+    return {
+        std::min(tile_size_, width_ - origin_x),
+        std::min(tile_size_, height_ - origin_y),
+    };
+}
+
+bool TiledImage::is_tile_allocated(TileCoordinate tile) const {
+    return !tiles_[tile_index(tile)].empty();
+}
+
+bool TiledImage::is_tile_dirty(TileCoordinate tile) const { return dirty_[tile_index(tile)]; }
+
+std::vector<TileCoordinate> TiledImage::dirty_tiles() const {
+    std::vector<TileCoordinate> result;
+    for (std::uint32_t y = 0; y < tile_rows_; ++y) {
+        for (std::uint32_t x = 0; x < tile_columns_; ++x) {
+            const TileCoordinate coordinate{x, y};
+            if (dirty_[tile_index(coordinate)]) {
+                result.push_back(coordinate);
+            }
+        }
+    }
+    return result;
+}
+
+std::span<const std::byte> TiledImage::read_pixel(std::uint32_t x, std::uint32_t y) const {
+    if (x >= width_ || y >= height_) {
+        throw std::out_of_range("pixel coordinate is outside the image");
+    }
+    const TileCoordinate coordinate{x / tile_size_, y / tile_size_};
+    const auto& tile = tiles_[tile_index(coordinate)];
+    if (tile.empty()) {
+        return clear_pixel_;
+    }
+    return std::span<const std::byte>(tile).subspan(pixel_offset(x, y), pixel_bytes_);
+}
+
+void TiledImage::write_pixel(std::uint32_t x, std::uint32_t y, std::span<const std::byte> pixel) {
+    if (x >= width_ || y >= height_) {
+        throw std::out_of_range("pixel coordinate is outside the image");
+    }
+    if (pixel.size() != pixel_bytes_) {
+        throw std::invalid_argument("pixel size does not match the image format");
+    }
+    const TileCoordinate coordinate{x / tile_size_, y / tile_size_};
+    const std::size_t index = tile_index(coordinate);
+    auto& tile = allocate_tile(index);
+    std::copy(pixel.begin(), pixel.end(), tile.begin() + pixel_offset(x, y));
+    dirty_[index] = true;
+}
+
+void TiledImage::clear_dirty() noexcept { std::fill(dirty_.begin(), dirty_.end(), false); }
+
+std::size_t TiledImage::tile_index(TileCoordinate tile) const {
+    if (tile.x >= tile_columns_ || tile.y >= tile_rows_) {
+        throw std::out_of_range("tile coordinate is outside the image");
+    }
+    return static_cast<std::size_t>(tile.y) * tile_columns_ + tile.x;
+}
+
+std::size_t TiledImage::pixel_offset(std::uint32_t x, std::uint32_t y) const noexcept {
+    const std::size_t local_x = x % tile_size_;
+    const std::size_t local_y = y % tile_size_;
+    return ((local_y * tile_size_) + local_x) * pixel_bytes_;
+}
+
+std::vector<std::byte>& TiledImage::allocate_tile(std::size_t index) {
+    auto& tile = tiles_[index];
+    if (!tile.empty()) {
+        return tile;
+    }
+    tile.resize(tile_bytes_);
+    for (std::size_t offset = 0; offset < tile_bytes_; offset += pixel_bytes_) {
+        std::copy(clear_pixel_.begin(), clear_pixel_.end(), tile.begin() + offset);
+    }
+    return tile;
+}
+
+}  // namespace ctex::image

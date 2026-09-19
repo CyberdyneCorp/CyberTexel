@@ -1,0 +1,9 @@
+#ifndef CTEX_VERSION_H
+#define CTEX_VERSION_H
+
+#define CTEX_VERSION_MAJOR @CyberTexel_VERSION_MAJOR@
+#define CTEX_VERSION_MINOR @CyberTexel_VERSION_MINOR@
+#define CTEX_VERSION_PATCH @CyberTexel_VERSION_PATCH@
+#define CTEX_VERSION_STRING "@CyberTexel_VERSION@"
+
+#endif
