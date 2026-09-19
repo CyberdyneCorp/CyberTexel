@@ -651,7 +651,12 @@ does not change the other's state. Host logging (14.6) now provides an atomic,
 process-wide callback/user-data/severity configuration, stays silent by default,
 and routes C failures by category without leaking callback exceptions. Every
 failure also exposes an append-only machine-readable diagnostic code alongside
-English prose. Host allocator callbacks (14.7) are next.
+English prose. The first 14.7 allocator increment adds a versioned process-wide
+callback descriptor and
+captures its exact allocate/deallocate/user-data tuple in every new opaque
+document. Replacement is safe while older documents remain alive, null returns
+map to out-of-memory, and misaligned returns are rejected by stable code. The
+task remains open until the same allocator reaches nested persistent storage.
 
 ## 1. Foundation
 

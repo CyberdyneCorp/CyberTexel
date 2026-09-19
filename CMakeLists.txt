@@ -329,6 +329,10 @@ if(BUILD_TESTING)
         ctex_configure_c_target(ctex_capi_logging_test)
         target_link_libraries(ctex_capi_logging_test PRIVATE cybertexel_c)
         add_test(NAME c-abi-host-logging COMMAND ctex_capi_logging_test)
+        add_executable(ctex_capi_allocator_test tests/capi/allocator_test.c)
+        ctex_configure_c_target(ctex_capi_allocator_test)
+        target_link_libraries(ctex_capi_allocator_test PRIVATE cybertexel_c)
+        add_test(NAME c-abi-host-allocator COMMAND ctex_capi_allocator_test)
         if(UNIX AND NOT APPLE)
             add_test(
                 NAME c-abi-export-surface

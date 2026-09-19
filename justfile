@@ -99,7 +99,7 @@ test-smart-material-scenarios: build
     ctest --test-dir build/headless --output-on-failure -L '^smart-materials-scenario$'
 
 test-c-api: build
-    ctest --test-dir build/headless --output-on-failure -R '^c-abi-(foundation|caller-buffers|versioned-descriptors|two-document-concurrency|host-logging|export-surface|compatibility)$'
+    ctest --test-dir build/headless --output-on-failure -R '^c-abi-(foundation|caller-buffers|versioned-descriptors|two-document-concurrency|host-logging|host-allocator|export-surface|compatibility)$'
 
 test-preset-shelf-library: build
     ctest --test-dir build/headless --output-on-failure -R '^preset-shelf-library$'

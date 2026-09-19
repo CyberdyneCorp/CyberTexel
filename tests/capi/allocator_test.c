@@ -1,0 +1,124 @@
+#include <ctex/capi.h>
+#include <stddef.h>
+#include <stdint.h>
+#include <stdlib.h>
+
+typedef struct allocator_capture {
+    size_t allocation_count;
+    size_t deallocation_count;
+    size_t allocation_size;
+    size_t allocation_alignment;
+    size_t deallocation_size;
+    size_t deallocation_alignment;
+    int fail_allocation;
+} allocator_capture;
+
+static void* capture_allocate(size_t size, size_t alignment, void* user_data) {
+    allocator_capture* capture = (allocator_capture*)user_data;
+    ++capture->allocation_count;
+    capture->allocation_size = size;
+    capture->allocation_alignment = alignment;
+    if (capture->fail_allocation) {
+        return NULL;
+    }
+    return malloc(size);
+}
+
+static void capture_deallocate(void* allocation, size_t size, size_t alignment, void* user_data) {
+    allocator_capture* capture = (allocator_capture*)user_data;
+    ++capture->deallocation_count;
+    capture->deallocation_size = size;
+    capture->deallocation_alignment = alignment;
+    free(allocation);
+}
+
+static void* misaligned_allocate(size_t size, size_t alignment, void* user_data) {
+    allocator_capture* capture = (allocator_capture*)user_data;
+    unsigned char* allocation = NULL;
+    ++capture->allocation_count;
+    capture->allocation_size = size;
+    capture->allocation_alignment = alignment;
+    allocation = (unsigned char*)malloc(size + 1);
+    return allocation == NULL ? NULL : allocation + 1;
+}
+
+static void misaligned_deallocate(void* allocation, size_t size, size_t alignment,
+                                  void* user_data) {
+    allocator_capture* capture = (allocator_capture*)user_data;
+    ++capture->deallocation_count;
+    capture->deallocation_size = size;
+    capture->deallocation_alignment = alignment;
+    free((unsigned char*)allocation - 1);
+}
+
+int main(void) {
+    allocator_capture capture = {0};
+    ctex_allocator_descriptor allocator = {
+        CTEX_ALLOCATOR_DESCRIPTOR_CURRENT_SIZE,
+        capture_allocate,
+        capture_deallocate,
+        &capture,
+    };
+    ctex_document* document = NULL;
+
+    if (ctex_set_allocator(&allocator) != CTEX_RESULT_SUCCESS ||
+        ctex_document_create(&document) != CTEX_RESULT_SUCCESS || document == NULL ||
+        capture.allocation_count != 1 || capture.deallocation_count != 0 ||
+        capture.allocation_size == 0 || capture.allocation_alignment == 0) {
+        return 1;
+    }
+
+    if (ctex_set_allocator(NULL) != CTEX_RESULT_SUCCESS) {
+        return 2;
+    }
+    ctex_document_destroy(document);
+    if (capture.deallocation_count != 1 || capture.deallocation_size != capture.allocation_size ||
+        capture.deallocation_alignment != capture.allocation_alignment) {
+        return 3;
+    }
+
+    document = NULL;
+    if (ctex_document_create(&document) != CTEX_RESULT_SUCCESS || document == NULL ||
+        capture.allocation_count != 1) {
+        return 4;
+    }
+    ctex_document_destroy(document);
+
+    allocator.deallocate = NULL;
+    if (ctex_set_allocator(&allocator) != CTEX_RESULT_INVALID_ARGUMENT ||
+        ctex_get_last_diagnostic_code() != CTEX_DIAGNOSTIC_NULL_ARGUMENT) {
+        return 5;
+    }
+
+    allocator.deallocate = capture_deallocate;
+    capture.fail_allocation = 1;
+    if (ctex_set_allocator(&allocator) != CTEX_RESULT_SUCCESS) {
+        return 6;
+    }
+    document = (ctex_document*)(uintptr_t)1;
+    if (ctex_document_create(&document) != CTEX_RESULT_OUT_OF_MEMORY || document != NULL ||
+        ctex_get_last_diagnostic_code() != CTEX_DIAGNOSTIC_ALLOCATION_FAILED ||
+        capture.allocation_count != 2 || capture.deallocation_count != 1) {
+        return 7;
+    }
+
+    capture.fail_allocation = 0;
+    allocator.allocate = misaligned_allocate;
+    allocator.deallocate = misaligned_deallocate;
+    if (ctex_set_allocator(&allocator) != CTEX_RESULT_SUCCESS) {
+        return 8;
+    }
+    document = (ctex_document*)(uintptr_t)1;
+    if (ctex_document_create(&document) != CTEX_RESULT_INVALID_ARGUMENT || document != NULL ||
+        ctex_get_last_diagnostic_code() != CTEX_DIAGNOSTIC_ALLOCATOR_CONTRACT_VIOLATION ||
+        capture.allocation_count != 3 || capture.deallocation_count != 2 ||
+        capture.deallocation_size != capture.allocation_size ||
+        capture.deallocation_alignment != capture.allocation_alignment) {
+        return 9;
+    }
+
+    if (ctex_set_allocator(NULL) != CTEX_RESULT_SUCCESS) {
+        return 10;
+    }
+    return 0;
+}

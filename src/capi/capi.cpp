@@ -33,6 +33,9 @@ struct LogSinkState {
 std::mutex log_sink_mutex;
 LogSinkState log_sink;
 
+std::mutex allocator_mutex;
+ctex_allocator_state process_allocator;
+
 class BoundaryError final : public std::runtime_error {
 public:
     BoundaryError(ctex_result result, ctex_diagnostic_code code, std::string message)
@@ -140,6 +143,89 @@ void install_log_sink(const ctex_log_sink_descriptor* descriptor) {
     }
     const std::scoped_lock lock(log_sink_mutex);
     log_sink = next;
+}
+
+void install_allocator(const ctex_allocator_descriptor* descriptor) {
+    ctex_allocator_state next;
+    if (descriptor != nullptr) {
+        if (descriptor->size < CTEX_ALLOCATOR_DESCRIPTOR_V1_SIZE) {
+            throw_boundary(
+                CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_INVALID_DESCRIPTOR_SIZE,
+                "descriptor.size=" + std::to_string(descriptor->size) +
+                    " minimum_size=" + std::to_string(CTEX_ALLOCATOR_DESCRIPTOR_V1_SIZE));
+        }
+        if (descriptor->size > CTEX_ALLOCATOR_DESCRIPTOR_CURRENT_SIZE) {
+            throw_boundary(
+                CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_INVALID_DESCRIPTOR_SIZE,
+                "descriptor.size=" + std::to_string(descriptor->size) +
+                    " library_size=" + std::to_string(CTEX_ALLOCATOR_DESCRIPTOR_CURRENT_SIZE));
+        }
+        if (descriptor->allocate == nullptr) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                           "descriptor.allocate=null");
+        }
+        if (descriptor->deallocate == nullptr) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                           "descriptor.deallocate=null");
+        }
+        next = {.allocate = descriptor->allocate,
+                .deallocate = descriptor->deallocate,
+                .user_data = descriptor->user_data};
+    }
+    const std::scoped_lock lock(allocator_mutex);
+    process_allocator = next;
+}
+
+ctex_allocator_state current_allocator() {
+    const std::scoped_lock lock(allocator_mutex);
+    return process_allocator;
+}
+
+void* allocate_storage(const ctex_allocator_state& allocator, std::size_t size,
+                       std::size_t alignment) {
+    void* storage = allocator.allocate == nullptr
+                        ? ::operator new(size, std::align_val_t(alignment))
+                        : allocator.allocate(size, alignment, allocator.user_data);
+    if (storage == nullptr) {
+        throw std::bad_alloc();
+    }
+    if (reinterpret_cast<std::uintptr_t>(storage) % alignment != 0) {
+        if (allocator.deallocate != nullptr) {
+            try {
+                allocator.deallocate(storage, size, alignment, allocator.user_data);
+            } catch (...) {
+            }
+        } else {
+            ::operator delete(storage, std::align_val_t(alignment));
+        }
+        throw_boundary(
+            CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_ALLOCATOR_CONTRACT_VIOLATION,
+            "allocate returned storage that does not meet alignment=" + std::to_string(alignment));
+    }
+    return storage;
+}
+
+void deallocate_storage(const ctex_allocator_state& allocator, void* storage, std::size_t size,
+                        std::size_t alignment) noexcept {
+    if (allocator.deallocate == nullptr) {
+        ::operator delete(storage, std::align_val_t(alignment));
+        return;
+    }
+    try {
+        allocator.deallocate(storage, size, alignment, allocator.user_data);
+    } catch (...) {
+        // Deallocation callbacks cannot report failure through the void destroy API.
+    }
+}
+
+ctex_document* create_document(const ctex_allocator_state& allocator) {
+    void* storage = allocate_storage(allocator, sizeof(ctex_document), alignof(ctex_document));
+    try {
+        return ::new (storage) ctex_document(allocator);
+    } catch (...) {
+        deallocate_storage(allocator, storage, sizeof(ctex_document), alignof(ctex_document));
+        throw;
+    }
 }
 
 std::size_t texture_set_id_buffer_size(const std::vector<std::string>& identifiers) {
@@ -255,6 +341,10 @@ extern "C" ctex_result ctex_set_log_sink(const ctex_log_sink_descriptor* descrip
     return call_boundary("ctex_set_log_sink", [descriptor] { install_log_sink(descriptor); });
 }
 
+extern "C" ctex_result ctex_set_allocator(const ctex_allocator_descriptor* descriptor) {
+    return call_boundary("ctex_set_allocator", [descriptor] { install_allocator(descriptor); });
+}
+
 extern "C" ctex_result ctex_document_create(ctex_document** out_document) {
     return call_boundary("ctex_document_create", [out_document] {
         if (out_document == nullptr) {
@@ -262,11 +352,18 @@ extern "C" ctex_result ctex_document_create(ctex_document** out_document) {
                            "out_document=null");
         }
         *out_document = nullptr;
-        *out_document = new ctex_document{};
+        *out_document = create_document(current_allocator());
     });
 }
 
-extern "C" void ctex_document_destroy(ctex_document* document) { delete document; }
+extern "C" void ctex_document_destroy(ctex_document* document) {
+    if (document == nullptr) {
+        return;
+    }
+    const ctex_allocator_state allocator = document->allocator;
+    document->~ctex_document();
+    deallocate_storage(allocator, document, sizeof(ctex_document), alignof(ctex_document));
+}
 
 extern "C" ctex_result ctex_document_create_texture_set(
     ctex_document* document, const ctex_texture_set_descriptor* descriptor) {

@@ -46,7 +46,8 @@ typedef enum ctex_diagnostic_code {
     CTEX_DIAGNOSTIC_EMPTY_TEXTURE_SET_UV_SET = 10,
     CTEX_DIAGNOSTIC_INVALID_TEXTURE_SET_RESOLUTION = 11,
     CTEX_DIAGNOSTIC_INVALID_TEXTURE_SET_BIT_DEPTH = 12,
-    CTEX_DIAGNOSTIC_DUPLICATE_TEXTURE_SET = 13
+    CTEX_DIAGNOSTIC_DUPLICATE_TEXTURE_SET = 13,
+    CTEX_DIAGNOSTIC_ALLOCATOR_CONTRACT_VIOLATION = 14
 } ctex_diagnostic_code;
 
 typedef enum ctex_log_severity {
@@ -70,6 +71,20 @@ typedef struct ctex_log_sink_descriptor {
 
 #define CTEX_LOG_SINK_DESCRIPTOR_V1_SIZE ((uint32_t)sizeof(ctex_log_sink_descriptor))
 #define CTEX_LOG_SINK_DESCRIPTOR_CURRENT_SIZE ((uint32_t)sizeof(ctex_log_sink_descriptor))
+
+typedef void* (*ctex_allocate_callback)(size_t size, size_t alignment, void* user_data);
+typedef void (*ctex_deallocate_callback)(void* allocation, size_t size, size_t alignment,
+                                         void* user_data);
+
+typedef struct ctex_allocator_descriptor {
+    uint32_t size;
+    ctex_allocate_callback allocate;
+    ctex_deallocate_callback deallocate;
+    void* user_data;
+} ctex_allocator_descriptor;
+
+#define CTEX_ALLOCATOR_DESCRIPTOR_V1_SIZE ((uint32_t)sizeof(ctex_allocator_descriptor))
+#define CTEX_ALLOCATOR_DESCRIPTOR_CURRENT_SIZE ((uint32_t)sizeof(ctex_allocator_descriptor))
 
 typedef struct ctex_document ctex_document;
 
@@ -113,6 +128,15 @@ CTEX_API ctex_version ctex_get_abi_version(void);
  * stream.
  */
 CTEX_API ctex_result ctex_set_log_sink(const ctex_log_sink_descriptor* descriptor);
+
+/*
+ * Sets the process-wide allocator captured by subsequently created objects.
+ * Pass NULL to restore the library default. The callbacks can run on calling
+ * or library worker threads and must not throw across the C boundary. The host
+ * keeps user_data valid until every object created from this configuration has
+ * been destroyed.
+ */
+CTEX_API ctex_result ctex_set_allocator(const ctex_allocator_descriptor* descriptor);
 
 CTEX_API ctex_result ctex_document_create(ctex_document** out_document);
 CTEX_API void ctex_document_destroy(ctex_document* document);

@@ -69,6 +69,7 @@ The contract is stated per entry-point family:
 | --- | --- |
 | `ctex_get_version`, `ctex_get_abi_version` | Process-safe and callable concurrently from any thread |
 | `ctex_set_log_sink` | Process-safe process-wide setting; replacement is atomic, but the host keeps callback user data alive until calls that could have observed the prior sink finish |
+| `ctex_set_allocator` | Process-safe process-wide default for subsequently created objects; each object retains its creating configuration, and the host keeps its user data alive through destruction |
 | `ctex_document_create` | Process-safe; each successful call creates independent state |
 | `ctex_document_destroy` | The caller ensures no other call is using that handle; distinct handles may be destroyed concurrently |
 | `ctex_document_create_texture_set`, `ctex_document_get_texture_set_ids` | Calls on distinct document handles are safe concurrently; every call on the same document handle must be externally synchronized, including read-only calls |
@@ -108,6 +109,28 @@ observed it finish. Exceptions thrown by a C++ callback are contained at the
 boundary and never change the operation result. Without an installed sink,
 CyberTexel emits no log output to standard output, standard error, or another
 implicit destination.
+
+## Host allocator
+
+`ctex_set_allocator` installs a versioned process-wide allocator descriptor for
+objects created afterward; a null descriptor restores the library default. The
+descriptor pairs allocation and deallocation callbacks with opaque user data.
+Both callbacks receive the exact requested byte count and alignment. A null
+allocation result becomes `CTEX_RESULT_OUT_OF_MEMORY`; an incorrectly aligned
+result is returned to the host deallocator and refused as
+`CTEX_DIAGNOSTIC_ALLOCATOR_CONTRACT_VIOLATION`.
+
+Every opaque document captures the allocator active when it is created and uses
+that same callback, size, alignment, and user-data tuple at destruction. The
+process default may therefore change while older documents remain alive. The
+callbacks may run on the calling thread or a library worker thread, must be
+thread-safe, and must not throw. User data remains host-owned and must outlive
+all objects and work that captured it.
+
+Task 14.7 remains in progress: opaque document storage follows this contract,
+while allocator propagation through persistent containers owned by the document
+is the remaining step. Transient scratch allocations are intentionally outside
+the long-lived allocation contract.
 
 The Linux export surface is constrained by `cmake/exports/cybertexel.map`, macOS
 uses `cybertexel.exports`, and Windows uses `cybertexel.def`. The
