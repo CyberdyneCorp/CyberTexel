@@ -7,7 +7,7 @@ decisions taken and questions still open.
 ## Status
 
 Implementation started. 24 capabilities, 332 requirements, 400 scenarios and
-222 tasks, 128 done. Foundation and the complete headless color-management
+222 tasks, 129 done. Foundation and the complete headless color-management
 scenario suite are green. Slice-A now has memory-buffer PNG input/output with
 8/16-bit preservation and hostile-input ceilings; full image-format breadth
 remains scheduled for slice D. Extensible channel descriptors and sparse
@@ -124,7 +124,10 @@ sizing, exact required sizes and atomic too-small refusal; ordered texture-set
 identities provide executable coverage. Size-first C descriptors now read only
 fully covered fields, default appended texture-set precision for older callers,
 and refuse truncated or future-sized layouts before document mutation. ABI
-versioning and its diff gate (14.4) are next.
+versioning now has a pre-handle query tied to `VERSION`, documented same-major
+stability rules, and a CI gate over exported symbols, declarations, descriptors,
+enumerations, and the platform export list. The threading contract and
+two-document concurrency test (14.5) are next.
 
 ## Milestones
 

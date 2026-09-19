@@ -639,7 +639,11 @@ report their required size without any partial write. Versioned descriptors
 (14.3) now begin with a 32-bit byte size, consume only complete covered fields,
 default an older texture-set descriptor's appended bit depth to 8, and reject
 truncated or future-sized layouts before mutation. ABI versioning and its diff
-gate (14.4) are next.
+gate (14.4) now expose an explicit pre-handle query derived from `VERSION` and
+enforce the documented same-major append-only rules against a committed release
+baseline. The gate compares symbol declarations, live dynamic exports, the
+Windows definition, structure fields and enumeration values. The threading
+contract and two-document concurrency test (14.5) are next.
 
 ## 1. Foundation
 
@@ -840,7 +844,7 @@ gate (14.4) are next.
 - [x] 14.1 C ABI: prefix, export map, opaque handles, result codes, diagnostics
 - [x] 14.2 Caller-owned buffers with two-call sizing
 - [x] 14.3 Versioned descriptors and the implausible-size refusal
-- [ ] 14.4 ABI version query, stability rules, symbol and descriptor diff gate
+- [x] 14.4 ABI version query, stability rules, symbol and descriptor diff gate
 - [ ] 14.5 Threading contract documentation and the two-document concurrency test
 - [ ] 14.6 Host log sink and the English-plus-codes diagnostic rule
 - [ ] 14.7 Host allocator callbacks

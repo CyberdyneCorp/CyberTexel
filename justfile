@@ -99,7 +99,7 @@ test-smart-material-scenarios: build
     ctest --test-dir build/headless --output-on-failure -L '^smart-materials-scenario$'
 
 test-c-api: build
-    ctest --test-dir build/headless --output-on-failure -R '^c-abi-(foundation|caller-buffers|versioned-descriptors|export-surface)$'
+    ctest --test-dir build/headless --output-on-failure -R '^c-abi-(foundation|caller-buffers|versioned-descriptors|export-surface|compatibility)$'
 
 test-preset-shelf-library: build
     ctest --test-dir build/headless --output-on-failure -R '^preset-shelf-library$'
@@ -378,8 +378,9 @@ gate-binding-parity:
     @just _unimplemented gate-binding-parity 14.13
 
 # No symbol or descriptor removed without a major version bump.
-gate-abi-diff:
-    @just _unimplemented gate-abi-diff 14.4
+gate-abi-diff: build
+    python3 tests/tools/test_check_abi.py
+    python3 tools/check_abi.py
 
 # Every capability has a numbered example that runs and asserts.
 gate-example-coverage:

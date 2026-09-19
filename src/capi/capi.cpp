@@ -145,6 +145,8 @@ extern "C" ctex_version ctex_get_version(void) {
     };
 }
 
+extern "C" ctex_version ctex_get_abi_version(void) { return ctex_get_version(); }
+
 extern "C" ctex_result ctex_document_create(ctex_document** out_document) {
     return call_boundary("ctex_document_create", [out_document] {
         if (out_document == nullptr) {

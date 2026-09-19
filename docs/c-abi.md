@@ -36,6 +36,31 @@ prefix contain another value. Current callers use
 as `CTEX_TEXTURE_SET_DESCRIPTOR_V1_SIZE`. Descriptor strings are borrowed for
 the duration of `ctex_document_create_texture_set` and copied into the document.
 
+## ABI version and compatibility
+
+`ctex_get_abi_version` is safe before any handle exists and returns the major,
+minor and patch values derived from the repository's single `VERSION` source.
+Bindings compare its major value before calling any other operation.
+`ctex_get_version` remains the general library-version query and currently
+returns the same value.
+
+Within one ABI major version:
+
+- an exported symbol is never removed and its declaration never changes;
+- public structure fields are never removed, reordered, renamed, or repurposed;
+- new descriptor fields are appended and remain guarded by the size prefix;
+- enumeration entries keep their names, values, and order, with additions
+  appended; and
+- every public C declaration has one matching `ctex_*` dynamic export.
+
+[`abi/cybertexel-abi-v0.json`](../abi/cybertexel-abi-v0.json) records the first
+v0 release surface. `just gate-abi-diff` extracts the current header surface,
+compares it with that baseline, checks the Windows export definition, and
+inspects the built shared object. A same-major removal, signature change,
+non-append descriptor edit, enum renumbering, or header/export mismatch fails
+with the affected name. A deliberate incompatible change therefore requires a
+major version increment.
+
 After a failed call, `ctex_get_last_result` returns the same result and
 `ctex_get_last_diagnostic` returns an English message naming the operation and
 the offending value. Diagnostic state belongs to the calling thread. The

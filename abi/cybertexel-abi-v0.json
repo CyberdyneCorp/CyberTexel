@@ -1,0 +1,50 @@
+{
+  "abi_version": "0.1.0",
+  "symbols": {
+    "ctex_get_version": "ctex_version ctex_get_version(void)",
+    "ctex_get_abi_version": "ctex_version ctex_get_abi_version(void)",
+    "ctex_document_create": "ctex_result ctex_document_create(ctex_document**out_document)",
+    "ctex_document_destroy": "void ctex_document_destroy(ctex_document*document)",
+    "ctex_document_create_texture_set": "ctex_result ctex_document_create_texture_set(ctex_document*document,const ctex_texture_set_descriptor*descriptor)",
+    "ctex_document_get_texture_set_ids": "ctex_result ctex_document_get_texture_set_ids(const ctex_document*document,char*buffer,size_t buffer_size,size_t*out_required_size,size_t*out_count)",
+    "ctex_get_last_result": "ctex_result ctex_get_last_result(void)",
+    "ctex_get_last_diagnostic": "const char*ctex_get_last_diagnostic(void)"
+  },
+  "structures": {
+    "ctex_texture_set_descriptor": [
+      "uint32_t size",
+      "const char*display_name",
+      "uint32_t partition_kind",
+      "const char*partition_key",
+      "const char*uv_set",
+      "uint32_t width",
+      "uint32_t height",
+      "uint8_t default_bit_depth"
+    ],
+    "ctex_version": [
+      "uint32_t major",
+      "uint32_t minor",
+      "uint32_t patch",
+      "const char*string"
+    ]
+  },
+  "enums": {
+    "ctex_result": [
+      ["CTEX_RESULT_SUCCESS", 0],
+      ["CTEX_RESULT_INVALID_ARGUMENT", 1],
+      ["CTEX_RESULT_MISSING_RESOURCE", 2],
+      ["CTEX_RESULT_UNSUPPORTED_OPERATION", 3],
+      ["CTEX_RESULT_OUT_OF_MEMORY", 4],
+      ["CTEX_RESULT_OVER_BUDGET", 5],
+      ["CTEX_RESULT_CANCELLED", 6],
+      ["CTEX_RESULT_INTERNAL_ERROR", 7],
+      ["CTEX_RESULT_BUFFER_TOO_SMALL", 8]
+    ],
+    "ctex_partition_source_kind": [
+      ["CTEX_PARTITION_SOURCE_MATERIAL", 0],
+      ["CTEX_PARTITION_SOURCE_OBJECT", 1],
+      ["CTEX_PARTITION_SOURCE_SUBMESH", 2],
+      ["CTEX_PARTITION_SOURCE_EXPLICIT_FACES", 3]
+    ]
+  }
+}

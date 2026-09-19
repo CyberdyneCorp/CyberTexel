@@ -64,6 +64,7 @@ typedef struct ctex_version {
 } ctex_version;
 
 CTEX_API ctex_version ctex_get_version(void);
+CTEX_API ctex_version ctex_get_abi_version(void);
 
 CTEX_API ctex_result ctex_document_create(ctex_document** out_document);
 CTEX_API void ctex_document_destroy(ctex_document* document);

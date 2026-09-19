@@ -331,6 +331,15 @@ if(BUILD_TESTING)
             set_tests_properties(
                 c-abi-export-surface PROPERTIES WORKING_DIRECTORY "${PROJECT_SOURCE_DIR}"
             )
+            add_test(
+                NAME c-abi-compatibility
+                COMMAND
+                    "${CTEX_PYTHON3_EXECUTABLE}" tools/check_abi.py
+                    "$<TARGET_FILE:cybertexel_c>" "${CMAKE_NM}"
+            )
+            set_tests_properties(
+                c-abi-compatibility PROPERTIES WORKING_DIRECTORY "${PROJECT_SOURCE_DIR}"
+            )
         endif()
     endif()
 
