@@ -96,10 +96,11 @@ task 4.2 open until the paint path exists.
 Task 5.1 is complete: picking owns a flat, median-split BVH with bounded leaves,
 iterative ray-candidate traversal, reuse on an unchanged mesh revision and a
 strong rebuild on replacement. `MeshBinding` supplies the revision mechanism
-needed by this consumer, but task 4.6 remains open until paint and mesh-map
-derived structures also use that revision. Task 5.2 is also complete with
-documented column-major, clip-depth and top-left viewport conventions, general
-matrix inversion, and tested perspective and orthographic world-space rays. Hit
+used by every derived-state consumer. Picking rebuilds its spatial index, paint
+invalidates its complete surface-map cache and mesh maps retain but report stale
+bindings from the same changed revision, completing task 4.6. Task 5.2 is also
+complete with documented column-major, clip-depth and top-left viewport
+conventions, general matrix inversion, and tested perspective and orthographic world-space rays. Hit
 records and exact triangle intersection (5.3) are also complete: the nearest
 exact candidate reports every specified field, including independently computed
 smooth and geometric normals, named-set UV and UDIM, stable texture-set identity
@@ -528,6 +529,13 @@ deduplicated stable list of every absent map. The throwing execution guard and
 direct reads preserve that report in `MissingMeshMapsError`. They never bind a
 placeholder, mutate the map set or return neutral samples; satisfied checks are
 diagnostic-free.
+Mesh-map staleness tracking (11.4) records the producing `MeshRevision` on every
+binding and the current revision on each map set. Revision synchronization,
+binding, requirement preflight and sampling all return structured staleness
+with both revisions. Stale pixels remain bound and readable so the host can
+present them with a warning; only an explicit current-revision replacement
+clears the report. Bake requests carry the same revision and tag accepted output
+with it.
 
 ## 1. Foundation
 
@@ -579,7 +587,7 @@ diagnostic-free.
 - [ ] 4.3 UDIM tiles: on-demand allocation, addressing, cross-tile writes
 - [ ] 4.4 Atlases and their export-time regions
 - [ ] 4.5 Overlap and coverage diagnostics
-- [ ] 4.6 Mesh revision; every derived structure keyed by it
+- [x] 4.6 Mesh revision; every derived structure keyed by it
 - [ ] 4.7 Mesh replacement: identity matching, UV-change reporting, host-chosen policy
 - [ ] 4.8 Declared mesh limits and their named refusals
 - [ ] 4.9 `mesh-and-texture-sets` scenarios as tests
@@ -685,7 +693,7 @@ diagnostic-free.
 - [x] 11.1 Map set definition, per-set binding, resolution mismatch reporting
 - [x] 11.2 Bake provider interface: capability query, request, progress, cancellation
 - [x] 11.3 Missing-map reporting with no neutral substitution
-- [ ] 11.4 Staleness tracking against the mesh revision
+- [x] 11.4 Staleness tracking against the mesh revision
 - [ ] 11.5 External map import with declared channel meaning and colour space
 - [ ] 11.6 Normal map convention recording and conversion on read
 - [ ] 11.7 Generators: AO, curvature, thickness, position gradient, direction, dirt, edge wear, scratches

@@ -238,6 +238,7 @@ flowchart TD
     PAINT --> PICK
     MAPS --> DOC
     MAPS --> IMG
+    MAPS --> MESH
     XPORT --> DOC
     IO --> DOC
     IO --> IMG

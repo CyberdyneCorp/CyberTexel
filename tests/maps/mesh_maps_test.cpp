@@ -14,6 +14,44 @@ namespace {
 using namespace ctex;
 using namespace ctex::maps;
 
+constexpr mesh::MeshRevision fixture_mesh_revision = 17;
+
+struct MeshFixture {
+    std::array<mesh::Vec3f, 3> positions{
+        mesh::Vec3f{-1.0F, -1.0F, 0.0F},
+        mesh::Vec3f{1.0F, -1.0F, 0.0F},
+        mesh::Vec3f{0.0F, 1.0F, 0.0F},
+    };
+    std::array<mesh::Vec3f, 3> normals{
+        mesh::Vec3f{0.0F, 0.0F, 1.0F},
+        mesh::Vec3f{0.0F, 0.0F, 1.0F},
+        mesh::Vec3f{0.0F, 0.0F, 1.0F},
+    };
+    std::array<mesh::Vec2f, 3> uv{
+        mesh::Vec2f{0.0F, 0.0F},
+        mesh::Vec2f{1.0F, 0.0F},
+        mesh::Vec2f{0.5F, 1.0F},
+    };
+    std::array<std::uint32_t, 3> indices{0, 1, 2};
+    std::array<mesh::UvSetView, 1> uv_sets{mesh::UvSetView{"paint", uv}};
+    std::array<mesh::MeshPartition, 1> partitions{
+        mesh::MeshPartition{mesh::PartitionKind::material, "body", "Body"}};
+    std::array<std::uint32_t, 1> face_partitions{0};
+    std::array<std::uint32_t, 1> face_materials{1};
+
+    [[nodiscard]] mesh::MeshDescriptor descriptor() const {
+        return {.positions = positions,
+                .normals = normals,
+                .vertex_colors = {},
+                .triangle_indices = indices,
+                .uv_sets = uv_sets,
+                .default_uv_set = "paint",
+                .partitions = partitions,
+                .face_partition_indices = face_partitions,
+                .face_material_ids = face_materials};
+    }
+};
+
 bool expect(bool condition, std::string_view message) {
     if (!condition) {
         std::cerr << message << '\n';
@@ -85,7 +123,7 @@ bool inventory_is_complete_and_stable() {
 bool lower_resolution_map_is_bound_filtered_and_reported_once() {
     doc::TextureDocument document;
     const doc::TextureSet& set = texture_set(document);
-    MeshMapSet maps(set);
+    MeshMapSet maps(set, fixture_mesh_revision);
     auto ao = scalar_map(2, 2);
     write_u8(*ao, 0, 0, 0);
     write_u8(*ao, 1, 0, 255);
@@ -94,8 +132,9 @@ bool lower_resolution_map_is_bound_filtered_and_reported_once() {
     const MeshMapBindResult result = maps.bind({.kind = MeshMapKind::ambient_occlusion,
                                                 .texture_set_id = set.id(),
                                                 .uv_set = "paint",
+                                                .mesh_revision = fixture_mesh_revision,
                                                 .pixels = ao});
-    const MeshMapSample sample = maps.sample(MeshMapKind::ambient_occlusion, 0.25, 0.75);
+    const MeshMapReadResult sample = maps.sample(MeshMapKind::ambient_occlusion, 0.25, 0.75);
     const MapResolutionMismatch expected{.kind = MeshMapKind::ambient_occlusion,
                                          .texture_set_id = set.id(),
                                          .map_width = 2,
@@ -107,53 +146,57 @@ bool lower_resolution_map_is_bound_filtered_and_reported_once() {
            expect(maps.contains(MeshMapKind::ambient_occlusion) && maps.size() == 1 &&
                       maps.bound_maps() == std::vector<MeshMapKind>{MeshMapKind::ambient_occlusion},
                   "ambient-occlusion map was not retained per texture set") &&
-           expect(sample.component_count == 1 && near(sample.values[0], 0.25),
+           expect(sample.sample.component_count == 1 && near(sample.sample.values[0], 0.25) &&
+                      !sample.staleness,
                   "lower-resolution ambient-occlusion map was not bilinearly filtered");
 }
 
 bool exact_resolution_replacement_has_no_mismatch() {
     doc::TextureDocument document;
     const doc::TextureSet& set = texture_set(document);
-    MeshMapSet maps(set);
+    MeshMapSet maps(set, fixture_mesh_revision);
     auto first = scalar_map(4, 4);
     auto second = scalar_map(4, 4);
     write_u8(*second, 0, 3, 255);
     const MeshMapBindResult initial = maps.bind({.kind = MeshMapKind::curvature,
                                                  .texture_set_id = set.id(),
                                                  .uv_set = "paint",
+                                                 .mesh_revision = fixture_mesh_revision,
                                                  .pixels = first});
     const MeshMapBindResult replacement = maps.bind({.kind = MeshMapKind::curvature,
                                                      .texture_set_id = set.id(),
                                                      .uv_set = "paint",
+                                                     .mesh_revision = fixture_mesh_revision,
                                                      .pixels = second});
     return expect(!initial.replaced_existing && !initial.resolution_mismatch &&
                       replacement.replaced_existing && !replacement.resolution_mismatch,
                   "exact-resolution bind or replacement reported the wrong disposition") &&
-           expect(near(maps.sample(MeshMapKind::curvature, 0.0, 0.0).values[0], 1.0),
+           expect(near(maps.sample(MeshMapKind::curvature, 0.0, 0.0).sample.values[0], 1.0),
                   "replacement map was not made authoritative");
 }
 
 bool identifiers_use_nearest_sampling() {
     doc::TextureDocument document;
     const doc::TextureSet& set = texture_set(document);
-    MeshMapSet maps(set);
+    MeshMapSet maps(set, fixture_mesh_revision);
     auto identifiers = scalar_map(2, 1);
     write_u8(*identifiers, 0, 0, 10);
     write_u8(*identifiers, 1, 0, 20);
     static_cast<void>(maps.bind({.kind = MeshMapKind::material_id,
                                  .texture_set_id = set.id(),
                                  .uv_set = "paint",
+                                 .mesh_revision = fixture_mesh_revision,
                                  .pixels = identifiers}));
     return expect(
-        near(maps.sample(MeshMapKind::material_id, 0.49, 0.5).values[0], 10.0 / 255.0) &&
-            near(maps.sample(MeshMapKind::material_id, 0.51, 0.5).values[0], 20.0 / 255.0),
+        near(maps.sample(MeshMapKind::material_id, 0.49, 0.5).sample.values[0], 10.0 / 255.0) &&
+            near(maps.sample(MeshMapKind::material_id, 0.51, 0.5).sample.values[0], 20.0 / 255.0),
         "identifier map values were blended across an identity boundary");
 }
 
 bool supported_storage_precisions_decode_on_read() {
     doc::TextureDocument document;
     const doc::TextureSet& set = texture_set(document);
-    MeshMapSet maps(set);
+    MeshMapSet maps(set, fixture_mesh_revision);
     auto unorm16 = scalar_map(1, 1, image::ChannelType::uint16_unorm);
     auto float32 = scalar_map(1, 1, image::ChannelType::float32);
     write_value(*unorm16, std::uint16_t{32'768});
@@ -161,25 +204,28 @@ bool supported_storage_precisions_decode_on_read() {
     static_cast<void>(maps.bind({.kind = MeshMapKind::thickness,
                                  .texture_set_id = set.id(),
                                  .uv_set = "paint",
+                                 .mesh_revision = fixture_mesh_revision,
                                  .pixels = unorm16}));
     static_cast<void>(maps.bind({.kind = MeshMapKind::height,
                                  .texture_set_id = set.id(),
                                  .uv_set = "paint",
+                                 .mesh_revision = fixture_mesh_revision,
                                  .pixels = float32}));
     return expect(
-        near(maps.sample(MeshMapKind::thickness, 0.5, 0.5).values[0], 32'768.0 / 65'535.0) &&
-            near(maps.sample(MeshMapKind::height, 0.5, 0.5).values[0], 0.25),
+        near(maps.sample(MeshMapKind::thickness, 0.5, 0.5).sample.values[0], 32'768.0 / 65'535.0) &&
+            near(maps.sample(MeshMapKind::height, 0.5, 0.5).sample.values[0], 0.25),
         "16-bit normalized or floating-point mesh-map storage decoded incorrectly");
 }
 
 bool required_maps_are_reported_without_neutral_substitution() {
     doc::TextureDocument document;
     const doc::TextureSet& set = texture_set(document);
-    MeshMapSet maps(set);
+    MeshMapSet maps(set, fixture_mesh_revision);
     auto curvature = scalar_map(4, 4);
     static_cast<void>(maps.bind({.kind = MeshMapKind::curvature,
                                  .texture_set_id = set.id(),
                                  .uv_set = "paint",
+                                 .mesh_revision = fixture_mesh_revision,
                                  .pixels = curvature}));
     const std::array required{MeshMapKind::thickness, MeshMapKind::ambient_occlusion,
                               MeshMapKind::curvature, MeshMapKind::ambient_occlusion};
@@ -196,7 +242,7 @@ bool required_maps_are_reported_without_neutral_substitution() {
     }
 
     try {
-        maps.require_maps("weathering material", required);
+        static_cast<void>(maps.require_maps("weathering material", required));
     } catch (const MissingMeshMapsError& error) {
         return expect(error.report() == report &&
                           std::string_view(error.what()) == report.message && maps.size() == 1,
@@ -208,11 +254,12 @@ bool required_maps_are_reported_without_neutral_substitution() {
 bool complete_requirements_and_direct_missing_reads_are_distinct() {
     doc::TextureDocument document;
     const doc::TextureSet& set = texture_set(document);
-    MeshMapSet maps(set);
+    MeshMapSet maps(set, fixture_mesh_revision);
     auto ao = scalar_map(4, 4);
     static_cast<void>(maps.bind({.kind = MeshMapKind::ambient_occlusion,
                                  .texture_set_id = set.id(),
                                  .uv_set = "paint",
+                                 .mesh_revision = fixture_mesh_revision,
                                  .pixels = ao}));
     const std::array complete{MeshMapKind::ambient_occlusion};
     const MeshMapRequirementReport ready = maps.check_required_maps("AO generator", complete);
@@ -220,7 +267,10 @@ bool complete_requirements_and_direct_missing_reads_are_distinct() {
                 "satisfied map requirements produced a missing-map diagnostic")) {
         return false;
     }
-    maps.require_maps("AO generator", complete);
+    const MeshMapRequirementReport required = maps.require_maps("AO generator", complete);
+    if (!expect(required == ready, "requirement guard changed a satisfied report")) {
+        return false;
+    }
 
     try {
         static_cast<void>(maps.sample(MeshMapKind::thickness, 0.5, 0.5));
@@ -233,16 +283,69 @@ bool complete_requirements_and_direct_missing_reads_are_distinct() {
     return expect(false, "direct missing-map read returned a neutral sample");
 }
 
+bool mesh_revision_changes_report_retained_stale_maps() {
+    doc::TextureDocument document;
+    const doc::TextureSet& set = texture_set(document);
+    MeshFixture mesh_buffers;
+    mesh::MeshBinding mesh_binding(mesh_buffers.descriptor());
+    const mesh::MeshRevision source_revision = mesh_binding.revision();
+    MeshMapSet maps(set, mesh_binding);
+    auto ao = scalar_map(4, 4);
+    write_u8(*ao, 0, 3, 255);
+    const MeshMapBindResult initial = maps.bind({.kind = MeshMapKind::ambient_occlusion,
+                                                 .texture_set_id = set.id(),
+                                                 .uv_set = "paint",
+                                                 .mesh_revision = source_revision,
+                                                 .pixels = ao});
+    const MeshMapReadResult fresh = maps.sample(MeshMapKind::ambient_occlusion, 0.0, 0.0);
+    mesh_buffers.positions[0].x = -0.5F;
+    mesh_binding.replace(mesh_buffers.descriptor());
+    const mesh::MeshRevision replacement_revision = mesh_binding.revision();
+    const std::vector<MeshMapStaleness> changed = maps.synchronize_mesh_revision(mesh_binding);
+    const MeshMapStaleness expected{.kind = MeshMapKind::ambient_occlusion,
+                                    .produced_mesh_revision = source_revision,
+                                    .current_mesh_revision = replacement_revision};
+    const MeshMapReadResult stale = maps.sample(MeshMapKind::ambient_occlusion, 0.0, 0.0);
+    const std::array required{MeshMapKind::ambient_occlusion};
+    const MeshMapRequirementReport report = maps.require_maps("dirt generator", required);
+    if (!expect(!initial.staleness && !fresh.staleness &&
+                    changed == std::vector<MeshMapStaleness>{expected} &&
+                    maps.stale_maps() == changed && stale.staleness == expected &&
+                    near(stale.sample.values[0], 1.0) && maps.contains(expected.kind) &&
+                    maps.size() == 1,
+                "mesh replacement discarded, hid, or silently sampled a stale map")) {
+        return false;
+    }
+    if (!expect(report.satisfied() && report.stale_maps == changed &&
+                    report.message.find("ambient-occlusion") != std::string::npos &&
+                    report.message.find(std::to_string(source_revision)) != std::string::npos &&
+                    report.message.find(std::to_string(replacement_revision)) != std::string::npos,
+                "consumer preflight did not report the stale map and both revisions")) {
+        return false;
+    }
+
+    auto replacement = scalar_map(4, 4);
+    const MeshMapBindResult rebound = maps.bind({.kind = MeshMapKind::ambient_occlusion,
+                                                 .texture_set_id = set.id(),
+                                                 .uv_set = "paint",
+                                                 .mesh_revision = replacement_revision,
+                                                 .pixels = replacement});
+    return expect(rebound.replaced_existing && !rebound.staleness && maps.stale_maps().empty() &&
+                      !maps.sample(MeshMapKind::ambient_occlusion, 0.0, 0.0).staleness,
+                  "rebaking against the current mesh did not clear staleness");
+}
+
 bool incompatible_bindings_and_samples_are_refused() {
     doc::TextureDocument document;
     const doc::TextureSet& set = texture_set(document);
-    MeshMapSet maps(set);
+    MeshMapSet maps(set, fixture_mesh_revision);
     auto scalar = scalar_map(4, 4);
     bool texture_set_refused = false;
     try {
         static_cast<void>(maps.bind({.kind = MeshMapKind::ambient_occlusion,
                                      .texture_set_id = "set:other",
                                      .uv_set = "paint",
+                                     .mesh_revision = fixture_mesh_revision,
                                      .pixels = scalar}));
     } catch (const std::invalid_argument&) {
         texture_set_refused = true;
@@ -252,6 +355,7 @@ bool incompatible_bindings_and_samples_are_refused() {
         static_cast<void>(maps.bind({.kind = MeshMapKind::ambient_occlusion,
                                      .texture_set_id = set.id(),
                                      .uv_set = "other",
+                                     .mesh_revision = fixture_mesh_revision,
                                      .pixels = scalar}));
     } catch (const std::invalid_argument&) {
         uv_set_refused = true;
@@ -261,6 +365,7 @@ bool incompatible_bindings_and_samples_are_refused() {
         static_cast<void>(maps.bind({.kind = MeshMapKind::tangent_space_normal,
                                      .texture_set_id = set.id(),
                                      .uv_set = "paint",
+                                     .mesh_revision = fixture_mesh_revision,
                                      .pixels = scalar}));
     } catch (const std::invalid_argument&) {
         channels_refused = true;
@@ -292,8 +397,26 @@ bool incompatible_bindings_and_samples_are_refused() {
     } catch (const std::invalid_argument&) {
         invalid_requirement_refused = true;
     }
+    bool zero_revision_refused = false;
+    try {
+        static_cast<void>(MeshMapSet(set, 0));
+    } catch (const std::invalid_argument&) {
+        zero_revision_refused = true;
+    }
+    bool zero_source_revision_refused = false;
+    try {
+        static_cast<void>(maps.bind({.kind = MeshMapKind::ambient_occlusion,
+                                     .texture_set_id = set.id(),
+                                     .uv_set = "paint",
+                                     .mesh_revision = 0,
+                                     .pixels = scalar}));
+    } catch (const std::invalid_argument&) {
+        zero_source_revision_refused = true;
+    }
     return expect(texture_set_refused && uv_set_refused && channels_refused && missing_refused &&
-                      coordinate_refused && unnamed_consumer_refused && invalid_requirement_refused,
+                      coordinate_refused && unnamed_consumer_refused &&
+                      invalid_requirement_refused && zero_revision_refused &&
+                      zero_source_revision_refused,
                   "invalid mesh-map binding or sampling input was accepted") &&
            expect(maps.size() == 0, "a refused mesh-map operation mutated the map set");
 }
@@ -308,6 +431,7 @@ int main() {
                    supported_storage_precisions_decode_on_read() &&
                    required_maps_are_reported_without_neutral_substitution() &&
                    complete_requirements_and_direct_missing_reads_are_distinct() &&
+                   mesh_revision_changes_report_retained_stale_maps() &&
                    incompatible_bindings_and_samples_are_refused()
                ? 0
                : 1;

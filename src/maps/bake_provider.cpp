@@ -149,9 +149,11 @@ BakeRequestResult request_bake(const BakeProvider& provider, MeshMapSet& target,
     const BakeControl provider_control{.user_data = &state,
                                        .is_cancelled = provider_cancelled,
                                        .report_progress = provider_progress};
+    const mesh::MeshRevision requested_mesh_revision = target.mesh_revision();
     const BakeRequest request{.kind = kind,
                               .texture_set_id = target.texture_set_id().c_str(),
                               .uv_set = target.uv_set().c_str(),
+                              .mesh_revision = requested_mesh_revision,
                               .width = width,
                               .height = height};
     BakeProviderOutput output{};
@@ -177,6 +179,7 @@ BakeRequestResult request_bake(const BakeProvider& provider, MeshMapSet& target,
         MeshMapBindResult binding = target.bind({.kind = kind,
                                                  .texture_set_id = target.texture_set_id(),
                                                  .uv_set = target.uv_set(),
+                                                 .mesh_revision = requested_mesh_revision,
                                                  .pixels = std::move(pixels)});
         report(control, 1.0);
         return {.status = BakeRequestStatus::completed,

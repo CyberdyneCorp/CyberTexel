@@ -28,6 +28,7 @@ struct BakeRequest {
     MeshMapKind kind{};
     const char* texture_set_id{};
     const char* uv_set{};
+    mesh::MeshRevision mesh_revision{};
     std::uint32_t width{};
     std::uint32_t height{};
 };

@@ -18,7 +18,7 @@ EXPECTED_DEPENDENCIES = {
     "emit": {"graph", "image"},
     "doc": {"graph", "image", "mesh"},
     "paint": {"doc", "emit", "graph", "pick"},
-    "maps": {"doc", "image"},
+    "maps": {"doc", "image", "mesh"},
     "xport": {"doc"},
     "io": {"doc", "image"},
     "exec": {"emit", "image"},

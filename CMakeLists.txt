@@ -149,7 +149,7 @@ ctex_add_module(
 )
 ctex_add_module(
     maps
-    DEPENDS image doc
+    DEPENDS image mesh doc
     SOURCES src/maps/maps.cpp src/maps/mesh_maps.cpp src/maps/bake_provider.cpp
 )
 ctex_add_module(

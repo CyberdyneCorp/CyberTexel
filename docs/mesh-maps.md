@@ -17,12 +17,12 @@ different resolution and returns one `MapResolutionMismatch` in that bind's
 result; later sampling does not repeat the report. Rebinding a kind replaces its
 previous pixels and reports that disposition.
 
-`sample` accepts finite normalized UV coordinates. Continuous maps use bilinear
-filtering, with UV `(0, 0)` at the bottom-left and edge clamping implicit at the
-inclusive normalized boundary. Material-ID and object-ID maps use nearest
-sampling so filtering cannot create identities that were never stored. Missing
-maps and malformed bindings are refused by name instead of returning neutral
-values.
+`sample` accepts finite normalized UV coordinates and returns the sampled value
+plus any `MeshMapStaleness`. Continuous maps use bilinear filtering, with UV
+`(0, 0)` at the bottom-left and edge clamping implicit at the inclusive
+normalized boundary. Material-ID and object-ID maps use nearest sampling so
+filtering cannot create identities that were never stored. Missing maps and
+malformed bindings are refused by name instead of returning neutral values.
 
 Consumers that know their complete inputs call `check_required_maps` before
 execution. Its structured `MeshMapRequirementReport` carries the consumer and
@@ -34,14 +34,25 @@ pixels, changes existing bindings or returns a neutral sample, so generators,
 smart masks and materials can expose the failure without silently flattening
 their result.
 
+Every binding records the `mesh::MeshRevision` from which its pixels were
+produced. The map set records the current revision and
+`synchronize_mesh_revision` compares those identities after mesh replacement,
+accepting either the binding itself or its revision and returning all stale
+bindings without erasing them. Binding an already stale map reports that
+condition immediately. `stale_maps`, requirement preflight and every successful
+sample all carry the producing and current revisions, so a host can warn while
+still displaying or inspecting the retained pixels. A map becomes current only
+when it is explicitly replaced by pixels produced from the current mesh
+revision.
+
 ## Bake-provider seam
 
 `BakeProvider` is an optional synchronous callback table with an opaque context,
 a capability query and a request callback. Requests name the map, texture-set
-identity, UV layout and requested resolution. The provider returns a borrowed
-strided pixel-buffer view; CyberTexel validates and copies it before the
-callback returns, then binds it transactionally. Provider memory never becomes
-document-owned memory by accident.
+identity, UV layout, mesh revision and requested resolution. The provider
+returns a borrowed strided pixel-buffer view; CyberTexel validates and copies it
+before the callback returns, then binds it transactionally. Provider memory
+never becomes document-owned memory by accident.
 
 `BakeControl` carries C-style progress and cancellation callbacks. CyberTexel
 reports initial zero progress, forwards valid monotonic provider progress below

@@ -6,6 +6,7 @@
 #include <cstdint>
 #include <ctex/doc/document.hpp>
 #include <ctex/image/tiled_image.hpp>
+#include <ctex/mesh/mesh.hpp>
 #include <map>
 #include <memory>
 #include <optional>
@@ -55,7 +56,16 @@ struct MeshMapDescriptor {
     MeshMapKind kind{};
     std::string texture_set_id;
     std::string uv_set;
+    mesh::MeshRevision mesh_revision{};
     std::shared_ptr<const image::TiledImage> pixels;
+};
+
+struct MeshMapStaleness {
+    MeshMapKind kind{};
+    mesh::MeshRevision produced_mesh_revision{};
+    mesh::MeshRevision current_mesh_revision{};
+
+    friend bool operator==(const MeshMapStaleness&, const MeshMapStaleness&) = default;
 };
 
 struct MapResolutionMismatch {
@@ -72,6 +82,7 @@ struct MapResolutionMismatch {
 struct MeshMapBindResult {
     bool replaced_existing{};
     std::optional<MapResolutionMismatch> resolution_mismatch;
+    std::optional<MeshMapStaleness> staleness;
 };
 
 struct MeshMapSample {
@@ -81,10 +92,18 @@ struct MeshMapSample {
     friend bool operator==(const MeshMapSample&, const MeshMapSample&) = default;
 };
 
+struct MeshMapReadResult {
+    MeshMapSample sample;
+    std::optional<MeshMapStaleness> staleness;
+
+    friend bool operator==(const MeshMapReadResult&, const MeshMapReadResult&) = default;
+};
+
 struct MeshMapRequirementReport {
     std::string consumer;
     std::string texture_set_id;
     std::vector<MeshMapKind> missing_maps;
+    std::vector<MeshMapStaleness> stale_maps;
     std::string message;
 
     [[nodiscard]] bool satisfied() const noexcept { return missing_maps.empty(); }
@@ -104,12 +123,14 @@ private:
 
 class MeshMapSet {
 public:
-    explicit MeshMapSet(const doc::TextureSet& texture_set);
+    MeshMapSet(const doc::TextureSet& texture_set, mesh::MeshRevision mesh_revision);
+    MeshMapSet(const doc::TextureSet& texture_set, const mesh::MeshBinding& mesh);
 
     [[nodiscard]] const std::string& texture_set_id() const noexcept { return texture_set_id_; }
     [[nodiscard]] const std::string& uv_set() const noexcept { return uv_set_; }
     [[nodiscard]] std::uint32_t texture_set_width() const noexcept { return texture_set_width_; }
     [[nodiscard]] std::uint32_t texture_set_height() const noexcept { return texture_set_height_; }
+    [[nodiscard]] mesh::MeshRevision mesh_revision() const noexcept { return mesh_revision_; }
 
     [[nodiscard]] MeshMapBindResult bind(MeshMapDescriptor descriptor);
     [[nodiscard]] bool contains(MeshMapKind kind) const noexcept;
@@ -118,14 +139,21 @@ public:
     [[nodiscard]] std::size_t size() const noexcept { return maps_.size(); }
     [[nodiscard]] MeshMapRequirementReport check_required_maps(
         std::string_view consumer, std::span<const MeshMapKind> required) const;
-    void require_maps(std::string_view consumer, std::span<const MeshMapKind> required) const;
-    [[nodiscard]] MeshMapSample sample(MeshMapKind kind, double u, double v) const;
+    [[nodiscard]] MeshMapRequirementReport require_maps(
+        std::string_view consumer, std::span<const MeshMapKind> required) const;
+    [[nodiscard]] std::vector<MeshMapStaleness> synchronize_mesh_revision(
+        mesh::MeshRevision revision);
+    [[nodiscard]] std::vector<MeshMapStaleness> synchronize_mesh_revision(
+        const mesh::MeshBinding& mesh);
+    [[nodiscard]] std::vector<MeshMapStaleness> stale_maps() const;
+    [[nodiscard]] MeshMapReadResult sample(MeshMapKind kind, double u, double v) const;
 
 private:
     std::string texture_set_id_;
     std::string uv_set_;
     std::uint32_t texture_set_width_{};
     std::uint32_t texture_set_height_{};
+    mesh::MeshRevision mesh_revision_{};
     std::map<MeshMapKind, MeshMapDescriptor> maps_;
 };
 

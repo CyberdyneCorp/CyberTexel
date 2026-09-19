@@ -56,6 +56,10 @@ void validate_descriptor(const MeshMapDescriptor& descriptor, std::string_view t
     if (!descriptor.pixels) {
         throw std::invalid_argument("mesh map '" + std::string(name) + "' has no pixels");
     }
+    if (descriptor.mesh_revision == 0) {
+        throw std::invalid_argument("mesh map '" + std::string(name) +
+                                    "' has no source mesh revision");
+    }
     const ChannelCountRange channels = channel_count_range(descriptor.kind);
     const std::uint8_t actual = descriptor.pixels->format().channel_count;
     if (actual < channels.minimum || actual > channels.maximum) {
@@ -127,18 +131,51 @@ MeshMapSample bilinear_sample(const MeshMapDescriptor& descriptor, double x, dou
     return result;
 }
 
-std::string missing_map_message(std::string_view consumer, std::string_view texture_set_id,
-                                std::span<const MeshMapKind> missing) {
+std::string map_names(std::span<const MeshMapKind> maps) {
     std::string names;
-    for (const MeshMapKind kind : missing) {
+    for (const MeshMapKind kind : maps) {
         if (!names.empty()) {
             names += ", ";
         }
         names += mesh_map_name(kind);
     }
-    return "mesh-map consumer '" + std::string(consumer) + "' requires missing map" +
-           (missing.size() == 1 ? " '" : "s '") + names + "' for texture set '" +
-           std::string(texture_set_id) + "'";
+    return names;
+}
+
+std::optional<MeshMapStaleness> staleness(const MeshMapDescriptor& descriptor,
+                                          mesh::MeshRevision current_revision) {
+    if (descriptor.mesh_revision == current_revision) {
+        return std::nullopt;
+    }
+    return MeshMapStaleness{.kind = descriptor.kind,
+                            .produced_mesh_revision = descriptor.mesh_revision,
+                            .current_mesh_revision = current_revision};
+}
+
+std::string requirement_message(std::string_view consumer, std::string_view texture_set_id,
+                                std::span<const MeshMapKind> missing,
+                                std::span<const MeshMapStaleness> stale) {
+    std::string message = "mesh-map consumer '" + std::string(consumer) + "' for texture set '" +
+                          std::string(texture_set_id) + "'";
+    if (!missing.empty()) {
+        message += " requires missing map";
+        message += missing.size() == 1 ? " '" : "s '";
+        message += map_names(missing) + "'";
+    }
+    if (!stale.empty()) {
+        message += missing.empty() ? " has stale map" : "; stale map";
+        message += stale.size() == 1 ? " " : "s ";
+        for (std::size_t index = 0; index < stale.size(); ++index) {
+            if (index != 0) {
+                message += "; ";
+            }
+            message += "'" + std::string(mesh_map_name(stale[index].kind)) +
+                       "' produced from mesh revision " +
+                       std::to_string(stale[index].produced_mesh_revision) + ", current revision " +
+                       std::to_string(stale[index].current_mesh_revision);
+        }
+    }
+    return message;
 }
 
 }  // namespace
@@ -178,11 +215,19 @@ std::string_view mesh_map_name(MeshMapKind kind) {
 MissingMeshMapsError::MissingMeshMapsError(MeshMapRequirementReport report)
     : std::out_of_range(report.message), report_(std::move(report)) {}
 
-MeshMapSet::MeshMapSet(const doc::TextureSet& texture_set)
+MeshMapSet::MeshMapSet(const doc::TextureSet& texture_set, mesh::MeshRevision mesh_revision)
     : texture_set_id_(texture_set.id()),
       uv_set_(texture_set.descriptor().uv_set),
       texture_set_width_(texture_set.descriptor().width),
-      texture_set_height_(texture_set.descriptor().height) {}
+      texture_set_height_(texture_set.descriptor().height),
+      mesh_revision_(mesh_revision) {
+    if (mesh_revision_ == 0) {
+        throw std::invalid_argument("mesh map set requires a source mesh revision");
+    }
+}
+
+MeshMapSet::MeshMapSet(const doc::TextureSet& texture_set, const mesh::MeshBinding& mesh)
+    : MeshMapSet(texture_set, mesh.revision()) {}
 
 MeshMapBindResult MeshMapSet::bind(MeshMapDescriptor descriptor) {
     validate_descriptor(descriptor, texture_set_id_, uv_set_);
@@ -199,8 +244,11 @@ MeshMapBindResult MeshMapSet::bind(MeshMapDescriptor descriptor) {
     }
     const MeshMapKind kind = descriptor.kind;
     const bool replaced = maps_.contains(kind);
+    const auto stale = staleness(descriptor, mesh_revision_);
     maps_.insert_or_assign(kind, std::move(descriptor));
-    return {.replaced_existing = replaced, .resolution_mismatch = std::move(mismatch)};
+    return {.replaced_existing = replaced,
+            .resolution_mismatch = std::move(mismatch),
+            .staleness = stale};
 }
 
 bool MeshMapSet::contains(MeshMapKind kind) const noexcept { return maps_.contains(kind); }
@@ -230,40 +278,75 @@ MeshMapRequirementReport MeshMapSet::check_required_maps(
         throw std::invalid_argument("mesh-map consumer identity must not be empty");
     }
     std::set<MeshMapKind> missing;
+    std::vector<MeshMapStaleness> stale;
     for (const MeshMapKind kind : required) {
         static_cast<void>(mesh_map_name(kind));
-        if (!contains(kind)) {
+        const auto found = maps_.find(kind);
+        if (found == maps_.end()) {
             missing.insert(kind);
+            continue;
+        }
+        const auto map_staleness = staleness(found->second, mesh_revision_);
+        if (map_staleness &&
+            std::ranges::find(stale, kind, &MeshMapStaleness::kind) == stale.end()) {
+            stale.push_back(*map_staleness);
         }
     }
+    std::ranges::sort(stale, {}, &MeshMapStaleness::kind);
     MeshMapRequirementReport result{.consumer = std::string(consumer),
                                     .texture_set_id = texture_set_id_,
                                     .missing_maps = {missing.begin(), missing.end()},
+                                    .stale_maps = std::move(stale),
                                     .message = {}};
-    if (!result.satisfied()) {
-        result.message =
-            missing_map_message(result.consumer, result.texture_set_id, result.missing_maps);
+    if (!result.satisfied() || !result.stale_maps.empty()) {
+        result.message = requirement_message(result.consumer, result.texture_set_id,
+                                             result.missing_maps, result.stale_maps);
     }
     return result;
 }
 
-void MeshMapSet::require_maps(std::string_view consumer,
-                              std::span<const MeshMapKind> required) const {
+MeshMapRequirementReport MeshMapSet::require_maps(std::string_view consumer,
+                                                  std::span<const MeshMapKind> required) const {
     MeshMapRequirementReport report = check_required_maps(consumer, required);
     if (!report.satisfied()) {
         throw MissingMeshMapsError(std::move(report));
     }
+    return report;
 }
 
-MeshMapSample MeshMapSet::sample(MeshMapKind kind, double u, double v) const {
+std::vector<MeshMapStaleness> MeshMapSet::synchronize_mesh_revision(mesh::MeshRevision revision) {
+    if (revision == 0) {
+        throw std::invalid_argument("current mesh revision must not be zero");
+    }
+    mesh_revision_ = revision;
+    return stale_maps();
+}
+
+std::vector<MeshMapStaleness> MeshMapSet::synchronize_mesh_revision(const mesh::MeshBinding& mesh) {
+    return synchronize_mesh_revision(mesh.revision());
+}
+
+std::vector<MeshMapStaleness> MeshMapSet::stale_maps() const {
+    std::vector<MeshMapStaleness> result;
+    for (const auto& [kind, descriptor] : maps_) {
+        static_cast<void>(kind);
+        if (const auto stale = staleness(descriptor, mesh_revision_)) {
+            result.push_back(*stale);
+        }
+    }
+    return result;
+}
+
+MeshMapReadResult MeshMapSet::sample(MeshMapKind kind, double u, double v) const {
     if (!std::isfinite(u) || !std::isfinite(v) || u < 0.0 || u > 1.0 || v < 0.0 || v > 1.0) {
         throw std::invalid_argument("mesh map sample coordinates must be normalized and finite");
     }
     const MeshMapDescriptor& descriptor = map(kind);
     const double x = u * static_cast<double>(descriptor.pixels->width() - 1);
     const double y = (1.0 - v) * static_cast<double>(descriptor.pixels->height() - 1);
-    return is_identifier_map(kind) ? nearest_sample(descriptor, x, y)
-                                   : bilinear_sample(descriptor, x, y);
+    return {.sample = is_identifier_map(kind) ? nearest_sample(descriptor, x, y)
+                                              : bilinear_sample(descriptor, x, y),
+            .staleness = staleness(descriptor, mesh_revision_)};
 }
 
 }  // namespace ctex::maps

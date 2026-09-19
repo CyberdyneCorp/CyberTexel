@@ -12,6 +12,8 @@ namespace {
 using namespace ctex;
 using namespace ctex::maps;
 
+constexpr mesh::MeshRevision fixture_mesh_revision = 23;
+
 bool expect(bool condition, std::string_view message) {
     if (!condition) {
         std::cerr << message << '\n';
@@ -24,6 +26,7 @@ struct ProviderState {
     std::vector<std::byte> pixels{std::byte{0}, std::byte{64}, std::byte{128}, std::byte{255}};
     std::size_t row_stride_bytes{};
     std::size_t request_count{};
+    mesh::MeshRevision requested_mesh_revision{};
     bool fail{};
     bool invalid_progress{};
     bool invalid_status{};
@@ -43,6 +46,7 @@ BakeProviderStatus produce(void* user_data, const BakeRequest* request, const Ba
                            BakeProviderOutput* output) noexcept {
     auto& state = *static_cast<ProviderState*>(user_data);
     ++state.request_count;
+    state.requested_mesh_revision = request->mesh_revision;
     control->report_progress(control->user_data, {.fraction = 0.25});
     if (control->is_cancelled(control->user_data)) {
         return BakeProviderStatus::cancelled;
@@ -108,7 +112,7 @@ BakeControl control(ControlState& state) {
 
 bool supported_request_reports_progress_and_binds_output() {
     doc::TextureDocument document;
-    MeshMapSet maps(texture_set(document));
+    MeshMapSet maps(texture_set(document), fixture_mesh_revision);
     ProviderState provider_state;
     ControlState control_state;
     const BakeRequestResult result =
@@ -116,18 +120,21 @@ bool supported_request_reports_progress_and_binds_output() {
                      control(control_state));
     provider_state.pixels[3] = std::byte{0};
     return expect(result.status == BakeRequestStatus::completed && result.binding &&
-                      result.binding->resolution_mismatch && provider_state.request_count == 1,
+                      result.binding->resolution_mismatch && provider_state.request_count == 1 &&
+                      provider_state.requested_mesh_revision == fixture_mesh_revision,
                   "supported bake did not bind its lower-resolution result") &&
            expect(control_state.progress == std::vector<BakeProgress>{{0.0}, {0.25}, {0.75}, {1.0}},
                   "bake progress omitted its initial, provider, or terminal report") &&
            expect(maps.contains(MeshMapKind::ambient_occlusion) &&
-                      maps.sample(MeshMapKind::ambient_occlusion, 1.0, 0.0).values[0] == 1.0,
+                      maps.map(MeshMapKind::ambient_occlusion).mesh_revision ==
+                          fixture_mesh_revision &&
+                      maps.sample(MeshMapKind::ambient_occlusion, 1.0, 0.0).sample.values[0] == 1.0,
                   "provider output was not copied into the requested map binding");
 }
 
 bool unsupported_request_names_map_and_advertised_set() {
     doc::TextureDocument document;
-    MeshMapSet maps(texture_set(document));
+    MeshMapSet maps(texture_set(document), fixture_mesh_revision);
     ProviderState state;
     const BakeRequestResult result =
         request_bake(provider(state), maps, MeshMapKind::thickness, 2, 2);
@@ -142,7 +149,7 @@ bool unsupported_request_names_map_and_advertised_set() {
 
 bool strided_output_needs_no_padding_after_the_last_row() {
     doc::TextureDocument document;
-    MeshMapSet maps(texture_set(document));
+    MeshMapSet maps(texture_set(document), fixture_mesh_revision);
     ProviderState state;
     state.row_stride_bytes = 4;
     state.pixels = {std::byte{0}, std::byte{64},  std::byte{0},
@@ -150,13 +157,13 @@ bool strided_output_needs_no_padding_after_the_last_row() {
     const BakeRequestResult result =
         request_bake(provider(state), maps, MeshMapKind::curvature, 2, 2);
     return expect(result.status == BakeRequestStatus::completed &&
-                      maps.sample(MeshMapKind::curvature, 1.0, 0.0).values[0] == 1.0,
+                      maps.sample(MeshMapKind::curvature, 1.0, 0.0).sample.values[0] == 1.0,
                   "valid strided provider output required nonexistent final-row padding");
 }
 
 bool cancellation_before_and_during_provider_work_binds_nothing() {
     doc::TextureDocument document;
-    MeshMapSet maps(texture_set(document));
+    MeshMapSet maps(texture_set(document), fixture_mesh_revision);
     ProviderState state;
     ControlState before{.progress = {}, .cancel = true};
     const BakeRequestResult cancelled_before =
@@ -174,7 +181,7 @@ bool cancellation_before_and_during_provider_work_binds_nothing() {
 
 bool provider_failures_and_invalid_output_are_transactional() {
     doc::TextureDocument document;
-    MeshMapSet maps(texture_set(document));
+    MeshMapSet maps(texture_set(document), fixture_mesh_revision);
     ProviderState failed;
     failed.fail = true;
     const BakeRequestResult failure =
@@ -202,7 +209,7 @@ bool provider_failures_and_invalid_output_are_transactional() {
 
 bool malformed_provider_and_request_are_refused_before_callbacks() {
     doc::TextureDocument document;
-    MeshMapSet maps(texture_set(document));
+    MeshMapSet maps(texture_set(document), fixture_mesh_revision);
     ProviderState state;
     bool provider_refused = false;
     try {
