@@ -550,6 +550,14 @@ import paths preserve the declaration. Reads expose the library's canonical
 OpenGL encoding by applying `1 - green` to DirectX samples without changing
 stored pixels or the other components; tangent-basis compatibility remains in
 11.12.
+Mesh-map generators (11.7) expose a stable queryable inventory for ambient
+occlusion, curvature, thickness, position gradient, world-space direction,
+dirt, edge wear and scratches. Each names its complete required-map set before
+evaluation. CPU evaluation produces a caller-sized one-channel float mask,
+fails with the existing structured missing-map report instead of substituting a
+neutral value, and returns staleness for usable outdated inputs. Fixed baseline
+formulas define the initial masks; configurable bounded parameters, clamp
+reports and cross-executor parity remain in 11.8.
 
 ## 1. Foundation
 
@@ -710,7 +718,7 @@ stored pixels or the other components; tangent-basis compatibility remains in
 - [x] 11.4 Staleness tracking against the mesh revision
 - [x] 11.5 External map import with declared channel meaning and colour space
 - [x] 11.6 Normal map convention recording and conversion on read
-- [ ] 11.7 Generators: AO, curvature, thickness, position gradient, direction, dirt, edge wear, scratches
+- [x] 11.7 Generators: AO, curvature, thickness, position gradient, direction, dirt, edge wear, scratches
 - [ ] 11.8 Generator parameter validation and cross-executor determinism
 - [ ] 11.9 Map memory accounting and host-driven release
 - [ ] 11.10 CyberRemesherAndUV provider binding, as an example rather than a dependency

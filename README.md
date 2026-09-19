@@ -126,7 +126,8 @@ The current implementation provides:
 - Revision-aware [mesh-map sets](docs/mesh-maps.md) with named missing-map and
   staleness reports, a host-supplied bake-provider seam, and transactional
   external strided-buffer import with explicit channel meaning and colour space,
-  plus recorded OpenGL/DirectX normal conventions normalized on read.
+  recorded OpenGL/DirectX normal conventions normalized on read, and eight
+  built-in mask generators with queryable map requirements.
 - Perspective and orthographic ray picking, ordered occlusion, configurable
   backface policy, inverse UV picking, surface snapping, region selection,
   deterministic shared-boundary ownership, and bounded cancellable batches.

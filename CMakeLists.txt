@@ -156,6 +156,7 @@ ctex_add_module(
         src/maps/pixel_buffer_copy.cpp
         src/maps/bake_provider.cpp
         src/maps/external_import.cpp
+        src/maps/generators.cpp
 )
 ctex_add_module(
     xport
@@ -538,6 +539,13 @@ if(BUILD_TESTING)
         ctex_external_map_import_test PRIVATE ctex_maps ctex_doc ctex_image ctex_mesh ctex_graph
     )
     add_test(NAME mesh-map-external-import COMMAND ctex_external_map_import_test)
+
+    add_executable(ctex_mesh_map_generators_test tests/maps/generators_test.cpp)
+    ctex_configure_cpp_target(ctex_mesh_map_generators_test)
+    target_link_libraries(
+        ctex_mesh_map_generators_test PRIVATE ctex_maps ctex_doc ctex_image ctex_mesh ctex_graph
+    )
+    add_test(NAME mesh-map-generators COMMAND ctex_mesh_map_generators_test)
 
     add_executable(ctex_document_test tests/doc/document_test.cpp)
     ctex_configure_cpp_target(ctex_document_test)

@@ -80,6 +80,33 @@ equivalent to converting each texel before linear filtering. This convention
 normalization does not claim tangent-basis compatibility: tangent algorithm,
 orientation and mirrored-handedness validation remain roadmap task 11.12.
 
+## Generators
+
+`mesh_map_generator_info` exposes the stable eight-generator inventory and the
+complete mesh-map inputs for each generator. This lets a host preflight or
+request baked inputs before evaluation. `generate_mesh_map_mask` then evaluates
+the selected generator at pixel centres into a caller-sized, one-channel
+32-bit-float `TiledImage`. Missing inputs raise `MissingMeshMapsError` with the
+generator name and the complete missing-map list. Stale inputs remain usable,
+with their `MeshMapStaleness` entries returned in the result.
+
+The task 11.7 baseline uses fixed, documented interpretations:
+
+| Generator | Required maps | Baseline mask |
+| --- | --- | --- |
+| Ambient occlusion | ambient occlusion | `1 - AO` |
+| Curvature | curvature | curvature value |
+| Thickness | thickness | `1 - thickness` (thin regions) |
+| Position gradient | position | encoded world-space Y |
+| World-space direction | world-space direction | encoded +Y alignment |
+| Dirt | ambient occlusion, curvature | maximum of occlusion and concavity |
+| Edge wear | curvature | positive curvature above encoded neutral `0.5` |
+| Scratches | position, world-space direction | narrow world-position stripes modulated by grazing orientation |
+
+Every result is saturated to `[0, 1]`. Configurable parameters, clamp reports
+and cross-executor parity belong to roadmap task 11.8; these fixed formulas are
+the CPU reference that task extends.
+
 ## Bake-provider seam
 
 `BakeProvider` is an optional synchronous callback table with an opaque context,
