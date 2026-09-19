@@ -80,6 +80,8 @@ The current implementation provides:
   cached surface identities and explicit mesh adjacency. The
   [Clone tool](docs/clone-tool.md) copies an immutable source snapshot using
   aligned or fixed UV sampling and explicitly refuses cross-texture-set clones.
+  [Blur and Smear](docs/blur-and-smear.md) use surface-aware sampling over an
+  immutable stroke-start snapshot, including tangent-frame-correct normal maps.
 - Sparse tiled image storage for one-to-four-channel 8-bit, 16-bit, and
   floating-point pixels, with tile-level dirty tracking and monotonic channel
   and per-tile [content revisions](docs/host-transport-revisions.md), plus

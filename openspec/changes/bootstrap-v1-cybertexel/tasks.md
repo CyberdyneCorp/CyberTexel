@@ -416,6 +416,13 @@ at stroke start, while fixed mode retains the source anchor for every accepted
 destination texel. Both modes compose canonical rejection, masks, deposition
 and stroke-start blending. Cross-texture-set requests are refused before
 shading with both stable set identities in the diagnostic.
+Blur and Smear (10.4) consume immutable stroke-start snapshots and explicit
+surface-aware neighborhoods. Blur performs normalized horizontal and vertical
+passes at its declared configurable radius. Smear follows supplied upstream
+stroke-direction mappings and combines configurable drag strength with canonical
+masked deposition. Tangent-space normals cross supplied seam frames and are
+renormalized before encoding, while neither tool can feed its own output back
+into the active stroke.
 
 ## 1. Foundation
 
@@ -557,7 +564,7 @@ shading with both stable set identities in the diagnostic.
 - [x] 10.1 Brush and Eraser
 - [x] 10.2 Fill: all six scopes
 - [x] 10.3 Clone, aligned and fixed, with the cross-set refusal
-- [ ] 10.4 Blur and Smear over a stroke-start snapshot
+- [x] 10.4 Blur and Smear over a stroke-start snapshot
 - [ ] 10.5 Decal and Stencil; persistent editable decals through editable-authoring
 - [ ] 10.6 Projection, planar and triplanar
 - [ ] 10.7 Text with UTF-8 and supplied fonts

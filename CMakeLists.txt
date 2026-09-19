@@ -123,6 +123,7 @@ ctex_add_module(
     SOURCES
         src/paint/paint.cpp
         src/paint/blending.cpp
+        src/paint/blur_smear.cpp
         src/paint/brush.cpp
         src/paint/clone.cpp
         src/paint/coverage.cpp
@@ -347,6 +348,14 @@ if(BUILD_TESTING)
         PRIVATE ctex_paint ctex_doc ctex_emit ctex_pick ctex_mesh ctex_graph ctex_image
     )
     add_test(NAME paint-blending COMMAND ctex_paint_blending_test)
+
+    add_executable(ctex_paint_blur_smear_test tests/paint/blur_smear_test.cpp)
+    ctex_configure_cpp_target(ctex_paint_blur_smear_test)
+    target_link_libraries(
+        ctex_paint_blur_smear_test
+        PRIVATE ctex_paint ctex_doc ctex_emit ctex_pick ctex_mesh ctex_graph ctex_image
+    )
+    add_test(NAME paint-blur-smear COMMAND ctex_paint_blur_smear_test)
 
     add_executable(ctex_paint_brush_test tests/paint/brush_test.cpp)
     ctex_configure_cpp_target(ctex_paint_brush_test)
