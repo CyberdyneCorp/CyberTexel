@@ -1,3 +1,4 @@
+#include <algorithm>
 #include <array>
 #include <cmath>
 #include <ctex/paint/stroke.hpp>
@@ -34,6 +35,12 @@ StrokeInputSample sample(double x, std::uint64_t timestamp_nanoseconds) {
     };
 }
 
+StrokeInputSample sample_at(Vec3d position, std::uint64_t timestamp_nanoseconds) {
+    StrokeInputSample result = sample(position.x, timestamp_nanoseconds);
+    result.position = position;
+    return result;
+}
+
 StrokeInputSample sample_with_input(double x, std::uint64_t timestamp_nanoseconds,
                                     std::optional<double> pressure, Vec2d tilt = {}) {
     StrokeInputSample result = sample(x, timestamp_nanoseconds);
@@ -54,6 +61,12 @@ bool batching_and_redundant_samples_are_invariant() {
     settings.stabilizer = {.radius = 0.5, .time_constant_seconds = 0.002};
     settings.input_mapping.pressure_radius.minimum_output = 0.5;
     settings.input_mapping.tilt_elongation.enabled = true;
+    settings.jitter = {.seed = 7,
+                       .position_fraction = 0.1,
+                       .radius_fraction = 0.1,
+                       .rotation_radians = 0.1,
+                       .opacity = 0.1,
+                       .flow = 0.1};
     const std::array complete{
         sample_with_input(0.0, 0, 0.0),
         sample_with_input(5.0, 5'000'000, 0.5, {.x = 0.5, .y = 0.0}),
@@ -240,6 +253,120 @@ bool pressure_mapped_radius_drives_following_spacing() {
                   "pressure-mapped radius did not determine the following stamp spacing");
 }
 
+bool jitter_is_seeded_by_stroke_and_ordinal() {
+    StrokeSettings settings;
+    settings.spacing_fraction = 1.0;
+    settings.opacity = 0.5;
+    settings.flow = 0.5;
+    settings.input_mapping.pressure_radius.enabled = false;
+    settings.jitter = {
+        .seed = 42,
+        .position_fraction = 0.5,
+        .radius_fraction = 0.25,
+        .rotation_radians = 0.4,
+        .opacity = 0.2,
+        .flow = 0.2,
+    };
+    const std::array samples{sample(0.0, 0), sample(3.0, 3'000'000)};
+    const ResolvedStroke first = resolve(settings, samples);
+    const ResolvedStroke repeated = resolve(settings, samples);
+    StrokeSettings other_seed = settings;
+    other_seed.jitter.seed = 43;
+    const ResolvedStroke changed = resolve(other_seed, samples);
+
+    StrokeSettings plain = settings;
+    plain.jitter = {};
+    const ResolvedStroke unmodified = resolve(plain, samples);
+    const Stamp& jittered = first.stamps.front();
+    const Stamp& base = unmodified.stamps.front();
+    return expect(first == repeated, "the same jitter seed did not reproduce exact stamps") &&
+           expect(first != changed, "changing the jitter seed did not change resolved stamps") &&
+           expect(jittered.position != base.position && jittered.radius != base.radius &&
+                      jittered.rotation_radians != base.rotation_radians &&
+                      jittered.opacity != base.opacity && jittered.flow != base.flow,
+                  "a configured jitter target remained unchanged");
+}
+
+bool stamp_count_taper_reaches_full_on_the_tenth_stamp() {
+    StrokeSettings settings;
+    settings.spacing_fraction = 1.0;
+    settings.opacity = 0.8;
+    settings.input_mapping.pressure_radius.enabled = false;
+    settings.taper.entry = {.unit = TaperUnit::stamp_count, .extent = 10.0};
+    settings.taper.floor = 0.2;
+    settings.taper.affect_opacity = false;
+    const std::array samples{sample(0.0, 0), sample(11.0, 11'000'000)};
+    const ResolvedStroke stroke = resolve(settings, samples);
+    return expect(stroke.stamps.size() == 12 && near(stroke.stamps[0].radius, 0.2) &&
+                      near(stroke.stamps[8].radius, 0.2 + 0.8 * 8.0 / 9.0) &&
+                      near(stroke.stamps[9].radius, 1.0),
+                  "ten-stamp entry taper did not run from its floor to full radius") &&
+           expect(near(stroke.stamps[0].opacity, settings.opacity),
+                  "radius-only taper changed opacity");
+}
+
+bool distance_taper_applies_at_both_ends() {
+    StrokeSettings settings;
+    settings.spacing_fraction = 1.0;
+    settings.opacity = 0.8;
+    settings.input_mapping.pressure_radius.enabled = false;
+    settings.taper.entry = {.unit = TaperUnit::distance, .extent = 2.0};
+    settings.taper.exit = {.unit = TaperUnit::distance, .extent = 2.0};
+    const std::array samples{sample(0.0, 0), sample(6.0, 6'000'000)};
+    const ResolvedStroke stroke = resolve(settings, samples);
+    return expect(
+        near(stroke.stamps.front().radius, 0.0) && near(stroke.stamps.front().opacity, 0.0) &&
+            near(stroke.stamps[1].radius, 0.5) && near(stroke.stamps[1].opacity, 0.4) &&
+            near(stroke.stamps[2].radius, 1.0) && near(stroke.stamps[2].opacity, 0.8) &&
+            near(stroke.stamps.back().radius, 0.0) && near(stroke.stamps.back().opacity, 0.0),
+        "distance taper did not affect radius and opacity at both ends");
+}
+
+bool straight_line_constraint_ignores_intermediate_positions() {
+    StrokeSettings settings;
+    settings.spacing_fraction = 1.0;
+    settings.input_mapping.pressure_radius.enabled = false;
+    settings.constraint.mode = ConstraintMode::straight_line;
+    const std::array bent{
+        sample_at({0.0, 0.0, 0.0}, 0),
+        sample_at({2.0, 7.0, -3.0}, 5'000'000),
+        sample_at({10.0, 0.0, 0.0}, 10'000'000),
+    };
+    const std::array direct{bent.front(), bent.back()};
+    return expect(resolve(settings, bent) == resolve(settings, direct),
+                  "straight-line constraint retained an intermediate positional bend");
+}
+
+bool axis_and_grid_constraints_transform_the_path() {
+    StrokeSettings axis_settings;
+    axis_settings.spacing_fraction = 4.0;
+    axis_settings.input_mapping.pressure_radius.enabled = false;
+    axis_settings.constraint.mode = ConstraintMode::dominant_axis;
+    const std::array axis_samples{
+        sample_at({1.0, 2.0, 3.0}, 0),
+        sample_at({8.0, 7.0, -4.0}, 5'000'000),
+        sample_at({3.0, 12.0, 7.0}, 10'000'000),
+    };
+    const ResolvedStroke axis = resolve(axis_settings, axis_samples);
+    const bool axis_locked = std::all_of(
+        axis.stamps.begin(), axis.stamps.end(),
+        [](const Stamp& s) { return near(s.position.x, 1.0) && near(s.position.z, 3.0); });
+
+    StrokeSettings grid_settings;
+    grid_settings.spacing_fraction = 4.0;
+    grid_settings.input_mapping.pressure_radius.enabled = false;
+    grid_settings.constraint = {.mode = ConstraintMode::grid, .grid_step = 1.0};
+    const std::array grid_samples{
+        sample_at({0.2, 0.4, -0.4}, 0),
+        sample_at({2.2, 1.6, -0.6}, 2'000'000),
+    };
+    const ResolvedStroke grid = resolve(grid_settings, grid_samples);
+    return expect(axis_locked, "dominant-axis constraint did not lock the non-dominant axes") &&
+           expect(grid.stamps.front().position == Vec3d{} &&
+                      grid.stamps.back().position == Vec3d{2.0, 2.0, -1.0},
+                  "grid constraint did not snap reconstructed path endpoints");
+}
+
 bool spacing_contract_has_versioned_defaults_and_bounds() {
     StrokeResolver defaults;
     bool below_refused = false;
@@ -300,6 +427,33 @@ bool invalid_input_is_rejected_without_partial_resolution() {
         invalid_curve_refused = true;
     }
 
+    StrokeSettings invalid_jitter;
+    invalid_jitter.jitter.radius_fraction = 1.0;
+    bool invalid_jitter_refused = false;
+    try {
+        static_cast<void>(StrokeResolver(invalid_jitter));
+    } catch (const StrokeResolutionError&) {
+        invalid_jitter_refused = true;
+    }
+
+    StrokeSettings invalid_taper;
+    invalid_taper.taper.entry = {.unit = TaperUnit::stamp_count, .extent = 1.0};
+    bool invalid_taper_refused = false;
+    try {
+        static_cast<void>(StrokeResolver(invalid_taper));
+    } catch (const StrokeResolutionError&) {
+        invalid_taper_refused = true;
+    }
+
+    StrokeSettings invalid_constraint;
+    invalid_constraint.constraint.grid_step = 0.0;
+    bool invalid_constraint_refused = false;
+    try {
+        static_cast<void>(StrokeResolver(invalid_constraint));
+    } catch (const StrokeResolutionError&) {
+        invalid_constraint_refused = true;
+    }
+
     StrokeResolver resolver;
     const std::array reversed{sample(0.0, 2), sample(1.0, 1)};
     bool timestamps_refused = false;
@@ -334,6 +488,9 @@ bool invalid_input_is_rejected_without_partial_resolution() {
     return expect(future_refused, "an unknown reconstruction version was accepted") &&
            expect(invalid_mode_refused, "an unknown tip mode was accepted") &&
            expect(invalid_curve_refused, "an invalid response curve was accepted") &&
+           expect(invalid_jitter_refused, "invalid jitter was accepted") &&
+           expect(invalid_taper_refused, "invalid taper was accepted") &&
+           expect(invalid_constraint_refused, "invalid constraint settings were accepted") &&
            expect(pressure_refused, "an out-of-range pressure value was accepted") &&
            expect(tilt_refused, "an out-of-range tilt vector was accepted") &&
            expect(timestamps_refused && resolver.sample_count() == 1,
@@ -355,6 +512,11 @@ int main() {
                    missing_pressure_is_full_pressure() && tilt_maps_azimuth_and_magnitude() &&
                    pressure_changes_are_not_discarded_as_redundant() &&
                    pressure_mapped_radius_drives_following_spacing() &&
+                   jitter_is_seeded_by_stroke_and_ordinal() &&
+                   stamp_count_taper_reaches_full_on_the_tenth_stamp() &&
+                   distance_taper_applies_at_both_ends() &&
+                   straight_line_constraint_ignores_intermediate_positions() &&
+                   axis_and_grid_constraints_transform_the_path() &&
                    spacing_contract_has_versioned_defaults_and_bounds() &&
                    invalid_input_is_rejected_without_partial_resolution()
                ? 0

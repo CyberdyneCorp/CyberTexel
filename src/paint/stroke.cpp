@@ -162,6 +162,57 @@ void validate_input_mapping(const StrokeInputMapping& mapping) {
     }
 }
 
+void validate_jitter(const JitterSettings& jitter) {
+    if (!finite(jitter.position_fraction) || jitter.position_fraction < 0.0 ||
+        !finite(jitter.radius_fraction) || jitter.radius_fraction < 0.0 ||
+        jitter.radius_fraction >= 1.0 || !finite(jitter.rotation_radians) ||
+        jitter.rotation_radians < 0.0 || !finite(jitter.opacity) || jitter.opacity < 0.0 ||
+        jitter.opacity > 1.0 || !finite(jitter.flow) || jitter.flow < 0.0 || jitter.flow > 1.0) {
+        throw StrokeResolutionError("stroke jitter settings are invalid");
+    }
+}
+
+void validate_taper_span(TaperSpan span) {
+    if (!finite(span.extent)) {
+        throw StrokeResolutionError("taper extent must be finite");
+    }
+    if (span.unit == TaperUnit::none && span.extent == 0.0) {
+        return;
+    }
+    if (span.unit == TaperUnit::stamp_count && span.extent >= 2.0 &&
+        std::floor(span.extent) == span.extent) {
+        return;
+    }
+    if (span.unit == TaperUnit::distance && span.extent > 0.0) {
+        return;
+    }
+    throw StrokeResolutionError("taper span requires no extent, at least two stamps, or distance");
+}
+
+void validate_taper(const TaperSettings& taper) {
+    validate_taper_span(taper.entry);
+    validate_taper_span(taper.exit);
+    if (!finite(taper.floor) || taper.floor < 0.0 || taper.floor > 1.0) {
+        throw StrokeResolutionError("taper floor must be normalized");
+    }
+    if ((taper.entry.unit != TaperUnit::none || taper.exit.unit != TaperUnit::none) &&
+        !taper.affect_radius && !taper.affect_opacity) {
+        throw StrokeResolutionError("an active taper must affect radius or opacity");
+    }
+}
+
+void validate_constraint(const ConstraintSettings& constraint) {
+    if (constraint.mode != ConstraintMode::none &&
+        constraint.mode != ConstraintMode::straight_line &&
+        constraint.mode != ConstraintMode::dominant_axis &&
+        constraint.mode != ConstraintMode::grid) {
+        throw StrokeResolutionError("stroke constraint mode is invalid");
+    }
+    if (!finite(constraint.grid_step) || constraint.grid_step <= 0.0) {
+        throw StrokeResolutionError("constraint grid step must be finite and positive");
+    }
+}
+
 void validate_settings(const StrokeSettings& settings) {
     if (settings.reconstruction_version != canonical_stroke_reconstruction_version) {
         throw StrokeResolutionError("unsupported stroke reconstruction version " +
@@ -190,6 +241,9 @@ void validate_settings(const StrokeSettings& settings) {
             "stabilizer radius and time constant must be finite and non-negative");
     }
     validate_input_mapping(settings.input_mapping);
+    validate_jitter(settings.jitter);
+    validate_taper(settings.taper);
+    validate_constraint(settings.constraint);
 }
 
 void validate_sample(const StrokeInputSample& sample) {
@@ -280,6 +334,56 @@ std::vector<PathPoint> reconstruct_time_grid(std::span<const StrokeInputSample> 
     return result;
 }
 
+void apply_straight_line_constraint(std::vector<PathPoint>& path) {
+    if (path.size() < 2) {
+        return;
+    }
+    const Vec3d origin = path.front().position;
+    const Vec3d current = path.back().position;
+    const std::uint64_t first_time = path.front().timestamp_nanoseconds;
+    const double duration = static_cast<double>(path.back().timestamp_nanoseconds - first_time);
+    for (PathPoint& point : path) {
+        const double amount =
+            static_cast<double>(point.timestamp_nanoseconds - first_time) / duration;
+        point.position = interpolate(origin, current, amount);
+    }
+}
+
+void apply_dominant_axis_constraint(std::vector<PathPoint>& path) {
+    const Vec3d origin = path.front().position;
+    const Vec3d displacement = subtract(path.back().position, origin);
+    std::size_t axis = 0;
+    double largest = std::abs(displacement.x);
+    if (std::abs(displacement.y) > largest) {
+        axis = 1;
+        largest = std::abs(displacement.y);
+    }
+    if (std::abs(displacement.z) > largest) {
+        axis = 2;
+    }
+    for (PathPoint& point : path) {
+        const double component = axis == 0   ? point.position.x
+                                 : axis == 1 ? point.position.y
+                                             : point.position.z;
+        point.position = origin;
+        if (axis == 0) {
+            point.position.x = component;
+        } else if (axis == 1) {
+            point.position.y = component;
+        } else {
+            point.position.z = component;
+        }
+    }
+}
+
+void apply_directional_constraint(std::vector<PathPoint>& path, ConstraintMode mode) {
+    if (mode == ConstraintMode::straight_line) {
+        apply_straight_line_constraint(path);
+    } else if (mode == ConstraintMode::dominant_axis) {
+        apply_dominant_axis_constraint(path);
+    }
+}
+
 void apply_stabilizer(std::vector<PathPoint>& path, StabilizerSettings settings) {
     Vec3d cursor = path.front().position;
     for (std::size_t index = 1; index < path.size(); ++index) {
@@ -299,6 +403,22 @@ void apply_stabilizer(std::vector<PathPoint>& path, StabilizerSettings settings)
                                   : -std::expm1(-elapsed_seconds / settings.time_constant_seconds);
         cursor = add(cursor, multiply(subtract(boundary, cursor), factor));
         path[index].position = cursor;
+    }
+}
+
+void apply_grid_constraint(std::vector<PathPoint>& path, ConstraintSettings settings) {
+    if (settings.mode != ConstraintMode::grid) {
+        return;
+    }
+    const auto snapped = [step = settings.grid_step](double value) {
+        return std::round(value / step) * step;
+    };
+    for (PathPoint& point : path) {
+        point.position = {
+            snapped(point.position.x),
+            snapped(point.position.y),
+            snapped(point.position.z),
+        };
     }
 }
 
@@ -403,6 +523,79 @@ ResolvedStroke space_stamps(std::span<const PathPoint> path, const StrokeSetting
     return result;
 }
 
+double taper_progress(TaperSpan span, std::uint64_t stamp_index, double distance) {
+    if (span.unit == TaperUnit::none) {
+        return 1.0;
+    }
+    if (span.unit == TaperUnit::stamp_count) {
+        return std::min(static_cast<double>(stamp_index) / (span.extent - 1.0), 1.0);
+    }
+    return std::min(distance / span.extent, 1.0);
+}
+
+void apply_taper(ResolvedStroke& stroke, const TaperSettings& taper) {
+    if (taper.entry.unit == TaperUnit::none && taper.exit.unit == TaperUnit::none) {
+        return;
+    }
+    std::vector<double> distances(stroke.stamps.size());
+    for (std::size_t index = 1; index < stroke.stamps.size(); ++index) {
+        distances[index] =
+            distances[index - 1] +
+            length(subtract(stroke.stamps[index].position, stroke.stamps[index - 1].position));
+    }
+    const double total_distance = distances.back();
+    for (std::size_t index = 0; index < stroke.stamps.size(); ++index) {
+        const double entry = taper_progress(taper.entry, index, distances[index]);
+        const double exit = taper_progress(taper.exit, stroke.stamps.size() - index - 1,
+                                           total_distance - distances[index]);
+        const double factor = interpolate(taper.floor, 1.0, std::min(entry, exit));
+        if (taper.affect_radius) {
+            stroke.stamps[index].radius *= factor;
+        }
+        if (taper.affect_opacity) {
+            stroke.stamps[index].opacity *= factor;
+        }
+    }
+}
+
+std::uint64_t mixed(std::uint64_t value) {
+    value += 0x9e3779b97f4a7c15ULL;
+    value = (value ^ (value >> 30U)) * 0xbf58476d1ce4e5b9ULL;
+    value = (value ^ (value >> 27U)) * 0x94d049bb133111ebULL;
+    return value ^ (value >> 31U);
+}
+
+double jitter_value(std::uint64_t seed, std::uint64_t ordinal, std::uint64_t channel) {
+    const std::uint64_t bits = mixed(seed ^ (0x9e3779b97f4a7c15ULL * (ordinal + 1U)) ^
+                                     (0xd1b54a32d192ed03ULL * (channel + 1U)));
+    constexpr double inverse_53_bits = 1.0 / 9'007'199'254'740'992.0;
+    return 2.0 * static_cast<double>(bits >> 11U) * inverse_53_bits - 1.0;
+}
+
+void apply_jitter(ResolvedStroke& stroke, const JitterSettings& jitter) {
+    for (Stamp& stamp : stroke.stamps) {
+        const double position_scale = jitter.position_fraction * stamp.radius;
+        stamp.position =
+            add(stamp.position,
+                add(multiply(stamp.frame.tangent,
+                             position_scale * jitter_value(jitter.seed, stamp.ordinal, 0)),
+                    multiply(stamp.frame.bitangent,
+                             position_scale * jitter_value(jitter.seed, stamp.ordinal, 1))));
+        stamp.radius *= 1.0 + jitter.radius_fraction * jitter_value(jitter.seed, stamp.ordinal, 2);
+        stamp.rotation_radians +=
+            jitter.rotation_radians * jitter_value(jitter.seed, stamp.ordinal, 3);
+        stamp.opacity = std::clamp(
+            stamp.opacity + jitter.opacity * jitter_value(jitter.seed, stamp.ordinal, 4), 0.0, 1.0);
+        stamp.flow = std::clamp(
+            stamp.flow + jitter.flow * jitter_value(jitter.seed, stamp.ordinal, 5), 0.0, 1.0);
+    }
+}
+
+void apply_stamp_modifiers(ResolvedStroke& stroke, const StrokeSettings& settings) {
+    apply_taper(stroke, settings.taper);
+    apply_jitter(stroke, settings.jitter);
+}
+
 }  // namespace
 
 StrokeResolver::StrokeResolver(StrokeSettings settings) : settings_(std::move(settings)) {
@@ -435,8 +628,11 @@ ResolvedStroke StrokeResolver::resolve() {
     }
     const std::vector<StrokeInputSample> canonical = remove_redundant_samples(samples_);
     std::vector<PathPoint> path = reconstruct_time_grid(canonical);
+    apply_directional_constraint(path, settings_.constraint.mode);
     apply_stabilizer(path, settings_.stabilizer);
+    apply_grid_constraint(path, settings_.constraint);
     ResolvedStroke result = space_stamps(path, settings_);
+    apply_stamp_modifiers(result, settings_);
     resolved_ = true;
     return result;
 }

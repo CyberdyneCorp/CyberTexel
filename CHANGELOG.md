@@ -63,6 +63,8 @@ Foundation implementation is in progress.
 - Independent piecewise-linear pressure and tilt response mappings, including
   full-pressure fallback for devices without pressure and pressure-aware stamp
   spacing.
+- Seed-and-ordinal deterministic jitter, count- and distance-based entry/exit
+  taper, and straight-line, dominant-axis, and grid stroke constraints.
 - Linear Rec. 709 working-space and sRGB transfer functions with unclamped HDR
   conversion.
 - Native and sanitizer test presets plus a registry-driven determinism gate that

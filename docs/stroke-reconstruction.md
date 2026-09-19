@@ -51,8 +51,8 @@ rate because distances accumulate across reconstructed path segments.
 
 Each stamp carries position, coordinate frame, radius, opacity, hardness,
 rotation, elongation, flow, tip resource identity and ordinal. Pressure and
-tilt response is applied while creating this one canonical sequence. Jitter and
-taper alter it in later stroke-model tasks without creating a second sequence.
+tilt response is applied while creating this one canonical sequence. Taper and
+jitter then alter its resolved properties without creating a second sequence.
 
 ## Pressure and tilt response
 
@@ -81,13 +81,53 @@ The radius resolved at one stamp determines the arc-length spacing to the next
 stamp. Consequently pressure affects both visible radius and subsequent event
 placement, while batching and redundant-sample invariance remain intact.
 
+## Constraints and stabilization
+
+One positional constraint can be active. `straight_line` replaces every
+reconstructed position with timestamp-linear motion from the first position to
+the final position, so intermediate positional bends have no effect while their
+pressure, tilt and frame knots remain. `dominant_axis` selects the largest
+absolute final displacement, with X then Y then Z as the tie order, and locks
+the other two coordinates to the stroke origin. These directional constraints
+run before the timestamp stabilizer.
+
+`grid` instead rounds each stabilized reconstructed position independently to
+the nearest multiple of its positive step, using the C++ `round` half-away-from-
+zero rule. Spacing then follows the piecewise-linear path through those snapped
+points; regular stamps between two grid points need not themselves fall on grid
+intersections. The default constraint is `none`.
+
+## Taper and deterministic jitter
+
+Entry and exit taper are independent. Each can be disabled, measured in path
+distance, or measured in stamp count. An active stamp-count span is an integer
+of at least two: for a ten-stamp entry span, ordinal zero is at the taper floor
+and ordinal nine is at full strength. A distance span reaches full strength at
+its named distance. Exit progress is measured from the final stamp. When both
+are active, the smaller progress wins, and the normalized factor is
+`floor + (1 - floor) * progress`. Radius, opacity or both can be selected.
+
+Taper operates on the already placed, pressure-resolved stamps and therefore
+does not recursively alter their placement. Distances are measured before
+position jitter. The taper floor is normalized to `[0, 1]` and defaults to
+zero; taper is disabled by default.
+
+Jitter is stateless and reproducible. Each random value is keyed by the 64-bit
+stroke seed, stamp ordinal and a fixed target channel, mixed with the SplitMix64
+finalizer, then converted from its high 53 bits to `[-1, 1)`. Position uses
+separate tangent and bitangent channels, each scaled by the configured fraction
+of the tapered radius. Radius uses a relative fraction smaller than one;
+rotation adds radians; opacity and flow add absolute normalized amounts and
+clamp to `[0, 1]`. Jitter is applied after taper and does not change stamp
+ordinals, sweep links or placement count. Every jitter amount defaults to zero.
+
 In `continuous_sweep` mode every pair of consecutive stamps has a
 `SweptSegment`. A final endpoint stamp closes any residual shorter-than-spacing
-path so continuous coverage reaches the stabilized cursor. In `discrete_alpha`
-mode only regular spacing events are emitted and the segment list is empty;
-there is no forced endpoint tip and no implicit coverage between transformed
-alpha tips. Spacing greater than two radii can therefore leave the explicitly
-requested visible separation.
+path before post-placement modifiers, and sweep links then connect the final
+jittered stamp positions. In `discrete_alpha` mode only regular spacing events
+are emitted and the segment list is empty; there is no forced endpoint tip and
+no implicit coverage between transformed alpha tips. Spacing greater than two
+radii can therefore leave the explicitly requested visible separation.
 
 An unsupported reconstruction version, invalid setting, non-monotonic sample,
 empty resolution, append after resolution, or second resolution is refused.

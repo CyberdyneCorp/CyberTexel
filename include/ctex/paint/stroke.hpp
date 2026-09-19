@@ -88,6 +88,41 @@ struct StrokeInputMapping {
     friend bool operator==(const StrokeInputMapping&, const StrokeInputMapping&) = default;
 };
 
+struct JitterSettings {
+    std::uint64_t seed{};
+    double position_fraction{};
+    double radius_fraction{};
+    double rotation_radians{};
+    double opacity{};
+    double flow{};
+    friend constexpr bool operator==(JitterSettings, JitterSettings) noexcept = default;
+};
+
+enum class TaperUnit : std::uint8_t { none, stamp_count, distance };
+
+struct TaperSpan {
+    TaperUnit unit{TaperUnit::none};
+    double extent{};
+    friend constexpr bool operator==(TaperSpan, TaperSpan) noexcept = default;
+};
+
+struct TaperSettings {
+    TaperSpan entry;
+    TaperSpan exit;
+    double floor{};
+    bool affect_radius{true};
+    bool affect_opacity{true};
+    friend constexpr bool operator==(TaperSettings, TaperSettings) noexcept = default;
+};
+
+enum class ConstraintMode : std::uint8_t { none, straight_line, dominant_axis, grid };
+
+struct ConstraintSettings {
+    ConstraintMode mode{ConstraintMode::none};
+    double grid_step{1.0};
+    friend constexpr bool operator==(ConstraintSettings, ConstraintSettings) noexcept = default;
+};
+
 struct StrokeSettings {
     std::uint32_t reconstruction_version{canonical_stroke_reconstruction_version};
     TipMode tip_mode{TipMode::continuous_sweep};
@@ -101,6 +136,9 @@ struct StrokeSettings {
     std::string tip_resource_identity{"builtin.circle"};
     StabilizerSettings stabilizer;
     StrokeInputMapping input_mapping;
+    JitterSettings jitter;
+    TaperSettings taper;
+    ConstraintSettings constraint;
     friend bool operator==(const StrokeSettings&, const StrokeSettings&) = default;
 };
 
