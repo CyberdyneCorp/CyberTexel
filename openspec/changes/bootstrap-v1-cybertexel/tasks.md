@@ -404,6 +404,12 @@ stages without re-resolving stroke properties. Brush requires active material
 data for every enabled layer channel, ignores material-only disabled channels
 and shades all outputs from their stroke-start snapshots. Eraser applies the
 same accepted strength proportionally to explicit layer-opacity or mask targets.
+Fill (10.2) resolves all six scopes into inspectable normalized masks. Triangle
+and island scopes use exact cached identities, UV-tile scope uses integer UV
+ownership, selection preserves soft weights, and connected-by-angle performs a
+deterministic breadth-first walk over explicit mesh adjacency and unit face
+normals. Applying a fill intersects paint masks and rejection acceptance before
+the shared enabled-channel shading path.
 
 ## 1. Foundation
 
@@ -543,7 +549,7 @@ same accepted strength proportionally to explicit layer-opacity or mask targets.
 ## 10. Tools
 
 - [x] 10.1 Brush and Eraser
-- [ ] 10.2 Fill: all six scopes
+- [x] 10.2 Fill: all six scopes
 - [ ] 10.3 Clone, aligned and fixed, with the cross-set refusal
 - [ ] 10.4 Blur and Smear over a stroke-start snapshot
 - [ ] 10.5 Decal and Stencil; persistent editable decals through editable-authoring

@@ -75,7 +75,9 @@ The current implementation provides:
   storage tiles, and reports the full ordered tile set. Tool-level
   [Brush and Eraser](docs/brush-and-eraser.md) compose the canonical mask,
   deposition and stroke-start blending stages across enabled channels or layer
-  opacity/mask values.
+  opacity/mask values. The [Fill tool](docs/fill-tool.md) resolves whole-set,
+  exact-triangle, connected-angle, UV-island, UV-tile and selection scopes from
+  cached surface identities and explicit mesh adjacency.
 - Sparse tiled image storage for one-to-four-channel 8-bit, 16-bit, and
   floating-point pixels, with tile-level dirty tracking and monotonic channel
   and per-tile [content revisions](docs/host-transport-revisions.md), plus

@@ -24,6 +24,17 @@ struct BrushSettings {
     PaintMaskInputs masks;
 };
 
+struct PaintToolShadeResult {
+    std::vector<PaintToolChannelRaster> channels;
+    std::vector<std::string> applied_channel_ids;
+};
+
+[[nodiscard]] PaintToolShadeResult shade_paint_tool_channels(
+    std::uint32_t width, std::uint32_t height,
+    std::span<const PaintToolChannelRaster> enabled_layer_snapshot,
+    std::span<const PaintToolChannelRaster> material, std::span<const double> strength,
+    std::string_view blend_mode = "normal");
+
 struct BrushResult {
     std::uint32_t width{};
     std::uint32_t height{};

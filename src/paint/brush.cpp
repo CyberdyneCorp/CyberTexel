@@ -63,16 +63,16 @@ void validate_eraser_target(EraserTarget target) {
 
 }  // namespace
 
-BrushResult apply_brush(const ResolvedStroke& stroke, const RejectedCoverageRaster& rejected,
-                        std::span<const PaintToolChannelRaster> enabled_layer_snapshot,
-                        std::span<const PaintToolChannelRaster> material,
-                        const BrushSettings& settings) {
-    static_cast<void>(checked_texel_count(rejected));
+PaintToolShadeResult shade_paint_tool_channels(
+    std::uint32_t width, std::uint32_t height,
+    std::span<const PaintToolChannelRaster> enabled_layer_snapshot,
+    std::span<const PaintToolChannelRaster> material, std::span<const double> strength,
+    std::string_view blend_mode) {
     if (enabled_layer_snapshot.empty()) {
-        throw std::invalid_argument("brush requires at least one enabled layer channel");
+        throw std::invalid_argument("paint tool requires at least one enabled layer channel");
     }
     if (material.empty()) {
-        throw std::invalid_argument("brush requires an active material");
+        throw std::invalid_argument("paint tool requires an active material");
     }
     validate_channel_ids(enabled_layer_snapshot, "enabled layer");
     validate_channel_ids(material, "material");
@@ -84,24 +84,44 @@ BrushResult apply_brush(const ResolvedStroke& stroke, const RejectedCoverageRast
         }
     }
 
+    PaintToolShadeResult result;
+    result.channels.reserve(enabled_layer_snapshot.size());
+    result.applied_channel_ids.reserve(enabled_layer_snapshot.size());
+    const DepositionRaster shading_strength{.width = width,
+                                            .height = height,
+                                            .mode = DepositionMode::non_building,
+                                            .non_building_coverage = {},
+                                            .build_up_deposition = {},
+                                            .strength = {strength.begin(), strength.end()},
+                                            .applied_stamp_count = 0};
+    for (const PaintToolChannelRaster& layer : enabled_layer_snapshot) {
+        const PaintToolChannelRaster& paint = material_channel(material, layer.semantic_id);
+        StrokeBlendRaster blended = blend_stroke_snapshot(width, height, layer.pixels, paint.pixels,
+                                                          shading_strength, blend_mode);
+        result.channels.push_back({.semantic_id = layer.semantic_id,
+                                   .component_count = layer.component_count,
+                                   .pixels = std::move(blended.pixels)});
+        result.applied_channel_ids.push_back(layer.semantic_id);
+    }
+    return result;
+}
+
+BrushResult apply_brush(const ResolvedStroke& stroke, const RejectedCoverageRaster& rejected,
+                        std::span<const PaintToolChannelRaster> enabled_layer_snapshot,
+                        std::span<const PaintToolChannelRaster> material,
+                        const BrushSettings& settings) {
+    static_cast<void>(checked_texel_count(rejected));
     BrushResult result{
         .width = rejected.coverage.width,
         .height = rejected.coverage.height,
         .deposition = tool_deposition(stroke, rejected, settings.masks, settings.deposition_mode),
         .channels = {},
         .applied_channel_ids = {}};
-    result.channels.reserve(enabled_layer_snapshot.size());
-    result.applied_channel_ids.reserve(enabled_layer_snapshot.size());
-    for (const PaintToolChannelRaster& layer : enabled_layer_snapshot) {
-        const PaintToolChannelRaster& paint = material_channel(material, layer.semantic_id);
-        StrokeBlendRaster blended =
-            blend_stroke_snapshot(result.width, result.height, layer.pixels, paint.pixels,
-                                  result.deposition, settings.blend_mode);
-        result.channels.push_back({.semantic_id = layer.semantic_id,
-                                   .component_count = layer.component_count,
-                                   .pixels = std::move(blended.pixels)});
-        result.applied_channel_ids.push_back(layer.semantic_id);
-    }
+    PaintToolShadeResult shaded =
+        shade_paint_tool_channels(result.width, result.height, enabled_layer_snapshot, material,
+                                  result.deposition.strength, settings.blend_mode);
+    result.channels = std::move(shaded.channels);
+    result.applied_channel_ids = std::move(shaded.applied_channel_ids);
     return result;
 }
 

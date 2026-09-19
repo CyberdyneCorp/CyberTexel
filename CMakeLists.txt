@@ -126,6 +126,7 @@ ctex_add_module(
         src/paint/brush.cpp
         src/paint/coverage.cpp
         src/paint/deposition.cpp
+        src/paint/fill.cpp
         src/paint/masking.cpp
         src/paint/preview.cpp
         src/paint/rejection.cpp
@@ -353,6 +354,14 @@ if(BUILD_TESTING)
         PRIVATE ctex_paint ctex_doc ctex_emit ctex_pick ctex_mesh ctex_graph ctex_image
     )
     add_test(NAME paint-brush-eraser COMMAND ctex_paint_brush_test)
+
+    add_executable(ctex_paint_fill_test tests/paint/fill_test.cpp)
+    ctex_configure_cpp_target(ctex_paint_fill_test)
+    target_link_libraries(
+        ctex_paint_fill_test
+        PRIVATE ctex_paint ctex_doc ctex_emit ctex_pick ctex_mesh ctex_graph ctex_image
+    )
+    add_test(NAME paint-fill COMMAND ctex_paint_fill_test)
 
     add_executable(ctex_paint_masking_test tests/paint/masking_test.cpp)
     ctex_configure_cpp_target(ctex_paint_masking_test)
