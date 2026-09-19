@@ -290,6 +290,9 @@ test-mesh-map-scenarios: build
 test-project-io-scenarios: build
     ctest --test-dir build/headless --output-on-failure -L '^project-io-scenario$'
 
+test-export-presets: build
+    ctest --test-dir build/headless --output-on-failure -R '^export-presets$'
+
 test-shader-emission-scenarios: (_require "spirv-val" "SPIRV-Tools") build
     ctest --test-dir build/headless --output-on-failure -L '^shader-emission-scenario$'
 

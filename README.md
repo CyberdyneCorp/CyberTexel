@@ -127,6 +127,10 @@ The current implementation provides:
   the paint thread and expose restart recovery candidates. The same container
   supports [referenced or self-contained standalone asset packages](docs/standalone-assets.md)
   for materials, smart content, brushes, presets, and node groups.
+- Data-only [texture export presets](docs/export-presets.md) with a documented
+  channel-token vocabulary, exact metallic/roughness derivations, registered
+  channel and named mesh-map addressing, and six built-in PBR packing
+  conventions.
 - Extensible semantic channels and a nine-channel metallic/roughness PBR preset,
   with independent precision and allocation-free disabled channels.
 - Texture-set documents derived from mesh partitions and named UVs, with stable
@@ -220,9 +224,9 @@ The current implementation provides:
   [stroke-model and paint-engine](docs/paint-scenarios.md) scenario suites.
 
 The remaining paint tools, editable layer document, project IO, host-transport
-binding/performance integrations, remaining language bindings, and complete
-export workflow remain roadmap work and are not presented as implemented APIs
-yet.
+binding/performance integrations, remaining language bindings, and export
+encoding/workflow stages remain roadmap work and are not presented as
+implemented APIs yet.
 
 ## Architecture
 

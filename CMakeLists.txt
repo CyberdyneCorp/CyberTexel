@@ -180,6 +180,7 @@ ctex_add_module(
     DEPENDS doc image
     SOURCES
         src/io/io.cpp
+        src/io/export_preset.cpp
         src/io/project_container.cpp
         src/io/project_autosave.cpp
         src/io/standalone_asset.cpp
@@ -309,6 +310,10 @@ if(BUILD_TESTING)
     ctex_configure_cpp_target(ctex_standalone_asset_test)
     target_link_libraries(ctex_standalone_asset_test PRIVATE cybertexel)
     add_test(NAME standalone-asset COMMAND ctex_standalone_asset_test)
+    add_executable(ctex_export_preset_test tests/io/export_preset_test.cpp)
+    ctex_configure_cpp_target(ctex_export_preset_test)
+    target_link_libraries(ctex_export_preset_test PRIVATE cybertexel)
+    add_test(NAME export-presets COMMAND ctex_export_preset_test)
     add_test(
         NAME project-container-determinism
         COMMAND "${CTEX_PYTHON3_EXECUTABLE}" tools/check_determinism.py project-save
@@ -1109,6 +1114,7 @@ if(BUILD_TESTING)
         project-container
         project-autosave
         standalone-asset
+        export-presets
         project-container-determinism
         PROPERTIES LABELS project-io-scenario
     )
