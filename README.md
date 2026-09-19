@@ -51,6 +51,9 @@ The current implementation provides:
   [paint rejection stage](docs/paint-rejection.md) provides default-on depth and
   angle tests, per-operation backface handling, explicit symmetry depth policy,
   and precision-aware alpha discard without losing accumulated strength.
+  Canonical [paint deposition](docs/paint-deposition.md) separates non-building
+  coverage maxima from build-up flow recurrence and is invariant to frame,
+  batch, or repeated-segment rasterization.
 - Sparse tiled image storage for one-to-four-channel 8-bit, 16-bit, and
   floating-point pixels, with tile-level dirty tracking and monotonic channel
   and per-tile [content revisions](docs/host-transport-revisions.md), plus

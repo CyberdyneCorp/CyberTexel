@@ -114,6 +114,9 @@ test-paint-coverage: build
 test-paint-rejection: build
     ctest --test-dir build/headless --output-on-failure -R '^paint-rejection$'
 
+test-paint-deposition: build
+    ctest --test-dir build/headless --output-on-failure -R '^paint-deposition$'
+
 test-mesh: build
     ctest --test-dir build/headless --output-on-failure -R '^mesh-ingest$'
 

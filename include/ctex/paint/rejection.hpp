@@ -58,8 +58,14 @@ struct RejectionReport {
     std::size_t backface_rejected_texels{};
 };
 
+struct RejectedStampCoverage {
+    std::uint64_t stamp_ordinal{};
+    std::vector<double> values;
+};
+
 struct RejectedCoverageRaster {
     CoverageRaster coverage;
+    std::vector<RejectedStampCoverage> stamp_events;
     RejectionReport report;
 };
 

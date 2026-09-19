@@ -170,28 +170,24 @@ bool accepts_contribution(const detail::CoverageContribution& contribution, std:
     return true;
 }
 
-double accepted_coverage_at(std::size_t texel, const ResolvedStroke& stroke,
-                            const EvaluationContext& context) {
-    double coverage = 0.0;
-    const Vec3d point = context.surface.texels[texel].position;
-    const bool transformed_tip = stroke.tip_mode == TipMode::discrete_alpha;
-    for (const Stamp& stamp : stroke.stamps) {
-        const auto contribution = detail::stamp_contribution(point, stamp, transformed_tip);
-        if (accepts_contribution(contribution, texel, context)) {
-            coverage = std::max(coverage, contribution.value);
-        }
+std::vector<const SweptSegment*> segment_ending_at(const ResolvedStroke& stroke) {
+    std::vector<const SweptSegment*> result(stroke.stamps.size(), nullptr);
+    for (const SweptSegment& segment : stroke.swept_segments) {
+        result[segment.end_stamp_ordinal] = &segment;
     }
-    if (stroke.tip_mode == TipMode::continuous_sweep) {
-        for (const SweptSegment segment : stroke.swept_segments) {
-            const auto contribution =
-                detail::segment_contribution(point, stroke.stamps[segment.start_stamp_ordinal],
-                                             stroke.stamps[segment.end_stamp_ordinal]);
-            if (accepts_contribution(contribution, texel, context)) {
-                coverage = std::max(coverage, contribution.value);
-            }
-        }
+    return result;
+}
+
+detail::CoverageContribution canonical_contribution(
+    Vec3d point, const ResolvedStroke& stroke, std::size_t stamp_index,
+    const std::vector<const SweptSegment*>& ending_segments) {
+    const Stamp& stamp = stroke.stamps[stamp_index];
+    if (stroke.tip_mode == TipMode::continuous_sweep && ending_segments[stamp_index] != nullptr) {
+        const SweptSegment& segment = *ending_segments[stamp_index];
+        return detail::segment_contribution(point, stroke.stamps[segment.start_stamp_ordinal],
+                                            stroke.stamps[segment.end_stamp_ordinal]);
     }
-    return coverage;
+    return detail::stamp_contribution(point, stamp, stroke.tip_mode == TipMode::discrete_alpha);
 }
 
 }  // namespace
@@ -208,11 +204,18 @@ RejectedCoverageRaster evaluate_rejected_coverage(const TextureSpaceRaster& surf
         .coverage = {.width = surface.width,
                      .height = surface.height,
                      .values = std::vector<double>(surface.texels.size(), 0.0)},
+        .stamp_events = {},
         .report = {.depth_disposition = depth_disposition(validated, settings)}};
+    output.stamp_events.reserve(validated.stamps.size());
+    for (const Stamp& stamp : validated.stamps) {
+        output.stamp_events.push_back({.stamp_ordinal = stamp.ordinal,
+                                       .values = std::vector<double>(surface.texels.size(), 0.0)});
+    }
     const DepthContextIndex contexts = validate_depth_contexts(
         surface, validated, settings, output.report.depth_disposition, input);
     const EvaluationContext context{surface, settings, contexts, output.report.depth_disposition,
                                     output.report};
+    const auto ending_segments = segment_ending_at(validated);
     for (std::size_t texel = 0; texel < surface.texels.size(); ++texel) {
         if (!surface.covered(texel)) {
             continue;
@@ -222,7 +225,16 @@ RejectedCoverageRaster evaluate_rejected_coverage(const TextureSpaceRaster& surf
             ++output.report.backface_rejected_texels;
             continue;
         }
-        output.coverage.values[texel] = accepted_coverage_at(texel, validated, context);
+        for (std::size_t stamp_index = 0; stamp_index < validated.stamps.size(); ++stamp_index) {
+            const auto contribution = canonical_contribution(
+                surface.texels[texel].position, validated, stamp_index, ending_segments);
+            if (!accepts_contribution(contribution, texel, context)) {
+                continue;
+            }
+            output.stamp_events[stamp_index].values[texel] = contribution.value;
+            output.coverage.values[texel] =
+                std::max(output.coverage.values[texel], contribution.value);
+        }
     }
     return output;
 }

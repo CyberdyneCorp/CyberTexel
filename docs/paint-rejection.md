@@ -26,6 +26,11 @@ explicit choices:
 cannot silently reuse an inconsistent camera buffer for mirrored or radial
 stamps.
 
+The result retains both the maximum accepted coverage raster and exactly one
+ordered coverage event per resolved stamp. The latter feeds the
+[deposition stage](paint-deposition.md), preserving canonical event identity
+across rendering batches.
+
 ## Angle and backface rejection
 
 Angle rejection compares the normalized interpolated surface normal with the

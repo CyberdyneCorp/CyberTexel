@@ -345,8 +345,13 @@ tests per coverage contribution plus per-operation geometric-normal backface
 handling. Symmetry either supplies a transform-consistent depth context for
 every instance or explicitly disables depth for derived instances, with that
 choice reported. Precision-aware alpha discard produces the write mask while
-retaining sub-threshold accumulation for later stamps. Deposition formulas and
-their batching invariants (9.9) are next.
+retaining sub-threshold accumulation for later stamps. Task 9.9 emits exactly
+one accepted coverage event per canonical stamp. Non-building deposition keeps
+separate coverage and opacity-times-flow strength maxima; explicit build-up uses
+the specified flow recurrence and opacity cap. Transactional contiguous batches
+and idempotent ordinal replay make both modes independent of rendering frames
+and repeated continuous-segment rasterization. Stroke-start snapshot blending
+across all modes (9.10) is next.
 
 ## 1. Foundation
 
@@ -473,7 +478,7 @@ their batching invariants (9.9) are next.
 - [x] 9.6 Versioned stroke presets and their refusals
 - [x] 9.7 Paint engine: swept coverage, falloff, coordinate modes
 - [x] 9.8 Depth, angle and backface rejection; alpha discard
-- [ ] 9.9 Separate non-building coverage and build-up deposition formulas; batching and frame-rate fixtures
+- [x] 9.9 Separate non-building coverage and build-up deposition formulas; batching and frame-rate fixtures
 - [ ] 9.10 Blending against the stroke-start snapshot, all modes
 - [ ] 9.11 Masking inputs and their intersection
 - [ ] 9.12 Cached coverage, triangle identity and UV island maps, keyed by mesh revision

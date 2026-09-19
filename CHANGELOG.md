@@ -77,6 +77,9 @@ Foundation implementation is in progress.
 - Default-on configurable depth and angle paint rejection, counter-clockwise
   geometric-normal backface handling, reported symmetry depth policy, and
   precision-aware alpha discard that retains accumulated deposition.
+- Per-stroke non-building coverage maxima and explicit build-up flow recurrence,
+  driven once per canonical resolved stamp with transactional, idempotent batch
+  accumulation independent of rendering frames.
 - Linear Rec. 709 working-space and sRGB transfer functions with unclamped HDR
   conversion.
 - Native and sanitizer test presets plus a registry-driven determinism gate that

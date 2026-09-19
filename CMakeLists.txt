@@ -123,6 +123,7 @@ ctex_add_module(
     SOURCES
         src/paint/paint.cpp
         src/paint/coverage.cpp
+        src/paint/deposition.cpp
         src/paint/rejection.cpp
         src/paint/stroke.cpp
         src/paint/stroke_preset.cpp
@@ -320,6 +321,14 @@ if(BUILD_TESTING)
         PRIVATE ctex_paint ctex_doc ctex_emit ctex_pick ctex_mesh ctex_graph ctex_image
     )
     add_test(NAME paint-rejection COMMAND ctex_paint_rejection_test)
+
+    add_executable(ctex_paint_deposition_test tests/paint/deposition_test.cpp)
+    ctex_configure_cpp_target(ctex_paint_deposition_test)
+    target_link_libraries(
+        ctex_paint_deposition_test
+        PRIVATE ctex_paint ctex_doc ctex_emit ctex_pick ctex_mesh ctex_graph ctex_image
+    )
+    add_test(NAME paint-deposition COMMAND ctex_paint_deposition_test)
 
     add_executable(ctex_document_test tests/doc/document_test.cpp)
     ctex_configure_cpp_target(ctex_document_test)
