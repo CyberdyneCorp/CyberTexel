@@ -58,7 +58,10 @@ The current implementation provides:
   modes against an immutable stroke-start snapshot rather than partially painted
   output. Typed [paint masks](docs/paint-masking.md) intersect active-layer,
   colour-ID, geometry/polygon, screen, and UV-island restrictions before those
-  canonical events enter deposition.
+  canonical events enter deposition. A revision-keyed
+  [paint surface-map cache](docs/paint-surface-cache.md) reuses immutable
+  coverage, exact source-triangle, and UV-island maps across operations and
+  invalidates them on mesh replacement or UV-set changes.
 - Sparse tiled image storage for one-to-four-channel 8-bit, 16-bit, and
   floating-point pixels, with tile-level dirty tracking and monotonic channel
   and per-tile [content revisions](docs/host-transport-revisions.md), plus

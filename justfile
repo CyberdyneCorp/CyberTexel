@@ -123,6 +123,9 @@ test-paint-blending: build
 test-paint-masking: build
     ctest --test-dir build/headless --output-on-failure -R '^paint-masking$'
 
+test-paint-surface-cache: build
+    ctest --test-dir build/headless --output-on-failure -R '^paint-surface-cache$'
+
 test-mesh: build
     ctest --test-dir build/headless --output-on-failure -R '^mesh-ingest$'
 

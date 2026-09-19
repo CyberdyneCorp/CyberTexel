@@ -359,7 +359,14 @@ mask and the optional colour-ID, geometry or polygon-fill, rectangle or lasso
 screen, and UV-island selections into each canonical event before deposition.
 Absent masks are identity, any zero excludes the texel, soft weights combine,
 and aggregate coverage is rebuilt from the masked events. Revision-keyed UV
-coverage, triangle and island caches (9.12) are next.
+coverage, triangle and island caches (9.12) retain immutable per-texture-set
+and per-tile bundles across operations. Source triangle indices survive
+partition filtering, UV islands require both mesh-position and UV edge
+continuity, and deterministic source order assigns their identities. A mesh
+revision change clears every entry before lookup, while a UV-set change clears
+all tiles for the logical partition; cache statistics make both reuse and
+invalidation executable contracts. Deferred stroke-end seam dilation (9.13) is
+next.
 
 ## 1. Foundation
 
@@ -489,7 +496,7 @@ coverage, triangle and island caches (9.12) are next.
 - [x] 9.9 Separate non-building coverage and build-up deposition formulas; batching and frame-rate fixtures
 - [x] 9.10 Blending against the stroke-start snapshot, all modes
 - [x] 9.11 Masking inputs and their intersection
-- [ ] 9.12 Cached coverage, triangle identity and UV island maps, keyed by mesh revision
+- [x] 9.12 Cached coverage, triangle identity and UV island maps, keyed by mesh revision
 - [ ] 9.13 UV seam dilation, extrapolating, deferred to stroke end
 - [ ] 9.14 Preview without commit, and the preview-equals-commit test
 - [ ] 9.15 Bounded work reporting

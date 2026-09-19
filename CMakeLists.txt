@@ -127,6 +127,7 @@ ctex_add_module(
         src/paint/deposition.cpp
         src/paint/masking.cpp
         src/paint/rejection.cpp
+        src/paint/surface_cache.cpp
         src/paint/stroke.cpp
         src/paint/stroke_preset.cpp
 )
@@ -347,6 +348,14 @@ if(BUILD_TESTING)
         PRIVATE ctex_paint ctex_doc ctex_emit ctex_pick ctex_mesh ctex_graph ctex_image
     )
     add_test(NAME paint-masking COMMAND ctex_paint_masking_test)
+
+    add_executable(ctex_paint_surface_cache_test tests/paint/surface_cache_test.cpp)
+    ctex_configure_cpp_target(ctex_paint_surface_cache_test)
+    target_link_libraries(
+        ctex_paint_surface_cache_test
+        PRIVATE ctex_paint ctex_doc ctex_emit ctex_pick ctex_mesh ctex_graph ctex_image
+    )
+    add_test(NAME paint-surface-cache COMMAND ctex_paint_surface_cache_test)
 
     add_executable(ctex_document_test tests/doc/document_test.cpp)
     ctex_configure_cpp_target(ctex_document_test)

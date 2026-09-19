@@ -86,6 +86,9 @@ Foundation implementation is in progress.
 - Multiplicative per-texel intersection of active-layer masks, colour-ID,
   geometry or polygon, rectangle or lasso screen, and UV-island selections,
   applied to canonical stamp events before deposition.
+- Per-texture-set immutable coverage, source-triangle, UV-island and surface
+  raster bundles cached across operations by mesh revision, UV set and tile,
+  with atomic mesh- and UV-change invalidation and observable reuse statistics.
 - Linear Rec. 709 working-space and sRGB transfer functions with unclamped HDR
   conversion.
 - Native and sanitizer test presets plus a registry-driven determinism gate that
