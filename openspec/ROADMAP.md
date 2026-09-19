@@ -7,7 +7,7 @@ decisions taken and questions still open.
 ## Status
 
 Implementation started. 24 capabilities, 332 requirements, 400 scenarios and
-222 tasks, 126 done. Foundation and the complete headless color-management
+222 tasks, 127 done. Foundation and the complete headless color-management
 scenario suite are green. Slice-A now has memory-buffer PNG input/output with
 8/16-bit preservation and hostile-input ceilings; full image-format breadth
 remains scheduled for slice D. Extensible channel descriptors and sparse
@@ -119,7 +119,9 @@ scenario matrix now maps all fifteen requirements to labeled executable evidence
 and fails when the spec or evidence drifts. The C ABI now has a strict-C header,
 an opaque document handle, stable result categories, exception containment,
 per-thread diagnostics, and a prefix-only shared-library export surface on every
-desktop platform. Caller-owned two-call buffers (14.2) are next.
+desktop platform. Bulk C results now use caller-owned buffers with null-buffer
+sizing, exact required sizes and atomic too-small refusal; ordered texture-set
+identities provide executable coverage. Versioned descriptors (14.3) are next.
 
 ## Milestones
 

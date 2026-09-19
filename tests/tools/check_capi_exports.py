@@ -10,6 +10,7 @@ from pathlib import Path
 EXPECTED = {
     "ctex_document_create",
     "ctex_document_destroy",
+    "ctex_document_get_texture_set_ids",
     "ctex_get_last_diagnostic",
     "ctex_get_last_result",
     "ctex_get_version",

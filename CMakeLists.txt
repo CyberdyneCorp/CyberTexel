@@ -311,6 +311,11 @@ if(BUILD_TESTING)
         ctex_configure_c_target(ctex_capi_foundation_test)
         target_link_libraries(ctex_capi_foundation_test PRIVATE cybertexel_c ctex_capi_sibling)
         add_test(NAME c-abi-foundation COMMAND ctex_capi_foundation_test)
+        add_executable(ctex_capi_caller_buffers_test tests/capi/caller_buffers_test.cpp)
+        ctex_configure_cpp_target(ctex_capi_caller_buffers_test)
+        target_include_directories(ctex_capi_caller_buffers_test PRIVATE src/capi)
+        target_link_libraries(ctex_capi_caller_buffers_test PRIVATE cybertexel)
+        add_test(NAME c-abi-caller-buffers COMMAND ctex_capi_caller_buffers_test)
         if(UNIX AND NOT APPLE)
             add_test(
                 NAME c-abi-export-surface

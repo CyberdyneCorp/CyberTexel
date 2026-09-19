@@ -10,6 +10,7 @@ static int result_codes_are_distinct(void) {
         CTEX_RESULT_MISSING_RESOURCE, CTEX_RESULT_UNSUPPORTED_OPERATION,
         CTEX_RESULT_OUT_OF_MEMORY,    CTEX_RESULT_OVER_BUDGET,
         CTEX_RESULT_CANCELLED,        CTEX_RESULT_INTERNAL_ERROR,
+        CTEX_RESULT_BUFFER_TOO_SMALL,
     };
     const size_t count = sizeof(values) / sizeof(values[0]);
     size_t left = 0;

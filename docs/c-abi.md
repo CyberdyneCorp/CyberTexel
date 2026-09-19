@@ -16,6 +16,15 @@ unsupported operations, allocation failure, budget refusal, cancellation and
 unexpected internal failures. C++ exceptions are caught by the C boundary and
 translated to one of those values.
 
+Bulk results use caller-owned buffers and the same two-call contract. A null
+buffer with size zero reports the exact required size without writing data. A
+non-null buffer that is too small returns `CTEX_RESULT_BUFFER_TOO_SMALL`, reports
+the required size, and leaves the complete buffer untouched. A right-sized
+second call fills it completely. `ctex_document_get_texture_set_ids` applies
+this contract to the ordered stable texture-set identities: each UTF-8 identity
+is NUL-terminated and entries are packed consecutively; `out_count` reports how
+many entries are present.
+
 After a failed call, `ctex_get_last_result` returns the same result and
 `ctex_get_last_diagnostic` returns an English message naming the operation and
 the offending value. Diagnostic state belongs to the calling thread. The

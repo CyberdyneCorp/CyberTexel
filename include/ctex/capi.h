@@ -1,6 +1,7 @@
 #ifndef CTEX_CAPI_H
 #define CTEX_CAPI_H
 
+#include <stddef.h>
 #include <stdint.h>
 
 #if defined(_WIN32) && defined(CTEX_SHARED)
@@ -27,7 +28,8 @@ typedef enum ctex_result {
     CTEX_RESULT_OUT_OF_MEMORY = 4,
     CTEX_RESULT_OVER_BUDGET = 5,
     CTEX_RESULT_CANCELLED = 6,
-    CTEX_RESULT_INTERNAL_ERROR = 7
+    CTEX_RESULT_INTERNAL_ERROR = 7,
+    CTEX_RESULT_BUFFER_TOO_SMALL = 8
 } ctex_result;
 
 typedef struct ctex_document ctex_document;
@@ -43,6 +45,10 @@ CTEX_API ctex_version ctex_get_version(void);
 
 CTEX_API ctex_result ctex_document_create(ctex_document** out_document);
 CTEX_API void ctex_document_destroy(ctex_document* document);
+CTEX_API ctex_result ctex_document_get_texture_set_ids(const ctex_document* document, char* buffer,
+                                                       size_t buffer_size,
+                                                       size_t* out_required_size,
+                                                       size_t* out_count);
 
 /*
  * Diagnostics are local to the calling thread. The returned pointer is owned by
