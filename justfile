@@ -132,6 +132,9 @@ test-paint-surface-cache: build
 test-paint-seam-dilation: build
     ctest --test-dir build/headless --output-on-failure -R '^paint-seam-dilation$'
 
+test-paint-seam-filter: build
+    ctest --test-dir build/headless --output-on-failure -R '^paint-seam-filter$'
+
 test-paint-preview: build
     ctest --test-dir build/headless --output-on-failure -R '^paint-preview$'
 

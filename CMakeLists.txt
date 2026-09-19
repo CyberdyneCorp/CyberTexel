@@ -129,6 +129,7 @@ ctex_add_module(
         src/paint/preview.cpp
         src/paint/rejection.cpp
         src/paint/seam_dilation.cpp
+        src/paint/seam_filter.cpp
         src/paint/surface_cache.cpp
         src/paint/stroke.cpp
         src/paint/stroke_preset.cpp
@@ -367,6 +368,14 @@ if(BUILD_TESTING)
         PRIVATE ctex_paint ctex_doc ctex_emit ctex_pick ctex_mesh ctex_graph ctex_image
     )
     add_test(NAME paint-seam-dilation COMMAND ctex_paint_seam_dilation_test)
+
+    add_executable(ctex_paint_seam_filter_test tests/paint/seam_filter_test.cpp)
+    ctex_configure_cpp_target(ctex_paint_seam_filter_test)
+    target_link_libraries(
+        ctex_paint_seam_filter_test
+        PRIVATE ctex_paint ctex_doc ctex_emit ctex_pick ctex_mesh ctex_graph ctex_image
+    )
+    add_test(NAME paint-seam-filter COMMAND ctex_paint_seam_filter_test)
 
     add_executable(ctex_paint_preview_test tests/paint/preview_test.cpp)
     ctex_configure_cpp_target(ctex_paint_preview_test)
@@ -847,6 +856,7 @@ if(BUILD_TESTING)
         paint-masking
         paint-surface-cache
         paint-seam-dilation
+        paint-seam-filter
         paint-work
         PROPERTIES LABELS paint-engine-scenario
     )

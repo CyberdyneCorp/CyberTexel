@@ -391,7 +391,14 @@ evidence. A dedicated integration fixture proves that coalesced versus
 one-sample input batches produce identical canonical stamps and build-up
 deposition, while the same resolved sequence drives coverage, rejection and
 deposition. History-dependent assertions are carried forward to task 3.9, and
-mip/gutter/tangent assertions are explicitly carried forward to task 9.17.
+mip/gutter/tangent assertions were explicitly carried forward to task 9.17.
+Seam-aware filtering (9.17) makes blur, smear, derivative and mip-generation
+footprints explicit and consumes caller-supplied surface-adjacent taps rather
+than UV-neighbor guesses. Tangent-space vectors cross supplied frames through
+object space and are renormalized, including mirrored handedness. Island-owned
+padding expands the declared footprint per mip, never overwrites valid islands,
+leaves contested gutter unassigned and reports affected island identifiers for
+every unsupported mip level. Tangent generation remains scheduled in 11.12.
 
 ## 1. Foundation
 
@@ -526,7 +533,7 @@ mip/gutter/tangent assertions are explicitly carried forward to task 9.17.
 - [x] 9.14 Preview without commit, and the preview-equals-commit test
 - [x] 9.15 Bounded work reporting
 - [x] 9.16 `stroke-model` and `paint-engine` scenarios as tests
-- [ ] 9.17 Seam adjacency, tangent-aware filters and derivatives, mip/gutter limits, mirrored-UV and minification fixtures
+- [x] 9.17 Seam adjacency, tangent-aware filters and derivatives, mip/gutter limits, mirrored-UV and minification fixtures
 
 ## 10. Tools
 

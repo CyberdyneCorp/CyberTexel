@@ -64,7 +64,10 @@ The current implementation provides:
   invalidates them on mesh replacement or UV-set changes. Configurable
   [UV seam dilation](docs/paint-seam-dilation.md) extends directional gradients
   into texture gutters and is deferred until every dirtied tile reaches stroke
-  finalization. Isolated [paint preview sessions](docs/paint-preview.md) use
+  finalization. [Seam-aware filtering](docs/seam-aware-filtering.md) consumes
+  explicit surface adjacency, transforms tangent-space vectors across mirrored
+  frames, and reports mip levels whose island gutters are insufficient. Isolated
+  [paint preview sessions](docs/paint-preview.md) use
   copy-on-write channel storage, refuse stale commits, and publish the exact
   finalized preview—including dilation—as the committed result. The
   [bounded-work scheduler](docs/paint-bounded-work.md) expands exact stamp
@@ -170,7 +173,7 @@ The current implementation provides:
   [host-transport](docs/host-transport-scenarios.md), plus combined
   [stroke-model and paint-engine](docs/paint-scenarios.md) scenario suites.
 
-The remaining painting stages, editable layer document, project IO, host-transport
+The remaining paint tools, editable layer document, project IO, host-transport
 binding/performance integrations, remaining language bindings, and complete
 export workflow remain roadmap work and are not presented as implemented APIs
 yet.

@@ -48,12 +48,12 @@ as covered.
 | Low flow build-up | `paint-deposition` | Repeated flow 0.1 events approach full deposition gradually |
 | Multiply brush | `paint-blending` | Multiply uses the stroke-start snapshot and canonical formula |
 | Two masks intersect | `paint-masking` | Colour-ID and rectangle weights multiply before deposition |
-| Seam does not show under mipmapping | task 9.17 | Requires declared mip range, gutter validation and mip fixtures |
+| Seam does not show under mipmapping | `paint-seam-filter` | Declared mip footprints receive island-owned padding and explicit support diagnostics |
 | Gradient preserved | `paint-seam-dilation` | Directional extrapolation continues the source gradient |
 | Long stroke | `paint-seam-dilation` | All dirty tiles are staged across frames and dilated once at finalization |
 | Island fill reuses the cache | `paint-surface-cache` | Face and island operations share one revision-keyed cache bundle |
 | Mesh replaced | `paint-surface-cache` | A mesh revision clears coverage, triangle and island maps before lookup |
 | Small stroke on a large canvas | `paint-work` | A 16K canvas processes only four reachable tiles without scanning the grid |
 | Preview matches commit | `paint-preview` | Final preview and committed tiles are byte-identical after dilation |
-| Mirrored island under minification | task 9.17 | Requires tangent-frame seam adjacency and minification fixtures |
-| Insufficient gutter | task 9.17 | Requires island-owned padding and unsupported-mip reporting |
+| Mirrored island under minification | `paint-seam-filter` | Surface-adjacent samples cross mirrored frames before filtering and renormalization |
+| Insufficient gutter | `paint-seam-filter` | Valid islands survive while affected islands and unsupported mip levels are reported |
