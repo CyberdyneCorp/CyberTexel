@@ -172,6 +172,67 @@ bool supported_storage_precisions_decode_on_read() {
         "16-bit normalized or floating-point mesh-map storage decoded incorrectly");
 }
 
+bool required_maps_are_reported_without_neutral_substitution() {
+    doc::TextureDocument document;
+    const doc::TextureSet& set = texture_set(document);
+    MeshMapSet maps(set);
+    auto curvature = scalar_map(4, 4);
+    static_cast<void>(maps.bind({.kind = MeshMapKind::curvature,
+                                 .texture_set_id = set.id(),
+                                 .uv_set = "paint",
+                                 .pixels = curvature}));
+    const std::array required{MeshMapKind::thickness, MeshMapKind::ambient_occlusion,
+                              MeshMapKind::curvature, MeshMapKind::ambient_occlusion};
+    const MeshMapRequirementReport report =
+        maps.check_required_maps("weathering material", required);
+    const std::vector expected{MeshMapKind::ambient_occlusion, MeshMapKind::thickness};
+    if (!expect(!report.satisfied() && report.consumer == "weathering material" &&
+                    report.texture_set_id == set.id() && report.missing_maps == expected &&
+                    report.message.find("ambient-occlusion") != std::string::npos &&
+                    report.message.find("thickness") != std::string::npos &&
+                    report.message.find(set.id()) != std::string::npos,
+                "missing-map report was incomplete, duplicated, or unnamed")) {
+        return false;
+    }
+
+    try {
+        maps.require_maps("weathering material", required);
+    } catch (const MissingMeshMapsError& error) {
+        return expect(error.report() == report &&
+                          std::string_view(error.what()) == report.message && maps.size() == 1,
+                      "missing-map refusal changed bindings or lost its structured report");
+    }
+    return expect(false, "consumer execution continued with missing mesh maps");
+}
+
+bool complete_requirements_and_direct_missing_reads_are_distinct() {
+    doc::TextureDocument document;
+    const doc::TextureSet& set = texture_set(document);
+    MeshMapSet maps(set);
+    auto ao = scalar_map(4, 4);
+    static_cast<void>(maps.bind({.kind = MeshMapKind::ambient_occlusion,
+                                 .texture_set_id = set.id(),
+                                 .uv_set = "paint",
+                                 .pixels = ao}));
+    const std::array complete{MeshMapKind::ambient_occlusion};
+    const MeshMapRequirementReport ready = maps.check_required_maps("AO generator", complete);
+    if (!expect(ready.satisfied() && ready.missing_maps.empty() && ready.message.empty(),
+                "satisfied map requirements produced a missing-map diagnostic")) {
+        return false;
+    }
+    maps.require_maps("AO generator", complete);
+
+    try {
+        static_cast<void>(maps.sample(MeshMapKind::thickness, 0.5, 0.5));
+    } catch (const MissingMeshMapsError& error) {
+        return expect(
+            error.report().missing_maps == std::vector<MeshMapKind>{MeshMapKind::thickness} &&
+                error.report().message.find("thickness") != std::string::npos,
+            "direct missing-map read did not preserve its typed named report");
+    }
+    return expect(false, "direct missing-map read returned a neutral sample");
+}
+
 bool incompatible_bindings_and_samples_are_refused() {
     doc::TextureDocument document;
     const doc::TextureSet& set = texture_set(document);
@@ -217,8 +278,22 @@ bool incompatible_bindings_and_samples_are_refused() {
     } catch (const std::invalid_argument&) {
         coordinate_refused = true;
     }
+    const std::array required{MeshMapKind::ambient_occlusion};
+    bool unnamed_consumer_refused = false;
+    try {
+        static_cast<void>(maps.check_required_maps("", required));
+    } catch (const std::invalid_argument&) {
+        unnamed_consumer_refused = true;
+    }
+    const std::array invalid_kind{static_cast<MeshMapKind>(255)};
+    bool invalid_requirement_refused = false;
+    try {
+        static_cast<void>(maps.check_required_maps("invalid fixture", invalid_kind));
+    } catch (const std::invalid_argument&) {
+        invalid_requirement_refused = true;
+    }
     return expect(texture_set_refused && uv_set_refused && channels_refused && missing_refused &&
-                      coordinate_refused,
+                      coordinate_refused && unnamed_consumer_refused && invalid_requirement_refused,
                   "invalid mesh-map binding or sampling input was accepted") &&
            expect(maps.size() == 0, "a refused mesh-map operation mutated the map set");
 }
@@ -231,6 +306,8 @@ int main() {
                    exact_resolution_replacement_has_no_mismatch() &&
                    identifiers_use_nearest_sampling() &&
                    supported_storage_precisions_decode_on_read() &&
+                   required_maps_are_reported_without_neutral_substitution() &&
+                   complete_requirements_and_direct_missing_reads_are_distinct() &&
                    incompatible_bindings_and_samples_are_refused()
                ? 0
                : 1;

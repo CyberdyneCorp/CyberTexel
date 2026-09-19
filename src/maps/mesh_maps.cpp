@@ -2,6 +2,7 @@
 #include <cmath>
 #include <cstring>
 #include <ctex/maps/mesh_maps.hpp>
+#include <set>
 #include <stdexcept>
 #include <utility>
 
@@ -126,6 +127,20 @@ MeshMapSample bilinear_sample(const MeshMapDescriptor& descriptor, double x, dou
     return result;
 }
 
+std::string missing_map_message(std::string_view consumer, std::string_view texture_set_id,
+                                std::span<const MeshMapKind> missing) {
+    std::string names;
+    for (const MeshMapKind kind : missing) {
+        if (!names.empty()) {
+            names += ", ";
+        }
+        names += mesh_map_name(kind);
+    }
+    return "mesh-map consumer '" + std::string(consumer) + "' requires missing map" +
+           (missing.size() == 1 ? " '" : "s '") + names + "' for texture set '" +
+           std::string(texture_set_id) + "'";
+}
+
 }  // namespace
 
 std::string_view mesh_map_name(MeshMapKind kind) {
@@ -160,6 +175,9 @@ std::string_view mesh_map_name(MeshMapKind kind) {
     throw std::invalid_argument("mesh map kind is invalid");
 }
 
+MissingMeshMapsError::MissingMeshMapsError(MeshMapRequirementReport report)
+    : std::out_of_range(report.message), report_(std::move(report)) {}
+
 MeshMapSet::MeshMapSet(const doc::TextureSet& texture_set)
     : texture_set_id_(texture_set.id()),
       uv_set_(texture_set.descriptor().uv_set),
@@ -190,8 +208,8 @@ bool MeshMapSet::contains(MeshMapKind kind) const noexcept { return maps_.contai
 const MeshMapDescriptor& MeshMapSet::map(MeshMapKind kind) const {
     const auto found = maps_.find(kind);
     if (found == maps_.end()) {
-        throw std::out_of_range("mesh map '" + std::string(mesh_map_name(kind)) +
-                                "' is not bound to texture set '" + texture_set_id_ + "'");
+        const std::array required{kind};
+        throw MissingMeshMapsError(check_required_maps("direct mesh-map read", required));
     }
     return found->second;
 }
@@ -204,6 +222,37 @@ std::vector<MeshMapKind> MeshMapSet::bound_maps() const {
         result.push_back(kind);
     }
     return result;
+}
+
+MeshMapRequirementReport MeshMapSet::check_required_maps(
+    std::string_view consumer, std::span<const MeshMapKind> required) const {
+    if (consumer.empty()) {
+        throw std::invalid_argument("mesh-map consumer identity must not be empty");
+    }
+    std::set<MeshMapKind> missing;
+    for (const MeshMapKind kind : required) {
+        static_cast<void>(mesh_map_name(kind));
+        if (!contains(kind)) {
+            missing.insert(kind);
+        }
+    }
+    MeshMapRequirementReport result{.consumer = std::string(consumer),
+                                    .texture_set_id = texture_set_id_,
+                                    .missing_maps = {missing.begin(), missing.end()},
+                                    .message = {}};
+    if (!result.satisfied()) {
+        result.message =
+            missing_map_message(result.consumer, result.texture_set_id, result.missing_maps);
+    }
+    return result;
+}
+
+void MeshMapSet::require_maps(std::string_view consumer,
+                              std::span<const MeshMapKind> required) const {
+    MeshMapRequirementReport report = check_required_maps(consumer, required);
+    if (!report.satisfied()) {
+        throw MissingMeshMapsError(std::move(report));
+    }
 }
 
 MeshMapSample MeshMapSet::sample(MeshMapKind kind, double u, double v) const {

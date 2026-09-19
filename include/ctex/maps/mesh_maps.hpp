@@ -9,6 +9,8 @@
 #include <map>
 #include <memory>
 #include <optional>
+#include <span>
+#include <stdexcept>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -79,6 +81,27 @@ struct MeshMapSample {
     friend bool operator==(const MeshMapSample&, const MeshMapSample&) = default;
 };
 
+struct MeshMapRequirementReport {
+    std::string consumer;
+    std::string texture_set_id;
+    std::vector<MeshMapKind> missing_maps;
+    std::string message;
+
+    [[nodiscard]] bool satisfied() const noexcept { return missing_maps.empty(); }
+    friend bool operator==(const MeshMapRequirementReport&,
+                           const MeshMapRequirementReport&) = default;
+};
+
+class MissingMeshMapsError : public std::out_of_range {
+public:
+    explicit MissingMeshMapsError(MeshMapRequirementReport report);
+
+    [[nodiscard]] const MeshMapRequirementReport& report() const noexcept { return report_; }
+
+private:
+    MeshMapRequirementReport report_;
+};
+
 class MeshMapSet {
 public:
     explicit MeshMapSet(const doc::TextureSet& texture_set);
@@ -93,6 +116,9 @@ public:
     [[nodiscard]] const MeshMapDescriptor& map(MeshMapKind kind) const;
     [[nodiscard]] std::vector<MeshMapKind> bound_maps() const;
     [[nodiscard]] std::size_t size() const noexcept { return maps_.size(); }
+    [[nodiscard]] MeshMapRequirementReport check_required_maps(
+        std::string_view consumer, std::span<const MeshMapKind> required) const;
+    void require_maps(std::string_view consumer, std::span<const MeshMapKind> required) const;
     [[nodiscard]] MeshMapSample sample(MeshMapKind kind, double u, double v) const;
 
 private:

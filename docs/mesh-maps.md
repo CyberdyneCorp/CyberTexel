@@ -24,6 +24,16 @@ sampling so filtering cannot create identities that were never stored. Missing
 maps and malformed bindings are refused by name instead of returning neutral
 values.
 
+Consumers that know their complete inputs call `check_required_maps` before
+execution. Its structured `MeshMapRequirementReport` carries the consumer and
+texture-set identities, a deduplicated stable list of every absent map and an
+English diagnostic naming them. `require_maps` turns the same report into a
+`MissingMeshMapsError`; direct `map` and `sample` reads use that typed error too.
+A satisfied report has no diagnostic. A failed check never binds placeholder
+pixels, changes existing bindings or returns a neutral sample, so generators,
+smart masks and materials can expose the failure without silently flattening
+their result.
+
 ## Bake-provider seam
 
 `BakeProvider` is an optional synchronous callback table with an opaque context,

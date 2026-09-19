@@ -522,6 +522,12 @@ cancellation, provider failure, malformed output and invalid callback status
 publish nothing. Unsupported requests name the requested map and the provider's
 complete advertised set without invoking its request callback. Revisioned
 asynchronous publication remains scheduled in 11.13.
+Missing-map preflight (11.3) accepts a consumer's complete required-map list and
+returns a structured report carrying the consumer, texture-set identity and a
+deduplicated stable list of every absent map. The throwing execution guard and
+direct reads preserve that report in `MissingMeshMapsError`. They never bind a
+placeholder, mutate the map set or return neutral samples; satisfied checks are
+diagnostic-free.
 
 ## 1. Foundation
 
@@ -678,7 +684,7 @@ asynchronous publication remains scheduled in 11.13.
 
 - [x] 11.1 Map set definition, per-set binding, resolution mismatch reporting
 - [x] 11.2 Bake provider interface: capability query, request, progress, cancellation
-- [ ] 11.3 Missing-map reporting with no neutral substitution
+- [x] 11.3 Missing-map reporting with no neutral substitution
 - [ ] 11.4 Staleness tracking against the mesh revision
 - [ ] 11.5 External map import with declared channel meaning and colour space
 - [ ] 11.6 Normal map convention recording and conversion on read
