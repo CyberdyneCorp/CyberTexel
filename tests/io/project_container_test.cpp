@@ -6,6 +6,7 @@
 #include <filesystem>
 #include <fstream>
 #include <iostream>
+#include <limits>
 #include <span>
 #include <string_view>
 #include <vector>
@@ -29,6 +30,18 @@ std::uint64_t read_u64_le(std::span<const std::byte> bytes, std::size_t offset) 
                  << (index * 8U);
     }
     return value;
+}
+
+void write_u32_le(std::span<std::byte> bytes, std::size_t offset, std::uint32_t value) {
+    for (unsigned index = 0; index < 4; ++index) {
+        bytes[offset + index] = static_cast<std::byte>(value >> (index * 8U));
+    }
+}
+
+void write_u64_le(std::span<std::byte> bytes, std::size_t offset, std::uint64_t value) {
+    for (unsigned index = 0; index < 8; ++index) {
+        bytes[offset + index] = static_cast<std::byte>(value >> (index * 8U));
+    }
 }
 
 template <typename Callable>
@@ -399,6 +412,128 @@ bool atomic_save_replaces_only_with_complete_deterministic_files() {
                   "failed atomic publication left a temporary project file behind");
 }
 
+bool untrusted_input_is_bounded_before_allocation() {
+    const std::vector<std::byte> valid = write_project_container({});
+
+    ProjectContainerReadLimits input_limit;
+    input_limit.maximum_input_bytes = valid.size() - 1;
+    const bool input_refused = expect_error(
+        [&] { static_cast<void>(read_project_container(valid, input_limit)); },
+        ProjectContainerErrorCode::over_limit, "container input byte ceiling was not enforced");
+
+    ProjectContainer with_opaque;
+    with_opaque.opaque_sections.push_back({.kind = 99, .version = 1, .payload = {std::byte{1}}});
+    const std::vector<std::byte> allocated = write_project_container(with_opaque);
+    ProjectContainerReadLimits allocation_limit;
+    allocation_limit.maximum_total_allocation_bytes = 0;
+    const bool allocation_refused = expect_error(
+        [&] { static_cast<void>(read_project_container(allocated, allocation_limit)); },
+        ProjectContainerErrorCode::over_limit,
+        "container aggregate allocation ceiling was not enforced");
+
+    std::vector<std::byte> oversized_sections = valid;
+    write_u32_le(oversized_sections, 24, std::numeric_limits<std::uint32_t>::max());
+    ProjectContainerReadLimits section_limits;
+    section_limits.maximum_sections = std::numeric_limits<std::uint32_t>::max();
+    const bool section_count_refused = expect_error(
+        [&] { static_cast<void>(read_project_container(oversized_sections, section_limits)); },
+        ProjectContainerErrorCode::malformed_section,
+        "impossible section count reached an allocation");
+
+    std::vector<std::byte> oversized_images = valid;
+    write_u32_le(oversized_images, 56, std::numeric_limits<std::uint32_t>::max());
+    ProjectContainerReadLimits image_limits;
+    image_limits.maximum_images = std::numeric_limits<std::uint32_t>::max();
+    const bool image_count_refused = expect_error(
+        [&] { static_cast<void>(read_project_container(oversized_images, image_limits)); },
+        ProjectContainerErrorCode::malformed_section,
+        "impossible image count reached an allocation");
+
+    std::vector<std::byte> oversized_resources = valid;
+    write_u32_le(oversized_resources, 76, std::numeric_limits<std::uint32_t>::max());
+    ProjectContainerReadLimits resource_limits;
+    resource_limits.maximum_resources = std::numeric_limits<std::uint32_t>::max();
+    const bool resource_count_refused = expect_error(
+        [&] { static_cast<void>(read_project_container(oversized_resources, resource_limits)); },
+        ProjectContainerErrorCode::malformed_section,
+        "impossible resource count reached an allocation");
+
+    std::vector<std::byte> oversized_assets = valid;
+    write_u32_le(oversized_assets, 96, std::numeric_limits<std::uint32_t>::max());
+    ProjectContainerReadLimits asset_limits;
+    asset_limits.maximum_assets = std::numeric_limits<std::uint32_t>::max();
+    const bool asset_count_refused = expect_error(
+        [&] { static_cast<void>(read_project_container(oversized_assets, asset_limits)); },
+        ProjectContainerErrorCode::malformed_section,
+        "impossible asset count reached an allocation");
+
+    const std::array clear{std::byte{0}};
+    image::TiledImage empty_image(
+        1, 1, {.channel_type = image::ChannelType::uint8_unorm, .channel_count = 1}, 1, clear);
+    ProjectContainer one_image;
+    one_image.tiled_images.push_back(snapshot_tiled_image("bounded", empty_image));
+    std::vector<std::byte> oversized_tiles = write_project_container(one_image);
+    write_u32_le(oversized_tiles, 88, std::numeric_limits<std::uint32_t>::max());
+    ProjectContainerReadLimits tile_limits;
+    tile_limits.maximum_tiles = std::numeric_limits<std::uint32_t>::max();
+    const bool tile_count_refused = expect_error(
+        [&] { static_cast<void>(read_project_container(oversized_tiles, tile_limits)); },
+        ProjectContainerErrorCode::malformed_section,
+        "impossible tile count reached an allocation");
+
+    std::vector<std::byte> repeated_images = write_project_container(one_image);
+    const std::size_t image_frame_size = 16 + read_u64_le(repeated_images, 48);
+    const std::vector<std::byte> image_frame(
+        repeated_images.begin() + 40,
+        repeated_images.begin() + static_cast<std::ptrdiff_t>(40 + image_frame_size));
+    repeated_images.insert(repeated_images.end(), image_frame.begin(), image_frame.end());
+    write_u32_le(repeated_images, 24, 4);
+    write_u64_le(repeated_images, 32, read_u64_le(repeated_images, 32) + image_frame_size);
+    ProjectContainerReadLimits aggregate_limits;
+    aggregate_limits.maximum_images = 1;
+    const bool aggregate_count_refused = expect_error(
+        [&] { static_cast<void>(read_project_container(repeated_images, aggregate_limits)); },
+        ProjectContainerErrorCode::over_limit,
+        "image count limit was not aggregated across repeated sections");
+
+    std::vector<std::byte> oversized_payload = valid;
+    write_u64_le(oversized_payload, 48, std::numeric_limits<std::uint64_t>::max());
+    const bool payload_refused =
+        expect_error([&] { static_cast<void>(read_project_container(oversized_payload)); },
+                     ProjectContainerErrorCode::malformed_section,
+                     "section payload larger than the input reached an allocation");
+
+    return input_refused && allocation_refused && section_count_refused && image_count_refused &&
+           resource_count_refused && asset_count_refused && tile_count_refused &&
+           aggregate_count_refused && payload_refused;
+}
+
+bool deterministic_container_mutations_never_escape_parser_diagnostics() {
+    const std::vector<std::byte> valid = write_project_container({});
+    ProjectContainerReadLimits limits;
+    limits.maximum_input_bytes = 1ULL << 20;
+    limits.maximum_total_allocation_bytes = 1ULL << 20;
+    limits.maximum_sections = 4096;
+    limits.maximum_images = 4096;
+    limits.maximum_tiles = 4096;
+    limits.maximum_resources = 4096;
+    limits.maximum_assets = 4096;
+    limits.maximum_asset_dependencies = 4096;
+    for (std::size_t offset = 0; offset < valid.size(); ++offset) {
+        for (const std::byte mutation : {std::byte{0}, std::byte{0xff}, std::byte{0x55}}) {
+            std::vector<std::byte> candidate = valid;
+            candidate[offset] = mutation;
+            try {
+                static_cast<void>(read_project_container(candidate, limits));
+            } catch (const ProjectContainerError&) {
+            } catch (...) {
+                return expect(false, "mutated container escaped structured parser diagnostics");
+            }
+        }
+    }
+    return true;
+}
+
 bool write_determinism_artifact() {
     const char* output_directory = std::getenv("CTEX_DETERMINISM_OUTPUT_DIR");
     if (output_directory == nullptr) {
@@ -451,7 +586,9 @@ int main(int argc, char** argv) {
                    resources_round_trip_and_resolve_without_blocking_open() &&
                    unsafe_or_duplicate_resource_identities_are_refused() &&
                    unknown_resource_storage_is_preserved() &&
-                   atomic_save_replaces_only_with_complete_deterministic_files()
+                   atomic_save_replaces_only_with_complete_deterministic_files() &&
+                   untrusted_input_is_bounded_before_allocation() &&
+                   deterministic_container_mutations_never_escape_parser_diagnostics()
                ? 0
                : 1;
 }

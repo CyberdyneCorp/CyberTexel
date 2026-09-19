@@ -5,6 +5,14 @@ test and then runs the Python gate tests. `just test-sanitize` repeats the CTest
 suite with AddressSanitizer and UndefinedBehaviorSanitizer enabled. CI gives the
 sanitizer configuration its own job.
 
+`just fuzz-project-container` builds the project-container reader with Clang,
+libFuzzer, AddressSanitizer, and UndefinedBehaviorSanitizer, then runs a fixed
+20,000-input campaign from a deterministic seed corpus. Inputs are capped at 1
+MiB, parser-owned decoded allocations at 8 MiB, and each individual decoded
+payload and record count has a stricter ceiling. CI runs this gate after the
+sanitized test suite; any crash, out-of-bounds access, unexpected exception,
+timeout, or memory-limit breach fails the job.
+
 The determinism gate is registry-driven. Each category in
 `tests/determinism/cases.json` supplies a command and the output files it owns.
 The runner gives the command two clean output directories through

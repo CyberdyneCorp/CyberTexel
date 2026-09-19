@@ -62,6 +62,12 @@ test-sanitize: (_require "cmake" "3.24") (_require "c++" "C++20") (_require "nin
     cmake --build --preset headless-sanitize
     ctest --preset headless-sanitize
 
+# Bounded deterministic libFuzzer gate for the untrusted project-container reader.
+fuzz-project-container: (_require "clang++" "14") (_require "cmake" "3.24") (_require "ninja" "1.10") (_require "python3" "3.10")
+    CC=clang CXX=clang++ cmake -S . -B build/project-container-fuzz -G Ninja -DCMAKE_BUILD_TYPE=Debug -DCTEX_ENABLE_SANITIZERS=ON -DCTEX_BUILD_FUZZERS=ON
+    cmake --build build/project-container-fuzz --target ctex_project_container_fuzz
+    python3 tools/run_project_container_fuzz.py build/project-container-fuzz/ctex_project_container_fuzz
+
 test-vulkan: build-vulkan
     ./build/vulkan/ctex_vulkan_executor_test --require-device
 

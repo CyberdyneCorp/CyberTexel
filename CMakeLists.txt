@@ -12,6 +12,7 @@ find_package(Threads REQUIRED)
 
 option(CTEX_WARNINGS_AS_ERRORS "Treat compiler warnings in CyberTexel sources as errors" ON)
 option(CTEX_ENABLE_SANITIZERS "Enable address and undefined-behaviour sanitizers" OFF)
+option(CTEX_BUILD_FUZZERS "Build libFuzzer targets" OFF)
 option(CTEX_ENABLE_VULKAN_EXECUTOR "Build the optional owned Vulkan executor" OFF)
 option(
     CTEX_BUILD_CYBER_REMESHER_EXAMPLE
@@ -228,6 +229,20 @@ ctex_add_library()
 target_link_libraries(cybertexel PUBLIC ctex_lodepng ctex_kong Threads::Threads)
 if(CTEX_ENABLE_VULKAN_EXECUTOR)
     target_link_libraries(cybertexel PUBLIC volk::volk)
+endif()
+
+if(CTEX_BUILD_FUZZERS)
+    if(NOT CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+        message(FATAL_ERROR "CTEX_BUILD_FUZZERS requires Clang")
+    endif()
+    add_executable(
+        ctex_project_container_fuzz
+        tests/fuzz/project_container_fuzz.cpp
+    )
+    ctex_configure_cpp_target(ctex_project_container_fuzz)
+    target_compile_options(ctex_project_container_fuzz PRIVATE -fsanitize=fuzzer)
+    target_link_options(ctex_project_container_fuzz PRIVATE -fsanitize=fuzzer)
+    target_link_libraries(ctex_project_container_fuzz PRIVATE cybertexel)
 endif()
 
 # This is deliberately an example-only dependency. The library and its default

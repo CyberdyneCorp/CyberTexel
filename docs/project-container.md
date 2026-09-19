@@ -83,6 +83,20 @@ same configurable read limits and checked framing as the other sections.
 Duplicate asset identities or dependencies, empty metadata, and version zero
 are refused.
 
+## Untrusted input limits
+
+`ProjectContainerReadLimits` caps the complete encoded input, aggregate
+parser-owned decoded allocations, section and record counts, string lengths,
+and each decoded tile or embedded payload. Counts are checked both across all
+repeated sections and against the bytes remaining in the current section
+before any `reserve` or payload allocation. Declared section and payload sizes
+must fit the already supplied input before they are copied or decompressed.
+
+Limit violations return `ProjectContainerErrorCode::over_limit`; impossible or
+truncated framing returns `malformed_header` or `malformed_section`. The reader
+therefore does not allocate from an untrusted declared size that has not first
+been bounded and proven to fit its enclosing input.
+
 ## Atomic and deterministic save
 
 `save_project_container_atomic` encodes the complete project before touching

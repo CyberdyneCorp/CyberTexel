@@ -33,6 +33,24 @@ constexpr std::uint32_t base_header_bytes = 40;
 
 using LodePngBuffer = std::unique_ptr<unsigned char, decltype(&std::free)>;
 
+class ReadBudget {
+public:
+    explicit ReadBudget(std::size_t maximum) : maximum_(maximum) {}
+
+    void charge(std::size_t bytes, std::string_view field) {
+        if (bytes > maximum_ - std::min(maximum_, used_)) {
+            throw ProjectContainerError(
+                ProjectContainerErrorCode::over_limit,
+                std::string(field) + " exceeds the configured aggregate allocation limit");
+        }
+        used_ += bytes;
+    }
+
+private:
+    std::size_t maximum_{};
+    std::size_t used_{};
+};
+
 class ByteWriter {
 public:
     void u8(std::uint8_t value) { bytes_.push_back(static_cast<std::byte>(value)); }
@@ -77,7 +95,8 @@ private:
 
 class ByteReader {
 public:
-    explicit ByteReader(std::span<const std::byte> bytes) : bytes_(bytes) {}
+    explicit ByteReader(std::span<const std::byte> bytes, ReadBudget* budget = nullptr)
+        : bytes_(bytes), budget_(budget) {}
 
     [[nodiscard]] std::uint8_t u8(std::string_view field) {
         return std::to_integer<std::uint8_t>(take(1, field)[0]);
@@ -127,6 +146,9 @@ public:
                 std::string(field) + " exceeds the configured string limit");
         }
         const auto value = take(size, field);
+        if (budget_ != nullptr) {
+            budget_->charge(size, field);
+        }
         return {reinterpret_cast<const char*>(value.data()), value.size()};
     }
 
@@ -136,6 +158,7 @@ public:
 private:
     std::span<const std::byte> bytes_;
     std::size_t offset_{};
+    ReadBudget* budget_{};
 };
 
 struct ContainerHeader {
@@ -331,6 +354,29 @@ std::size_t checked_multiply(std::size_t left, std::size_t right, std::string_vi
     return left * right;
 }
 
+void require_records_fit(std::size_t count, std::size_t remaining, std::size_t minimum_record_bytes,
+                         std::string_view field) {
+    if (count > remaining / minimum_record_bytes) {
+        throw ProjectContainerError(ProjectContainerErrorCode::malformed_section,
+                                    std::string(field) + " cannot fit in its declared payload");
+    }
+}
+
+void add_to_total(std::size_t count, std::size_t maximum, std::size_t& total,
+                  std::string_view field) {
+    if (count > maximum - std::min(maximum, total)) {
+        throw ProjectContainerError(ProjectContainerErrorCode::over_limit,
+                                    std::string(field) + " exceeds the configured limit");
+    }
+    total += count;
+}
+
+void charge_identity(ReadBudget& budget, std::string_view identity, std::string_view field) {
+    constexpr std::size_t set_node_overhead = sizeof(std::string) + 3 * sizeof(void*);
+    budget.charge(set_node_overhead, field);
+    budget.charge(identity.size(), field);
+}
+
 ContainerHeader read_header(std::span<const std::byte> bytes, bool require_body) {
     if (bytes.size() < base_header_bytes ||
         !std::equal(container_magic.begin(), container_magic.end(), bytes.begin())) {
@@ -417,7 +463,7 @@ image::TileExtent expected_extent(const StoredTiledImage& image, image::TileCoor
             .height = std::min(image.tile_size, image.height - coordinate.y * image.tile_size)};
 }
 
-void validate_image(const StoredTiledImage& image) {
+void validate_image(const StoredTiledImage& image, ReadBudget* budget = nullptr) {
     if (image.resource_id.empty() || image.width == 0 || image.height == 0 ||
         image.tile_size == 0 || !image.format.is_valid() ||
         image.clear_pixel.size() != image.format.bytes_per_pixel()) {
@@ -432,6 +478,10 @@ void validate_image(const StoredTiledImage& image) {
                              image.format.bytes_per_pixel(), "stored tile bytes");
         const std::uint64_t key =
             (static_cast<std::uint64_t>(tile.coordinate.y) << 32U) | tile.coordinate.x;
+        if (budget != nullptr) {
+            budget->charge(sizeof(std::uint64_t) + 3 * sizeof(void*),
+                           "tile coordinate identity index");
+        }
         if (tile.extent.width != extent.width || tile.extent.height != extent.height ||
             tile.pixels.size() != expected_bytes ||
             tile.compression != TileCompression::zlib_deflate || !coordinates.insert(key).second) {
@@ -504,7 +554,7 @@ image::PixelFormat read_pixel_format(ByteReader& reader) {
 }
 
 StoredTile decode_tile(ByteReader& reader, const StoredTiledImage& image,
-                       const ProjectContainerReadLimits& limits) {
+                       const ProjectContainerReadLimits& limits, ReadBudget& budget) {
     StoredTile tile;
     tile.coordinate = {reader.u32("tile x"), reader.u32("tile y")};
     tile.extent = {reader.u32("tile width"), reader.u32("tile height")};
@@ -528,19 +578,21 @@ StoredTile decode_tile(ByteReader& reader, const StoredTiledImage& image,
         throw ProjectContainerError(ProjectContainerErrorCode::invalid_tile,
                                     "stored tile declares an invalid extent or decoded byte count");
     }
+    budget.charge(raw_size, "decoded tile bytes");
     tile.pixels = decompress_tile(encoded, raw_size, limits.maximum_decoded_tile_bytes);
     return tile;
 }
 
 std::vector<StoredTiledImage> decode_tiled_images(std::span<const std::byte> payload,
                                                   const ProjectContainerReadLimits& limits,
-                                                  std::size_t& total_tiles) {
-    ByteReader reader(payload);
+                                                  std::size_t& total_images,
+                                                  std::size_t& total_tiles, ReadBudget& budget) {
+    ByteReader reader(payload, &budget);
     const std::uint32_t image_count = reader.u32("tiled image count");
-    if (image_count > limits.maximum_images) {
-        throw ProjectContainerError(ProjectContainerErrorCode::over_limit,
-                                    "tiled image count exceeds the configured limit");
-    }
+    add_to_total(image_count, limits.maximum_images, total_images, "tiled image count");
+    require_records_fit(image_count, reader.remaining(), 24, "tiled image count");
+    budget.charge(checked_multiply(image_count, sizeof(StoredTiledImage), "tiled image metadata"),
+                  "tiled image metadata");
     std::vector<StoredTiledImage> images;
     images.reserve(image_count);
     std::set<std::string> identities;
@@ -553,19 +605,20 @@ std::vector<StoredTiledImage> decode_tiled_images(std::span<const std::byte> pay
         image.format = read_pixel_format(reader);
         const std::uint16_t clear_size = reader.u16("clear pixel byte count");
         const auto clear_pixel = reader.take(clear_size, "clear pixel");
+        budget.charge(clear_size, "clear pixel bytes");
         image.clear_pixel.assign(clear_pixel.begin(), clear_pixel.end());
         validate_image(image);
         const std::uint32_t tile_count = reader.u32("occupied tile count");
-        if (tile_count > limits.maximum_tiles - total_tiles) {
-            throw ProjectContainerError(ProjectContainerErrorCode::over_limit,
-                                        "occupied tile count exceeds the configured limit");
-        }
-        total_tiles += tile_count;
+        add_to_total(tile_count, limits.maximum_tiles, total_tiles, "occupied tile count");
+        require_records_fit(tile_count, reader.remaining(), 36, "occupied tile count");
+        budget.charge(checked_multiply(tile_count, sizeof(StoredTile), "tile metadata"),
+                      "tile metadata");
         image.occupied_tiles.reserve(tile_count);
         for (std::uint32_t tile_index = 0; tile_index < tile_count; ++tile_index) {
-            image.occupied_tiles.push_back(decode_tile(reader, image, limits));
+            image.occupied_tiles.push_back(decode_tile(reader, image, limits, budget));
         }
-        validate_image(image);
+        validate_image(image, &budget);
+        charge_identity(budget, image.resource_id, "tiled image identity index");
         if (!identities.insert(image.resource_id).second) {
             throw ProjectContainerError(ProjectContainerErrorCode::invalid_tile,
                                         "container repeats a tiled image resource identity");
@@ -623,7 +676,8 @@ std::vector<std::byte> encode_resources(std::span<const ProjectResource> resourc
     return std::move(writer).finish();
 }
 
-ProjectResource decode_resource(ByteReader& reader, const ProjectContainerReadLimits& limits) {
+ProjectResource decode_resource(ByteReader& reader, const ProjectContainerReadLimits& limits,
+                                ReadBudget& budget) {
     ProjectResource resource;
     resource.identifier = reader.string(limits.maximum_string_bytes, "resource identity");
     resource.kind = reader.string(limits.maximum_string_bytes, "resource kind");
@@ -644,6 +698,7 @@ ProjectResource decode_resource(ByteReader& reader, const ProjectContainerReadLi
                                         "referenced resource contains a packed payload");
         }
     } else if (storage == 1) {
+        budget.charge(payload.size(), "packed resource bytes");
         resource.packed_bytes = std::vector<std::byte>(payload.begin(), payload.end());
     } else {
         throw UnsupportedResourceSection("unknown project resource storage encoding");
@@ -653,18 +708,22 @@ ProjectResource decode_resource(ByteReader& reader, const ProjectContainerReadLi
 }
 
 std::vector<ProjectResource> decode_resources(std::span<const std::byte> payload,
-                                              const ProjectContainerReadLimits& limits) {
-    ByteReader reader(payload);
+                                              const ProjectContainerReadLimits& limits,
+                                              std::size_t& total_resources, ReadBudget& budget) {
+    ByteReader reader(payload, &budget);
     const std::uint32_t resource_count = reader.u32("project resource count");
-    if (resource_count > limits.maximum_resources) {
-        throw ProjectContainerError(ProjectContainerErrorCode::over_limit,
-                                    "project resource count exceeds the configured limit");
-    }
+    add_to_total(resource_count, limits.maximum_resources, total_resources,
+                 "project resource count");
+    require_records_fit(resource_count, reader.remaining(), 24, "project resource count");
+    budget.charge(
+        checked_multiply(resource_count, sizeof(ProjectResource), "project resource metadata"),
+        "project resource metadata");
     std::vector<ProjectResource> resources;
     resources.reserve(resource_count);
     std::set<std::string> identities;
     for (std::uint32_t index = 0; index < resource_count; ++index) {
-        ProjectResource resource = decode_resource(reader, limits);
+        ProjectResource resource = decode_resource(reader, limits, budget);
+        charge_identity(budget, resource.identifier, "project resource identity index");
         if (!identities.insert(resource.identifier).second) {
             throw ProjectContainerError(ProjectContainerErrorCode::invalid_resource,
                                         "container repeats a project resource identity");
@@ -678,13 +737,17 @@ std::vector<ProjectResource> decode_resources(std::span<const std::byte> payload
     return resources;
 }
 
-void validate_asset(const StandaloneAsset& asset) {
+void validate_asset(const StandaloneAsset& asset, ReadBudget* budget = nullptr) {
     if (asset.identifier.empty() || asset.kind.empty() || asset.format_version == 0) {
         throw ProjectContainerError(ProjectContainerErrorCode::invalid_asset,
                                     "standalone asset metadata is invalid");
     }
     std::set<std::string_view> resource_dependencies;
     for (const std::string& dependency : asset.resource_dependencies) {
+        if (budget != nullptr) {
+            budget->charge(sizeof(std::string_view) + 3 * sizeof(void*),
+                           "asset resource dependency identity index");
+        }
         if (dependency.empty() || !resource_dependencies.insert(dependency).second) {
             throw ProjectContainerError(ProjectContainerErrorCode::invalid_asset,
                                         "standalone asset resource dependency is invalid");
@@ -692,6 +755,10 @@ void validate_asset(const StandaloneAsset& asset) {
     }
     std::set<std::string_view> tiled_dependencies;
     for (const std::string& dependency : asset.tiled_image_dependencies) {
+        if (budget != nullptr) {
+            budget->charge(sizeof(std::string_view) + 3 * sizeof(void*),
+                           "asset tiled dependency identity index");
+        }
         if (dependency.empty() || !tiled_dependencies.insert(dependency).second) {
             throw ProjectContainerError(ProjectContainerErrorCode::invalid_asset,
                                         "standalone asset tiled dependency is invalid");
@@ -733,7 +800,7 @@ std::vector<std::byte> encode_assets(std::span<const StandaloneAsset> assets) {
 }
 
 StandaloneAsset decode_asset(ByteReader& reader, const ProjectContainerReadLimits& limits,
-                             std::size_t& total_dependencies) {
+                             std::size_t& total_dependencies, ReadBudget& budget) {
     StandaloneAsset asset;
     asset.identifier = reader.string(limits.maximum_string_bytes, "asset identity");
     asset.kind = reader.string(limits.maximum_string_bytes, "asset kind");
@@ -742,22 +809,26 @@ StandaloneAsset decode_asset(ByteReader& reader, const ProjectContainerReadLimit
     const std::uint32_t tiled_count = reader.u32("asset tiled dependency count");
     const std::size_t payload_size =
         checked_size(reader.u64("asset payload size"), "asset payload size");
-    if (resource_count > limits.maximum_asset_dependencies -
-                             std::min(limits.maximum_asset_dependencies, total_dependencies)) {
-        throw ProjectContainerError(ProjectContainerErrorCode::over_limit,
-                                    "asset dependencies exceed the configured limit");
-    }
-    total_dependencies += resource_count;
-    if (tiled_count > limits.maximum_asset_dependencies -
-                          std::min(limits.maximum_asset_dependencies, total_dependencies)) {
-        throw ProjectContainerError(ProjectContainerErrorCode::over_limit,
-                                    "asset dependencies exceed the configured limit");
-    }
+    add_to_total(resource_count, limits.maximum_asset_dependencies, total_dependencies,
+                 "asset dependencies");
+    add_to_total(tiled_count, limits.maximum_asset_dependencies, total_dependencies,
+                 "asset dependencies");
     if (payload_size > limits.maximum_asset_payload_bytes) {
         throw ProjectContainerError(ProjectContainerErrorCode::over_limit,
                                     "asset payload exceeds the configured byte limit");
     }
-    total_dependencies += tiled_count;
+    if (payload_size > reader.remaining()) {
+        throw ProjectContainerError(ProjectContainerErrorCode::malformed_section,
+                                    "asset payload cannot fit in its declared section");
+    }
+    require_records_fit(static_cast<std::size_t>(resource_count) + tiled_count,
+                        reader.remaining() - payload_size, 4, "asset dependency count");
+    budget.charge(
+        checked_multiply(resource_count, sizeof(std::string), "asset resource dependency metadata"),
+        "asset resource dependency metadata");
+    budget.charge(
+        checked_multiply(tiled_count, sizeof(std::string), "asset tiled dependency metadata"),
+        "asset tiled dependency metadata");
     asset.resource_dependencies.reserve(resource_count);
     for (std::uint32_t index = 0; index < resource_count; ++index) {
         asset.resource_dependencies.push_back(
@@ -769,27 +840,28 @@ StandaloneAsset decode_asset(ByteReader& reader, const ProjectContainerReadLimit
             reader.string(limits.maximum_string_bytes, "asset tiled dependency"));
     }
     const auto payload = reader.take(payload_size, "asset payload");
+    budget.charge(payload.size(), "asset payload bytes");
     asset.payload.assign(payload.begin(), payload.end());
-    validate_asset(asset);
+    validate_asset(asset, &budget);
     return asset;
 }
 
 std::vector<StandaloneAsset> decode_assets(std::span<const std::byte> payload,
                                            const ProjectContainerReadLimits& limits,
                                            std::size_t& total_assets,
-                                           std::size_t& total_dependencies) {
-    ByteReader reader(payload);
+                                           std::size_t& total_dependencies, ReadBudget& budget) {
+    ByteReader reader(payload, &budget);
     const std::uint32_t asset_count = reader.u32("standalone asset count");
-    if (asset_count > limits.maximum_assets - std::min(limits.maximum_assets, total_assets)) {
-        throw ProjectContainerError(ProjectContainerErrorCode::over_limit,
-                                    "standalone asset count exceeds the configured limit");
-    }
-    total_assets += asset_count;
+    add_to_total(asset_count, limits.maximum_assets, total_assets, "standalone asset count");
+    require_records_fit(asset_count, reader.remaining(), 28, "standalone asset count");
+    budget.charge(checked_multiply(asset_count, sizeof(StandaloneAsset), "asset metadata"),
+                  "asset metadata");
     std::vector<StandaloneAsset> assets;
     assets.reserve(asset_count);
     std::set<std::string> identities;
     for (std::uint32_t index = 0; index < asset_count; ++index) {
-        StandaloneAsset asset = decode_asset(reader, limits, total_dependencies);
+        StandaloneAsset asset = decode_asset(reader, limits, total_dependencies, budget);
+        charge_identity(budget, asset.identifier, "standalone asset identity index");
         if (!identities.insert(asset.identifier).second) {
             throw ProjectContainerError(ProjectContainerErrorCode::invalid_asset,
                                         "container repeats a standalone asset identity");
@@ -803,7 +875,9 @@ std::vector<StandaloneAsset> decode_assets(std::span<const std::byte> payload,
     return assets;
 }
 
-void validate_asset_dependencies(const ProjectContainer& container) {
+void validate_asset_dependencies(const ProjectContainer& container,
+                                 const std::set<std::string>* known_resources = nullptr,
+                                 const std::set<std::string>* known_tiles = nullptr) {
     const bool has_opaque_resources =
         std::any_of(container.opaque_sections.begin(), container.opaque_sections.end(),
                     [](const OpaqueContainerSection& section) {
@@ -815,23 +889,32 @@ void validate_asset_dependencies(const ProjectContainer& container) {
                         return section.kind == tiled_pixel_section_kind;
                     });
     std::set<std::string_view> resource_identities;
-    for (const ProjectResource& resource : container.resources) {
-        resource_identities.insert(resource.identifier);
+    if (known_resources == nullptr) {
+        for (const ProjectResource& resource : container.resources) {
+            resource_identities.insert(resource.identifier);
+        }
     }
     std::set<std::string_view> tiled_identities;
-    for (const StoredTiledImage& image : container.tiled_images) {
-        tiled_identities.insert(image.resource_id);
+    if (known_tiles == nullptr) {
+        for (const StoredTiledImage& image : container.tiled_images) {
+            tiled_identities.insert(image.resource_id);
+        }
     }
     for (const StandaloneAsset& asset : container.assets) {
         for (const std::string& dependency : asset.resource_dependencies) {
-            if (!resource_identities.contains(dependency) && !has_opaque_resources) {
+            const bool present = known_resources != nullptr
+                                     ? known_resources->contains(dependency)
+                                     : resource_identities.contains(dependency);
+            if (!present && !has_opaque_resources) {
                 throw ProjectContainerError(
                     ProjectContainerErrorCode::invalid_asset,
                     "standalone asset resource dependency is absent: " + dependency);
             }
         }
         for (const std::string& dependency : asset.tiled_image_dependencies) {
-            if (!tiled_identities.contains(dependency) && !has_opaque_tiles) {
+            const bool present = known_tiles != nullptr ? known_tiles->contains(dependency)
+                                                        : tiled_identities.contains(dependency);
+            if (!present && !has_opaque_tiles) {
                 throw ProjectContainerError(
                     ProjectContainerErrorCode::invalid_asset,
                     "standalone asset tiled dependency is absent: " + dependency);
@@ -846,6 +929,21 @@ void append_section(ByteWriter& body, std::uint32_t kind, std::uint32_t version,
     body.u32(version);
     body.u64(payload.size());
     body.bytes(payload);
+}
+
+void append_opaque_section(ProjectContainerReadResult& result, std::uint32_t kind,
+                           std::uint32_t version, std::span<const std::byte> payload,
+                           std::string_view message, ReadBudget& budget) {
+    budget.charge(sizeof(OpaqueContainerSection) + sizeof(UnknownContainerPart),
+                  "opaque section metadata");
+    budget.charge(payload.size(), "opaque section payload");
+    budget.charge(message.size(), "opaque section diagnostic");
+    result.report.unknown_parts.push_back({.section_kind = kind,
+                                           .section_version = version,
+                                           .payload_bytes = payload.size(),
+                                           .message = std::string(message)});
+    result.container.opaque_sections.push_back(
+        {.kind = kind, .version = version, .payload = {payload.begin(), payload.end()}});
 }
 
 }  // namespace
@@ -904,6 +1002,10 @@ void save_project_container_atomic(const std::filesystem::path& path,
 
 ProjectContainerReadResult read_project_container(std::span<const std::byte> bytes,
                                                   ProjectContainerReadLimits limits) {
+    if (bytes.size() > limits.maximum_input_bytes) {
+        throw ProjectContainerError(ProjectContainerErrorCode::over_limit,
+                                    "project container exceeds the configured input byte limit");
+    }
     const ContainerHeader header = read_header(bytes, true);
     if (header.section_count > limits.maximum_sections) {
         throw ProjectContainerError(ProjectContainerErrorCode::over_limit,
@@ -917,9 +1019,13 @@ ProjectContainerReadResult read_project_container(std::span<const std::byte> byt
                                       .report = {.source_schema = header.version,
                                                  .newer_schema = newer_than_current(header.version),
                                                  .unknown_parts = {}}};
+    ReadBudget budget(limits.maximum_total_allocation_bytes);
     ByteReader body(
         bytes.subspan(header.header_bytes, checked_size(header.body_bytes, "body size")));
+    require_records_fit(header.section_count, body.remaining(), 16, "container section count");
+    std::size_t total_images = 0;
     std::size_t total_tiles = 0;
+    std::size_t total_resources = 0;
     std::set<std::string> image_identities;
     std::set<std::string> resource_identities;
     std::set<std::string> asset_identities;
@@ -933,8 +1039,11 @@ ProjectContainerReadResult read_project_container(std::span<const std::byte> byt
         const auto payload = body.take(payload_size, "section payload");
         if (kind == tiled_pixel_section_kind && version == tiled_pixel_section_version) {
             try {
-                auto images = decode_tiled_images(payload, limits, total_tiles);
+                auto images =
+                    decode_tiled_images(payload, limits, total_images, total_tiles, budget);
                 for (StoredTiledImage& image : images) {
+                    charge_identity(budget, image.resource_id,
+                                    "cross-section tiled image identity index");
                     if (!image_identities.insert(image.resource_id).second) {
                         throw ProjectContainerError(
                             ProjectContainerErrorCode::invalid_tile,
@@ -944,16 +1053,16 @@ ProjectContainerReadResult read_project_container(std::span<const std::byte> byt
                 }
                 continue;
             } catch (const UnsupportedTileSection& error) {
-                result.report.unknown_parts.push_back({.section_kind = kind,
-                                                       .section_version = version,
-                                                       .payload_bytes = payload.size(),
-                                                       .message = error.what()});
+                append_opaque_section(result, kind, version, payload, error.what(), budget);
+                continue;
             }
         } else if (kind == project_resource_section_kind &&
                    version == project_resource_section_version) {
             try {
-                auto resources = decode_resources(payload, limits);
+                auto resources = decode_resources(payload, limits, total_resources, budget);
                 for (ProjectResource& resource : resources) {
+                    charge_identity(budget, resource.identifier,
+                                    "cross-section project resource identity index");
                     if (!resource_identities.insert(resource.identifier).second) {
                         throw ProjectContainerError(
                             ProjectContainerErrorCode::invalid_resource,
@@ -963,15 +1072,16 @@ ProjectContainerReadResult read_project_container(std::span<const std::byte> byt
                 }
                 continue;
             } catch (const UnsupportedResourceSection& error) {
-                result.report.unknown_parts.push_back({.section_kind = kind,
-                                                       .section_version = version,
-                                                       .payload_bytes = payload.size(),
-                                                       .message = error.what()});
+                append_opaque_section(result, kind, version, payload, error.what(), budget);
+                continue;
             }
         } else if (kind == standalone_asset_section_kind &&
                    version == standalone_asset_section_version) {
-            auto assets = decode_assets(payload, limits, total_assets, total_asset_dependencies);
+            auto assets =
+                decode_assets(payload, limits, total_assets, total_asset_dependencies, budget);
             for (StandaloneAsset& asset : assets) {
+                charge_identity(budget, asset.identifier,
+                                "cross-section standalone asset identity index");
                 if (!asset_identities.insert(asset.identifier).second) {
                     throw ProjectContainerError(
                         ProjectContainerErrorCode::invalid_asset,
@@ -981,20 +1091,16 @@ ProjectContainerReadResult read_project_container(std::span<const std::byte> byt
             }
             continue;
         } else {
-            result.report.unknown_parts.push_back(
-                {.section_kind = kind,
-                 .section_version = version,
-                 .payload_bytes = payload.size(),
-                 .message = "container section kind or version is not understood"});
+            append_opaque_section(result, kind, version, payload,
+                                  "container section kind or version is not understood", budget);
+            continue;
         }
-        result.container.opaque_sections.push_back(
-            {.kind = kind, .version = version, .payload = {payload.begin(), payload.end()}});
     }
     if (!body.empty()) {
         throw ProjectContainerError(ProjectContainerErrorCode::malformed_section,
                                     "container body has trailing bytes");
     }
-    validate_asset_dependencies(result.container);
+    validate_asset_dependencies(result.container, &resource_identities, &image_identities);
     return result;
 }
 

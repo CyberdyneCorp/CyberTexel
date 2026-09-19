@@ -23,6 +23,8 @@ jobs:
       run: sudo apt-get update && sudo apt-get install -y spirv-tools
     - name: Sanitized tests
       run: just test-sanitize
+    - name: Project container fuzz gate
+      run: just fuzz-project-container
 
   build:
     name: build-and-layering

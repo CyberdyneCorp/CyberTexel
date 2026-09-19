@@ -132,6 +132,8 @@ private:
 };
 
 struct ProjectContainerReadLimits {
+    std::size_t maximum_input_bytes{1ULL << 30};
+    std::size_t maximum_total_allocation_bytes{1ULL << 30};
     std::size_t maximum_sections{1'000'000};
     std::size_t maximum_images{1'000'000};
     std::size_t maximum_tiles{16'000'000};
