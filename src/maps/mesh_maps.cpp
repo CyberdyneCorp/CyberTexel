@@ -510,4 +510,33 @@ MeshMapReleaseResult MeshMapSet::release_all_maps() {
     return result;
 }
 
+MeshMapBindingSnapshot MeshMapSet::snapshot_bindings() const {
+    MeshMapBindingSnapshot snapshot{
+        .texture_set_id = texture_set_id_, .uv_set = uv_set_, .maps = {}};
+    snapshot.maps.reserve(maps_.size());
+    for (const auto& [kind, descriptor] : maps_) {
+        static_cast<void>(kind);
+        snapshot.maps.push_back(descriptor);
+    }
+    return snapshot;
+}
+
+void MeshMapSet::restore_bindings(MeshMapBindingSnapshot snapshot) {
+    if (snapshot.texture_set_id != texture_set_id_ || snapshot.uv_set != uv_set_) {
+        throw std::invalid_argument(
+            "mesh-map snapshot belongs to a different texture set or UV set");
+    }
+    std::map<MeshMapKind, MeshMapDescriptor> restored;
+    for (MeshMapDescriptor& descriptor : snapshot.maps) {
+        validate_descriptor(descriptor, texture_set_id_, uv_set_, tangent_frame_);
+        const MeshMapKind kind = descriptor.kind;
+        if (!restored.emplace(kind, std::move(descriptor)).second) {
+            throw std::invalid_argument("mesh-map snapshot repeats map '" +
+                                        std::string(mesh_map_name(kind)) + "'");
+        }
+    }
+    memory_account_.set_resident_bytes(resident_pixel_bytes(restored));
+    maps_.swap(restored);
+}
+
 }  // namespace ctex::maps

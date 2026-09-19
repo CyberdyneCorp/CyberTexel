@@ -127,6 +127,12 @@ struct MeshMapReleaseResult {
     friend bool operator==(const MeshMapReleaseResult&, const MeshMapReleaseResult&) = default;
 };
 
+struct MeshMapBindingSnapshot {
+    std::string texture_set_id;
+    std::string uv_set;
+    std::vector<MeshMapDescriptor> maps;
+};
+
 struct MeshMapRequirementReport {
     std::string consumer;
     std::string texture_set_id;
@@ -183,6 +189,8 @@ public:
     [[nodiscard]] MeshMapMemoryReport memory_report() const;
     [[nodiscard]] MeshMapReleaseResult release_map(MeshMapKind kind);
     [[nodiscard]] MeshMapReleaseResult release_all_maps();
+    [[nodiscard]] MeshMapBindingSnapshot snapshot_bindings() const;
+    void restore_bindings(MeshMapBindingSnapshot snapshot);
 
 private:
     std::string texture_set_id_;

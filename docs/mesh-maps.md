@@ -170,8 +170,9 @@ bound, matching the `shared_ptr<const TiledImage>` binding contract.
 
 `BakeProvider` is an optional synchronous callback table with an opaque context,
 a capability query and a request callback. Requests name the map, texture-set
-identity, UV layout, mesh revision and requested resolution. The provider
-returns a borrowed strided pixel-buffer view; CyberTexel validates and copies it
+identity, UV layout, mesh revision, bake-settings revision, request generation
+and requested resolution. The provider returns a borrowed strided pixel-buffer
+view; CyberTexel validates and copies it
 before the callback returns, then binds it transactionally. Provider memory
 never becomes document-owned memory by accident.
 
@@ -183,5 +184,33 @@ callback and return a diagnostic naming both the requested map and the complete
 advertised set. Provider failure, invalid progress and malformed output likewise
 leave existing bindings unchanged. The callback arguments and returned image
 view are valid only for the synchronous call. Normal-map output must include its
-OpenGL/DirectX declaration. Revisioned asynchronous requests are reserved for
-roadmap task 11.13.
+OpenGL/DirectX declaration. `BakeRequestVersion` lets a host forward its real
+settings revision and request generation through this synchronous adapter.
+
+## Asynchronous bake publication and undo
+
+`AsyncBakeSession` separates request issue from result publication. Each
+`BakeRevisionToken` owns the issuing-session identity, requested map and
+resolution plus the texture-set, UV, mesh, tangent-frame, settings-revision and
+monotonically increasing request identities captured at issue time.
+`bake_request_view` exposes those owned fields through the provider callback's
+borrowed `BakeRequest` shape while the token remains alive. Starting another
+request for the same map supersedes the previous generation. A completion is
+copied and bound only when
+the complete token still matches the session and `MeshMapSet`; cancelled,
+superseded, settings-stale and mesh-stale results return an explicit disposition
+without changing any binding. Altered, duplicate and foreign tokens are
+reported as unknown.
+
+The referenced `MeshMapSet` must outlive its session. Session methods serialize
+the logical request lifecycle; hosts synchronize calls made from worker threads.
+
+`edit_settings` creates one undo step by retaining the settings revision and an
+immutable snapshot of every current map binding, then invalidates outstanding
+requests from the previous settings. Any map replacements accepted under the
+new revision remain part of that same step. `undo_settings_edit` restores the
+prior settings revision and complete binding snapshot atomically and invalidates
+all requests still pending for the undone state. Their later completions are
+therefore stale and cannot republish the undone pixels. Snapshot pixels use
+shared immutable ownership; restoring a snapshot revalidates every descriptor
+before changing the live set.

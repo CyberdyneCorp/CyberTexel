@@ -124,7 +124,8 @@ The current implementation provides:
   identities and independent channel storage.
 - Validated read-only mesh ingest and reusable flat CPU acceleration structures.
 - Revision-aware [mesh-map sets](docs/mesh-maps.md) with named missing-map and
-  staleness reports, a host-supplied bake-provider seam, and transactional
+  staleness reports, asynchronous stale-safe bake tokens with coordinated undo,
+  a host-supplied bake-provider seam, and transactional
   external strided-buffer import with explicit channel meaning and colour space,
   recorded OpenGL/DirectX normal conventions normalized on read, and eight
   built-in mask generators with queryable map requirements, bounded parameters,

@@ -575,6 +575,17 @@ account transactionally; selective and bulk host release name removed maps and
 bytes, cause subsequent consumers to receive the existing missing-map report,
 and leave the texture document and its channel pixels intact. Account lifetime
 also removes its contribution automatically.
+Asynchronous bake publication (11.13) issues owning revision tokens that capture
+the issuing session, map, resolution, texture-set and UV identities, mesh revision,
+tangent-frame descriptor, bake-settings revision and a monotonically increasing
+generation.
+Only the latest uncancelled request whose complete identity remains current can
+copy and bind provider output; superseded, cancelled, mesh-stale, settings-stale,
+altered and duplicate completions publish nothing and return an explicit
+disposition. A settings edit snapshots the complete map binding set as one undo
+step. Accepted replacements remain grouped with that edit, while undo restores
+both the prior settings revision and prior bindings and invalidates every late
+request from the undone state.
 
 ## 1. Foundation
 
@@ -741,7 +752,7 @@ also removes its contribution automatically.
 - [x] 11.10 CyberRemesherAndUV provider binding, as an example rather than a dependency
 - [x] 11.11 `mesh-maps` scenarios as tests
 - [x] 11.12 Tangent-frame descriptors, supplied/generated tangent policy, normal-map basis validation and mirrored handedness tests
-- [ ] 11.13 Asynchronous bake revision tokens, stale-result rejection and coordinated settings/map undo tests
+- [x] 11.13 Asynchronous bake revision tokens, stale-result rejection and coordinated settings/map undo tests
 
 ## 12. Input and output
 

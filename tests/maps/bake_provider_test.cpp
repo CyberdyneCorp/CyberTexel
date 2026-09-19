@@ -32,6 +32,8 @@ struct ProviderState {
     std::size_t row_stride_bytes{};
     std::size_t request_count{};
     mesh::MeshRevision requested_mesh_revision{};
+    std::uint64_t requested_settings_revision{};
+    std::uint64_t requested_generation{};
     std::optional<mesh::TangentFrameDescriptor> requested_tangent_frame;
     bool fail{};
     bool invalid_progress{};
@@ -55,6 +57,8 @@ BakeProviderStatus produce(void* user_data, const BakeRequest* request, const Ba
     auto& state = *static_cast<ProviderState*>(user_data);
     ++state.request_count;
     state.requested_mesh_revision = request->mesh_revision;
+    state.requested_settings_revision = request->bake_settings_revision;
+    state.requested_generation = request->request_generation;
     state.requested_tangent_frame =
         request->tangent_frame == nullptr ? std::nullopt : std::optional(*request->tangent_frame);
     control->report_progress(control->user_data, {.fraction = 0.25});
@@ -123,6 +127,19 @@ bool is_cancelled(void* user_data) noexcept {
 
 BakeControl control(ControlState& state) {
     return {.user_data = &state, .is_cancelled = is_cancelled, .report_progress = record_progress};
+}
+
+BakeProviderOutput output(ProviderState& state, std::uint32_t width = 1, std::uint32_t height = 1) {
+    return {.image = {.width = width,
+                      .height = height,
+                      .format = {.channel_type = image::ChannelType::uint8_unorm,
+                                 .channel_count = state.channel_count},
+                      .row_stride_bytes = static_cast<std::size_t>(width) * state.channel_count,
+                      .pixels = state.pixels.data(),
+                      .pixel_bytes = state.pixels.size()},
+            .normal_convention = state.normal_convention,
+            .tangent_frame = state.tangent_frame,
+            .detail = nullptr};
 }
 
 bool supported_request_reports_progress_and_binds_output() {
@@ -266,8 +283,146 @@ bool malformed_provider_and_request_are_refused_before_callbacks() {
     } catch (const std::invalid_argument&) {
         resolution_refused = true;
     }
-    return expect(provider_refused && resolution_refused && state.request_count == 0,
-                  "malformed provider or bake request reached a callback");
+    bool zero_version_refused = false;
+    try {
+        static_cast<void>(request_bake(provider(state), maps, MeshMapKind::curvature, 2, 2, {},
+                                       {.bake_settings_revision = 0, .request_generation = 1}));
+    } catch (const std::invalid_argument&) {
+        zero_version_refused = true;
+    }
+    return expect(
+        provider_refused && resolution_refused && zero_version_refused && state.request_count == 0,
+        "malformed provider or bake request reached a callback");
+}
+
+bool synchronous_requests_forward_explicit_revisions() {
+    doc::TextureDocument document;
+    MeshMapSet maps(texture_set(document), fixture_mesh_revision);
+    ProviderState state;
+    const BakeRequestResult result =
+        request_bake(provider(state), maps, MeshMapKind::curvature, 2, 2, {},
+                     {.bake_settings_revision = 17, .request_generation = 23});
+    return expect(result.status == BakeRequestStatus::completed &&
+                      state.requested_settings_revision == 17 && state.requested_generation == 23,
+                  "synchronous provider request omitted its settings revision or generation");
+}
+
+bool async_tokens_reject_superseded_cancelled_and_stale_results() {
+    doc::TextureDocument document;
+    MeshMapSet maps(texture_set(document), fixture_mesh_revision);
+    AsyncBakeSession session(maps, 7);
+    const BakeRevisionToken superseded =
+        session.begin_request(MeshMapKind::ambient_occlusion, 1, 1);
+    const BakeRequest superseded_view = bake_request_view(superseded);
+    const BakeRevisionToken current = session.begin_request(MeshMapKind::ambient_occlusion, 1, 1);
+    AsyncBakeSession foreign_session(maps, 7);
+    const BakeRevisionToken foreign = foreign_session.begin_request(MeshMapKind::object_id, 1, 1);
+    ProviderState stale_state;
+    stale_state.pixels = {std::byte{32}};
+    const AsyncBakeCompletionResult foreign_result = session.complete(foreign, output(stale_state));
+    const AsyncBakeCompletionResult stale = session.complete(superseded, output(stale_state));
+    ProviderState current_state;
+    current_state.pixels = {std::byte{255}};
+    BakeRevisionToken altered = current;
+    altered.uv_set = "other";
+    const AsyncBakeCompletionResult altered_result =
+        session.complete(altered, output(current_state));
+    const AsyncBakeCompletionResult accepted = session.complete(current, output(current_state));
+    const AsyncBakeCompletionResult duplicate = session.complete(current, output(current_state));
+
+    const BakeRevisionToken old_settings = session.begin_request(MeshMapKind::curvature, 1, 1);
+    const BakeSettingsEditResult edit = session.edit_settings(8);
+    const BakeRevisionToken new_settings = session.begin_request(MeshMapKind::curvature, 1, 1);
+    const AsyncBakeCompletionResult settings_accepted =
+        session.complete(new_settings, output(current_state));
+    const AsyncBakeCompletionResult settings_stale =
+        session.complete(old_settings, output(stale_state));
+
+    const BakeRevisionToken cancelled = session.begin_request(MeshMapKind::thickness, 1, 1);
+    const bool cancellation_recorded = session.cancel(cancelled);
+    const AsyncBakeCompletionResult cancelled_result =
+        session.complete(cancelled, output(stale_state));
+
+    const BakeRevisionToken mesh_stale = session.begin_request(MeshMapKind::height, 1, 1);
+    static_cast<void>(maps.synchronize_mesh_revision(fixture_mesh_revision + 1));
+    const AsyncBakeCompletionResult mesh_stale_result =
+        session.complete(mesh_stale, output(stale_state));
+
+    const BakeRevisionToken malformed = session.begin_request(MeshMapKind::uv_density, 1, 1);
+    const AsyncBakeCompletionResult invalid =
+        session.complete(malformed, output(stale_state, 2, 1));
+
+    return expect(
+               superseded.session_identity != 0 &&
+                   superseded.texture_set_id == maps.texture_set_id() &&
+                   superseded.uv_set == maps.uv_set() &&
+                   superseded.mesh_revision == fixture_mesh_revision &&
+                   superseded.bake_settings_revision == 7 &&
+                   std::string_view(superseded_view.texture_set_id) == superseded.texture_set_id &&
+                   std::string_view(superseded_view.uv_set) == superseded.uv_set &&
+                   superseded_view.request_generation == superseded.request_generation &&
+                   superseded.request_generation != current.request_generation,
+               "asynchronous bake token omitted a request identity") &&
+           expect(foreign_result.disposition == AsyncBakeCompletionDisposition::unknown_token &&
+                      stale.disposition == AsyncBakeCompletionDisposition::stale &&
+                      altered_result.disposition == AsyncBakeCompletionDisposition::unknown_token &&
+                      accepted.disposition == AsyncBakeCompletionDisposition::bound &&
+                      duplicate.disposition == AsyncBakeCompletionDisposition::unknown_token &&
+                      maps.sample(MeshMapKind::ambient_occlusion, 0.5, 0.5).sample.values[0] == 1.0,
+                  "superseded or duplicate completion changed the current map") &&
+           expect(edit.invalidated_requests ==
+                          std::vector<BakeRequestGeneration>{old_settings.request_generation} &&
+                      settings_accepted.disposition == AsyncBakeCompletionDisposition::bound &&
+                      settings_stale.disposition == AsyncBakeCompletionDisposition::stale &&
+                      maps.sample(MeshMapKind::curvature, 0.5, 0.5).sample.values[0] == 1.0,
+                  "settings-stale bake overwrote the current generation") &&
+           expect(cancellation_recorded &&
+                      cancelled_result.disposition == AsyncBakeCompletionDisposition::cancelled &&
+                      !maps.contains(MeshMapKind::thickness),
+                  "cancelled asynchronous bake published output") &&
+           expect(mesh_stale_result.disposition == AsyncBakeCompletionDisposition::stale &&
+                      !maps.contains(MeshMapKind::height) &&
+                      invalid.disposition == AsyncBakeCompletionDisposition::invalid_output &&
+                      !maps.contains(MeshMapKind::uv_density) &&
+                      session.pending_request_count() == 0,
+                  "mesh-stale or malformed asynchronous bake published output");
+}
+
+bool settings_edit_and_map_replacements_undo_as_one_step() {
+    doc::TextureDocument document;
+    MeshMapSet maps(texture_set(document), fixture_mesh_revision);
+    ProviderState initial;
+    initial.pixels = {std::byte{64}};
+    const BakeRequestResult initial_bind =
+        request_bake(provider(initial), maps, MeshMapKind::curvature, 1, 1);
+    AsyncBakeSession session(maps, 10);
+    const BakeSettingsEditResult edit = session.edit_settings(11);
+
+    ProviderState replacement;
+    replacement.pixels = {std::byte{255}};
+    const BakeRevisionToken replacement_token = session.begin_request(MeshMapKind::curvature, 1, 1);
+    const AsyncBakeCompletionResult replacement_result =
+        session.complete(replacement_token, output(replacement));
+    const BakeRevisionToken pending = session.begin_request(MeshMapKind::ambient_occlusion, 1, 1);
+    const BakeSettingsUndoResult undone = session.undo_settings_edit();
+    const AsyncBakeCompletionResult late = session.complete(pending, output(replacement));
+    const BakeSettingsUndoResult nothing_left = session.undo_settings_edit();
+
+    const double restored = maps.sample(MeshMapKind::curvature, 0.5, 0.5).sample.values[0];
+    return expect(initial_bind.status == BakeRequestStatus::completed &&
+                      edit.previous_revision == 10 && edit.current_revision == 11 &&
+                      replacement_result.disposition == AsyncBakeCompletionDisposition::bound &&
+                      undone.restored && undone.previous_revision == 11 &&
+                      undone.restored_revision == 10 && session.settings_revision() == 10,
+                  "settings revision and accepted replacement were not grouped for undo") &&
+           expect(restored == 64.0 / 255.0 && !maps.contains(MeshMapKind::ambient_occlusion) &&
+                      undone.restored_maps == std::vector<MeshMapKind>{MeshMapKind::curvature},
+                  "settings undo did not restore the exact prior map bindings") &&
+           expect(undone.invalidated_requests ==
+                          std::vector<BakeRequestGeneration>{pending.request_generation} &&
+                      late.disposition == AsyncBakeCompletionDisposition::stale &&
+                      !nothing_left.restored && session.undo_step_count() == 0,
+                  "settings undo did not invalidate its pending bake result");
 }
 
 }  // namespace
@@ -279,7 +434,10 @@ int main() {
                    normal_provider_must_declare_and_forwards_its_convention() &&
                    cancellation_before_and_during_provider_work_binds_nothing() &&
                    provider_failures_and_invalid_output_are_transactional() &&
-                   malformed_provider_and_request_are_refused_before_callbacks()
+                   malformed_provider_and_request_are_refused_before_callbacks() &&
+                   synchronous_requests_forward_explicit_revisions() &&
+                   async_tokens_reject_superseded_cancelled_and_stale_results() &&
+                   settings_edit_and_map_replacements_undo_as_one_step()
                ? 0
                : 1;
 }
