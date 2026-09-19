@@ -41,6 +41,7 @@
     {"name": "host-transport", "kind": "runtime", "requirements": []},
     {"name": "image-io", "kind": "runtime", "requirements": [
       {"requirement": "Format detection is by content", "symbols": ["ctex_image_decode_memory"]},
+      {"requirement": "Encoded formats", "symbols": ["ctex_image_encode_memory"]},
       {"requirement": "Decoding from memory", "symbols": ["ctex_image_decode_memory"]},
       {"requirement": "Every image source is untrusted", "symbols": ["ctex_image_decode_memory"]}
     ]},

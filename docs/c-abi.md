@@ -126,6 +126,21 @@ decoded bytes before pixel allocation. Malformed or truncated data is refused
 without returning partial pixels; limit, unsupported-format and invalid-data
 failures have distinct stable diagnostic codes.
 
+## In-memory image encode
+
+`ctex_image_encode_memory` accepts borrowed, row-major interleaved pixels and
+encodes PNG, JPEG, TGA, TIFF or OpenEXR directly into a caller-owned buffer.
+Input can be tightly packed or use an explicit row stride. The descriptor names
+the input scalar representation and bit depth separately from the requested
+output bit depth, colour space and format; JPEG output also accepts quality from
+1 through 100.
+
+The operation uses the standard null-buffer sizing call and does not modify a
+too-small output buffer. It accepts 8- or 16-bit unsigned-normalized and 32-bit
+floating-point input. PNG supports 8/16-bit output, JPEG and TGA support 8-bit,
+TIFF supports 8/16/32-bit, and OpenEXR supports 16/32-bit. Unsupported pairs are
+refused with a stable diagnostic that names both the format and bit depth.
+
 ## ABI version and compatibility
 
 `ctex_get_abi_version` is safe before any handle exists and returns the major,
@@ -163,7 +178,7 @@ The contract is stated per entry-point family:
 | --- | --- |
 | `ctex_get_version`, `ctex_get_abi_version` | Process-safe and callable concurrently from any thread |
 | `ctex_get_working_color_space`, `ctex_color_space_get_name`, `ctex_channel_get_color_policy`, `ctex_channel_get_bit_depth_warning`, `ctex_resolve_input_color_space`, `ctex_color_convert`, `ctex_color_input_to_working`, `ctex_accumulate_height`, `ctex_quantize_unorm8` | Stateless, process-safe and callable concurrently from any thread |
-| `ctex_image_decode_memory` | Stateless and safe to call concurrently; encoded input is borrowed only for the call and decoded output is caller-owned |
+| `ctex_image_decode_memory`, `ctex_image_encode_memory` | Stateless and safe to call concurrently; inputs are borrowed only for the call and outputs are caller-owned |
 | `ctex_cube_lut_create` | Process-safe; each successful call creates independent immutable state and captures the active allocator |
 | `ctex_cube_lut_apply_preview` | Safe to call concurrently, including against the same immutable LUT handle |
 | `ctex_cube_lut_destroy` | The caller ensures no application call is using that handle; distinct handles may be destroyed concurrently |

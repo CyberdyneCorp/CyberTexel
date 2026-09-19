@@ -21,8 +21,8 @@ requirement.
 The gate is intentionally red while task 14.8 is in progress. The current C ABI
 fully maps its boundary requirements and records the implemented document and
 texture-set, colour-management, read-only mesh-ingest and bounded in-memory PNG
-decode operations, but 219 runtime requirements still lack C entry points. Mesh
-handles own allocator-routed
+decode and encode operations, but 218 runtime requirements still lack C entry
+points. Mesh handles own allocator-routed
 copies of host buffers, expose named UV sets and revision changes, and enforce
 the declared 100,000,000-vertex and 100,000,000-triangle ceilings before reading
 array contents.

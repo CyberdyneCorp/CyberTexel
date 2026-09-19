@@ -7,11 +7,11 @@ decisions taken and questions still open.
 ## Status
 
 Implementation started. 24 capabilities, 332 requirements, 400 scenarios and
-222 tasks, 134 done. Foundation and the complete headless color-management
-scenario suite are green. Slice-A now has memory-buffer PNG input/output with
-8/16-bit preservation and hostile-input ceilings; full image-format breadth
-remains scheduled for slice D. Extensible channel descriptors and sparse
-per-channel enablement are also complete. Read-only in-memory mesh ingest now
+222 tasks, 135 done. Foundation and the complete headless color-management
+scenario suite are green. Slice-A now has memory-buffer PNG input plus
+PNG/JPEG/TGA/TIFF/OpenEXR output, with 8/16-bit preservation and hostile-input
+ceilings; full decoder breadth remains scheduled for slice D. Extensible channel
+descriptors and sparse per-channel enablement are also complete. Read-only in-memory mesh ingest now
 validates attributes and total, non-overlapping face partitions, from which the
 document derives stable UV-bound texture sets with independent storage.
 Picking now reuses a flat CPU BVH and rebuilds it when its mesh revision changes.
@@ -155,6 +155,10 @@ this completes task 4.2.
 The next 14.8 slice exposes content-detected in-memory PNG decoding, exact
 caller-buffer sizing, native 8/16-bit pixels, colour-source metadata and hostile
 input ceilings. The gate now names 219 runtime requirements without C evidence.
+The encoder follow-up exposes caller-buffer PNG, JPEG, TGA, TIFF and OpenEXR
+output with validated row strides, explicit input/output precision, JPEG quality
+and named impossible format/depth refusals. This completes task 2.7 and reduces
+the exact C ABI gap to 218 runtime requirements.
 
 ## Milestones
 

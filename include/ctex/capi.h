@@ -66,7 +66,9 @@ typedef enum ctex_diagnostic_code {
     CTEX_DIAGNOSTIC_MISSING_UV_SET = 30,
     CTEX_DIAGNOSTIC_UNSUPPORTED_IMAGE_FORMAT = 31,
     CTEX_DIAGNOSTIC_INVALID_IMAGE_DATA = 32,
-    CTEX_DIAGNOSTIC_IMAGE_LIMIT_EXCEEDED = 33
+    CTEX_DIAGNOSTIC_IMAGE_LIMIT_EXCEEDED = 33,
+    CTEX_DIAGNOSTIC_UNSUPPORTED_IMAGE_COMBINATION = 34,
+    CTEX_DIAGNOSTIC_IMAGE_ENCODING_FAILED = 35
 } ctex_diagnostic_code;
 
 typedef enum ctex_log_severity {
@@ -223,7 +225,8 @@ typedef enum ctex_image_file_format {
     CTEX_IMAGE_FILE_FORMAT_TIFF = 4,
     CTEX_IMAGE_FILE_FORMAT_OPENEXR = 5,
     CTEX_IMAGE_FILE_FORMAT_RADIANCE_HDR = 6,
-    CTEX_IMAGE_FILE_FORMAT_PSD = 7
+    CTEX_IMAGE_FILE_FORMAT_PSD = 7,
+    CTEX_IMAGE_FILE_FORMAT_TGA = 8
 } ctex_image_file_format;
 
 typedef enum ctex_color_space_source {
@@ -260,6 +263,23 @@ typedef struct ctex_decoded_image_info {
 
 #define CTEX_DECODED_IMAGE_INFO_V1_SIZE ((uint32_t)sizeof(ctex_decoded_image_info))
 #define CTEX_DECODED_IMAGE_INFO_CURRENT_SIZE ((uint32_t)sizeof(ctex_decoded_image_info))
+
+typedef struct ctex_image_encode_descriptor {
+    uint32_t size;
+    uint32_t width;
+    uint32_t height;
+    uint32_t channel_count;
+    uint32_t scalar_representation;
+    uint32_t input_bit_depth;
+    size_t row_stride_bytes;
+    uint32_t color_space;
+    uint32_t output_format;
+    uint32_t output_bit_depth;
+    uint32_t jpeg_quality;
+} ctex_image_encode_descriptor;
+
+#define CTEX_IMAGE_ENCODE_DESCRIPTOR_V1_SIZE ((uint32_t)sizeof(ctex_image_encode_descriptor))
+#define CTEX_IMAGE_ENCODE_DESCRIPTOR_CURRENT_SIZE ((uint32_t)sizeof(ctex_image_encode_descriptor))
 
 typedef enum ctex_channel_classification {
     CTEX_CHANNEL_CLASSIFICATION_COLOR = 0,
@@ -425,6 +445,16 @@ CTEX_API ctex_result ctex_image_decode_memory(const void* encoded, size_t encode
                                               const ctex_image_decode_limits_descriptor* limits,
                                               ctex_decoded_image_info* out_info, void* pixel_buffer,
                                               size_t pixel_buffer_size, size_t* out_required_size);
+
+/*
+ * Encodes borrowed, row-major interleaved pixels to PNG, JPEG, TGA, TIFF or
+ * OpenEXR. A zero row stride means tightly packed input. Pass a NULL output
+ * buffer with size zero to query out_required_size.
+ */
+CTEX_API ctex_result ctex_image_encode_memory(const void* pixels, size_t pixel_buffer_size,
+                                              const ctex_image_encode_descriptor* descriptor,
+                                              void* encoded_buffer, size_t encoded_buffer_size,
+                                              size_t* out_required_size);
 
 /*
  * Installs one process-wide sink. Pass NULL to uninstall it. The callback can

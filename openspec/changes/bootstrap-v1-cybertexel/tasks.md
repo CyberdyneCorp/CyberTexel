@@ -686,6 +686,11 @@ caller-owned output, native 8/16-bit preservation, colour-source and extension
 metadata, configurable pre-allocation ceilings, and named malformed,
 unsupported-format and over-limit refusals. The exact remaining C ABI gap is
 219 runtime requirements.
+The encoder follow-up exposes all five specified output formats through a
+versioned raw-pixel descriptor and caller-owned byte buffer. It validates input
+row strides and scalar precision, honours JPEG quality, and names both format
+and bit depth when a combination is impossible. Together with the existing
+export-report evidence, this completes 2.7 and leaves 218 runtime C ABI gaps.
 
 ## 1. Foundation
 
@@ -708,7 +713,7 @@ unsupported-format and over-limit refusals. The exact remaining C ABI gap is
 - [ ] 2.4 Colour space on read: embedded profiles, caller declaration, the automatic rule
 - [ ] 2.5 High dynamic range decoding without clamping
 - [ ] 2.6 Layered sources: PSD layers and multi-part EXR, composited or per-layer
-- [ ] 2.7 Encoders with per-format options and the impossible-combination refusal
+- [x] 2.7 Encoders with per-format options and the impossible-combination refusal
 - [ ] 2.8 Decoding from memory buffers
 - [ ] 2.9 Untrusted input bounds: dimension validation before allocation, configurable ceiling, named refusals
 - [ ] 2.10 Decoder fuzzing gate in CI

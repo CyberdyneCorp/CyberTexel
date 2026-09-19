@@ -20,6 +20,11 @@ static const unsigned char gray16_png[] = {
 
 static int expect(int condition) { return condition ? 1 : 0; }
 
+static uint32_t little_u32(const unsigned char* bytes) {
+    return (uint32_t)bytes[0] | ((uint32_t)bytes[1] << 8u) | ((uint32_t)bytes[2] << 16u) |
+           ((uint32_t)bytes[3] << 24u);
+}
+
 static int decode_reports_content_and_caller_buffers(void) {
     ctex_decoded_image_info info = {.size = CTEX_DECODED_IMAGE_INFO_CURRENT_SIZE};
     size_t required_size = 0;
@@ -108,10 +113,146 @@ static int decode_refuses_unsupported_and_truncated_content(void) {
            expect(ctex_get_last_diagnostic_code() == CTEX_DIAGNOSTIC_INVALID_IMAGE_DATA);
 }
 
+static ctex_image_encode_descriptor rgba8_descriptor(uint32_t format) {
+    ctex_image_encode_descriptor descriptor = {
+        CTEX_IMAGE_ENCODE_DESCRIPTOR_CURRENT_SIZE,
+        2,
+        2,
+        4,
+        CTEX_SCALAR_REPRESENTATION_UNSIGNED_NORMALIZED,
+        8,
+        0,
+        CTEX_COLOR_SPACE_SRGB_REC709,
+        format,
+        8,
+        90,
+    };
+    return descriptor;
+}
+
+static int encoded_signature_is_valid(uint32_t format, const unsigned char* bytes, size_t size) {
+    if (format == CTEX_IMAGE_FILE_FORMAT_PNG) {
+        return size > 8 && bytes[0] == 0x89 && bytes[1] == 'P' && bytes[2] == 'N' &&
+               bytes[3] == 'G';
+    }
+    if (format == CTEX_IMAGE_FILE_FORMAT_JPEG) {
+        return size > 4 && bytes[0] == 0xff && bytes[1] == 0xd8 && bytes[size - 2] == 0xff &&
+               bytes[size - 1] == 0xd9;
+    }
+    if (format == CTEX_IMAGE_FILE_FORMAT_TGA) {
+        return size > 18 && (bytes[2] == 2 || bytes[2] == 10) && bytes[16] == 32;
+    }
+    if (format == CTEX_IMAGE_FILE_FORMAT_TIFF) {
+        return size > 8 && bytes[0] == 'I' && bytes[1] == 'I' && bytes[2] == 42 && bytes[3] == 0;
+    }
+    return format == CTEX_IMAGE_FILE_FORMAT_OPENEXR && size > 8 && little_u32(bytes) == 20000630u;
+}
+
+static int encode_supports_every_output_format(void) {
+    static const unsigned char pixels[] = {
+        255, 0, 0, 255, 0, 255, 0, 192, 0, 0, 255, 128, 64, 128, 192, 32,
+    };
+    static const uint32_t formats[] = {
+        CTEX_IMAGE_FILE_FORMAT_PNG,  CTEX_IMAGE_FILE_FORMAT_JPEG,    CTEX_IMAGE_FILE_FORMAT_TGA,
+        CTEX_IMAGE_FILE_FORMAT_TIFF, CTEX_IMAGE_FILE_FORMAT_OPENEXR,
+    };
+    unsigned char encoded[4096];
+    size_t index = 0;
+    for (index = 0; index < sizeof(formats) / sizeof(formats[0]); ++index) {
+        ctex_image_encode_descriptor descriptor = rgba8_descriptor(formats[index]);
+        size_t required_size = 0;
+        if (formats[index] == CTEX_IMAGE_FILE_FORMAT_OPENEXR) {
+            descriptor.output_bit_depth = 16;
+        }
+        if (!expect(ctex_image_encode_memory(pixels, sizeof(pixels), &descriptor, NULL, 0,
+                                             &required_size) == CTEX_RESULT_SUCCESS) ||
+            !expect(required_size > 0 && required_size <= sizeof(encoded)) ||
+            !expect(ctex_image_encode_memory(pixels, sizeof(pixels), &descriptor, encoded,
+                                             sizeof(encoded),
+                                             &required_size) == CTEX_RESULT_SUCCESS) ||
+            !expect(encoded_signature_is_valid(formats[index], encoded, required_size))) {
+            return 0;
+        }
+    }
+    return 1;
+}
+
+static int encode_round_trips_png_and_honours_stride(void) {
+    static const unsigned char padded_pixels[] = {
+        17,  34,  51,  255, 68,  85,  102, 128, 0xee, 0xee, 0xee, 0xee,
+        119, 136, 153, 64,  170, 187, 204, 32,  0xee, 0xee, 0xee, 0xee,
+    };
+    static const unsigned char expected[] = {
+        17, 34, 51, 255, 68, 85, 102, 128, 119, 136, 153, 64, 170, 187, 204, 32,
+    };
+    ctex_image_encode_descriptor descriptor = rgba8_descriptor(CTEX_IMAGE_FILE_FORMAT_PNG);
+    ctex_decoded_image_info info = {.size = CTEX_DECODED_IMAGE_INFO_CURRENT_SIZE};
+    unsigned char encoded[4096];
+    unsigned char decoded[sizeof(expected)];
+    size_t encoded_size = 0;
+    size_t decoded_size = 0;
+    descriptor.row_stride_bytes = 12;
+    return expect(ctex_image_encode_memory(padded_pixels, sizeof(padded_pixels), &descriptor,
+                                           encoded, sizeof(encoded),
+                                           &encoded_size) == CTEX_RESULT_SUCCESS) &&
+           expect(ctex_image_decode_memory(
+                      encoded, encoded_size, "roundtrip.png", CTEX_CHANNEL_SEMANTIC_BASE_COLOR,
+                      CTEX_INPUT_COLOR_SPACE_AUTOMATIC, NULL, &info, decoded, sizeof(decoded),
+                      &decoded_size) == CTEX_RESULT_SUCCESS) &&
+           expect(decoded_size == sizeof(expected) &&
+                  memcmp(decoded, expected, sizeof(expected)) == 0);
+}
+
+static int encode_refuses_invalid_depth_and_small_output(void) {
+    static const unsigned char pixels[] = {1, 2, 3, 4};
+    unsigned char output = 0xa5;
+    size_t required_size = 0;
+    ctex_image_encode_descriptor descriptor = rgba8_descriptor(CTEX_IMAGE_FILE_FORMAT_PNG);
+    descriptor.width = 1;
+    descriptor.height = 1;
+    descriptor.output_bit_depth = 32;
+    if (!expect(ctex_image_encode_memory(pixels, sizeof(pixels), &descriptor, NULL, 0,
+                                         &required_size) == CTEX_RESULT_UNSUPPORTED_OPERATION) ||
+        !expect(ctex_get_last_diagnostic_code() == CTEX_DIAGNOSTIC_UNSUPPORTED_IMAGE_COMBINATION) ||
+        !expect(strstr(ctex_get_last_diagnostic(), "PNG") != NULL &&
+                strstr(ctex_get_last_diagnostic(), "32") != NULL)) {
+        return 0;
+    }
+    descriptor.output_bit_depth = 8;
+    return expect(ctex_image_encode_memory(pixels, sizeof(pixels), &descriptor, &output, 1,
+                                           &required_size) == CTEX_RESULT_BUFFER_TOO_SMALL) &&
+           expect(output == 0xa5 && required_size > 1 &&
+                  ctex_get_last_diagnostic_code() == CTEX_DIAGNOSTIC_BUFFER_TOO_SMALL);
+}
+
+static int encode_honours_jpeg_quality(void) {
+    static const unsigned char pixels[] = {
+        255, 0, 0, 255, 0, 255, 0, 192, 0, 0, 255, 128, 64, 128, 192, 32,
+    };
+    unsigned char low_quality[4096];
+    unsigned char high_quality[4096];
+    size_t low_size = 0;
+    size_t high_size = 0;
+    ctex_image_encode_descriptor descriptor = rgba8_descriptor(CTEX_IMAGE_FILE_FORMAT_JPEG);
+    descriptor.jpeg_quality = 10;
+    if (!expect(ctex_image_encode_memory(pixels, sizeof(pixels), &descriptor, low_quality,
+                                         sizeof(low_quality), &low_size) == CTEX_RESULT_SUCCESS)) {
+        return 0;
+    }
+    descriptor.jpeg_quality = 100;
+    return expect(ctex_image_encode_memory(pixels, sizeof(pixels), &descriptor, high_quality,
+                                           sizeof(high_quality),
+                                           &high_size) == CTEX_RESULT_SUCCESS) &&
+           expect(low_size != high_size || memcmp(low_quality, high_quality, low_size) != 0);
+}
+
 int main(void) {
     return decode_reports_content_and_caller_buffers() && decode_preserves_sixteen_bit_samples() &&
                    decode_honours_color_and_resource_limits() &&
-                   decode_refuses_unsupported_and_truncated_content()
+                   decode_refuses_unsupported_and_truncated_content() &&
+                   encode_supports_every_output_format() &&
+                   encode_round_trips_png_and_honours_stride() &&
+                   encode_refuses_invalid_depth_and_small_output() && encode_honours_jpeg_quality()
                ? 0
                : 1;
 }

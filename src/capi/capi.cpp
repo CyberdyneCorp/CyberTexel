@@ -7,6 +7,7 @@
 #include <cstring>
 #include <ctex/image/color_policy.hpp>
 #include <ctex/io/image_io.hpp>
+#include <ctex/io/texture_encode.hpp>
 #include <exception>
 #include <iterator>
 #include <limits>
@@ -598,6 +599,166 @@ void copy_decoded_pixels(const ctex::image::TiledImage& pixels, void* buffer) {
             std::memcpy(destination + offset, pixel.data(), pixel.size());
             offset += pixel.size();
         }
+    }
+}
+
+ctex::image::PixelFormat encoded_input_format(const ctex_image_encode_descriptor& descriptor) {
+    if (descriptor.channel_count < 1 || descriptor.channel_count > 4) {
+        throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_INVALID_IMAGE_DATA,
+                       "channel_count=" + std::to_string(descriptor.channel_count));
+    }
+    ctex::image::ChannelType type;
+    if (descriptor.scalar_representation == CTEX_SCALAR_REPRESENTATION_UNSIGNED_NORMALIZED &&
+        descriptor.input_bit_depth == 8) {
+        type = ctex::image::ChannelType::uint8_unorm;
+    } else if (descriptor.scalar_representation == CTEX_SCALAR_REPRESENTATION_UNSIGNED_NORMALIZED &&
+               descriptor.input_bit_depth == 16) {
+        type = ctex::image::ChannelType::uint16_unorm;
+    } else if (descriptor.scalar_representation == CTEX_SCALAR_REPRESENTATION_FLOATING_POINT &&
+               descriptor.input_bit_depth == 32) {
+        type = ctex::image::ChannelType::float32;
+    } else {
+        throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_INVALID_IMAGE_DATA,
+                       "input scalar representation and bit depth are incompatible");
+    }
+    return {type, static_cast<std::uint8_t>(descriptor.channel_count)};
+}
+
+ctex::io::ExportImageFormat encoded_output_format(std::uint32_t value) {
+    switch (value) {
+        case CTEX_IMAGE_FILE_FORMAT_PNG:
+            return ctex::io::ExportImageFormat::png;
+        case CTEX_IMAGE_FILE_FORMAT_JPEG:
+            return ctex::io::ExportImageFormat::jpeg;
+        case CTEX_IMAGE_FILE_FORMAT_TGA:
+            return ctex::io::ExportImageFormat::tga;
+        case CTEX_IMAGE_FILE_FORMAT_TIFF:
+            return ctex::io::ExportImageFormat::tiff;
+        case CTEX_IMAGE_FILE_FORMAT_OPENEXR:
+            return ctex::io::ExportImageFormat::openexr;
+    }
+    throw_boundary(CTEX_RESULT_UNSUPPORTED_OPERATION, CTEX_DIAGNOSTIC_UNSUPPORTED_IMAGE_FORMAT,
+                   "output_format=" + std::to_string(value));
+}
+
+ctex::io::ExportBitDepth encoded_output_depth(std::uint32_t value) {
+    switch (value) {
+        case 8:
+            return ctex::io::ExportBitDepth::bits_8;
+        case 16:
+            return ctex::io::ExportBitDepth::bits_16;
+        case 32:
+            return ctex::io::ExportBitDepth::bits_32;
+    }
+    throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_INVALID_IMAGE_DATA,
+                   "output_bit_depth=" + std::to_string(value));
+}
+
+std::size_t encoded_input_size(const ctex_image_encode_descriptor& descriptor,
+                               std::size_t row_bytes) {
+    if (descriptor.height == 0 || descriptor.width == 0) {
+        throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_INVALID_IMAGE_DATA,
+                       "image dimensions must be nonzero");
+    }
+    const std::size_t stride =
+        descriptor.row_stride_bytes == 0 ? row_bytes : descriptor.row_stride_bytes;
+    if (stride < row_bytes) {
+        throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_INVALID_IMAGE_DATA,
+                       "row_stride_bytes is smaller than one pixel row");
+    }
+    const std::size_t preceding_rows = descriptor.height - 1;
+    if (preceding_rows != 0 &&
+        stride > (std::numeric_limits<std::size_t>::max() - row_bytes) / preceding_rows) {
+        throw_boundary(CTEX_RESULT_OVER_BUDGET, CTEX_DIAGNOSTIC_IMAGE_LIMIT_EXCEEDED,
+                       "encoded input byte count overflows the platform size type");
+    }
+    return preceding_rows * stride + row_bytes;
+}
+
+ctex::image::TiledImage copy_encoded_input(const void* pixels,
+                                           const ctex_image_encode_descriptor& descriptor,
+                                           ctex::image::PixelFormat format) {
+    ctex::image::TiledImage image(descriptor.width, descriptor.height, format);
+    const auto* source = static_cast<const std::byte*>(pixels);
+    const std::size_t row_bytes =
+        static_cast<std::size_t>(descriptor.width) * format.bytes_per_pixel();
+    const std::size_t stride =
+        descriptor.row_stride_bytes == 0 ? row_bytes : descriptor.row_stride_bytes;
+    for (std::uint32_t y = 0; y < descriptor.height; ++y) {
+        for (std::uint32_t x = 0; x < descriptor.width; ++x) {
+            const std::size_t offset = static_cast<std::size_t>(y) * stride +
+                                       static_cast<std::size_t>(x) * format.bytes_per_pixel();
+            image.write_pixel(x, y, std::span(source + offset, format.bytes_per_pixel()));
+        }
+    }
+    return image;
+}
+
+[[noreturn]] void throw_texture_encode_error(const ctex::io::TextureEncodeError& error) {
+    switch (error.code()) {
+        case ctex::io::TextureEncodeErrorCode::unsupported_combination:
+            throw_boundary(CTEX_RESULT_UNSUPPORTED_OPERATION,
+                           CTEX_DIAGNOSTIC_UNSUPPORTED_IMAGE_COMBINATION, error.what());
+        case ctex::io::TextureEncodeErrorCode::invalid_option:
+        case ctex::io::TextureEncodeErrorCode::invalid_pixels:
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_INVALID_IMAGE_DATA,
+                           error.what());
+        case ctex::io::TextureEncodeErrorCode::over_limit:
+            throw_boundary(CTEX_RESULT_OVER_BUDGET, CTEX_DIAGNOSTIC_IMAGE_LIMIT_EXCEEDED,
+                           error.what());
+        case ctex::io::TextureEncodeErrorCode::encode_failed:
+            throw_boundary(CTEX_RESULT_INTERNAL_ERROR, CTEX_DIAGNOSTIC_IMAGE_ENCODING_FAILED,
+                           error.what());
+    }
+    throw_boundary(CTEX_RESULT_INTERNAL_ERROR, CTEX_DIAGNOSTIC_UNEXPECTED_EXCEPTION,
+                   "unknown texture encoding failure");
+}
+
+struct PreparedImageEncode {
+    ctex::image::PixelFormat input_format;
+    ctex::io::TextureEncodeOptions options;
+};
+
+PreparedImageEncode prepare_image_encode(const void* pixels, std::size_t pixel_buffer_size,
+                                         const ctex_image_encode_descriptor& descriptor) {
+    const ctex::image::PixelFormat input_format = encoded_input_format(descriptor);
+    const std::size_t row_bytes =
+        static_cast<std::size_t>(descriptor.width) * input_format.bytes_per_pixel();
+    const std::size_t required_input_size = encoded_input_size(descriptor, row_bytes);
+    if (pixels == nullptr) {
+        throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT, "pixels=null");
+    }
+    if (pixel_buffer_size < required_input_size) {
+        throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_INVALID_IMAGE_DATA,
+                       "pixel_buffer_size=" + std::to_string(pixel_buffer_size) +
+                           " required_size=" + std::to_string(required_input_size));
+    }
+    const ctex::io::ExportImageFormat output_format =
+        encoded_output_format(descriptor.output_format);
+    if (output_format == ctex::io::ExportImageFormat::jpeg &&
+        (descriptor.jpeg_quality < 1 || descriptor.jpeg_quality > 100)) {
+        throw_boundary(
+            CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_INVALID_IMAGE_DATA,
+            "jpeg_quality=" + std::to_string(descriptor.jpeg_quality) + " expected_range=1..100");
+    }
+    return {
+        .input_format = input_format,
+        .options =
+            {
+                .format = output_format,
+                .bit_depth = encoded_output_depth(descriptor.output_bit_depth),
+                .color_space = color_space(descriptor.color_space),
+                .jpeg_quality = static_cast<int>(descriptor.jpeg_quality),
+            },
+    };
+}
+
+std::vector<std::byte> encode_capi_image(const ctex::image::TiledImage& image,
+                                         const ctex::io::TextureEncodeOptions& options) {
+    try {
+        return ctex::io::encode_texture_memory(image, options);
+    } catch (const ctex::io::TextureEncodeError& error) {
+        throw_texture_encode_error(error);
     }
 }
 
@@ -1279,6 +1440,32 @@ extern "C" ctex_result ctex_image_decode_memory(
         validate_string_buffer(static_cast<char*>(pixel_buffer), pixel_buffer_size, required_size);
         if (pixel_buffer != nullptr) {
             copy_decoded_pixels(decoded.pixels, pixel_buffer);
+        }
+    });
+}
+
+extern "C" ctex_result ctex_image_encode_memory(const void* pixels, std::size_t pixel_buffer_size,
+                                                const ctex_image_encode_descriptor* descriptor,
+                                                void* encoded_buffer,
+                                                std::size_t encoded_buffer_size,
+                                                std::size_t* out_required_size) {
+    return call_boundary("ctex_image_encode_memory", [&] {
+        if (descriptor == nullptr || out_required_size == nullptr) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                           descriptor == nullptr ? "descriptor=null" : "out_required_size=null");
+        }
+        validate_structure_size(descriptor->size, CTEX_IMAGE_ENCODE_DESCRIPTOR_V1_SIZE,
+                                CTEX_IMAGE_ENCODE_DESCRIPTOR_CURRENT_SIZE, "descriptor.size");
+        const PreparedImageEncode prepared =
+            prepare_image_encode(pixels, pixel_buffer_size, *descriptor);
+        const ctex::image::TiledImage image =
+            copy_encoded_input(pixels, *descriptor, prepared.input_format);
+        const std::vector<std::byte> encoded = encode_capi_image(image, prepared.options);
+        *out_required_size = encoded.size();
+        validate_string_buffer(static_cast<char*>(encoded_buffer), encoded_buffer_size,
+                               encoded.size());
+        if (encoded_buffer != nullptr) {
+            std::memcpy(encoded_buffer, encoded.data(), encoded.size());
         }
     });
 }
