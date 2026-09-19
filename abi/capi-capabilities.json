@@ -59,7 +59,11 @@
       {"requirement": "Mesh limits are declared", "symbols": ["ctex_mesh_create", "ctex_mesh_replace"]}
     ]},
     {"name": "mesh-maps", "kind": "runtime", "requirements": []},
-    {"name": "paint-engine", "kind": "runtime", "requirements": []},
+    {"name": "paint-engine", "kind": "runtime", "requirements": [
+      {"requirement": "Texture-space rasterization", "symbols": ["ctex_paint_evaluate_tile_coverage"]},
+      {"requirement": "Swept coverage", "symbols": ["ctex_paint_evaluate_tile_coverage"]},
+      {"requirement": "Falloff", "symbols": ["ctex_paint_evaluate_tile_coverage"]}
+    ]},
     {"name": "paint-tools", "kind": "runtime", "requirements": []},
     {"name": "picking", "kind": "runtime", "requirements": []},
     {"name": "project-io", "kind": "runtime", "requirements": []},
@@ -76,6 +80,7 @@
       {"requirement": "Stabilizer", "symbols": ["ctex_stroke_settings_init", "ctex_stroke_resolve"]},
       {"requirement": "Constraints", "symbols": ["ctex_stroke_settings_init", "ctex_stroke_resolve"]},
       {"requirement": "Symmetry planes", "symbols": ["ctex_stroke_settings_init", "ctex_stroke_resolve"]},
+      {"requirement": "Externally resolved stamps", "symbols": ["ctex_paint_evaluate_tile_coverage"]},
       {"requirement": "Stroke presets are versioned", "symbols": ["ctex_stroke_preset_serialize", "ctex_stroke_preset_deserialize"]},
       {"requirement": "Continuous and discrete tip modes", "symbols": ["ctex_stroke_settings_init", "ctex_stroke_resolve"]},
       {"requirement": "Input reconstruction limits", "symbols": ["ctex_stroke_resolve"]}

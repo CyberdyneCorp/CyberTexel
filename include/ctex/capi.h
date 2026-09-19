@@ -70,7 +70,9 @@ typedef enum ctex_diagnostic_code {
     CTEX_DIAGNOSTIC_UNSUPPORTED_IMAGE_COMBINATION = 34,
     CTEX_DIAGNOSTIC_IMAGE_ENCODING_FAILED = 35,
     CTEX_DIAGNOSTIC_INVALID_STROKE = 36,
-    CTEX_DIAGNOSTIC_INVALID_STROKE_PRESET = 37
+    CTEX_DIAGNOSTIC_INVALID_STROKE_PRESET = 37,
+    CTEX_DIAGNOSTIC_INVALID_PAINT_COVERAGE = 38,
+    CTEX_DIAGNOSTIC_PAINT_LIMIT_EXCEEDED = 39
 } ctex_diagnostic_code;
 
 typedef enum ctex_log_severity {
@@ -346,6 +348,36 @@ typedef struct ctex_resolved_stroke_info {
 
 #define CTEX_RESOLVED_STROKE_INFO_V1_SIZE ((uint32_t)sizeof(ctex_resolved_stroke_info))
 #define CTEX_RESOLVED_STROKE_INFO_CURRENT_SIZE ((uint32_t)sizeof(ctex_resolved_stroke_info))
+
+typedef struct ctex_resolved_stroke_descriptor {
+    uint32_t size;
+    uint32_t reconstruction_version;
+    uint32_t tip_mode;
+    uint64_t symmetry_instance_count;
+    const ctex_resolved_stamp* stamps;
+    size_t stamp_count;
+    const ctex_swept_segment* swept_segments;
+    size_t swept_segment_count;
+} ctex_resolved_stroke_descriptor;
+
+#define CTEX_RESOLVED_STROKE_DESCRIPTOR_V1_SIZE ((uint32_t)sizeof(ctex_resolved_stroke_descriptor))
+#define CTEX_RESOLVED_STROKE_DESCRIPTOR_CURRENT_SIZE \
+    ((uint32_t)sizeof(ctex_resolved_stroke_descriptor))
+
+#define CTEX_MAX_PAINT_TILE_TEXEL_COUNT ((size_t)1048576)
+
+typedef struct ctex_paint_tile_coverage_descriptor {
+    uint32_t size;
+    const char* uv_set;
+    uint32_t width;
+    uint32_t height;
+    ctex_vec2d tile_origin;
+} ctex_paint_tile_coverage_descriptor;
+
+#define CTEX_PAINT_TILE_COVERAGE_DESCRIPTOR_V1_SIZE \
+    ((uint32_t)sizeof(ctex_paint_tile_coverage_descriptor))
+#define CTEX_PAINT_TILE_COVERAGE_DESCRIPTOR_CURRENT_SIZE \
+    ((uint32_t)sizeof(ctex_paint_tile_coverage_descriptor))
 
 typedef struct ctex_stroke_preset_info {
     uint32_t size;
@@ -726,6 +758,16 @@ CTEX_API ctex_result ctex_stroke_preset_deserialize(
     const char* serialized, size_t serialized_size, ctex_stroke_preset_info* out_info,
     ctex_stroke_settings_descriptor* out_settings,
     const ctex_stroke_preset_buffers_descriptor* buffers);
+
+/*
+ * Rasterizes one bounded UV tile and evaluates geometric stroke coverage.
+ * Resolved stamps are consumed exactly as supplied; spacing, taper and jitter
+ * are not applied again. Use a NULL output with zero capacity to query count.
+ */
+CTEX_API ctex_result ctex_paint_evaluate_tile_coverage(
+    const ctex_mesh* mesh, const ctex_paint_tile_coverage_descriptor* tile,
+    const ctex_resolved_stroke_descriptor* stroke, double* coverage, size_t coverage_capacity,
+    size_t* out_coverage_count);
 
 /*
  * Installs one process-wide sink. Pass NULL to uninstall it. The callback can

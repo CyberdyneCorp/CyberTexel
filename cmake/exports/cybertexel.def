@@ -26,6 +26,7 @@ EXPORTS
     ctex_mesh_get_info
     ctex_mesh_get_uv_set_names
     ctex_mesh_replace
+    ctex_paint_evaluate_tile_coverage
     ctex_quantize_unorm8
     ctex_resolve_input_color_space
     ctex_set_allocator

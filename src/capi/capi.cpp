@@ -9,6 +9,7 @@
 #include <ctex/image/color_policy.hpp>
 #include <ctex/io/image_io.hpp>
 #include <ctex/io/texture_encode.hpp>
+#include <ctex/paint/coverage.hpp>
 #include <ctex/paint/stroke.hpp>
 #include <ctex/paint/stroke_preset.hpp>
 #include <exception>
@@ -1410,6 +1411,113 @@ void validate_preset_buffers(const ctex_stroke_preset_buffers_descriptor& buffer
                           info.required_curve_point_count, "curve_points");
 }
 
+struct PaintMeshData {
+    std::vector<ctex::paint::Vec3d> positions;
+    std::vector<ctex::paint::Vec3d> normals;
+    std::vector<ctex::paint::Vec2d> uv;
+    std::span<const std::uint32_t> triangle_indices;
+
+    [[nodiscard]] ctex::paint::TextureSpaceMeshView view() const noexcept {
+        return {positions, normals, uv, triangle_indices};
+    }
+};
+
+PaintMeshData paint_mesh_data(const ctex_mesh& mesh, const char* uv_set) {
+    if (uv_set == nullptr) {
+        throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                       "tile.uv_set=null");
+    }
+    const auto found = std::ranges::find(mesh.state->uv_views, std::string_view(uv_set),
+                                         &ctex::mesh::UvSetView::name);
+    if (found == mesh.state->uv_views.end()) {
+        throw_boundary(CTEX_RESULT_MISSING_RESOURCE, CTEX_DIAGNOSTIC_MISSING_UV_SET,
+                       "UV set is not present: " + std::string(uv_set));
+    }
+    PaintMeshData result;
+    result.positions.reserve(mesh.state->positions.size());
+    result.normals.reserve(mesh.state->normals.size());
+    result.uv.reserve(found->values.size());
+    std::transform(mesh.state->positions.begin(), mesh.state->positions.end(),
+                   std::back_inserter(result.positions), [](ctex::mesh::Vec3f value) {
+                       return ctex::paint::Vec3d{value.x, value.y, value.z};
+                   });
+    std::transform(
+        mesh.state->normals.begin(), mesh.state->normals.end(), std::back_inserter(result.normals),
+        [](ctex::mesh::Vec3f value) { return ctex::paint::Vec3d{value.x, value.y, value.z}; });
+    std::transform(found->values.begin(), found->values.end(), std::back_inserter(result.uv),
+                   [](ctex::mesh::Vec2f value) { return ctex::paint::Vec2d{value.x, value.y}; });
+    result.triangle_indices = mesh.state->triangle_indices;
+    return result;
+}
+
+ctex::paint::Stamp paint_stamp(const ctex_resolved_stamp& stamp) {
+    if (stamp.tip_resource_identity == nullptr) {
+        throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                       "stroke stamp tip_resource_identity=null");
+    }
+    return {
+        .position = stroke_vec(stamp.position),
+        .frame = stroke_frame(stamp.frame),
+        .radius = stamp.radius,
+        .opacity = stamp.opacity,
+        .hardness = stamp.hardness,
+        .rotation_radians = stamp.rotation_radians,
+        .elongation = stamp.elongation,
+        .flow = stamp.flow,
+        .tip_resource_identity = stamp.tip_resource_identity,
+        .source_ordinal = stamp.source_ordinal,
+        .symmetry_instance = stamp.symmetry_instance,
+        .ordinal = stamp.ordinal,
+    };
+}
+
+ctex::paint::ResolvedStroke paint_stroke(const ctex_resolved_stroke_descriptor& descriptor) {
+    validate_structure_size(descriptor.size, CTEX_RESOLVED_STROKE_DESCRIPTOR_V1_SIZE,
+                            CTEX_RESOLVED_STROKE_DESCRIPTOR_CURRENT_SIZE, "stroke.size");
+    if ((descriptor.stamps == nullptr && descriptor.stamp_count != 0) ||
+        (descriptor.swept_segments == nullptr && descriptor.swept_segment_count != 0)) {
+        throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                       "stroke arrays are null with nonzero counts");
+    }
+    ctex::paint::ResolvedStroke result{
+        .reconstruction_version = descriptor.reconstruction_version,
+        .tip_mode = static_cast<ctex::paint::TipMode>(descriptor.tip_mode),
+        .symmetry_instance_count = descriptor.symmetry_instance_count,
+        .stamps = {},
+        .swept_segments = {},
+    };
+    result.stamps.reserve(descriptor.stamp_count);
+    for (std::size_t index = 0; index < descriptor.stamp_count; ++index) {
+        result.stamps.push_back(paint_stamp(descriptor.stamps[index]));
+    }
+    result.swept_segments.reserve(descriptor.swept_segment_count);
+    for (std::size_t index = 0; index < descriptor.swept_segment_count; ++index) {
+        result.swept_segments.push_back({
+            descriptor.swept_segments[index].start_stamp_ordinal,
+            descriptor.swept_segments[index].end_stamp_ordinal,
+        });
+    }
+    return result;
+}
+
+std::size_t paint_tile_texel_count(const ctex_paint_tile_coverage_descriptor& tile) {
+    validate_structure_size(tile.size, CTEX_PAINT_TILE_COVERAGE_DESCRIPTOR_V1_SIZE,
+                            CTEX_PAINT_TILE_COVERAGE_DESCRIPTOR_CURRENT_SIZE, "tile.size");
+    if (tile.width == 0 || tile.height == 0 ||
+        static_cast<std::size_t>(tile.width) >
+            std::numeric_limits<std::size_t>::max() / tile.height) {
+        throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_INVALID_PAINT_COVERAGE,
+                       "paint tile dimensions are invalid");
+    }
+    const std::size_t count = static_cast<std::size_t>(tile.width) * tile.height;
+    if (count > CTEX_MAX_PAINT_TILE_TEXEL_COUNT) {
+        throw_boundary(CTEX_RESULT_OVER_BUDGET, CTEX_DIAGNOSTIC_PAINT_LIMIT_EXCEEDED,
+                       "paint tile texel_count=" + std::to_string(count) +
+                           " maximum=" + std::to_string(CTEX_MAX_PAINT_TILE_TEXEL_COUNT));
+    }
+    return count;
+}
+
 }  // namespace
 
 void* ctex_host_memory_resource::do_allocate(std::size_t bytes, std::size_t alignment) {
@@ -1991,6 +2099,44 @@ extern "C" ctex_result ctex_stroke_preset_deserialize(
             *out_settings = converted;
         } catch (const ctex::paint::StrokePresetError& error) {
             throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_INVALID_STROKE_PRESET,
+                           error.what());
+        }
+    });
+}
+
+extern "C" ctex_result ctex_paint_evaluate_tile_coverage(
+    const ctex_mesh* mesh, const ctex_paint_tile_coverage_descriptor* tile,
+    const ctex_resolved_stroke_descriptor* stroke, double* coverage, std::size_t coverage_capacity,
+    std::size_t* out_coverage_count) {
+    return call_boundary("ctex_paint_evaluate_tile_coverage", [&] {
+        if (mesh == nullptr || tile == nullptr || stroke == nullptr ||
+            out_coverage_count == nullptr) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                           "mesh, tile, stroke and out_coverage_count are required");
+        }
+        const std::size_t texel_count = paint_tile_texel_count(*tile);
+        *out_coverage_count = texel_count;
+        try {
+            const PaintMeshData converted_mesh = paint_mesh_data(*mesh, tile->uv_set);
+            const ctex::paint::ResolvedStroke converted_stroke = paint_stroke(*stroke);
+            const ctex::paint::TextureSpaceRaster surface = ctex::paint::rasterize_texture_space(
+                converted_mesh.view(), {.width = tile->width,
+                                        .height = tile->height,
+                                        .tile_origin = {tile->tile_origin.x, tile->tile_origin.y}});
+            const ctex::paint::CoverageRaster result =
+                ctex::paint::evaluate_stroke_coverage(surface, converted_stroke);
+            validate_output_array(coverage, coverage_capacity, result.values.size(), "coverage");
+            if (coverage != nullptr) {
+                std::copy(result.values.begin(), result.values.end(), coverage);
+            }
+        } catch (const ctex::paint::StrokeResolutionError& error) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_INVALID_STROKE,
+                           error.what());
+        } catch (const std::invalid_argument& error) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_INVALID_PAINT_COVERAGE,
+                           error.what());
+        } catch (const std::out_of_range& error) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_INVALID_PAINT_COVERAGE,
                            error.what());
         }
     });

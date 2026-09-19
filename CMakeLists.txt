@@ -364,6 +364,10 @@ if(BUILD_TESTING)
         ctex_configure_c_target(ctex_capi_stroke_test)
         target_link_libraries(ctex_capi_stroke_test PRIVATE cybertexel_c)
         add_test(NAME c-abi-stroke-resolution COMMAND ctex_capi_stroke_test)
+        add_executable(ctex_capi_paint_coverage_test tests/capi/paint_coverage_test.c)
+        ctex_configure_c_target(ctex_capi_paint_coverage_test)
+        target_link_libraries(ctex_capi_paint_coverage_test PRIVATE cybertexel_c)
+        add_test(NAME c-abi-paint-coverage COMMAND ctex_capi_paint_coverage_test)
         if(UNIX AND NOT APPLE)
             add_test(
                 NAME c-abi-export-surface
