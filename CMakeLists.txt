@@ -119,7 +119,7 @@ ctex_add_module(
 )
 ctex_add_module(paint DEPENDS doc emit pick)
 ctex_add_module(maps DEPENDS image doc)
-ctex_add_module(xport DEPENDS doc)
+ctex_add_module(xport DEPENDS doc SOURCES src/xport/xport.cpp src/xport/delta.cpp)
 ctex_add_module(io DEPENDS doc image)
 target_link_libraries(ctex_io PRIVATE ctex_lodepng)
 set(
@@ -216,6 +216,14 @@ if(BUILD_TESTING)
         ctex_host_transport_revisions_test PRIVATE ctex_doc ctex_mesh ctex_graph ctex_image
     )
     add_test(NAME host-transport-revisions COMMAND ctex_host_transport_revisions_test)
+
+    add_executable(ctex_host_transport_delta_test tests/xport/delta_test.cpp)
+    ctex_configure_cpp_target(ctex_host_transport_delta_test)
+    target_link_libraries(
+        ctex_host_transport_delta_test
+        PRIVATE ctex_xport ctex_doc ctex_mesh ctex_graph ctex_image
+    )
+    add_test(NAME host-transport-delta COMMAND ctex_host_transport_delta_test)
 
     add_executable(ctex_document_test tests/doc/document_test.cpp)
     ctex_configure_cpp_target(ctex_document_test)

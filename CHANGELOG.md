@@ -27,6 +27,9 @@ Foundation implementation is in progress.
   floating-point formats, with tile dirty tracking.
 - Monotonic content revisions on every enabled channel and logical tile, with
   metadata-only reads and no revision change for byte-identical writes.
+- Complete metadata-only channel delta queries from a caller-held revision,
+  coalescing repeated tile changes while retaining latest revision, generation
+  and residency records.
 - Linear Rec. 709 working-space and sRGB transfer functions with unclamped HDR
   conversion.
 - Native and sanitizer test presets plus a registry-driven determinism gate that

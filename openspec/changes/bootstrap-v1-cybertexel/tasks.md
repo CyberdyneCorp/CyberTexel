@@ -261,7 +261,11 @@ tool, and the enabled Vulkan recipe remains the real-device lifecycle check.
 Task 8.1 adds one monotonic content sequence to each enabled channel and records
 the latest channel sequence on every logical tile. Revision reads are metadata
 only, sparse clear tiles remain allocation-free, and byte-identical writes do
-not advance either value. Delta history and coalescing (8.2) are next.
+not advance either value. Task 8.2 queries from a caller-held revision and
+returns the complete row-major union of newer tile versions, coalesced to each
+tile's latest revision and generation with explicit CPU residency. It moves no
+pixels; stale/reset signaling (8.3) is next, while the change-proportional index
+remains task 8.8.
 
 ## 1. Foundation
 
@@ -367,7 +371,7 @@ not advance either value. Delta history and coalescing (8.2) are next.
 ## 8. Host transport
 
 - [x] 8.1 Channel and per-tile revisions, advancing on change
-- [ ] 8.2 Delta query since a caller-held revision; completeness and coalescing
+- [x] 8.2 Delta query since a caller-held revision; completeness and coalescing
 - [ ] 8.3 Stale-revision detection and the full-resynchronization signal
 - [ ] 8.4 Explicit asynchronous tile readback into caller-owned buffers; no implicit readback on delta queries
 - [ ] 8.5 Declared, stable memory layout; direct-upload test

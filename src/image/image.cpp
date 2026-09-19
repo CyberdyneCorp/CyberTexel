@@ -52,6 +52,7 @@ TiledImage::TiledImage(std::uint32_t width, std::uint32_t height, PixelFormat fo
     tiles_.resize(tile_count);
     dirty_.resize(tile_count, false);
     tile_revisions_.resize(tile_count, 0);
+    tile_generations_.resize(tile_count, 0);
 }
 
 std::size_t TiledImage::resident_pixel_bytes() const noexcept {
@@ -72,6 +73,10 @@ TileExtent TiledImage::tile_extent(TileCoordinate tile) const {
 
 Revision TiledImage::tile_revision(TileCoordinate tile) const {
     return tile_revisions_[tile_index(tile)];
+}
+
+Generation TiledImage::tile_generation(TileCoordinate tile) const {
+    return tile_generations_[tile_index(tile)];
 }
 
 bool TiledImage::is_tile_allocated(TileCoordinate tile) const {
@@ -121,9 +126,13 @@ void TiledImage::write_pixel(std::uint32_t x, std::uint32_t y, std::span<const s
     }
     const TileCoordinate coordinate{x / tile_size_, y / tile_size_};
     const std::size_t index = tile_index(coordinate);
+    if (tile_generations_[index] == std::numeric_limits<Generation>::max()) {
+        throw std::overflow_error("tile generation space is exhausted");
+    }
     auto& tile = allocate_tile(index);
     std::copy(pixel.begin(), pixel.end(), tile.begin() + pixel_offset(x, y));
     ++revision_;
+    ++tile_generations_[index];
     tile_revisions_[index] = revision_;
     dirty_[index] = true;
 }

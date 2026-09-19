@@ -78,6 +78,9 @@ test-document: build
 test-host-transport-revisions: build
     ctest --test-dir build/headless --output-on-failure -R '^host-transport-revisions$'
 
+test-host-transport-delta: build
+    ctest --test-dir build/headless --output-on-failure -R '^host-transport-delta$'
+
 test-mesh: build
     ctest --test-dir build/headless --output-on-failure -R '^mesh-ingest$'
 

@@ -12,6 +12,20 @@ tile. Writing the same value is a no-op, so polling hosts do not observe false
 changes. Other tiles and channels retain their prior revisions.
 
 Revision zero denotes unchanged initial channel content. Exhausting the 64-bit
-sequence refuses the write rather than wrapping to a misleading value. Task 8.2
-builds the coalesced delta history over this sequence; snapshot lifetime,
-residency and asynchronous readback remain separate later transport tasks.
+sequence refuses the write rather than wrapping to a misleading value.
+
+## Delta queries
+
+`query_channel_delta` accepts the channel revision a host last synchronized and
+returns the current revision plus every tile changed after the caller's value.
+Each row-major `TileVersion` carries the tile's latest revision, per-tile
+generation and residency. Repeated changes are coalesced: a tile appears once
+with its newest version, even when many operations touched it. CPU-authored
+channels report `TileResidency::cpu`; the enum reserves `host_device` for
+resident resources integrated by later execution work.
+
+The query reads metadata only and never fetches or allocates pixels. A caller
+revision newer than the channel is rejected. Reset/stale-revision signaling is
+task 8.3; snapshot pinning and readback are later tasks. The current scan is
+linear in the logical tile count, with the change-proportional index scheduled
+for task 8.8.

@@ -11,6 +11,7 @@ namespace ctex::image {
 
 inline constexpr std::uint32_t default_tile_size = 64;
 using Revision = std::uint64_t;
+using Generation = std::uint64_t;
 
 struct TileCoordinate {
     std::uint32_t x;
@@ -43,6 +44,7 @@ public:
 
     [[nodiscard]] TileExtent tile_extent(TileCoordinate tile) const;
     [[nodiscard]] Revision tile_revision(TileCoordinate tile) const;
+    [[nodiscard]] Generation tile_generation(TileCoordinate tile) const;
     [[nodiscard]] bool is_tile_allocated(TileCoordinate tile) const;
     [[nodiscard]] bool is_tile_dirty(TileCoordinate tile) const;
     [[nodiscard]] std::vector<TileCoordinate> dirty_tiles() const;
@@ -69,6 +71,7 @@ private:
     std::vector<bool> dirty_;
     Revision revision_{};
     std::vector<Revision> tile_revisions_;
+    std::vector<Generation> tile_generations_;
 };
 
 }  // namespace ctex::image
