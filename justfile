@@ -123,6 +123,9 @@ test-paint-projection: build
 test-paint-text: build
     ctest --test-dir build/headless --output-on-failure -R '^paint-text$'
 
+test-paint-particle: build
+    ctest --test-dir build/headless --output-on-failure -R '^paint-particle$'
+
 test-paint-rejection: build
     ctest --test-dir build/headless --output-on-failure -R '^paint-rejection$'
 

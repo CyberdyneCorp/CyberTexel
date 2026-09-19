@@ -90,6 +90,9 @@ The current implementation provides:
   The [Text tool](docs/text-tool.md) strictly decodes UTF-8, lays out supplied
   deterministic glyph coverage with tracking and line alignment, and projects
   the result as a size-aware material decal.
+  The [Particle tool](docs/particle-tool.md) runs fixed-step, seeded mesh
+  collision simulation with configurable physical response and deposits its
+  ordered contacts through texture-set-aware canonical paint shading.
 - Sparse tiled image storage for one-to-four-channel 8-bit, 16-bit, and
   floating-point pixels, with tile-level dirty tracking and monotonic channel
   and per-tile [content revisions](docs/host-transport-revisions.md), plus

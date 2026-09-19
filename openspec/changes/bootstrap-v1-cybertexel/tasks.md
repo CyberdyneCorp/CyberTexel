@@ -446,6 +446,15 @@ draw-order dependence. The requested size is surface units per em and expands
 the laid-out raster into a decal frame before canonical masks, optional
 rejection and stroke-start channel blending. Persistent text resource identity,
 save/reopen, invalidation and undo remain scheduled in 20.4.
+Particle (10.8) uses a fixed 120 Hz swept collision simulation against the
+revision-aware mesh spatial index. Count, lifetime, initial speed, mass, gravity,
+friction, restitution and randomness all affect observable contacts, final
+states or impulse-based deposit strength. A library-owned SplitMix64 stream
+makes direction and speed perturbations exactly replayable from the declared
+seed. Ordered contacts map only to matching texture-set, UDIM and triangle
+texels, accumulate by the build-up union formula, and compose canonical masks,
+optional rejection and stroke-start channel blending. Declared particle,
+lifetime and collision limits bound simulation work.
 
 ## 1. Foundation
 
@@ -591,7 +600,7 @@ save/reopen, invalidation and undo remain scheduled in 20.4.
 - [x] 10.5 Decal and Stencil; persistent editable decals through editable-authoring
 - [x] 10.6 Projection, planar and triplanar
 - [x] 10.7 Text with UTF-8 and supplied fonts
-- [ ] 10.8 Particle with deterministic seeding
+- [x] 10.8 Particle with deterministic seeding
 - [ ] 10.9 Picker across every enabled channel
 - [ ] 10.10 Colour ID selection with tolerance and its empty-selection reporting
 - [ ] 10.11 Selection tool: rectangle, lasso, polygon fill; storable as a mask
