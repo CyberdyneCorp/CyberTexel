@@ -197,6 +197,11 @@ if(BUILD_TESTING)
     target_link_libraries(ctex_graph_document_test PRIVATE ctex_graph ctex_image)
     add_test(NAME material-graph-document COMMAND ctex_graph_document_test)
 
+    add_executable(ctex_graph_cycle_test tests/graph/cycle_detection_test.cpp)
+    ctex_configure_cpp_target(ctex_graph_cycle_test)
+    target_link_libraries(ctex_graph_cycle_test PRIVATE ctex_graph ctex_image)
+    add_test(NAME material-graph-cycle-detection COMMAND ctex_graph_cycle_test)
+
     add_executable(ctex_material_graph_output_test tests/doc/material_graph_test.cpp)
     ctex_configure_cpp_target(ctex_material_graph_output_test)
     target_link_libraries(

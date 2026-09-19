@@ -104,6 +104,9 @@ test-picking-scenarios: build
 test-graph-document: build
     ctest --test-dir build/headless --output-on-failure -R '^material-graph-(document|output)$'
 
+test-graph-cycles: build
+    ctest --test-dir build/headless --output-on-failure -R '^material-graph-cycle-detection$'
+
 examples:
     @just _unimplemented examples 16.2
 

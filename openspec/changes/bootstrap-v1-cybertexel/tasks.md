@@ -135,7 +135,11 @@ node identities, ordered socket declarations and stored constants, canonical
 links, deep cloning and comparison, and exact versioned text serialization.
 The document owns exactly one output node; a `doc` adapter derives its ordered
 inputs and defaults from registered channels, including the built-in nine.
-Edit-time cycle detection with path diagnostics (6.2) is next.
+Task 6.2 refuses self-links and links that would close a cycle before mutating
+the document. Its typed diagnostic reports a deterministic closed node-ID path,
+and deserialization independently rejects cyclic input with a linear CSR-backed
+topological pass. Socket coercion and one-link-per-input replacement (6.3) are
+next.
 
 ## 1. Foundation
 
@@ -210,7 +214,7 @@ Edit-time cycle detection with path diagnostics (6.2) is next.
 ## 6. Graph and emission
 
 - [x] 6.1 Graph document: nodes, links, sockets, serialization, comparison
-- [ ] 6.2 Edit-time cycle detection and its diagnostics
+- [x] 6.2 Edit-time cycle detection and its diagnostics
 - [ ] 6.3 Socket typing, coercion rules, one-link-per-input, refusal of non-coercible links
 - [ ] 6.4 Node catalogue: input, texture, colour and filter, vector and math
 - [ ] 6.5 Node groups, socket propagation, recursion refusal

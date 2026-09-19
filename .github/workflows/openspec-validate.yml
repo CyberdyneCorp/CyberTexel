@@ -54,6 +54,8 @@ jobs:
       run: just test-picking-scenarios
     - name: Material graph document
       run: just test-graph-document
+    - name: Material graph cycle detection
+      run: just test-graph-cycles
     - name: Test suite
       run: just test
 

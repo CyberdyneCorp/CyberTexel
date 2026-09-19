@@ -20,8 +20,16 @@ type's user-facing interface.
 
 Socket storage already represents the six specified value domains—scalar,
 vector, colour, string, image reference, and boolean—but task 6.1 only validates
-stored constants. Connection coercion, one-link-per-input replacement, and
-edit-time cycle refusal belong to tasks 6.2 and 6.3.
+stored constants. Connection coercion and one-link-per-input replacement belong
+to task 6.3.
+
+## Cycle refusal
+
+Before adding a link from source to target, the document searches the existing
+graph for a deterministic target-to-source path. If found, `GraphCycleError`
+reports the closed node-ID path and the graph remains byte-identical. Self-links
+are the two-entry path `node -> node`. Deserialization also performs a linear
+topological pass over a flat CSR adjacency layout and rejects cyclic input.
 
 ## Serialization
 

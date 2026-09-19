@@ -7,7 +7,7 @@ decisions taken and questions still open.
 ## Status
 
 Implementation started. 24 capabilities, 332 requirements, 400 scenarios and
-222 tasks, 26 done. Foundation and the complete headless color-management
+222 tasks, 27 done. Foundation and the complete headless color-management
 scenario suite are green. Slice-A now has memory-buffer PNG input/output with
 8/16-bit preservation and hostile-input ceilings; full image-format breadth
 remains scheduled for slice D. Extensible channel descriptors and sparse
@@ -41,6 +41,9 @@ The material graph now has a device-independent document with stable node IDs,
 ordered sockets and links, cloning and structural comparison, and canonical
 versioned serialization. Its single output is derived from registered document
 channels, including all nine metallic/roughness defaults.
+Links that would introduce a directed cycle are now refused atomically with a
+typed, deterministic node-path diagnostic. Cyclic serialized graphs are also
+rejected by a linear topological validation pass.
 
 ## Milestones
 

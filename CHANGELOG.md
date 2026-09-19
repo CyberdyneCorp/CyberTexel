@@ -64,6 +64,8 @@ Foundation implementation is in progress.
 - A device-independent material graph document with stable nodes, sockets and
   links; deep comparison; exact versioned serialization; and channel-derived
   output constants.
+- Edit-time material graph cycle refusal with typed, deterministic path
+  diagnostics and cyclic-input rejection during deserialization.
 
 ### Changed
 

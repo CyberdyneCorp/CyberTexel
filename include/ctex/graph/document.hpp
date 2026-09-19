@@ -3,6 +3,7 @@
 
 #include <cstdint>
 #include <span>
+#include <stdexcept>
 #include <string>
 #include <string_view>
 #include <variant>
@@ -77,6 +78,16 @@ struct GraphLink {
     NodeId target_node;
     std::string target_socket;
     friend bool operator==(const GraphLink&, const GraphLink&) = default;
+};
+
+class GraphCycleError final : public std::invalid_argument {
+public:
+    explicit GraphCycleError(std::vector<NodeId> cycle_path);
+
+    [[nodiscard]] std::span<const NodeId> cycle_path() const noexcept { return cycle_path_; }
+
+private:
+    std::vector<NodeId> cycle_path_;
 };
 
 class GraphDocument {

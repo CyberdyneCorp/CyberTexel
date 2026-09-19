@@ -2,6 +2,7 @@
 #include <cmath>
 #include <ctex/graph/document.hpp>
 #include <limits>
+#include <optional>
 #include <set>
 #include <stdexcept>
 #include <utility>
@@ -102,7 +103,105 @@ const NodeSocket* find_socket(std::span<const NodeSocket> sockets, std::string_v
     return found == sockets.end() ? nullptr : &*found;
 }
 
+std::size_t node_index(std::span<const GraphNode> nodes, NodeId id) {
+    const auto found = std::lower_bound(
+        nodes.begin(), nodes.end(), id,
+        [](const GraphNode& node_value, NodeId sought) { return node_value.id < sought; });
+    return found == nodes.end() || found->id != id
+               ? std::numeric_limits<std::size_t>::max()
+               : static_cast<std::size_t>(found - nodes.begin());
+}
+
+std::optional<std::vector<NodeId>> path_between(std::span<const GraphNode> nodes,
+                                                std::span<const GraphLink> links, NodeId start,
+                                                NodeId target) {
+    if (start == target) {
+        return std::vector<NodeId>{start};
+    }
+    std::vector<NodeId> parent(nodes.size(), 0);
+    std::vector<NodeId> queue;
+    queue.reserve(nodes.size());
+    parent[node_index(nodes, start)] = start;
+    queue.push_back(start);
+    for (std::size_t cursor = 0; cursor < queue.size(); ++cursor) {
+        const NodeId current = queue[cursor];
+        auto link = std::lower_bound(
+            links.begin(), links.end(), current,
+            [](const GraphLink& value, NodeId source) { return value.source_node < source; });
+        for (; link != links.end() && link->source_node == current; ++link) {
+            const std::size_t next_index = node_index(nodes, link->target_node);
+            if (parent[next_index] != 0) {
+                continue;
+            }
+            parent[next_index] = current;
+            queue.push_back(link->target_node);
+            if (link->target_node != target) {
+                continue;
+            }
+            std::vector<NodeId> path{target};
+            while (path.back() != start) {
+                path.push_back(parent[node_index(nodes, path.back())]);
+            }
+            std::reverse(path.begin(), path.end());
+            return path;
+        }
+    }
+    return std::nullopt;
+}
+
+void validate_acyclic(std::span<const GraphNode> nodes, std::span<const GraphLink> links) {
+    std::vector<std::size_t> offsets(nodes.size() + 1, 0);
+    std::vector<std::size_t> incoming(nodes.size(), 0);
+    for (const GraphLink& link : links) {
+        ++offsets[node_index(nodes, link.source_node) + 1];
+        ++incoming[node_index(nodes, link.target_node)];
+    }
+    for (std::size_t index = 1; index < offsets.size(); ++index) {
+        offsets[index] += offsets[index - 1];
+    }
+    std::vector<std::size_t> cursor = offsets;
+    std::vector<std::size_t> adjacency(links.size());
+    for (const GraphLink& link : links) {
+        const std::size_t source = node_index(nodes, link.source_node);
+        adjacency[cursor[source]++] = node_index(nodes, link.target_node);
+    }
+
+    std::vector<std::size_t> queue;
+    queue.reserve(nodes.size());
+    for (std::size_t index = 0; index < nodes.size(); ++index) {
+        if (incoming[index] == 0) {
+            queue.push_back(index);
+        }
+    }
+    for (std::size_t position = 0; position < queue.size(); ++position) {
+        const std::size_t source = queue[position];
+        for (std::size_t adjacent = offsets[source]; adjacent < offsets[source + 1]; ++adjacent) {
+            const std::size_t target_index = adjacency[adjacent];
+            if (--incoming[target_index] == 0) {
+                queue.push_back(target_index);
+            }
+        }
+    }
+    if (queue.size() != nodes.size()) {
+        throw std::invalid_argument("serialized graph contains a directed cycle");
+    }
+}
+
+std::string cycle_message(std::span<const NodeId> path) {
+    std::string result = "graph link would create cycle: ";
+    for (std::size_t index = 0; index < path.size(); ++index) {
+        if (index != 0) {
+            result.append(" -> ");
+        }
+        result.append(std::to_string(path[index]));
+    }
+    return result;
+}
+
 }  // namespace
+
+GraphCycleError::GraphCycleError(std::vector<NodeId> cycle_path)
+    : std::invalid_argument(cycle_message(cycle_path)), cycle_path_(std::move(cycle_path)) {}
 
 GraphDocument::GraphDocument(GraphNode output_node) {
     if (output_node.id != 0 || output_node.role != NodeRole::output) {
@@ -186,6 +285,10 @@ void GraphDocument::add_link(GraphLink link) {
     if (std::find(links_.begin(), links_.end(), link) != links_.end()) {
         throw std::invalid_argument("graph link already exists");
     }
+    if (auto path = path_between(nodes_, links_, link.target_node, link.source_node)) {
+        path->insert(path->begin(), link.source_node);
+        throw GraphCycleError(std::move(*path));
+    }
     links_.push_back(std::move(link));
     std::sort(links_.begin(), links_.end(), link_less);
 }
@@ -249,6 +352,7 @@ void GraphDocument::validate() const {
             throw std::invalid_argument("graph link references a missing socket");
         }
     }
+    validate_acyclic(nodes_, links_);
 }
 
 }  // namespace ctex::graph
