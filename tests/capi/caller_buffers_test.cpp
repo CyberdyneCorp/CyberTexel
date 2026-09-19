@@ -70,6 +70,7 @@ int main() {
     const ctex_result short_result = ctex_document_get_texture_set_ids(
         document, short_buffer.data(), short_buffer.size(), &short_required, nullptr);
     passed = expect(short_result == CTEX_RESULT_BUFFER_TOO_SMALL &&
+                        ctex_get_last_diagnostic_code() == CTEX_DIAGNOSTIC_BUFFER_TOO_SMALL &&
                         short_required == required_size && short_buffer == untouched,
                     "short buffer was not refused atomically with its required size") &&
              passed;
@@ -89,6 +90,7 @@ int main() {
                     "right-sized caller buffer did not receive the complete ordered list") &&
              passed;
     passed = expect(ctex_get_last_result() == CTEX_RESULT_SUCCESS &&
+                        ctex_get_last_diagnostic_code() == CTEX_DIAGNOSTIC_NONE &&
                         std::strcmp(ctex_get_last_diagnostic(), "") == 0,
                     "successful fill did not clear the prior diagnostic") &&
              passed;

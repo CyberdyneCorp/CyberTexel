@@ -325,6 +325,10 @@ if(BUILD_TESTING)
         ctex_configure_cpp_target(ctex_capi_threading_test)
         target_link_libraries(ctex_capi_threading_test PRIVATE cybertexel Threads::Threads)
         add_test(NAME c-abi-two-document-concurrency COMMAND ctex_capi_threading_test)
+        add_executable(ctex_capi_logging_test tests/capi/logging_test.c)
+        ctex_configure_c_target(ctex_capi_logging_test)
+        target_link_libraries(ctex_capi_logging_test PRIVATE cybertexel_c)
+        add_test(NAME c-abi-host-logging COMMAND ctex_capi_logging_test)
         if(UNIX AND NOT APPLE)
             add_test(
                 NAME c-abi-export-surface

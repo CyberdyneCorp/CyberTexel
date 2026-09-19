@@ -68,10 +68,11 @@ The contract is stated per entry-point family:
 | Calls | Contract |
 | --- | --- |
 | `ctex_get_version`, `ctex_get_abi_version` | Process-safe and callable concurrently from any thread |
+| `ctex_set_log_sink` | Process-safe process-wide setting; replacement is atomic, but the host keeps callback user data alive until calls that could have observed the prior sink finish |
 | `ctex_document_create` | Process-safe; each successful call creates independent state |
 | `ctex_document_destroy` | The caller ensures no other call is using that handle; distinct handles may be destroyed concurrently |
 | `ctex_document_create_texture_set`, `ctex_document_get_texture_set_ids` | Calls on distinct document handles are safe concurrently; every call on the same document handle must be externally synchronized, including read-only calls |
-| `ctex_get_last_result`, `ctex_get_last_diagnostic` | Thread-local; concurrent threads never observe or replace one another's diagnostic state |
+| `ctex_get_last_result`, `ctex_get_last_diagnostic_code`, `ctex_get_last_diagnostic` | Thread-local; concurrent threads never observe or replace one another's diagnostic state |
 
 A handle may move between threads while idle. CyberTexel does not attach thread
 affinity to a document, but it does not lock operations on the same document;
@@ -82,10 +83,31 @@ not alter the successful worker's state.
 
 After a failed call, `ctex_get_last_result` returns the same result and
 `ctex_get_last_diagnostic` returns an English message naming the operation and
-the offending value. Diagnostic state belongs to the calling thread. The
-message is owned by CyberTexel, requires no caller allocation, and remains valid
-until the next fallible C entry point on that thread. A successful fallible call
-clears the diagnostic.
+the offending value. `ctex_get_last_diagnostic_code` returns a stable
+`ctex_diagnostic_code` for localization and program logic; hosts must not parse
+the English prose. Existing code names and numeric values remain fixed within an
+ABI major, and new codes are appended. Diagnostic state belongs to the calling
+thread. The message is owned by CyberTexel, requires no caller allocation, and
+remains valid until the next fallible C entry point on that thread. A successful
+fallible call clears the result, code, and message.
+
+## Host logging
+
+`ctex_set_log_sink` installs one process-wide callback using a versioned
+`ctex_log_sink_descriptor`. Passing a null descriptor uninstalls it. The
+descriptor atomically pairs the callback, opaque user-data pointer, and minimum
+`ctex_log_severity`; messages below that threshold are discarded. C API
+failures are sent at error severity in the `capi.diagnostic` category after the
+thread-local result, stable code, and English message have been populated.
+
+The sink may be called concurrently from the thread entering the library or
+from a library worker thread, so it must be thread-safe. It may inspect the
+thread-local diagnostic getters and may replace the sink reentrantly. The host
+must keep a replaced sink's user data valid until calls that could already have
+observed it finish. Exceptions thrown by a C++ callback are contained at the
+boundary and never change the operation result. Without an installed sink,
+CyberTexel emits no log output to standard output, standard error, or another
+implicit destination.
 
 The Linux export surface is constrained by `cmake/exports/cybertexel.map`, macOS
 uses `cybertexel.exports`, and Windows uses `cybertexel.def`. The

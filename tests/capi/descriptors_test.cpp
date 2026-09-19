@@ -68,10 +68,12 @@ int main() {
     const std::size_t before_refusal = document->value.texture_set_count();
     const ctex_result future_result = ctex_document_create_texture_set(document, &future);
     const std::string future_diagnostic = ctex_get_last_diagnostic();
-    passed = expect(future_result == CTEX_RESULT_INVALID_ARGUMENT &&
-                        document->value.texture_set_count() == before_refusal,
-                    "implausibly large descriptor mutated the document") &&
-             passed;
+    passed =
+        expect(future_result == CTEX_RESULT_INVALID_ARGUMENT &&
+                   ctex_get_last_diagnostic_code() == CTEX_DIAGNOSTIC_INVALID_DESCRIPTOR_SIZE &&
+                   document->value.texture_set_count() == before_refusal,
+               "implausibly large descriptor mutated the document") &&
+        passed;
     passed = expect(future_diagnostic.find(std::to_string(future.size)) != std::string::npos &&
                         future_diagnostic.find(std::to_string(
                             CTEX_TEXTURE_SET_DESCRIPTOR_CURRENT_SIZE)) != std::string::npos,
@@ -80,11 +82,13 @@ int main() {
 
     ctex_texture_set_descriptor truncated = descriptor("Truncated", "truncated", 8);
     truncated.size = CTEX_TEXTURE_SET_DESCRIPTOR_V1_SIZE - 1;
-    passed = expect(ctex_document_create_texture_set(document, &truncated) ==
-                            CTEX_RESULT_INVALID_ARGUMENT &&
-                        document->value.texture_set_count() == before_refusal,
-                    "truncated descriptor was accepted or mutated the document") &&
-             passed;
+    passed =
+        expect(ctex_document_create_texture_set(document, &truncated) ==
+                       CTEX_RESULT_INVALID_ARGUMENT &&
+                   ctex_get_last_diagnostic_code() == CTEX_DIAGNOSTIC_INVALID_DESCRIPTOR_SIZE &&
+                   document->value.texture_set_count() == before_refusal,
+               "truncated descriptor was accepted or mutated the document") &&
+        passed;
 
     ctex_document_destroy(document);
     return passed ? 0 : 1;

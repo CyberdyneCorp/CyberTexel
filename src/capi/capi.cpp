@@ -5,6 +5,7 @@
 #include <cstring>
 #include <exception>
 #include <limits>
+#include <mutex>
 #include <new>
 #include <stdexcept>
 #include <string>
@@ -17,28 +18,61 @@ namespace {
 
 struct DiagnosticState {
     ctex_result result{CTEX_RESULT_SUCCESS};
+    ctex_diagnostic_code code{CTEX_DIAGNOSTIC_NONE};
     char message[1024]{};
 };
 
 thread_local DiagnosticState last_diagnostic;
 
+struct LogSinkState {
+    ctex_log_callback callback{};
+    void* user_data{};
+    ctex_log_severity minimum_severity{CTEX_LOG_SEVERITY_INFO};
+};
+
+std::mutex log_sink_mutex;
+LogSinkState log_sink;
+
 class BoundaryError final : public std::runtime_error {
 public:
-    BoundaryError(ctex_result result, std::string message)
-        : std::runtime_error(std::move(message)), result_(result) {}
+    BoundaryError(ctex_result result, ctex_diagnostic_code code, std::string message)
+        : std::runtime_error(std::move(message)), result_(result), code_(code) {}
 
     [[nodiscard]] ctex_result result() const noexcept { return result_; }
+    [[nodiscard]] ctex_diagnostic_code code() const noexcept { return code_; }
 
 private:
     ctex_result result_;
+    ctex_diagnostic_code code_;
 };
 
 void clear_diagnostic() noexcept { last_diagnostic = {}; }
 
-void set_diagnostic(ctex_result result, const char* operation, const char* detail) noexcept {
+void emit_log(ctex_log_severity severity, const char* category, const char* message) noexcept {
+    LogSinkState sink;
+    {
+        const std::scoped_lock lock(log_sink_mutex);
+        sink = log_sink;
+    }
+    if (sink.callback == nullptr || severity < sink.minimum_severity) {
+        return;
+    }
+    const DiagnosticState saved_diagnostic = last_diagnostic;
+    try {
+        sink.callback(severity, category, message, sink.user_data);
+    } catch (...) {
+        // A host callback cannot be allowed to throw through the C boundary.
+    }
+    last_diagnostic = saved_diagnostic;
+}
+
+void set_diagnostic(ctex_result result, ctex_diagnostic_code code, const char* operation,
+                    const char* detail) noexcept {
     last_diagnostic.result = result;
+    last_diagnostic.code = code;
     static_cast<void>(std::snprintf(last_diagnostic.message, sizeof(last_diagnostic.message),
                                     "%s: %s", operation, detail));
+    emit_log(CTEX_LOG_SEVERITY_ERROR, "capi.diagnostic", last_diagnostic.message);
 }
 
 template <typename Operation>
@@ -48,21 +82,64 @@ ctex_result call_boundary(const char* name, Operation&& operation) noexcept {
         operation();
         return CTEX_RESULT_SUCCESS;
     } catch (const BoundaryError& error) {
-        set_diagnostic(error.result(), name, error.what());
+        set_diagnostic(error.result(), error.code(), name, error.what());
         return error.result();
     } catch (const std::invalid_argument& error) {
-        set_diagnostic(CTEX_RESULT_INVALID_ARGUMENT, name, error.what());
+        set_diagnostic(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_INVALID_DESCRIPTOR_VALUE, name,
+                       error.what());
         return CTEX_RESULT_INVALID_ARGUMENT;
     } catch (const std::bad_alloc&) {
-        set_diagnostic(CTEX_RESULT_OUT_OF_MEMORY, name, "allocation failed");
+        set_diagnostic(CTEX_RESULT_OUT_OF_MEMORY, CTEX_DIAGNOSTIC_ALLOCATION_FAILED, name,
+                       "allocation failed");
         return CTEX_RESULT_OUT_OF_MEMORY;
     } catch (const std::exception& error) {
-        set_diagnostic(CTEX_RESULT_INTERNAL_ERROR, name, error.what());
+        set_diagnostic(CTEX_RESULT_INTERNAL_ERROR, CTEX_DIAGNOSTIC_UNEXPECTED_EXCEPTION, name,
+                       error.what());
         return CTEX_RESULT_INTERNAL_ERROR;
     } catch (...) {
-        set_diagnostic(CTEX_RESULT_INTERNAL_ERROR, name, "unknown internal failure");
+        set_diagnostic(CTEX_RESULT_INTERNAL_ERROR, CTEX_DIAGNOSTIC_UNEXPECTED_EXCEPTION, name,
+                       "unknown internal failure");
         return CTEX_RESULT_INTERNAL_ERROR;
     }
+}
+
+[[noreturn]] void throw_boundary(ctex_result result, ctex_diagnostic_code code,
+                                 std::string message) {
+    throw BoundaryError(result, code, std::move(message));
+}
+
+ctex_log_severity log_severity(std::uint32_t severity) {
+    if (severity > CTEX_LOG_SEVERITY_FATAL) {
+        throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_INVALID_ENUM_VALUE,
+                       "minimum_severity=" + std::to_string(severity));
+    }
+    return static_cast<ctex_log_severity>(severity);
+}
+
+void install_log_sink(const ctex_log_sink_descriptor* descriptor) {
+    LogSinkState next;
+    if (descriptor != nullptr) {
+        if (descriptor->size < CTEX_LOG_SINK_DESCRIPTOR_V1_SIZE) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_INVALID_DESCRIPTOR_SIZE,
+                           "descriptor.size=" + std::to_string(descriptor->size) +
+                               " minimum_size=" + std::to_string(CTEX_LOG_SINK_DESCRIPTOR_V1_SIZE));
+        }
+        if (descriptor->size > CTEX_LOG_SINK_DESCRIPTOR_CURRENT_SIZE) {
+            throw_boundary(
+                CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_INVALID_DESCRIPTOR_SIZE,
+                "descriptor.size=" + std::to_string(descriptor->size) +
+                    " library_size=" + std::to_string(CTEX_LOG_SINK_DESCRIPTOR_CURRENT_SIZE));
+        }
+        if (descriptor->callback == nullptr) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                           "descriptor.callback=null");
+        }
+        next = {.callback = descriptor->callback,
+                .user_data = descriptor->user_data,
+                .minimum_severity = log_severity(descriptor->minimum_severity)};
+    }
+    const std::scoped_lock lock(log_sink_mutex);
+    log_sink = next;
 }
 
 std::size_t texture_set_id_buffer_size(const std::vector<std::string>& identifiers) {
@@ -91,19 +168,20 @@ ctex::doc::PartitionSourceKind partition_source_kind(std::uint32_t kind) {
         case CTEX_PARTITION_SOURCE_EXPLICIT_FACES:
             return ctex::doc::PartitionSourceKind::explicit_faces;
     }
-    throw std::invalid_argument("partition_kind=" + std::to_string(kind));
+    throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_INVALID_ENUM_VALUE,
+                   "partition_kind=" + std::to_string(kind));
 }
 
 void validate_descriptor_size(const ctex_texture_set_descriptor& descriptor) {
     if (descriptor.size < CTEX_TEXTURE_SET_DESCRIPTOR_V1_SIZE) {
-        throw std::invalid_argument(
-            "descriptor.size=" + std::to_string(descriptor.size) +
-            " minimum_size=" + std::to_string(CTEX_TEXTURE_SET_DESCRIPTOR_V1_SIZE));
+        throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_INVALID_DESCRIPTOR_SIZE,
+                       "descriptor.size=" + std::to_string(descriptor.size) +
+                           " minimum_size=" + std::to_string(CTEX_TEXTURE_SET_DESCRIPTOR_V1_SIZE));
     }
     if (descriptor.size > CTEX_TEXTURE_SET_DESCRIPTOR_CURRENT_SIZE) {
-        throw std::invalid_argument(
-            "descriptor.size=" + std::to_string(descriptor.size) +
-            " library_size=" + std::to_string(CTEX_TEXTURE_SET_DESCRIPTOR_CURRENT_SIZE));
+        throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_INVALID_DESCRIPTOR_SIZE,
+                       "descriptor.size=" + std::to_string(descriptor.size) + " library_size=" +
+                           std::to_string(CTEX_TEXTURE_SET_DESCRIPTOR_CURRENT_SIZE));
     }
 }
 
@@ -111,19 +189,45 @@ ctex::doc::TextureSetDescriptor texture_set_descriptor(
     const ctex_texture_set_descriptor& descriptor) {
     validate_descriptor_size(descriptor);
     if (descriptor.display_name == nullptr) {
-        throw std::invalid_argument("descriptor.display_name=null");
+        throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                       "descriptor.display_name=null");
     }
     if (descriptor.partition_key == nullptr) {
-        throw std::invalid_argument("descriptor.partition_key=null");
+        throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                       "descriptor.partition_key=null");
     }
     if (descriptor.uv_set == nullptr) {
-        throw std::invalid_argument("descriptor.uv_set=null");
+        throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                       "descriptor.uv_set=null");
+    }
+    if (descriptor.display_name[0] == '\0') {
+        throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_EMPTY_TEXTURE_SET_DISPLAY_NAME,
+                       "descriptor.display_name is empty");
+    }
+    if (descriptor.partition_key[0] == '\0') {
+        throw_boundary(CTEX_RESULT_INVALID_ARGUMENT,
+                       CTEX_DIAGNOSTIC_EMPTY_TEXTURE_SET_PARTITION_KEY,
+                       "descriptor.partition_key is empty");
+    }
+    if (descriptor.uv_set[0] == '\0') {
+        throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_EMPTY_TEXTURE_SET_UV_SET,
+                       "descriptor.uv_set is empty");
+    }
+    if (descriptor.width == 0 || descriptor.height == 0) {
+        throw_boundary(
+            CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_INVALID_TEXTURE_SET_RESOLUTION,
+            "descriptor resolution must be non-zero: width=" + std::to_string(descriptor.width) +
+                " height=" + std::to_string(descriptor.height));
     }
     std::uint8_t bit_depth = 8;
     constexpr std::size_t bit_depth_end = offsetof(ctex_texture_set_descriptor, default_bit_depth) +
                                           sizeof(ctex_texture_set_descriptor::default_bit_depth);
     if (descriptor.size >= bit_depth_end) {
         bit_depth = descriptor.default_bit_depth;
+    }
+    if (bit_depth != 8 && bit_depth != 16 && bit_depth != 32) {
+        throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_INVALID_TEXTURE_SET_BIT_DEPTH,
+                       "descriptor.default_bit_depth=" + std::to_string(bit_depth));
     }
     return {.display_name = descriptor.display_name,
             .partition_kind = partition_source_kind(descriptor.partition_kind),
@@ -147,10 +251,15 @@ extern "C" ctex_version ctex_get_version(void) {
 
 extern "C" ctex_version ctex_get_abi_version(void) { return ctex_get_version(); }
 
+extern "C" ctex_result ctex_set_log_sink(const ctex_log_sink_descriptor* descriptor) {
+    return call_boundary("ctex_set_log_sink", [descriptor] { install_log_sink(descriptor); });
+}
+
 extern "C" ctex_result ctex_document_create(ctex_document** out_document) {
     return call_boundary("ctex_document_create", [out_document] {
         if (out_document == nullptr) {
-            throw std::invalid_argument("out_document=null");
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                           "out_document=null");
         }
         *out_document = nullptr;
         *out_document = new ctex_document{};
@@ -163,12 +272,20 @@ extern "C" ctex_result ctex_document_create_texture_set(
     ctex_document* document, const ctex_texture_set_descriptor* descriptor) {
     return call_boundary("ctex_document_create_texture_set", [&] {
         if (document == nullptr) {
-            throw std::invalid_argument("document=null");
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                           "document=null");
         }
         if (descriptor == nullptr) {
-            throw std::invalid_argument("descriptor=null");
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                           "descriptor=null");
         }
-        static_cast<void>(document->value.create_texture_set(texture_set_descriptor(*descriptor)));
+        ctex::doc::TextureSetDescriptor converted = texture_set_descriptor(*descriptor);
+        const std::string stable_id = ctex::doc::texture_set_stable_id(converted);
+        if (document->value.contains_texture_set(stable_id)) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_DUPLICATE_TEXTURE_SET,
+                           "texture-set identity is already present: " + stable_id);
+        }
+        static_cast<void>(document->value.create_texture_set(std::move(converted)));
     });
 }
 
@@ -178,13 +295,16 @@ extern "C" ctex_result ctex_document_get_texture_set_ids(const ctex_document* do
                                                          std::size_t* out_count) {
     return call_boundary("ctex_document_get_texture_set_ids", [&] {
         if (document == nullptr) {
-            throw std::invalid_argument("document=null");
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                           "document=null");
         }
         if (out_required_size == nullptr) {
-            throw std::invalid_argument("out_required_size=null");
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                           "out_required_size=null");
         }
         if (buffer == nullptr && buffer_size != 0) {
-            throw std::invalid_argument("buffer=null with nonzero buffer_size");
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                           "buffer=null with nonzero buffer_size");
         }
 
         const std::vector<std::string> identifiers = document->value.texture_set_ids();
@@ -197,9 +317,9 @@ extern "C" ctex_result ctex_document_get_texture_set_ids(const ctex_document* do
             return;
         }
         if (buffer_size < required_size) {
-            throw BoundaryError(CTEX_RESULT_BUFFER_TOO_SMALL,
-                                "buffer_size=" + std::to_string(buffer_size) +
-                                    " required_size=" + std::to_string(required_size));
+            throw_boundary(CTEX_RESULT_BUFFER_TOO_SMALL, CTEX_DIAGNOSTIC_BUFFER_TOO_SMALL,
+                           "buffer_size=" + std::to_string(buffer_size) +
+                               " required_size=" + std::to_string(required_size));
         }
 
         std::size_t offset = 0;
@@ -212,5 +332,7 @@ extern "C" ctex_result ctex_document_get_texture_set_ids(const ctex_document* do
 }
 
 extern "C" ctex_result ctex_get_last_result(void) { return last_diagnostic.result; }
+
+extern "C" ctex_diagnostic_code ctex_get_last_diagnostic_code(void) { return last_diagnostic.code; }
 
 extern "C" const char* ctex_get_last_diagnostic(void) { return last_diagnostic.message; }

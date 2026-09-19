@@ -200,6 +200,8 @@ The current implementation provides:
   public header is compiled by a strict C11 consumer test. Its documented
   threading contract permits concurrent work on distinct documents, requires
   caller serialization per shared handle, and keeps diagnostics thread-local.
+  A silent-by-default host log sink provides severity/category routing and
+  stable diagnostic codes alongside English messages for host localization.
 - An isolated [Kong shader compiler context](docs/kong-backend.md) that compiles
   Kong source deterministically to WGSL, MSL, binary SPIR-V, or HLSL, supports
   concurrent independent targets, and reports unsupported requests explicitly.

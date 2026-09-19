@@ -4,6 +4,8 @@ EXPORTS
     ctex_document_destroy
     ctex_document_get_texture_set_ids
     ctex_get_abi_version
+    ctex_get_last_diagnostic_code
     ctex_get_last_diagnostic
     ctex_get_last_result
     ctex_get_version
+    ctex_set_log_sink

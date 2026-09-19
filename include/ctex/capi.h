@@ -32,6 +32,45 @@ typedef enum ctex_result {
     CTEX_RESULT_BUFFER_TOO_SMALL = 8
 } ctex_result;
 
+typedef enum ctex_diagnostic_code {
+    CTEX_DIAGNOSTIC_NONE = 0,
+    CTEX_DIAGNOSTIC_NULL_ARGUMENT = 1,
+    CTEX_DIAGNOSTIC_INVALID_DESCRIPTOR_SIZE = 2,
+    CTEX_DIAGNOSTIC_INVALID_ENUM_VALUE = 3,
+    CTEX_DIAGNOSTIC_INVALID_DESCRIPTOR_VALUE = 4,
+    CTEX_DIAGNOSTIC_BUFFER_TOO_SMALL = 5,
+    CTEX_DIAGNOSTIC_ALLOCATION_FAILED = 6,
+    CTEX_DIAGNOSTIC_UNEXPECTED_EXCEPTION = 7,
+    CTEX_DIAGNOSTIC_EMPTY_TEXTURE_SET_DISPLAY_NAME = 8,
+    CTEX_DIAGNOSTIC_EMPTY_TEXTURE_SET_PARTITION_KEY = 9,
+    CTEX_DIAGNOSTIC_EMPTY_TEXTURE_SET_UV_SET = 10,
+    CTEX_DIAGNOSTIC_INVALID_TEXTURE_SET_RESOLUTION = 11,
+    CTEX_DIAGNOSTIC_INVALID_TEXTURE_SET_BIT_DEPTH = 12,
+    CTEX_DIAGNOSTIC_DUPLICATE_TEXTURE_SET = 13
+} ctex_diagnostic_code;
+
+typedef enum ctex_log_severity {
+    CTEX_LOG_SEVERITY_TRACE = 0,
+    CTEX_LOG_SEVERITY_DEBUG = 1,
+    CTEX_LOG_SEVERITY_INFO = 2,
+    CTEX_LOG_SEVERITY_WARNING = 3,
+    CTEX_LOG_SEVERITY_ERROR = 4,
+    CTEX_LOG_SEVERITY_FATAL = 5
+} ctex_log_severity;
+
+typedef void (*ctex_log_callback)(ctex_log_severity severity, const char* category,
+                                  const char* message, void* user_data);
+
+typedef struct ctex_log_sink_descriptor {
+    uint32_t size;
+    ctex_log_callback callback;
+    void* user_data;
+    uint32_t minimum_severity;
+} ctex_log_sink_descriptor;
+
+#define CTEX_LOG_SINK_DESCRIPTOR_V1_SIZE ((uint32_t)sizeof(ctex_log_sink_descriptor))
+#define CTEX_LOG_SINK_DESCRIPTOR_CURRENT_SIZE ((uint32_t)sizeof(ctex_log_sink_descriptor))
+
 typedef struct ctex_document ctex_document;
 
 typedef enum ctex_partition_source_kind {
@@ -66,6 +105,15 @@ typedef struct ctex_version {
 CTEX_API ctex_version ctex_get_version(void);
 CTEX_API ctex_version ctex_get_abi_version(void);
 
+/*
+ * Installs one process-wide sink. Pass NULL to uninstall it. The callback can
+ * be invoked concurrently from calling or library worker threads and must not
+ * throw across the C boundary. The host keeps user_data valid until all calls
+ * that could have observed the sink finish. CyberTexel never writes logs to a
+ * stream.
+ */
+CTEX_API ctex_result ctex_set_log_sink(const ctex_log_sink_descriptor* descriptor);
+
 CTEX_API ctex_result ctex_document_create(ctex_document** out_document);
 CTEX_API void ctex_document_destroy(ctex_document* document);
 CTEX_API ctex_result ctex_document_create_texture_set(
@@ -78,8 +126,10 @@ CTEX_API ctex_result ctex_document_get_texture_set_ids(const ctex_document* docu
 /*
  * Diagnostics are local to the calling thread. The returned pointer is owned by
  * CyberTexel and remains valid until the next fallible C API call on that thread.
+ * Diagnostic-code names and numeric values are stable within an ABI major.
  */
 CTEX_API ctex_result ctex_get_last_result(void);
+CTEX_API ctex_diagnostic_code ctex_get_last_diagnostic_code(void);
 CTEX_API const char* ctex_get_last_diagnostic(void);
 
 #ifdef __cplusplus

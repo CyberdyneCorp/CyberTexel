@@ -34,6 +34,7 @@ int main(void) {
         return 2;
     }
     if (ctex_get_last_result() != CTEX_RESULT_SUCCESS ||
+        ctex_get_last_diagnostic_code() != CTEX_DIAGNOSTIC_NONE ||
         strcmp(ctex_get_last_diagnostic(), "") != 0) {
         return 3;
     }
@@ -42,7 +43,8 @@ int main(void) {
     if (ctex_document_create(NULL) != CTEX_RESULT_INVALID_ARGUMENT) {
         return 4;
     }
-    if (ctex_get_last_result() != CTEX_RESULT_INVALID_ARGUMENT) {
+    if (ctex_get_last_result() != CTEX_RESULT_INVALID_ARGUMENT ||
+        ctex_get_last_diagnostic_code() != CTEX_DIAGNOSTIC_NULL_ARGUMENT) {
         return 5;
     }
     if (strstr(ctex_get_last_diagnostic(), "ctex_document_create") == NULL ||

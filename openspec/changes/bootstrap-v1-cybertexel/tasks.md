@@ -647,8 +647,11 @@ contract (14.5) now documents every entry-point family: distinct documents are
 safe concurrently, one document requires external synchronization, and
 diagnostics are thread-local. A synchronized-start fixture creates and enumerates
 256 texture sets on each of two documents and proves that one worker's failure
-does not change the other's state. Host logging and stable diagnostic codes
-(14.6) are next.
+does not change the other's state. Host logging (14.6) now provides an atomic,
+process-wide callback/user-data/severity configuration, stays silent by default,
+and routes C failures by category without leaking callback exceptions. Every
+failure also exposes an append-only machine-readable diagnostic code alongside
+English prose. Host allocator callbacks (14.7) are next.
 
 ## 1. Foundation
 
@@ -851,7 +854,7 @@ does not change the other's state. Host logging and stable diagnostic codes
 - [x] 14.3 Versioned descriptors and the implausible-size refusal
 - [x] 14.4 ABI version query, stability rules, symbol and descriptor diff gate
 - [x] 14.5 Threading contract documentation and the two-document concurrency test
-- [ ] 14.6 Host log sink and the English-plus-codes diagnostic rule
+- [x] 14.6 Host log sink and the English-plus-codes diagnostic rule
 - [ ] 14.7 Host allocator callbacks
 - [ ] 14.8 Full-surface coverage gate
 - [ ] 14.9 Python binding, numpy-native, typed exceptions, wheel packaging
