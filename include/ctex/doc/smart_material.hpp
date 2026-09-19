@@ -6,6 +6,7 @@
 #include <ctex/graph/document.hpp>
 #include <ctex/image/pixel_format.hpp>
 #include <optional>
+#include <span>
 #include <stdexcept>
 #include <string>
 #include <string_view>
@@ -13,7 +14,7 @@
 
 namespace ctex::doc {
 
-inline constexpr std::uint32_t current_smart_material_schema_version = 3;
+inline constexpr std::uint32_t current_smart_material_schema_version = 4;
 
 enum class SmartMaterialEntryKind : std::uint8_t { layer, group, mask, filter, generator };
 enum class SmartMaterialContentKind : std::uint8_t { derived, model_specific };
@@ -66,12 +67,23 @@ struct ExposedSmartMaterialParameter {
                            const ExposedSmartMaterialParameter&) = default;
 };
 
+struct SmartMaterialAnchorReference {
+    std::string anchor_entry_identifier;
+    std::string consumer_entry_identifier;
+    graph::NodeId consumer_node_id{};
+    std::string consumer_input_identifier;
+    friend bool operator==(const SmartMaterialAnchorReference&,
+                           const SmartMaterialAnchorReference&) = default;
+};
+
 struct SmartMaterialPreset {
     std::uint32_t schema_version{current_smart_material_schema_version};
     std::string identifier;
     std::string display_name;
     std::vector<SmartMaterialEntry> stack;
     std::vector<ExposedSmartMaterialParameter> exposed_parameters;
+    std::vector<std::string> anchor_entries;
+    std::vector<SmartMaterialAnchorReference> anchor_references;
     friend bool operator==(const SmartMaterialPreset&, const SmartMaterialPreset&) = default;
 };
 
@@ -104,12 +116,21 @@ struct SmartMaterialParameterUpdate {
                            const SmartMaterialParameterUpdate&) = default;
 };
 
+struct SmartMaterialAnchorEvaluationPlan {
+    std::vector<std::string> entry_identifiers;
+    friend bool operator==(const SmartMaterialAnchorEvaluationPlan&,
+                           const SmartMaterialAnchorEvaluationPlan&) = default;
+};
+
 enum class SmartMaterialErrorCode : std::uint8_t {
     invalid_preset,
     invalid_parameter_value,
     malformed_serialization,
     unknown_parameter,
     unsupported_version,
+    invalid_anchor_reference,
+    anchor_ordering_violation,
+    anchor_cycle,
 };
 
 class SmartMaterialError final : public std::invalid_argument {
@@ -126,6 +147,15 @@ void validate_smart_material(const SmartMaterialPreset& preset);
     const SmartMaterialPreset& preset);
 [[nodiscard]] SmartMaterialParameterUpdate set_smart_material_parameter_value(
     SmartMaterialPreset& preset, std::string_view parameter_identifier, graph::SocketValue value);
+void set_smart_material_anchor(SmartMaterialPreset& preset, std::string_view entry_identifier,
+                               bool marked);
+void add_smart_material_anchor_reference(SmartMaterialPreset& preset,
+                                         SmartMaterialAnchorReference reference);
+[[nodiscard]] SmartMaterialAnchorEvaluationPlan plan_smart_material_anchor_evaluation(
+    const SmartMaterialPreset& preset, std::span<const std::string_view> changed_anchor_entries);
+
+// Public so validation can be composed by smart-material containers.
+void validate_smart_material_anchors(const SmartMaterialPreset& preset);
 
 // Canonical, versioned, device-independent representation. Stack order is
 // retained because it is part of the material's compositing semantics.

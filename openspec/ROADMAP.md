@@ -98,8 +98,11 @@ pixels and appear in an inspectable content report. Exposed parameter binding
 now targets stable graph inputs and properties across many entries, with typed,
 ranged, atomic updates and inert-target refusal. Derived-only smart masks now
 instantiate on layers or groups with deep-copied graphs, origin metadata and
-independent typed parameter state. Anchor ordering, cycle refusal and bounded
-dependency evaluation (13.5) are the next roadmap item.
+independent typed parameter state. Layers and masks can now expose their
+composited output as graph-input anchors. References are persisted canonically,
+must point upward, reject inert targets and cycles with typed diagnostics, and
+produce a dependency-ordered plan containing only affected consumers. Portable
+resource resolution and self-contained packaging (13.6) are next.
 
 ## Milestones
 

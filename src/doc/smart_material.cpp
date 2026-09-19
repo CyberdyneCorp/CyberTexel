@@ -473,6 +473,17 @@ void append_binding(std::string& output, const ExposedSmartMaterialParameter& pa
     output += "\t" + encode_bytes(binding.target_identifier) + "\n";
 }
 
+void append_anchor(std::string& output, std::string_view entry_identifier) {
+    output += "ANCHOR\t" + encode_bytes(entry_identifier) + "\n";
+}
+
+void append_anchor_reference(std::string& output, const SmartMaterialAnchorReference& reference) {
+    output += "ANCHOR_REF\t" + encode_bytes(reference.anchor_entry_identifier);
+    output += "\t" + encode_bytes(reference.consumer_entry_identifier);
+    output += "\t" + std::to_string(reference.consumer_node_id);
+    output += "\t" + encode_bytes(reference.consumer_input_identifier) + "\n";
+}
+
 std::uint32_t parse_envelope(std::span<const std::string_view> records) {
     if (records.size() < 5 || !records.back().empty() || records[records.size() - 2] != "END") {
         malformed("smart material has a malformed envelope");
@@ -499,7 +510,9 @@ SmartMaterialPreset parse_preset_record(std::string_view record, std::uint32_t v
             .identifier = decode_bytes(fields[1]),
             .display_name = decode_bytes(fields[2]),
             .stack = {},
-            .exposed_parameters = {}};
+            .exposed_parameters = {},
+            .anchor_entries = {},
+            .anchor_references = {}};
 }
 
 SmartMaterialEntry parse_entry_record(std::span<const std::string_view> fields) {
@@ -574,19 +587,52 @@ ParsedBinding parse_binding_record(std::span<const std::string_view> fields) {
                         .target_identifier = decode_bytes(fields[5])}};
 }
 
+SmartMaterialAnchorReference parse_anchor_reference_record(
+    std::span<const std::string_view> fields) {
+    if (fields.size() != 5 || fields[0] != "ANCHOR_REF") {
+        malformed("smart material contains a malformed anchor reference record");
+    }
+    return {.anchor_entry_identifier = decode_bytes(fields[1]),
+            .consumer_entry_identifier = decode_bytes(fields[2]),
+            .consumer_node_id =
+                parse_decimal<graph::NodeId>(fields[3], "anchor consumer node identity"),
+            .consumer_input_identifier = decode_bytes(fields[4])};
+}
+
+bool append_parsed_anchor_record(SmartMaterialPreset& preset,
+                                 std::span<const std::string_view> fields,
+                                 bool& saw_anchor_reference, bool saw_parameter) {
+    if (!fields.empty() && fields[0] == "ANCHOR" && fields.size() == 2 && !saw_anchor_reference &&
+        !saw_parameter) {
+        preset.anchor_entries.push_back(decode_bytes(fields[1]));
+        return true;
+    }
+    if (!fields.empty() && fields[0] == "ANCHOR_REF" && !saw_parameter) {
+        saw_anchor_reference = true;
+        preset.anchor_references.push_back(parse_anchor_reference_record(fields));
+        return true;
+    }
+    return false;
+}
+
 void append_parsed_record(SmartMaterialPreset& preset, std::string_view record,
-                          bool& saw_parameter) {
+                          bool& saw_anchor_reference, bool& saw_parameter) {
     const std::vector<std::string_view> fields = split(record, '\t');
-    if (!fields.empty() && fields[0] == "ENTRY" && !saw_parameter) {
+    if (!fields.empty() && fields[0] == "ENTRY" && !saw_anchor_reference && !saw_parameter &&
+        preset.anchor_entries.empty()) {
         preset.stack.push_back(parse_entry_record(fields));
         return;
     }
-    if (!fields.empty() && fields[0] == "PIXELS" && !saw_parameter && !preset.stack.empty()) {
+    if (!fields.empty() && fields[0] == "PIXELS" && !saw_anchor_reference && !saw_parameter &&
+        preset.anchor_entries.empty() && !preset.stack.empty()) {
         ParsedPixelPayload parsed = parse_pixel_record(fields);
         if (parsed.entry_identifier != preset.stack.back().identifier) {
             malformed("smart material pixel record does not follow its owning entry");
         }
         preset.stack.back().pixel_payloads.push_back(std::move(parsed.payload));
+        return;
+    }
+    if (append_parsed_anchor_record(preset, fields, saw_anchor_reference, saw_parameter)) {
         return;
     }
     if (!fields.empty() && fields[0] == "PARAM") {
@@ -698,6 +744,7 @@ void validate_smart_material(const SmartMaterialPreset& preset) {
             }
         }
     }
+    validate_smart_material_anchors(preset);
 }
 
 SmartMaterialContentReport report_smart_material_content(const SmartMaterialPreset& preset) {
@@ -768,6 +815,12 @@ std::string serialize_smart_material(const SmartMaterialPreset& preset) {
             append_pixels(output, entry, payload);
         }
     }
+    for (const std::string& anchor : preset.anchor_entries) {
+        append_anchor(output, anchor);
+    }
+    for (const SmartMaterialAnchorReference& reference : preset.anchor_references) {
+        append_anchor_reference(output, reference);
+    }
     for (const ExposedSmartMaterialParameter& parameter : preset.exposed_parameters) {
         append_parameter(output, parameter);
         for (const SmartMaterialParameterBinding& binding : parameter.bindings) {
@@ -782,9 +835,10 @@ SmartMaterialPreset deserialize_smart_material(std::string_view serialized) {
     const std::vector<std::string_view> records = split(serialized, '\n');
     const std::uint32_t version = parse_envelope(records);
     SmartMaterialPreset result = parse_preset_record(records[1], version);
+    bool saw_anchor_reference = false;
     bool saw_parameter = false;
     for (std::size_t index = 2; index + 2 < records.size(); ++index) {
-        append_parsed_record(result, records[index], saw_parameter);
+        append_parsed_record(result, records[index], saw_anchor_reference, saw_parameter);
     }
     validate_deserialized(result);
     return result;

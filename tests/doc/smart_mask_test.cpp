@@ -87,7 +87,9 @@ SmartMaskPreset mask_preset() {
                                           {.entry_identifier = "generator",
                                            .node_id = 1,
                                            .target_kind = SmartMaterialBindingTargetKind::property,
-                                           .target_identifier = "strength"}}}}},
+                                           .target_identifier = "strength"}}}},
+                       .anchor_entries = {},
+                       .anchor_references = {}},
     };
 }
 

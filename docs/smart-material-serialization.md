@@ -65,9 +65,29 @@ wrong-type and out-of-range updates leave the preset byte-identical. The
 declared default remains the reset value; per-instance parameter state arrives
 through independent [smart-mask instances](smart-masks.md).
 
+## Anchor points
+
+A layer or mask can be listed in `anchor_entries`, making its composited output
+available to later stack entries. Each `SmartMaterialAnchorReference` binds one
+anchor to a concrete image input in a consuming layer's graph. The input must
+exist, remain unlinked, and cannot also be controlled by an exposed parameter;
+these checks prevent an accepted reference from being inert.
+
+Stack order runs from lower to upper entries. A consumer must therefore occur
+after its anchor. References that point downward are refused with
+`anchor_ordering_violation`. References form a directed dependency graph, and a
+reference that closes a cycle is refused atomically with `anchor_cycle` and the
+complete cycle path in its diagnostic.
+
+`plan_smart_material_anchor_evaluation()` accepts the identities of anchors
+whose composited output changed. It walks transitive dependencies and returns
+only affected consumers, in stack order. Because valid dependencies always
+point upward, this is also dependency order. Unrelated layers are excluded, so
+an anchor edit does not force whole-material evaluation.
+
 ## Canonical format
 
-`serialize_smart_material()` writes `CTEX_SMART_MATERIAL` schema 3. Text and
+`serialize_smart_material()` writes `CTEX_SMART_MATERIAL` schema 4. Text and
 embedded graph and pixel bytes are hexadecimal, so tabs, line breaks, arbitrary
 UTF-8 and binary pixels cannot alter record boundaries. Floating-point values
 use their exact IEEE bit patterns. Re-serializing a successfully decoded preset
@@ -76,7 +96,7 @@ therefore returns the same bytes.
 `deserialize_smart_material()` rejects malformed envelopes, records appearing
 out of canonical order, invalid embedded graphs and unsupported schema
 versions. Schema migration and documented defaults for older versions belong
-to task 13.8; schema 3 is the only accepted version at this stage. Schema 1 was
-the definition-only precursor and schema 2 added content classification and
-pixels. Both are intentionally refused until that migration is implemented
-rather than being partially interpreted.
+to task 13.8; schema 4 is the only accepted version at this stage. Schema 1 was
+the definition-only precursor, schema 2 added content classification and pixels,
+and schema 3 added parameter bindings. All are intentionally refused until that
+migration is implemented rather than being partially interpreted.

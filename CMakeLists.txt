@@ -136,6 +136,7 @@ ctex_add_module(
         src/doc/material_graph.cpp
         src/doc/smart_mask.cpp
         src/doc/smart_material.cpp
+        src/doc/smart_material_anchors.cpp
 )
 ctex_add_module(
     paint

@@ -1,7 +1,9 @@
 #include <algorithm>
+#include <array>
 #include <ctex/doc/smart_material.hpp>
 #include <iostream>
 #include <limits>
+#include <string>
 #include <string_view>
 
 namespace {
@@ -27,6 +29,20 @@ bool expect_error(Callable&& callable, SmartMaterialErrorCode code, std::string_
     return expect(false, message);
 }
 
+template <typename Callable>
+bool expect_error_text(Callable&& callable, SmartMaterialErrorCode code, std::string_view text,
+                       std::string_view message) {
+    try {
+        callable();
+    } catch (const SmartMaterialError& error) {
+        return expect(error.code() == code &&
+                          std::string_view(error.what()).find(text) != std::string_view::npos,
+                      message);
+    } catch (...) {
+    }
+    return expect(false, message);
+}
+
 graph::GraphDocument graph_fixture(std::string name) {
     return graph::GraphDocument({.role = graph::NodeRole::output,
                                  .type_id = "ctex.output.smart-material",
@@ -44,7 +60,11 @@ graph::GraphDocument graph_fixture(std::string name) {
                                             {.identifier = "enabled",
                                              .display_name = "Enabled",
                                              .type = graph::SocketType::boolean,
-                                             .value = true}},
+                                             .value = true},
+                                            {.identifier = "anchor",
+                                             .display_name = "Anchor",
+                                             .type = graph::SocketType::image,
+                                             .value = graph::ImageValue{}}},
                                  .outputs = {},
                                  .properties = {{.key = "strength", .value = 0.4}}});
 }
@@ -99,6 +119,15 @@ SmartMaterialPreset rich_preset() {
                  .enabled = true,
                  .opacity = 0.6,
                  .graph = graph_fixture("Generator graph"),
+                 .content_kind = SmartMaterialContentKind::derived,
+                 .pixel_payloads = {}},
+                {.identifier = "top-coat",
+                 .parent_identifier = "surface",
+                 .display_name = "Top coat",
+                 .kind = SmartMaterialEntryKind::layer,
+                 .enabled = true,
+                 .opacity = 1.0,
+                 .graph = graph_fixture("Top coat graph"),
                  .content_kind = SmartMaterialContentKind::derived,
                  .pixel_payloads = {}},
                 {.identifier = "paint-mask",
@@ -160,6 +189,11 @@ SmartMaterialPreset rich_preset() {
                                .target_kind = SmartMaterialBindingTargetKind::input,
                                .target_identifier = "enabled"}}},
             },
+        .anchor_entries = {"base"},
+        .anchor_references = {{.anchor_entry_identifier = "base",
+                               .consumer_entry_identifier = "top-coat",
+                               .consumer_node_id = 1,
+                               .consumer_input_identifier = "anchor"}},
     };
 }
 
@@ -228,7 +262,7 @@ bool complete_fragment_round_trips_canonically() {
     return expect(restored == source, "smart material stack and parameters did not round-trip") &&
            expect(serialize_smart_material(restored) == serialized,
                   "smart material serialization is not canonical") &&
-           expect(restored.stack.size() == 6 && restored.stack[2].graph.has_value() &&
+           expect(restored.stack.size() == 7 && restored.stack[2].graph.has_value() &&
                       restored.exposed_parameters.size() == 3 &&
                       restored.exposed_parameters.front().bindings.size() == 3,
                   "smart material omitted an entry kind, graph, or exposed parameter") &&
@@ -239,7 +273,7 @@ bool complete_fragment_round_trips_canonically() {
 bool mixed_content_is_classified_and_reported() {
     const SmartMaterialPreset source = rich_preset();
     const SmartMaterialContentReport report = report_smart_material_content(source);
-    return expect(report.entries.size() == 6 && report.derived_entry_count == 5,
+    return expect(report.entries.size() == 7 && report.derived_entry_count == 6,
                   "derived smart material entries were not reported") &&
            expect(report.contains_model_specific_content() &&
                       report.model_specific_entry_count == 1 &&
@@ -330,9 +364,16 @@ bool invalid_fragments_are_refused() {
         expect_error([&] { static_cast<void>(serialize_smart_material(linked_target)); },
                      SmartMaterialErrorCode::invalid_preset,
                      "smart material accepted an inert binding to a linked graph input");
+
+    SmartMaterialPreset non_layer_consumer = rich_preset();
+    non_layer_consumer.anchor_references.front().consumer_entry_identifier = "wear-mask";
+    const bool non_layer_consumer_refused =
+        expect_error([&] { static_cast<void>(serialize_smart_material(non_layer_consumer)); },
+                     SmartMaterialErrorCode::invalid_anchor_reference,
+                     "smart material accepted an anchor reference from a non-layer consumer");
     return duplicate_refused && parent_refused && type_refused && range_refused &&
            derived_pixels_refused && pixel_size_refused && duplicate_binding_refused &&
-           missing_target_refused && linked_target_refused &&
+           missing_target_refused && linked_target_refused && non_layer_consumer_refused &&
            expect(link.coercion == graph::SocketCoercion::identity,
                   "linked-binding refusal fixture did not create its graph link");
 }
@@ -340,7 +381,7 @@ bool invalid_fragments_are_refused() {
 bool malformed_and_future_serializations_are_refused() {
     const std::string valid = serialize_smart_material(rich_preset());
     std::string future = valid;
-    future.replace(0, std::string_view("CTEX_SMART_MATERIAL\t3").size(), "CTEX_SMART_MATERIAL\t4");
+    future.replace(0, std::string_view("CTEX_SMART_MATERIAL\t4").size(), "CTEX_SMART_MATERIAL\t5");
     const bool future_refused = expect_error(
         [&] { static_cast<void>(deserialize_smart_material(future)); },
         SmartMaterialErrorCode::unsupported_version, "future smart material version was accepted");
@@ -359,6 +400,85 @@ bool malformed_and_future_serializations_are_refused() {
                         "non-finite smart material metadata was accepted");
 }
 
+bool anchor_ordering_and_cycles_are_refused_atomically() {
+    SmartMaterialPreset backward = rich_preset();
+    set_smart_material_anchor(backward, "paint-mask", true);
+    const std::string before_backward = serialize_smart_material(backward);
+    const bool ordering_refused = expect_error_text(
+        [&] {
+            add_smart_material_anchor_reference(backward, {.anchor_entry_identifier = "paint-mask",
+                                                           .consumer_entry_identifier = "base",
+                                                           .consumer_node_id = 1,
+                                                           .consumer_input_identifier = "anchor"});
+        },
+        SmartMaterialErrorCode::anchor_ordering_violation, "ordering rule",
+        "reference from below an anchor did not name the ordering rule");
+
+    SmartMaterialPreset cyclic = rich_preset();
+    set_smart_material_anchor(cyclic, "top-coat", true);
+    const std::string before_cycle = serialize_smart_material(cyclic);
+    const bool cycle_refused = expect_error_text(
+        [&] {
+            add_smart_material_anchor_reference(cyclic, {.anchor_entry_identifier = "top-coat",
+                                                         .consumer_entry_identifier = "base",
+                                                         .consumer_node_id = 1,
+                                                         .consumer_input_identifier = "anchor"});
+        },
+        SmartMaterialErrorCode::anchor_cycle, "base -> top-coat -> base",
+        "mutual anchor reference did not report its cycle path");
+    return ordering_refused && cycle_refused &&
+           expect(serialize_smart_material(backward) == before_backward,
+                  "refused backward anchor reference changed the preset") &&
+           expect(serialize_smart_material(cyclic) == before_cycle,
+                  "refused cyclic anchor reference changed the preset");
+}
+
+SmartMaterialPreset twenty_layer_anchor_fixture() {
+    SmartMaterialPreset preset{.schema_version = current_smart_material_schema_version,
+                               .identifier = "materials/bounded-anchor",
+                               .display_name = "Bounded anchor",
+                               .stack = {},
+                               .exposed_parameters = {},
+                               .anchor_entries = {"layer-0", "layer-3"},
+                               .anchor_references = {}};
+    for (std::size_t index = 0; index < 20; ++index) {
+        preset.stack.push_back({.identifier = "layer-" + std::to_string(index),
+                                .parent_identifier = {},
+                                .display_name = "Layer " + std::to_string(index),
+                                .kind = SmartMaterialEntryKind::layer,
+                                .enabled = true,
+                                .opacity = 1.0,
+                                .graph = graph_fixture("Layer graph"),
+                                .content_kind = SmartMaterialContentKind::derived,
+                                .pixel_payloads = {}});
+    }
+    preset.anchor_references = {
+        {.anchor_entry_identifier = "layer-0",
+         .consumer_entry_identifier = "layer-3",
+         .consumer_node_id = 1,
+         .consumer_input_identifier = "anchor"},
+        {.anchor_entry_identifier = "layer-3",
+         .consumer_entry_identifier = "layer-7",
+         .consumer_node_id = 1,
+         .consumer_input_identifier = "anchor"},
+        {.anchor_entry_identifier = "layer-0",
+         .consumer_entry_identifier = "layer-11",
+         .consumer_node_id = 1,
+         .consumer_input_identifier = "anchor"},
+    };
+    return preset;
+}
+
+bool anchor_updates_are_dependency_ordered_and_bounded() {
+    const SmartMaterialPreset preset = twenty_layer_anchor_fixture();
+    const std::array changed{std::string_view{"layer-0"}};
+    const SmartMaterialAnchorEvaluationPlan plan =
+        plan_smart_material_anchor_evaluation(preset, changed);
+    return expect(
+        plan.entry_identifiers == std::vector<std::string>{"layer-3", "layer-7", "layer-11"},
+        "anchor update did not return only affected layers in dependency order");
+}
+
 }  // namespace
 
 int main() {
@@ -366,7 +486,9 @@ int main() {
                    mixed_content_is_classified_and_reported() &&
                    one_parameter_updates_every_bound_entry() &&
                    invalid_parameter_updates_are_atomic() && invalid_fragments_are_refused() &&
-                   malformed_and_future_serializations_are_refused()
+                   malformed_and_future_serializations_are_refused() &&
+                   anchor_ordering_and_cycles_are_refused_atomically() &&
+                   anchor_updates_are_dependency_ordered_and_bounded()
                ? 0
                : 1;
 }
