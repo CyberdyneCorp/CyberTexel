@@ -9,7 +9,7 @@
 
 namespace ctex::graph {
 
-enum class NodeCategory : std::uint8_t { input, texture, colour_filter, vector_math };
+enum class NodeCategory : std::uint8_t { input, texture, colour_filter, vector_math, host };
 
 struct NodePropertyDeclaration {
     std::string identifier;

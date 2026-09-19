@@ -157,8 +157,13 @@ creation. Task 6.6 validates graphs without invoking emission and returns
 deterministic structured diagnostics for unconnected required inputs, unavailable
 image resources and mesh maps, missing group definitions, and unreachable nodes.
 Workspace reports retain material/group ownership; reverse-CSR reachability is
-linear in nodes plus links. Host-registered node semantics and unknown-node
-preservation (6.7) are next.
+linear in nodes plus links. Task 6.7 adds instance-owned registries for versioned
+host node declarations with checked CPU and target-specific emission callbacks,
+determinism/resource/target metadata, pinned-input replay eligibility, and
+reusable parity fixtures. Registry-aware validation names missing versions,
+stale interfaces and unsupported targets; unknown node content round-trips
+opaquely without callback execution. Kong vendoring and context isolation (6.8)
+are next.
 
 ## 1. Foundation
 
@@ -238,7 +243,7 @@ preservation (6.7) are next.
 - [x] 6.4 Node catalogue: input, texture, colour and filter, vector and math
 - [x] 6.5 Node groups, socket propagation, recursion refusal
 - [x] 6.6 Graph validation independent of emission
-- [ ] 6.7 Host-registered node types with CPU and emission semantics, replay eligibility and parity fixtures; opaque preservation of unknown types
+- [x] 6.7 Host-registered node types with CPU and emission semantics, replay eligibility and parity fixtures; opaque preservation of unknown types
 - [ ] 6.8 Vendor Kong under `thirdparty/`, wrap its global state in a context object, attribute it
 - [ ] 6.9 Emission: result naming, group qualification, single-emission fan-out
 - [ ] 6.10 Pass plan: logical resource generations, subresource access, dependencies, lifetimes, bindings, layouts, draw/dispatch and state

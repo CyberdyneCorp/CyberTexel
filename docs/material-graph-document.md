@@ -67,3 +67,5 @@ Reusable subgraphs, transactional interface propagation, and recursion refusal
 are documented in [material node groups](material-node-groups.md).
 Structured resource, required-input, and reachability checks are documented in
 [material graph validation](material-graph-validation.md).
+Versioned extension callbacks, opaque unknown-node preservation, replay rules,
+and parity fixtures are documented in [host-registered nodes](host-node-types.md).

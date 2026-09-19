@@ -5,6 +5,7 @@
 #include <cstdint>
 #include <ctex/graph/document.hpp>
 #include <ctex/graph/groups.hpp>
+#include <ctex/graph/host_nodes.hpp>
 #include <string>
 #include <vector>
 
@@ -16,6 +17,9 @@ enum class GraphDiagnosticCode : std::uint8_t {
     missing_mesh_map,
     missing_image_resource,
     missing_group,
+    missing_node_type,
+    incompatible_node_interface,
+    unsupported_emission_target,
     unreachable_node,
 };
 
@@ -64,8 +68,15 @@ struct WorkspaceValidationReport {
 
 [[nodiscard]] GraphValidationReport validate_graph(const GraphDocument& graph,
                                                    const GraphValidationResources& resources = {});
+[[nodiscard]] GraphValidationReport validate_graph(const GraphDocument& graph,
+                                                   const NodeTypeRegistry& registry,
+                                                   EmissionTarget target,
+                                                   const GraphValidationResources& resources = {});
 [[nodiscard]] WorkspaceValidationReport validate_workspace(
     const GraphWorkspace& workspace, const GraphValidationResources& resources = {});
+[[nodiscard]] WorkspaceValidationReport validate_workspace(
+    const GraphWorkspace& workspace, const NodeTypeRegistry& registry, EmissionTarget target,
+    const GraphValidationResources& resources = {});
 
 }  // namespace ctex::graph
 

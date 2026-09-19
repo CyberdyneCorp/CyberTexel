@@ -119,6 +119,9 @@ test-graph-groups: build
 test-graph-validation: build
     ctest --test-dir build/headless --output-on-failure -R '^material-graph-validation$'
 
+test-graph-host-nodes: build
+    ctest --test-dir build/headless --output-on-failure -R '^material-graph-host-nodes$'
+
 examples:
     @just _unimplemented examples 16.2
 

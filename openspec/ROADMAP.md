@@ -7,7 +7,7 @@ decisions taken and questions still open.
 ## Status
 
 Implementation started. 24 capabilities, 332 requirements, 400 scenarios and
-222 tasks, 31 done. Foundation and the complete headless color-management
+222 tasks, 32 done. Foundation and the complete headless color-management
 scenario suite are green. Slice-A now has memory-buffer PNG input/output with
 8/16-bit preservation and hostile-input ceilings; full image-format breadth
 remains scheduled for slice D. Extensible channel descriptors and sparse
@@ -57,6 +57,10 @@ the complete cycle before mutation.
 Material graphs and workspaces now validate independently of emission, returning
 owned structured diagnostics for required inputs, missing resources/groups and
 unreachable nodes through a linear reverse-reachability pass.
+Hosts can register versioned material node declarations in isolated registries
+with checked CPU and per-target emission callbacks. Registrations declare
+determinism, resource dependencies, targets and parity fixtures; unknown types
+round-trip opaquely while registry-aware validation marks them non-emittable.
 
 ## Milestones
 

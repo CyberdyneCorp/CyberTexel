@@ -14,6 +14,9 @@ the first failure.
 | `missing_mesh_map` | Error | A Mesh Map node names a map absent from the validation resources. |
 | `missing_image_resource` | Error | An image-valued socket or property names an unavailable resource. |
 | `missing_group` | Error | A workspace group instance names no owned group definition. |
+| `missing_node_type` | Error | A regular node's exact type and version are not registered. |
+| `incompatible_node_interface` | Error | A node's stored socket/property schema differs from its registration. |
+| `unsupported_emission_target` | Error | A host node does not support the requested shader target. |
 | `unreachable_node` | Warning | No directed path carries the node's result to the graph output. |
 
 Each `GraphDiagnostic` includes its severity and code, node ID and type, a
@@ -49,3 +52,7 @@ evaluation. A node is reachable when any directed path carries it to the output.
 group-instance references, and wraps each graph diagnostic with the owning kind
 and stable identifier. This keeps identically numbered nodes in different
 materials unambiguous.
+
+The overloads taking a `NodeTypeRegistry` and `EmissionTarget` also perform
+[host-node semantic validation](host-node-types.md). The resource-only overloads
+remain useful while editing without an installed plugin set.

@@ -56,7 +56,9 @@ The current implementation provides:
   [node groups](docs/material-node-groups.md) propagate interface changes and
   refuse recursive placement. Emission-independent
   [graph validation](docs/material-graph-validation.md) reports required inputs,
-  missing resources, missing groups, and unreachable nodes.
+  missing resources, missing groups, and unreachable nodes. Versioned
+  [host node types](docs/host-node-types.md) provide checked CPU/emission
+  callbacks, replay eligibility, parity fixtures, and lossless opaque fallback.
 - Strict C++20 builds, sanitizer coverage, OpenSpec validation, dependency
   layering checks, licence auditing, and deterministic-output gates.
 

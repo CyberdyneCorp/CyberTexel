@@ -192,6 +192,29 @@ void add_missing_groups(GraphValidationReport& report, const GraphWorkspace& wor
     std::sort(report.diagnostics.begin(), report.diagnostics.end(), diagnostic_less);
 }
 
+GraphDiagnosticCode diagnostic_code(NodeSemanticIssueCode code) {
+    switch (code) {
+        case NodeSemanticIssueCode::missing_type:
+            return GraphDiagnosticCode::missing_node_type;
+        case NodeSemanticIssueCode::incompatible_interface:
+            return GraphDiagnosticCode::incompatible_node_interface;
+        case NodeSemanticIssueCode::unsupported_target:
+            return GraphDiagnosticCode::unsupported_emission_target;
+    }
+    return GraphDiagnosticCode::missing_node_type;
+}
+
+void add_semantic_issues(GraphValidationReport& report, const GraphDocument& graph,
+                         const NodeTypeRegistry& registry, EmissionTarget target) {
+    for (const NodeSemanticIssue& issue : inspect_graph_semantics(graph, registry, target).issues) {
+        report.diagnostics.push_back({GraphDiagnosticSeverity::error, diagnostic_code(issue.code),
+                                      issue.node_id, issue.type_id,
+                                      issue.type_id + "@" + std::to_string(issue.type_version),
+                                      issue.message});
+    }
+    std::sort(report.diagnostics.begin(), report.diagnostics.end(), diagnostic_less);
+}
+
 void append_owned_diagnostics(WorkspaceValidationReport& destination, GraphOwnerKind owner_kind,
                               std::string_view owner_identifier, GraphValidationReport source) {
     for (GraphDiagnostic& diagnostic : source.diagnostics) {
@@ -257,6 +280,14 @@ GraphValidationReport validate_graph(const GraphDocument& graph,
     return report;
 }
 
+GraphValidationReport validate_graph(const GraphDocument& graph, const NodeTypeRegistry& registry,
+                                     EmissionTarget target,
+                                     const GraphValidationResources& resources) {
+    GraphValidationReport report = validate_graph(graph, resources);
+    add_semantic_issues(report, graph, registry, target);
+    return report;
+}
+
 WorkspaceValidationReport validate_workspace(const GraphWorkspace& workspace,
                                              const GraphValidationResources& resources) {
     WorkspaceValidationReport report;
@@ -268,6 +299,29 @@ WorkspaceValidationReport validate_workspace(const GraphWorkspace& workspace,
     }
     for (const NodeGroupDefinition& group : workspace.groups()) {
         GraphValidationReport graph_report = validate_graph(group.graph, resources);
+        add_missing_groups(graph_report, workspace, group.graph);
+        append_owned_diagnostics(report, GraphOwnerKind::group, group.identifier,
+                                 std::move(graph_report));
+    }
+    std::sort(report.diagnostics.begin(), report.diagnostics.end(), owned_diagnostic_less);
+    return report;
+}
+
+WorkspaceValidationReport validate_workspace(const GraphWorkspace& workspace,
+                                             const NodeTypeRegistry& registry,
+                                             EmissionTarget target,
+                                             const GraphValidationResources& resources) {
+    WorkspaceValidationReport report;
+    for (const OwnedGraph& material : workspace.materials()) {
+        GraphValidationReport graph_report =
+            validate_graph(material.graph, registry, target, resources);
+        add_missing_groups(graph_report, workspace, material.graph);
+        append_owned_diagnostics(report, GraphOwnerKind::material, material.identifier,
+                                 std::move(graph_report));
+    }
+    for (const NodeGroupDefinition& group : workspace.groups()) {
+        GraphValidationReport graph_report =
+            validate_graph(group.graph, registry, target, resources);
         add_missing_groups(graph_report, workspace, group.graph);
         append_owned_diagnostics(report, GraphOwnerKind::group, group.identifier,
                                  std::move(graph_report));

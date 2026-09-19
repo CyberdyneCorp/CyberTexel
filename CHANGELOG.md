@@ -77,6 +77,9 @@ Foundation implementation is in progress.
 - Emission-independent material graph validation with structured diagnostics for
   required inputs, image resources, mesh maps, group references, and unreachable
   nodes, including workspace ownership and linear reverse-CSR reachability.
+- Instance-owned host node registries with checked CPU and target-specific
+  emission callbacks, deterministic replay eligibility, parity fixtures,
+  registry-aware validation, and lossless preservation of unknown node types.
 - README architecture diagram and a current, implementation-scoped feature list.
 
 ### Changed
