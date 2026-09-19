@@ -148,7 +148,12 @@ versioned immutable declarations with typed sockets, property choices and a
 `GraphNode` factory. The Blend declaration carries all twenty shared modes; Mix
 Normal Map carries partial-derivative, whiteout and reoriented modes; scalar and
 vector math operations have machine-readable and reference-document formulas.
-Node groups and propagation (6.5) are next.
+Task 6.5 adds workspace-owned reusable subgraphs with explicit input/output
+boundary nodes. Interface versions and sockets propagate transactionally to all
+material and nested-group instances, preserving values and links only when name
+and type remain compatible and reporting displaced links. Deterministic
+dependency-path diagnostics refuse self and transitive recursion before node
+creation. Emission-independent graph validation (6.6) is next.
 
 ## 1. Foundation
 
@@ -226,7 +231,7 @@ Node groups and propagation (6.5) are next.
 - [x] 6.2 Edit-time cycle detection and its diagnostics
 - [x] 6.3 Socket typing, coercion rules, one-link-per-input, refusal of non-coercible links
 - [x] 6.4 Node catalogue: input, texture, colour and filter, vector and math
-- [ ] 6.5 Node groups, socket propagation, recursion refusal
+- [x] 6.5 Node groups, socket propagation, recursion refusal
 - [ ] 6.6 Graph validation independent of emission
 - [ ] 6.7 Host-registered node types with CPU and emission semantics, replay eligibility and parity fixtures; opaque preservation of unknown types
 - [ ] 6.8 Vendor Kong under `thirdparty/`, wrap its global state in a context object, attribute it

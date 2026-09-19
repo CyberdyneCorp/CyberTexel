@@ -161,13 +161,32 @@ bool malformed_serialization_is_refused() {
                   "malformed or unsupported graph serialization was accepted");
 }
 
+bool interface_updates_validate_before_preserving_values() {
+    ctex::graph::GraphDocument graph(output_node());
+    const auto source = graph.add_node(source_node());
+    graph.set_input_value(source, "enabled", false);
+    const std::string before = ctex::graph::serialize_graph(graph);
+    auto inputs = graph.node(source).inputs;
+    inputs[0].value = 1.0;
+    try {
+        static_cast<void>(
+            graph.update_node_interface(source, 4, std::move(inputs), graph.node(source).outputs));
+    } catch (const std::invalid_argument&) {
+        return expect(ctex::graph::serialize_graph(graph) == before,
+                      "invalid interface declaration changed the graph");
+    }
+    return expect(false, "invalid interface default was hidden by a preserved value");
+}
+
 }  // namespace
 
 int main() {
     return round_trip_preserves_the_complete_document() &&
                    clones_are_independent_and_comparable() &&
                    output_and_node_id_invariants_are_preserved() &&
-                   links_require_declared_socket_endpoints() && malformed_serialization_is_refused()
+                   links_require_declared_socket_endpoints() &&
+                   malformed_serialization_is_refused() &&
+                   interface_updates_validate_before_preserving_values()
                ? 0
                : 1;
 }

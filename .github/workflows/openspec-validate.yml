@@ -60,6 +60,8 @@ jobs:
       run: just test-graph-sockets
     - name: Material graph catalogue
       run: just test-graph-catalogue
+    - name: Material graph groups
+      run: just test-graph-groups
     - name: Test suite
       run: just test
 

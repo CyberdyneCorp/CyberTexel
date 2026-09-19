@@ -63,3 +63,5 @@ device, host, or shading-language type; emission remains a separate module.
 
 The versioned built-in declarations and their math/normal formulas are listed in
 the [material node catalogue](material-node-catalogue.md).
+Reusable subgraphs, transactional interface propagation, and recursion refusal
+are documented in [material node groups](material-node-groups.md).

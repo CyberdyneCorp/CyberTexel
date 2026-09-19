@@ -100,6 +100,11 @@ struct AddLinkResult {
     friend bool operator==(const AddLinkResult&, const AddLinkResult&) = default;
 };
 
+struct NodeInterfaceUpdate {
+    std::vector<GraphLink> removed_links;
+    friend bool operator==(const NodeInterfaceUpdate&, const NodeInterfaceUpdate&) = default;
+};
+
 class SocketTypeError final : public std::invalid_argument {
 public:
     SocketTypeError(SocketType source, SocketType target);
@@ -131,6 +136,9 @@ public:
     void remove_node(NodeId id);
     void set_node_position(NodeId id, NodePosition position);
     void set_input_value(NodeId id, std::string_view socket_identifier, SocketValue value);
+    [[nodiscard]] NodeInterfaceUpdate update_node_interface(NodeId id, std::uint32_t type_version,
+                                                            std::vector<NodeSocket> inputs,
+                                                            std::vector<NodeSocket> outputs);
 
     [[nodiscard]] AddLinkResult add_link(GraphLink link);
     [[nodiscard]] bool remove_link(const GraphLink& link) noexcept;

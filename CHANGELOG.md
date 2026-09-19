@@ -71,6 +71,9 @@ Foundation implementation is in progress.
 - A 52-type built-in material node catalogue with stable declarations, typed
   sockets, constrained properties, complete blend and normal modes, and
   formula-bearing scalar/vector math operations.
+- Reusable material node groups with workspace-owned subgraphs, transactional
+  socket propagation across materials and nested groups, compatible value/link
+  preservation, removed-link reporting, and typed recursion-path diagnostics.
 - README architecture diagram and a current, implementation-scoped feature list.
 
 ### Changed

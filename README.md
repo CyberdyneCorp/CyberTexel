@@ -52,7 +52,9 @@ The current implementation provides:
   comparison, edit-time cycle diagnostics, typed socket coercion, and atomic
   one-link-per-input replacement. Its
   [built-in node catalogue](docs/material-node-catalogue.md) declares all input,
-  texture, colour/filter, vector, and math node schemas.
+  texture, colour/filter, vector, and math node schemas, while reusable
+  [node groups](docs/material-node-groups.md) propagate interface changes and
+  refuse recursive placement.
 - Strict C++20 builds, sanitizer coverage, OpenSpec validation, dependency
   layering checks, licence auditing, and deterministic-output gates.
 

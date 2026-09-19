@@ -103,6 +103,23 @@ const NodeSocket* find_socket(std::span<const NodeSocket> sockets, std::string_v
     return found == sockets.end() ? nullptr : &*found;
 }
 
+bool socket_type_is_preserved(std::span<const NodeSocket> before, std::span<const NodeSocket> after,
+                              std::string_view identifier) {
+    const NodeSocket* old_socket = find_socket(before, identifier);
+    const NodeSocket* new_socket = find_socket(after, identifier);
+    return old_socket != nullptr && new_socket != nullptr && old_socket->type == new_socket->type;
+}
+
+void preserve_input_values(std::span<const NodeSocket> previous,
+                           std::span<NodeSocket> replacement) {
+    for (NodeSocket& new_socket : replacement) {
+        const NodeSocket* old_socket = find_socket(previous, new_socket.identifier);
+        if (old_socket != nullptr && old_socket->type == new_socket.type) {
+            new_socket.value = old_socket->value;
+        }
+    }
+}
+
 std::size_t node_index(std::span<const GraphNode> nodes, NodeId id) {
     const auto found = std::lower_bound(
         nodes.begin(), nodes.end(), id,
@@ -318,6 +335,44 @@ void GraphDocument::set_input_value(NodeId id, std::string_view socket_identifie
         throw std::invalid_argument("graph input value is non-finite or has the wrong type");
     }
     found->value = std::move(value);
+}
+
+NodeInterfaceUpdate GraphDocument::update_node_interface(NodeId id, std::uint32_t type_version,
+                                                         std::vector<NodeSocket> inputs,
+                                                         std::vector<NodeSocket> outputs) {
+    if (type_version == 0) {
+        throw std::invalid_argument("graph node interface requires a non-zero type version");
+    }
+    validate_sockets(inputs, "input");
+    validate_sockets(outputs, "output");
+    const GraphNode& existing = node(id);
+    preserve_input_values(existing.inputs, inputs);
+
+    GraphDocument updated = *this;
+    GraphNode& replacement = updated.mutable_node(id);
+    replacement.type_version = type_version;
+    replacement.inputs = std::move(inputs);
+    replacement.outputs = std::move(outputs);
+    validate_node(replacement);
+
+    NodeInterfaceUpdate result;
+    std::erase_if(updated.links_, [&](const GraphLink& link) {
+        const bool source_removed =
+            link.source_node == id &&
+            !socket_type_is_preserved(existing.outputs, replacement.outputs, link.source_socket);
+        const bool target_removed =
+            link.target_node == id &&
+            !socket_type_is_preserved(existing.inputs, replacement.inputs, link.target_socket);
+        if (source_removed || target_removed) {
+            result.removed_links.push_back(link);
+            return true;
+        }
+        return false;
+    });
+    updated.validate();
+    nodes_.swap(updated.nodes_);
+    links_.swap(updated.links_);
+    return result;
 }
 
 AddLinkResult GraphDocument::add_link(GraphLink link) {
