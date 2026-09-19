@@ -5,6 +5,7 @@
 #include <cstring>
 #include <ctex/maps/generators.hpp>
 #include <iostream>
+#include <limits>
 #include <memory>
 #include <stdexcept>
 #include <string_view>
@@ -79,8 +80,19 @@ bool inventory_names_and_requirements_are_stable() {
         const MeshMapGeneratorInfo info =
             mesh_map_generator_info(all_mesh_map_generator_kinds[index]);
         actual_names[index] = info.name;
-        if (!expect(!info.required_maps.empty(), "generator did not declare any required maps")) {
+        if (!expect(!info.required_maps.empty() && !info.parameters.empty(),
+                    "generator did not declare required maps and parameters")) {
             return false;
+        }
+        for (const MeshMapGeneratorParameterDescriptor& parameter : info.parameters) {
+            if (!expect(!parameter.name.empty() && !parameter.meaning.empty() &&
+                            std::isfinite(parameter.default_value) &&
+                            std::isfinite(parameter.minimum) && std::isfinite(parameter.maximum) &&
+                            parameter.minimum <= parameter.default_value &&
+                            parameter.default_value <= parameter.maximum,
+                        "generator parameter schema is incomplete or invalid")) {
+                return false;
+            }
         }
     }
     const MeshMapGeneratorInfo dirt = mesh_map_generator_info(MeshMapGeneratorKind::dirt);
@@ -120,6 +132,10 @@ bool all_generators_produce_their_baseline_masks() {
                                                .channel_count = 1} &&
                         result.mask->width() == 1 && result.mask->height() == 1 &&
                         result.mask->dirty_tiles().empty() && result.map_report.satisfied() &&
+                        result.parameter_report.clamps.empty() &&
+                        result.parameter_report.resolved.size() ==
+                            mesh_map_generator_info(all_mesh_map_generator_kinds[index])
+                                .parameters.size() &&
                         near(actual, expected[index]),
                     "generator produced the wrong baseline mask")) {
             std::cerr << "generator index " << index << " produced " << actual << ", expected "
@@ -128,6 +144,52 @@ bool all_generators_produce_their_baseline_masks() {
         }
     }
     return true;
+}
+
+bool parameters_are_bounded_reported_and_applied() {
+    doc::TextureDocument document;
+    const doc::TextureSet& set = texture_set(document);
+    MeshMapSet maps(set, fixture_mesh_revision);
+    const std::array ao{0.75F};
+    bind_map(maps, set, MeshMapKind::ambient_occlusion, ao);
+    const std::array parameters{MeshMapGeneratorParameter{.name = "strength", .value = 3.0},
+                                MeshMapGeneratorParameter{.name = "contrast", .value = 2.0}};
+    const MeshMapGeneratorResult result =
+        generate_mesh_map_mask(MeshMapGeneratorKind::ambient_occlusion, maps, 1, 1, parameters);
+    return expect(near(output_value(result), 0.125),
+                  "resolved generator parameters did not affect the output") &&
+           expect(result.parameter_report.value_for("strength") == 2.0 &&
+                      result.parameter_report.value_for("contrast") == 2.0 &&
+                      result.parameter_report.clamp_for("strength") ==
+                          MeshMapGeneratorParameterClamp{
+                              .name = "strength", .supplied = 3.0, .resolved = 2.0},
+                  "generator clamp was not resolved and reported");
+}
+
+bool malformed_parameters_are_refused() {
+    doc::TextureDocument document;
+    const doc::TextureSet& set = texture_set(document);
+    MeshMapSet maps(set, fixture_mesh_revision);
+    const std::array ao{0.75F};
+    bind_map(maps, set, MeshMapKind::ambient_occlusion, ao);
+    const auto refused = [&](std::span<const MeshMapGeneratorParameter> parameters) {
+        try {
+            static_cast<void>(generate_mesh_map_mask(MeshMapGeneratorKind::ambient_occlusion, maps,
+                                                     1, 1, parameters));
+        } catch (const std::invalid_argument&) {
+            return true;
+        }
+        return false;
+    };
+    const std::array unknown{MeshMapGeneratorParameter{.name = "unknown", .value = 1.0}};
+    const std::array duplicate{MeshMapGeneratorParameter{.name = "strength", .value = 1.0},
+                               MeshMapGeneratorParameter{.name = "strength", .value = 0.5}};
+    const std::array non_finite{MeshMapGeneratorParameter{
+        .name = "strength", .value = std::numeric_limits<double>::quiet_NaN()}};
+    const std::array empty_name{MeshMapGeneratorParameter{.name = "", .value = 1.0}};
+    return expect(
+        refused(unknown) && refused(duplicate) && refused(non_finite) && refused(empty_name),
+        "unknown, duplicate, non-finite, or empty generator parameter was accepted");
 }
 
 bool edge_wear_is_concentrated_on_convex_curvature() {
@@ -197,6 +259,8 @@ bool failures_are_named_and_staleness_is_reported() {
 int main() {
     return inventory_names_and_requirements_are_stable() &&
                    all_generators_produce_their_baseline_masks() &&
+                   parameters_are_bounded_reported_and_applied() &&
+                   malformed_parameters_are_refused() &&
                    edge_wear_is_concentrated_on_convex_curvature() &&
                    failures_are_named_and_staleness_is_reported()
                ? 0

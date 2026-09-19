@@ -127,7 +127,8 @@ The current implementation provides:
   staleness reports, a host-supplied bake-provider seam, and transactional
   external strided-buffer import with explicit channel meaning and colour space,
   recorded OpenGL/DirectX normal conventions normalized on read, and eight
-  built-in mask generators with queryable map requirements.
+  built-in mask generators with queryable map requirements, bounded parameters,
+  clamp reports, and cross-executor parity fixtures.
 - Perspective and orthographic ray picking, ordered occlusion, configurable
   backface policy, inverse UV picking, surface snapping, region selection,
   deterministic shared-boundary ownership, and bounded cancellable batches.

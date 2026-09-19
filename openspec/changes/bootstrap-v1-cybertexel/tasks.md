@@ -556,8 +556,17 @@ dirt, edge wear and scratches. Each names its complete required-map set before
 evaluation. CPU evaluation produces a caller-sized one-channel float mask,
 fails with the existing structured missing-map report instead of substituting a
 neutral value, and returns staleness for usable outdated inputs. Fixed baseline
-formulas define the initial masks; configurable bounded parameters, clamp
-reports and cross-executor parity remain in 11.8.
+formulas define the initial masks; 11.8 layers configurable bounded parameters,
+clamp reports and cross-executor parity onto those formulas.
+Generator parameter and determinism coverage (11.8) publishes every numeric
+parameter's default, finite range and meaning through generator metadata.
+Omitted values resolve to defaults; unknown, duplicate, empty and non-finite
+inputs are refused; out-of-range values are clamped, used and reported together
+with the complete resolved set. Strength and contrast apply to all generators,
+with bounded dirt curvature weight, edge threshold, and scratch scale/width.
+Repeated CPU evaluation is byte-stable, while an independent portable-host
+formula for all eight generators is checked against the CPU result through the
+declared filtered floating-point executor parity tolerance.
 
 ## 1. Foundation
 
@@ -719,7 +728,7 @@ reports and cross-executor parity remain in 11.8.
 - [x] 11.5 External map import with declared channel meaning and colour space
 - [x] 11.6 Normal map convention recording and conversion on read
 - [x] 11.7 Generators: AO, curvature, thickness, position gradient, direction, dirt, edge wear, scratches
-- [ ] 11.8 Generator parameter validation and cross-executor determinism
+- [x] 11.8 Generator parameter validation and cross-executor determinism
 - [ ] 11.9 Map memory accounting and host-driven release
 - [ ] 11.10 CyberRemesherAndUV provider binding, as an example rather than a dependency
 - [ ] 11.11 `mesh-maps` scenarios as tests

@@ -547,6 +547,14 @@ if(BUILD_TESTING)
     )
     add_test(NAME mesh-map-generators COMMAND ctex_mesh_map_generators_test)
 
+    add_executable(ctex_mesh_map_generator_parity_test tests/maps/generator_parity_test.cpp)
+    ctex_configure_cpp_target(ctex_mesh_map_generator_parity_test)
+    target_link_libraries(
+        ctex_mesh_map_generator_parity_test
+        PRIVATE ctex_maps ctex_exec ctex_doc ctex_emit ctex_image ctex_mesh ctex_graph
+    )
+    add_test(NAME mesh-map-generator-parity COMMAND ctex_mesh_map_generator_parity_test)
+
     add_executable(ctex_document_test tests/doc/document_test.cpp)
     ctex_configure_cpp_target(ctex_document_test)
     target_link_libraries(ctex_document_test PRIVATE ctex_doc ctex_mesh ctex_graph ctex_image)

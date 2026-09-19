@@ -90,7 +90,7 @@ the selected generator at pixel centres into a caller-sized, one-channel
 generator name and the complete missing-map list. Stale inputs remain usable,
 with their `MeshMapStaleness` entries returned in the result.
 
-The task 11.7 baseline uses fixed, documented interpretations:
+The baseline interpretations are:
 
 | Generator | Required maps | Baseline mask |
 | --- | --- | --- |
@@ -103,9 +103,34 @@ The task 11.7 baseline uses fixed, documented interpretations:
 | Edge wear | curvature | positive curvature above encoded neutral `0.5` |
 | Scratches | position, world-space direction | narrow world-position stripes modulated by grazing orientation |
 
-Every result is saturated to `[0, 1]`. Configurable parameters, clamp reports
-and cross-executor parity belong to roadmap task 11.8; these fixed formulas are
-the CPU reference that task extends.
+Every result is saturated to `[0, 1]`. Every generator exposes these common
+parameters:
+
+| Parameter | Default | Range | Meaning |
+| --- | ---: | ---: | --- |
+| `strength` | 1 | `[0, 2]` | Multiplier applied to the generated mask |
+| `contrast` | 1 | `[0.1, 4]` | Positive power applied before strength |
+
+The specialised parameters are:
+
+| Generator | Parameter | Default | Range | Meaning |
+| --- | --- | ---: | ---: | --- |
+| Dirt | `curvature-weight` | 1 | `[0, 1]` | Contribution of concave curvature |
+| Edge wear | `threshold` | 0.5 | `[0, 0.99]` | Encoded curvature where wear begins |
+| Scratches | `scale` | 1 | `[1, 128]` | World-position frequency |
+| Scratches | `width` | 1/24 | `[0.001, 0.25]` | Scratch half-width in phase space |
+
+Callers may omit any parameter to use its declared default. Supplied values
+must be finite; empty, duplicate and unknown names are refused. Values outside
+their range are clamped, used in evaluation and returned in
+`MeshMapGeneratorParameterReport`, which also carries the complete resolved
+parameter set for deterministic replay.
+
+The CPU output defines correctness and is byte-stable for repeated evaluation.
+The committed generator fixture evaluates every generator with non-default
+parameters through both the CPU route and an independent portable-host formula,
+then uses the standard filtered floating-point executor tolerance to detect
+drift.
 
 ## Bake-provider seam
 
