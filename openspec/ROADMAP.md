@@ -7,7 +7,7 @@ decisions taken and questions still open.
 ## Status
 
 Implementation started. 24 capabilities, 332 requirements, 400 scenarios and
-222 tasks, 23 done. Foundation and the complete headless color-management
+222 tasks, 25 done. Foundation and the complete headless color-management
 scenario suite are green. Slice-A now has memory-buffer PNG input/output with
 8/16-bit preservation and hostile-input ceilings; full image-format breadth
 remains scheduled for slice D. Extensible channel descriptors and sparse
@@ -31,6 +31,12 @@ partial coverage, deterministic ordering, and no GPU dependency.
 Nearest ray hits on shared edges and vertices now use a documented lowest-index
 ownership rule with regression coverage; literal all-hits queries continue to
 report each adjacent triangle in deterministic order.
+Batched nearest picking now preserves sample order, reports interval progress,
+polls cancellation between rays, discards partial results on cancellation, and
+preflights a declared logical-memory ceiling before allocating output.
+All fifteen picking scenarios now map to one labeled headless test suite. Its
+acceleration fixture contains 2,097,152 indexed triangles and verifies that a
+query reaches one bounded leaf rather than scanning the mesh.
 
 ## Milestones
 

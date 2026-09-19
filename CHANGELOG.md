@@ -57,6 +57,10 @@ Foundation implementation is in progress.
   queries with exact intersection filtering and deterministic result ordering.
 - Deterministic lowest-index ownership for equivalent-distance nearest hits on
   shared mesh edges and vertices, with literal ordered behavior in all-hits mode.
+- Ordered nearest-hit batches with explicit cancellation and memory-limit
+  outcomes, interval progress callbacks, and no exposed partial results.
+- A labeled headless picking scenario suite, including bounded BVH traversal on
+  a 2,097,152-triangle indexed mesh.
 
 ### Changed
 

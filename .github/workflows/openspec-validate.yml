@@ -50,22 +50,8 @@ jobs:
       run: just test-document
     - name: Read-only mesh ingest
       run: just test-mesh
-    - name: Picking spatial index
-      run: just test-picking-index
-    - name: Picking ray construction
-      run: just test-picking-rays
-    - name: Picking hit records
-      run: just test-picking-hit
-    - name: Picking occlusion and backfaces
-      run: just test-picking-occlusion
-    - name: UV-space picking
-      run: just test-picking-uv
-    - name: Surface snapping
-      run: just test-picking-snap
-    - name: Picking region queries
-      run: just test-picking-regions
-    - name: Picking shared-boundary determinism
-      run: just test-picking-boundaries
+    - name: Picking scenarios
+      run: just test-picking-scenarios
     - name: Test suite
       run: just test
 

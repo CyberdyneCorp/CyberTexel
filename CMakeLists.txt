@@ -59,6 +59,7 @@ ctex_add_module(
         src/pick/hit.cpp
         src/pick/uv_index.cpp
         src/pick/region.cpp
+        src/pick/batch.cpp
 )
 ctex_add_module(graph DEPENDS image)
 ctex_add_module(emit DEPENDS graph image)
@@ -164,4 +165,22 @@ if(BUILD_TESTING)
     ctex_configure_cpp_target(ctex_boundary_determinism_test)
     target_link_libraries(ctex_boundary_determinism_test PRIVATE ctex_pick ctex_mesh)
     add_test(NAME picking-boundary-determinism COMMAND ctex_boundary_determinism_test)
+
+    add_executable(ctex_batch_pick_test tests/pick/batch_pick_test.cpp)
+    ctex_configure_cpp_target(ctex_batch_pick_test)
+    target_link_libraries(ctex_batch_pick_test PRIVATE ctex_pick ctex_mesh)
+    add_test(NAME picking-batch COMMAND ctex_batch_pick_test)
+
+    set_tests_properties(
+        picking-spatial-index
+        picking-ray-construction
+        picking-hit-record
+        picking-occlusion
+        picking-uv-space
+        picking-surface-snap
+        picking-region-queries
+        picking-boundary-determinism
+        picking-batch
+        PROPERTIES LABELS picking-scenario
+    )
 endif()

@@ -124,7 +124,13 @@ Screen triangles are clip-volume constrained, partial edge or vertex coverage is
 inclusive, and all results are sorted by triangle index. Task 5.10 assigns
 equivalent-distance shared-edge and shared-vertex nearest hits to the lowest
 triangle index, independent of BVH traversal; literal all-hits mode retains both
-in index order. Batched picking with cancellation and progress (5.11) is next.
+in index order. Task 5.11 resolves ordered nearest-hit batches with one optional
+record per ray, callback-based cancellation and interval progress, and a
+preflighted logical-memory ceiling. Cancellation reports processed work but
+discards partial hit arrays. Task 5.12 labels and maps all fifteen picking
+scenarios to headless tests, including bounded traversal over 2,097,152 indexed
+triangles and cancellation of a 5,000-ray batch. The picking work package is
+complete; the material graph document (6.1) is next.
 
 ## 1. Foundation
 
@@ -193,8 +199,8 @@ in index order. Batched picking with cancellation and progress (5.11) is next.
 - [x] 5.8 Surface snapping within a maximum distance
 - [x] 5.9 Region queries: rectangle, lasso, sphere, box
 - [x] 5.10 Deterministic resolution at shared edges and vertices
-- [ ] 5.11 Batched picking with cancellation and progress
-- [ ] 5.12 `picking` scenarios as tests
+- [x] 5.11 Batched picking with cancellation and progress
+- [x] 5.12 `picking` scenarios as tests
 
 ## 6. Graph and emission
 

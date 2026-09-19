@@ -95,6 +95,12 @@ test-picking-regions: build
 test-picking-boundaries: build
     ctest --test-dir build/headless --output-on-failure -R '^picking-boundary-determinism$'
 
+test-picking-batch: build
+    ctest --test-dir build/headless --output-on-failure -R '^picking-batch$'
+
+test-picking-scenarios: build
+    ctest --test-dir build/headless --output-on-failure -L '^picking-scenario$'
+
 examples:
     @just _unimplemented examples 16.2
 

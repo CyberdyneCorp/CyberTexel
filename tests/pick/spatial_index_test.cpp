@@ -60,6 +60,69 @@ private:
     };
 };
 
+class MillionTriangleGrid {
+public:
+    explicit MillionTriangleGrid(std::uint32_t side_length) : side_length_(side_length) {
+        const std::size_t vertices_per_side = static_cast<std::size_t>(side_length_) + 1;
+        const std::size_t vertex_count = vertices_per_side * vertices_per_side;
+        const std::size_t triangle_count =
+            static_cast<std::size_t>(side_length_) * side_length_ * 2;
+        positions_.reserve(vertex_count);
+        normals_.reserve(vertex_count);
+        uv_.reserve(vertex_count);
+        indices_.reserve(triangle_count * 3);
+        face_partitions_.resize(triangle_count, 0);
+        face_materials_.resize(triangle_count, 7);
+
+        for (std::uint32_t y = 0; y <= side_length_; ++y) {
+            for (std::uint32_t x = 0; x <= side_length_; ++x) {
+                positions_.push_back({static_cast<float>(x), static_cast<float>(y), 0.0F});
+                normals_.push_back({0.0F, 0.0F, 1.0F});
+                uv_.push_back(
+                    {static_cast<float>(x) / side_length_, static_cast<float>(y) / side_length_});
+            }
+        }
+        for (std::uint32_t y = 0; y < side_length_; ++y) {
+            for (std::uint32_t x = 0; x < side_length_; ++x) {
+                const std::uint32_t lower_left = y * (side_length_ + 1) + x;
+                const std::uint32_t lower_right = lower_left + 1;
+                const std::uint32_t upper_left = lower_left + side_length_ + 1;
+                const std::uint32_t upper_right = upper_left + 1;
+                indices_.insert(indices_.end(), {lower_left, lower_right, upper_left, lower_right,
+                                                 upper_right, upper_left});
+            }
+        }
+        uv_sets_[0] = {"paint", uv_};
+    }
+
+    [[nodiscard]] ctex::mesh::MeshDescriptor descriptor() const {
+        return {
+            .positions = positions_,
+            .normals = normals_,
+            .vertex_colors = {},
+            .triangle_indices = indices_,
+            .uv_sets = uv_sets_,
+            .default_uv_set = "paint",
+            .partitions = partitions_,
+            .face_partition_indices = face_partitions_,
+            .face_material_ids = face_materials_,
+        };
+    }
+
+private:
+    std::uint32_t side_length_;
+    std::vector<ctex::mesh::Vec3f> positions_;
+    std::vector<ctex::mesh::Vec3f> normals_;
+    std::vector<ctex::mesh::Vec2f> uv_;
+    std::vector<std::uint32_t> indices_;
+    std::vector<std::uint32_t> face_partitions_;
+    std::vector<std::uint32_t> face_materials_;
+    std::array<ctex::mesh::UvSetView, 1> uv_sets_{};
+    std::array<ctex::mesh::MeshPartition, 1> partitions_{
+        ctex::mesh::MeshPartition{ctex::mesh::PartitionKind::material, "grid", "Grid"},
+    };
+};
+
 bool expect(bool condition, std::string_view message) {
     if (!condition) {
         std::cerr << message << '\n';
@@ -102,6 +165,31 @@ bool queries_do_not_scan_the_triangle_array() {
                   "point traversal scanned more than one bounded leaf") &&
            expect(contains(point_result.triangle_indices, target),
                   "point traversal omitted its nearest triangle");
+}
+
+bool multi_million_triangle_mesh_uses_bounded_leaves() {
+    constexpr std::uint32_t side_length = 1024;
+    constexpr std::size_t triangle_count = static_cast<std::size_t>(side_length) * side_length * 2;
+    constexpr std::uint32_t target_x = 731;
+    constexpr std::uint32_t target_y = 619;
+    const std::uint32_t target_triangle = (target_y * side_length + target_x) * 2;
+    MillionTriangleGrid buffers(side_length);
+    const ctex::mesh::MeshBinding mesh(buffers.descriptor());
+    ctex::pick::SpatialIndex index(mesh);
+    const ctex::pick::Ray ray{
+        {static_cast<float>(target_x) + 0.2F, static_cast<float>(target_y) + 0.2F, 1.0F},
+        {0.0F, 0.0F, -1.0F},
+    };
+    const auto result =
+        index.query_ray_candidates(mesh, ray, std::numeric_limits<float>::infinity());
+    return expect(index.triangle_count() == triangle_count,
+                  "multi-million-triangle BVH omitted source geometry") &&
+           expect(contains(result.triangle_indices, target_triangle),
+                  "multi-million-triangle traversal omitted its target") &&
+           expect(result.tested_leaf_triangles <= 4,
+                  "multi-million-triangle query scanned beyond one bounded leaf") &&
+           expect(result.visited_nodes < triangle_count,
+                  "multi-million-triangle query degraded to a linear node scan");
 }
 
 bool reuses_and_invalidates_by_mesh_revision() {
@@ -166,7 +254,9 @@ bool rejected_replacement_keeps_the_published_revision() {
 }  // namespace
 
 int main() {
-    return queries_do_not_scan_the_triangle_array() && reuses_and_invalidates_by_mesh_revision() &&
+    return queries_do_not_scan_the_triangle_array() &&
+                   multi_million_triangle_mesh_uses_bounded_leaves() &&
+                   reuses_and_invalidates_by_mesh_revision() &&
                    rejected_replacement_keeps_the_published_revision()
                ? 0
                : 1;
