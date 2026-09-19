@@ -119,9 +119,10 @@ ctex_add_module(
 )
 ctex_add_module(
     paint
-    DEPENDS doc emit pick
+    DEPENDS doc emit graph pick
     SOURCES
         src/paint/paint.cpp
+        src/paint/blending.cpp
         src/paint/coverage.cpp
         src/paint/deposition.cpp
         src/paint/rejection.cpp
@@ -329,6 +330,14 @@ if(BUILD_TESTING)
         PRIVATE ctex_paint ctex_doc ctex_emit ctex_pick ctex_mesh ctex_graph ctex_image
     )
     add_test(NAME paint-deposition COMMAND ctex_paint_deposition_test)
+
+    add_executable(ctex_paint_blending_test tests/paint/blending_test.cpp)
+    ctex_configure_cpp_target(ctex_paint_blending_test)
+    target_link_libraries(
+        ctex_paint_blending_test
+        PRIVATE ctex_paint ctex_doc ctex_emit ctex_pick ctex_mesh ctex_graph ctex_image
+    )
+    add_test(NAME paint-blending COMMAND ctex_paint_blending_test)
 
     add_executable(ctex_document_test tests/doc/document_test.cpp)
     ctex_configure_cpp_target(ctex_document_test)

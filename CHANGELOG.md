@@ -80,6 +80,9 @@ Foundation implementation is in progress.
 - Per-stroke non-building coverage maxima and explicit build-up flow recurrence,
   driven once per canonical resolved stamp with transactional, idempotent batch
   accumulation independent of rendering frames.
+- Paint shading for all twenty shared blend modes against an immutable
+  stroke-start snapshot, with transactional updates and deposition-strength
+  integration that prevents within-stroke feedback.
 - Linear Rec. 709 working-space and sRGB transfer functions with unclamped HDR
   conversion.
 - Native and sanitizer test presets plus a registry-driven determinism gate that

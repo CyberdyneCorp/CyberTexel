@@ -53,7 +53,10 @@ The current implementation provides:
   and precision-aware alpha discard without losing accumulated strength.
   Canonical [paint deposition](docs/paint-deposition.md) separates non-building
   coverage maxima from build-up flow recurrence and is invariant to frame,
-  batch, or repeated-segment rasterization.
+  batch, or repeated-segment rasterization. The
+  [paint shading stage](docs/paint-blending.md) evaluates all twenty shared blend
+  modes against an immutable stroke-start snapshot rather than partially painted
+  output.
 - Sparse tiled image storage for one-to-four-channel 8-bit, 16-bit, and
   floating-point pixels, with tile-level dirty tracking and monotonic channel
   and per-tile [content revisions](docs/host-transport-revisions.md), plus
@@ -185,6 +188,7 @@ flowchart TD
     DOC --> MESH
     PAINT --> DOC
     PAINT --> EMIT
+    PAINT --> GRAPH
     PAINT --> PICK
     MAPS --> DOC
     MAPS --> IMG

@@ -350,8 +350,12 @@ one accepted coverage event per canonical stamp. Non-building deposition keeps
 separate coverage and opacity-times-flow strength maxima; explicit build-up uses
 the specified flow recurrence and opacity cap. Transactional contiguous batches
 and idempotent ordinal replay make both modes independent of rendering frames
-and repeated continuous-segment rasterization. Stroke-start snapshot blending
-across all modes (9.10) is next.
+and repeated continuous-segment rasterization. Task 9.10 copies the channel at
+stroke start and evaluates every later shade against that immutable snapshot,
+using deposition strength and the shared canonical formula for all twenty blend
+modes. Invalid updates are transactional, while a new stroke can snapshot the
+previous result and accumulate normally. Combined masking inputs (9.11) are
+next.
 
 ## 1. Foundation
 
@@ -479,7 +483,7 @@ across all modes (9.10) is next.
 - [x] 9.7 Paint engine: swept coverage, falloff, coordinate modes
 - [x] 9.8 Depth, angle and backface rejection; alpha discard
 - [x] 9.9 Separate non-building coverage and build-up deposition formulas; batching and frame-rate fixtures
-- [ ] 9.10 Blending against the stroke-start snapshot, all modes
+- [x] 9.10 Blending against the stroke-start snapshot, all modes
 - [ ] 9.11 Masking inputs and their intersection
 - [ ] 9.12 Cached coverage, triangle identity and UV island maps, keyed by mesh revision
 - [ ] 9.13 UV seam dilation, extrapolating, deferred to stroke end
