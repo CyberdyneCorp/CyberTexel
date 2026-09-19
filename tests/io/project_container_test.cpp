@@ -22,6 +22,15 @@ bool expect(bool condition, std::string_view message) {
     return condition;
 }
 
+std::uint64_t read_u64_le(std::span<const std::byte> bytes, std::size_t offset) {
+    std::uint64_t value = 0;
+    for (unsigned index = 0; index < 8; ++index) {
+        value |= static_cast<std::uint64_t>(std::to_integer<std::uint8_t>(bytes[offset + index]))
+                 << (index * 8U);
+    }
+    return value;
+}
+
 template <typename Callable>
 bool expect_error(Callable&& callable, ProjectContainerErrorCode code, std::string_view message) {
     try {
@@ -140,11 +149,13 @@ bool unknown_tile_encoding_is_preserved_as_one_opaque_section() {
     std::vector<std::byte> encoded = write_project_container(original);
 
     constexpr std::size_t header_and_section_headers = 40 + 16;
+    const std::size_t tile_payload_size = static_cast<std::size_t>(read_u64_le(encoded, 40 + 8));
     const std::size_t compression_offset =
         header_and_section_headers + 4 + 4 + 6 + 12 + 1 + 1 + 2 + 1 + 4 + 16;
     encoded.at(compression_offset) = std::byte{127};
-    const std::vector<std::byte> original_payload(encoded.begin() + header_and_section_headers,
-                                                  encoded.end());
+    const std::vector<std::byte> original_payload(
+        encoded.begin() + header_and_section_headers,
+        encoded.begin() + header_and_section_headers + tile_payload_size);
     const ProjectContainerReadResult opened = read_project_container(encoded);
     const ProjectContainerReadResult reopened =
         read_project_container(write_project_container(opened.container));
@@ -180,6 +191,127 @@ bool invalid_tile_metadata_is_refused_before_writing() {
                         "container writer accepted a tile whose payload did not match its extent");
 }
 
+bool resources_round_trip_and_resolve_without_blocking_open() {
+    const std::filesystem::path directory =
+        std::filesystem::temp_directory_path() / "ctex-project-container-resource-test";
+    std::error_code filesystem_error;
+    std::filesystem::remove_all(directory, filesystem_error);
+    std::filesystem::create_directories(directory / "images", filesystem_error);
+    if (!expect(!filesystem_error, "could not create project resource test directory")) {
+        return false;
+    }
+    const std::array referenced_bytes{std::byte{0x89}, std::byte{'P'}, std::byte{'N'},
+                                      std::byte{'G'}};
+    {
+        std::ofstream stream(directory / "images/albedo.png", std::ios::binary);
+        stream.write(reinterpret_cast<const char*>(referenced_bytes.data()),
+                     static_cast<std::streamsize>(referenced_bytes.size()));
+    }
+
+    ProjectContainer container;
+    container.resources = {
+        {.identifier = "texture/albedo",
+         .kind = "image",
+         .relative_path = "images/albedo.png",
+         .packed_bytes = std::nullopt},
+        {.identifier = "font/labels",
+         .kind = "font",
+         .relative_path = "fonts/labels.woff2",
+         .packed_bytes = std::vector<std::byte>{std::byte{'f'}, std::byte{'o'}, std::byte{'n'},
+                                                std::byte{'t'}}},
+        {.identifier = "maps/ambient-occlusion",
+         .kind = "mesh-map",
+         .relative_path = "maps/ao.png",
+         .packed_bytes = std::nullopt},
+        {.identifier = "mesh/source",
+         .kind = "mesh",
+         .relative_path = "meshes/source.glb",
+         .packed_bytes = std::vector<std::byte>{std::byte{'g'}, std::byte{'l'}, std::byte{'b'}}},
+    };
+    const ProjectContainerReadResult opened =
+        read_project_container(write_project_container(container));
+    const ProjectResourceResolution resolution =
+        resolve_project_resources(opened.container, directory);
+    std::filesystem::remove_all(directory, filesystem_error);
+
+    return expect(opened.container.resources == container.resources &&
+                      opened.report.unknown_parts.empty(),
+                  "project resources did not round-trip losslessly") &&
+           expect(resolution.resources.size() == 4 && !resolution.complete() &&
+                      resolution.missing_identifiers ==
+                          std::vector<std::string>{"maps/ambient-occlusion"},
+                  "missing referenced project resource was not reported by identity") &&
+           expect(resolution.resources[0].status == ProjectResourceStatus::referenced &&
+                      resolution.resources[0].bytes ==
+                          std::vector<std::byte>(referenced_bytes.begin(), referenced_bytes.end()),
+                  "referenced project resource did not resolve relative to the project") &&
+           expect(resolution.resources[1].status == ProjectResourceStatus::packed &&
+                      resolution.resources[1].bytes == *container.resources[1].packed_bytes &&
+                      resolution.resources[2].status == ProjectResourceStatus::missing &&
+                      resolution.resources[3].status == ProjectResourceStatus::packed,
+                  "packed or missing project resource status is incorrect");
+}
+
+bool unsafe_or_duplicate_resource_identities_are_refused() {
+    ProjectContainer unsafe;
+    unsafe.resources.push_back({.identifier = "unsafe",
+                                .kind = "image",
+                                .relative_path = "../outside.png",
+                                .packed_bytes = std::nullopt});
+    const bool unsafe_refused =
+        expect_error([&] { static_cast<void>(write_project_container(unsafe)); },
+                     ProjectContainerErrorCode::invalid_resource,
+                     "container writer accepted a resource path outside the project directory");
+
+    ProjectContainer duplicate;
+    duplicate.resources = {
+        {.identifier = "same",
+         .kind = "image",
+         .relative_path = "first.png",
+         .packed_bytes = std::nullopt},
+        {.identifier = "same",
+         .kind = "font",
+         .relative_path = "second.woff2",
+         .packed_bytes = std::nullopt},
+    };
+    const bool duplicate_refused =
+        expect_error([&] { static_cast<void>(write_project_container(duplicate)); },
+                     ProjectContainerErrorCode::invalid_resource,
+                     "container writer accepted duplicate resource identities");
+    return unsafe_refused && duplicate_refused;
+}
+
+bool unknown_resource_storage_is_preserved() {
+    ProjectContainer original;
+    original.resources.push_back({.identifier = "future",
+                                  .kind = "image",
+                                  .relative_path = "future.bin",
+                                  .packed_bytes = std::nullopt});
+    std::vector<std::byte> encoded = write_project_container(original);
+    constexpr std::size_t resource_section_offset = 40 + 16 + 4;
+    constexpr std::size_t resource_payload_offset = resource_section_offset + 16;
+    constexpr std::size_t storage_offset = resource_payload_offset + 4 + 4 + 6 + 4 + 5 + 4 + 10;
+    encoded.at(storage_offset) = std::byte{127};
+    const std::size_t resource_payload_size =
+        static_cast<std::size_t>(read_u64_le(encoded, resource_section_offset + 8));
+    const std::vector<std::byte> original_payload(
+        encoded.begin() + resource_payload_offset,
+        encoded.begin() + resource_payload_offset + resource_payload_size);
+    const ProjectContainerReadResult opened = read_project_container(encoded);
+    const ProjectContainerReadResult reopened =
+        read_project_container(write_project_container(opened.container));
+
+    return expect(
+               opened.container.resources.empty() && opened.container.opaque_sections.size() == 1 &&
+                   opened.container.opaque_sections.front().kind == project_resource_section_kind &&
+                   opened.container.opaque_sections.front().payload == original_payload &&
+                   opened.report.unknown_parts.size() == 1,
+               "unknown resource storage was decoded, dropped, or changed") &&
+           expect(reopened.container.opaque_sections == opened.container.opaque_sections &&
+                      reopened.report.unknown_parts.size() == 1,
+                  "opaque current-version resource section could not be resaved");
+}
+
 bool write_determinism_artifact() {
     const char* output_directory = std::getenv("CTEX_DETERMINISM_OUTPUT_DIR");
     if (output_directory == nullptr) {
@@ -194,6 +326,11 @@ bool write_determinism_artifact() {
     image.write_pixel(129, 64, second);
     ProjectContainer container;
     container.tiled_images.push_back(snapshot_tiled_image("layers/paint/pbr.base-color", image));
+    container.resources.push_back(
+        {.identifier = "mesh/source",
+         .kind = "mesh",
+         .relative_path = "meshes/source.glb",
+         .packed_bytes = std::vector<std::byte>{std::byte{'g'}, std::byte{'l'}, std::byte{'b'}}});
     container.opaque_sections.push_back(
         {.kind = 0x80000001U,
          .version = 3,
@@ -219,7 +356,10 @@ int main(int argc, char** argv) {
                    partial_edge_tiles_store_only_their_extent() &&
                    unknown_newer_sections_survive_open_and_resave() &&
                    unknown_tile_encoding_is_preserved_as_one_opaque_section() &&
-                   invalid_tile_metadata_is_refused_before_writing()
+                   invalid_tile_metadata_is_refused_before_writing() &&
+                   resources_round_trip_and_resolve_without_blocking_open() &&
+                   unsafe_or_duplicate_resource_identities_are_refused() &&
+                   unknown_resource_storage_is_preserved()
                ? 0
                : 1;
 }

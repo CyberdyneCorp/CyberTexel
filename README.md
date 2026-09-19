@@ -119,7 +119,9 @@ The current implementation provides:
 - Memory-buffer PNG decoding and encoding with 8/16-bit preservation,
   content-based detection, metadata handling, and allocation limits.
 - A versioned, forward-preserving [project container](docs/project-container.md)
-  with a probeable header and independently compressed sparse tile storage.
+  with a probeable header, independently compressed sparse tile storage, and
+  portable referenced or packed image, font, map, and mesh resources with
+  explicit missing-resource reports.
 - Extensible semantic channels and a nine-channel metallic/roughness PBR preset,
   with independent precision and allocation-free disabled channels.
 - Texture-set documents derived from mesh partitions and named UVs, with stable

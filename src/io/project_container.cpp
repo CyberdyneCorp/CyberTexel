@@ -5,6 +5,7 @@
 #include <cstdlib>
 #include <cstring>
 #include <ctex/io/project_container.hpp>
+#include <fstream>
 #include <limits>
 #include <memory>
 #include <set>
@@ -134,6 +135,10 @@ struct ContainerHeader {
 };
 
 struct UnsupportedTileSection : std::runtime_error {
+    using std::runtime_error::runtime_error;
+};
+
+struct UnsupportedResourceSection : std::runtime_error {
     using std::runtime_error::runtime_error;
 };
 
@@ -401,6 +406,105 @@ std::vector<StoredTiledImage> decode_tiled_images(std::span<const std::byte> pay
     return images;
 }
 
+void validate_resource(const ProjectResource& resource) {
+    const std::filesystem::path path(resource.relative_path);
+    if (resource.identifier.empty() || resource.kind.empty() || resource.relative_path.empty() ||
+        path.is_absolute() || path.has_root_name() || path.has_root_directory()) {
+        throw ProjectContainerError(ProjectContainerErrorCode::invalid_resource,
+                                    "project resource metadata or path is invalid");
+    }
+    for (const auto& component : path) {
+        if (component == "..") {
+            throw ProjectContainerError(ProjectContainerErrorCode::invalid_resource,
+                                        "project resource path escapes the project directory");
+        }
+    }
+}
+
+std::vector<std::byte> encode_resources(std::span<const ProjectResource> resources) {
+    if (resources.size() > std::numeric_limits<std::uint32_t>::max()) {
+        throw ProjectContainerError(ProjectContainerErrorCode::over_limit,
+                                    "container resource count exceeds the format limit");
+    }
+    ByteWriter writer;
+    writer.u32(static_cast<std::uint32_t>(resources.size()));
+    std::set<std::string_view> identities;
+    for (const ProjectResource& resource : resources) {
+        validate_resource(resource);
+        if (!identities.insert(resource.identifier).second) {
+            throw ProjectContainerError(ProjectContainerErrorCode::invalid_resource,
+                                        "container repeats a project resource identity");
+        }
+        writer.string(resource.identifier);
+        writer.string(resource.kind);
+        writer.string(resource.relative_path);
+        writer.u8(resource.packed_bytes.has_value() ? 1 : 0);
+        writer.u8(0);
+        writer.u16(0);
+        const std::span<const std::byte> payload = resource.packed_bytes.has_value()
+                                                       ? std::span(*resource.packed_bytes)
+                                                       : std::span<const std::byte>{};
+        writer.u64(payload.size());
+        writer.bytes(payload);
+    }
+    return std::move(writer).finish();
+}
+
+ProjectResource decode_resource(ByteReader& reader, const ProjectContainerReadLimits& limits) {
+    ProjectResource resource;
+    resource.identifier = reader.string(limits.maximum_string_bytes, "resource identity");
+    resource.kind = reader.string(limits.maximum_string_bytes, "resource kind");
+    resource.relative_path = reader.string(limits.maximum_string_bytes, "resource relative path");
+    const std::uint8_t storage = reader.u8("resource storage");
+    static_cast<void>(reader.u8("resource reserved byte"));
+    static_cast<void>(reader.u16("resource reserved bytes"));
+    const std::size_t payload_size =
+        checked_size(reader.u64("resource payload size"), "resource payload size");
+    if (payload_size > limits.maximum_packed_resource_bytes) {
+        throw ProjectContainerError(ProjectContainerErrorCode::over_limit,
+                                    "packed resource exceeds the configured byte limit");
+    }
+    const auto payload = reader.take(payload_size, "resource payload");
+    if (storage == 0) {
+        if (!payload.empty()) {
+            throw ProjectContainerError(ProjectContainerErrorCode::invalid_resource,
+                                        "referenced resource contains a packed payload");
+        }
+    } else if (storage == 1) {
+        resource.packed_bytes = std::vector<std::byte>(payload.begin(), payload.end());
+    } else {
+        throw UnsupportedResourceSection("unknown project resource storage encoding");
+    }
+    validate_resource(resource);
+    return resource;
+}
+
+std::vector<ProjectResource> decode_resources(std::span<const std::byte> payload,
+                                              const ProjectContainerReadLimits& limits) {
+    ByteReader reader(payload);
+    const std::uint32_t resource_count = reader.u32("project resource count");
+    if (resource_count > limits.maximum_resources) {
+        throw ProjectContainerError(ProjectContainerErrorCode::over_limit,
+                                    "project resource count exceeds the configured limit");
+    }
+    std::vector<ProjectResource> resources;
+    resources.reserve(resource_count);
+    std::set<std::string> identities;
+    for (std::uint32_t index = 0; index < resource_count; ++index) {
+        ProjectResource resource = decode_resource(reader, limits);
+        if (!identities.insert(resource.identifier).second) {
+            throw ProjectContainerError(ProjectContainerErrorCode::invalid_resource,
+                                        "container repeats a project resource identity");
+        }
+        resources.push_back(std::move(resource));
+    }
+    if (!reader.empty()) {
+        throw ProjectContainerError(ProjectContainerErrorCode::malformed_section,
+                                    "project resource section has trailing bytes");
+    }
+    return resources;
+}
+
 void append_section(ByteWriter& body, std::uint32_t kind, std::uint32_t version,
                     std::span<const std::byte> payload) {
     body.u32(kind);
@@ -419,13 +523,17 @@ ContainerSchemaVersion probe_project_container_version(std::span<const std::byte
 }
 
 std::vector<std::byte> write_project_container(const ProjectContainer& container) {
-    if (container.opaque_sections.size() >= std::numeric_limits<std::uint32_t>::max()) {
+    if (container.opaque_sections.size() >
+        static_cast<std::size_t>(std::numeric_limits<std::uint32_t>::max()) - 2) {
         throw ProjectContainerError(ProjectContainerErrorCode::over_limit,
                                     "container section count exceeds the format limit");
     }
     const std::vector<std::byte> tiled_payload = encode_tiled_images(container.tiled_images);
+    const std::vector<std::byte> resource_payload = encode_resources(container.resources);
     ByteWriter body;
     append_section(body, tiled_pixel_section_kind, tiled_pixel_section_version, tiled_payload);
+    append_section(body, project_resource_section_kind, project_resource_section_version,
+                   resource_payload);
     for (const OpaqueContainerSection& section : container.opaque_sections) {
         append_section(body, section.kind, section.version, section.payload);
     }
@@ -436,7 +544,7 @@ std::vector<std::byte> write_project_container(const ProjectContainer& container
     writer.u32(container.schema_version.major);
     writer.u32(container.schema_version.minor);
     writer.u32(container.schema_version.patch);
-    writer.u32(static_cast<std::uint32_t>(container.opaque_sections.size() + 1));
+    writer.u32(static_cast<std::uint32_t>(container.opaque_sections.size() + 2));
     writer.u32(0);
     writer.u64(body.view().size());
     writer.bytes(body.view());
@@ -450,15 +558,18 @@ ProjectContainerReadResult read_project_container(std::span<const std::byte> byt
         throw ProjectContainerError(ProjectContainerErrorCode::over_limit,
                                     "container section count exceeds the configured limit");
     }
-    ProjectContainerReadResult result{
-        .container = {.schema_version = header.version, .tiled_images = {}, .opaque_sections = {}},
-        .report = {.source_schema = header.version,
-                   .newer_schema = newer_than_current(header.version),
-                   .unknown_parts = {}}};
+    ProjectContainerReadResult result{.container = {.schema_version = header.version,
+                                                    .tiled_images = {},
+                                                    .resources = {},
+                                                    .opaque_sections = {}},
+                                      .report = {.source_schema = header.version,
+                                                 .newer_schema = newer_than_current(header.version),
+                                                 .unknown_parts = {}}};
     ByteReader body(
         bytes.subspan(header.header_bytes, checked_size(header.body_bytes, "body size")));
     std::size_t total_tiles = 0;
     std::set<std::string> image_identities;
+    std::set<std::string> resource_identities;
     for (std::uint32_t index = 0; index < header.section_count; ++index) {
         const std::uint32_t kind = body.u32("section kind");
         const std::uint32_t version = body.u32("section version");
@@ -478,6 +589,25 @@ ProjectContainerReadResult read_project_container(std::span<const std::byte> byt
                 }
                 continue;
             } catch (const UnsupportedTileSection& error) {
+                result.report.unknown_parts.push_back({.section_kind = kind,
+                                                       .section_version = version,
+                                                       .payload_bytes = payload.size(),
+                                                       .message = error.what()});
+            }
+        } else if (kind == project_resource_section_kind &&
+                   version == project_resource_section_version) {
+            try {
+                auto resources = decode_resources(payload, limits);
+                for (ProjectResource& resource : resources) {
+                    if (!resource_identities.insert(resource.identifier).second) {
+                        throw ProjectContainerError(
+                            ProjectContainerErrorCode::invalid_resource,
+                            "container repeats a project resource identity across sections");
+                    }
+                    result.container.resources.push_back(std::move(resource));
+                }
+                continue;
+            } catch (const UnsupportedResourceSection& error) {
                 result.report.unknown_parts.push_back({.section_kind = kind,
                                                        .section_version = version,
                                                        .payload_bytes = payload.size(),
@@ -557,6 +687,46 @@ image::TiledImage restore_tiled_image(const StoredTiledImage& stored) {
     }
     restored.clear_dirty();
     return restored;
+}
+
+ProjectResourceResolution resolve_project_resources(
+    const ProjectContainer& container, const std::filesystem::path& project_directory) {
+    ProjectResourceResolution resolution;
+    resolution.resources.reserve(container.resources.size());
+    for (const ProjectResource& resource : container.resources) {
+        validate_resource(resource);
+        ResolvedProjectResource resolved{.identifier = resource.identifier,
+                                         .kind = resource.kind,
+                                         .relative_path = resource.relative_path,
+                                         .status = ProjectResourceStatus::missing,
+                                         .bytes = {}};
+        if (resource.packed_bytes.has_value()) {
+            resolved.status = ProjectResourceStatus::packed;
+            resolved.bytes = *resource.packed_bytes;
+        } else {
+            const std::filesystem::path path = project_directory / resource.relative_path;
+            std::ifstream stream(path, std::ios::binary | std::ios::ate);
+            const std::streampos end = stream.tellg();
+            if (stream && end >= 0 &&
+                static_cast<std::uintmax_t>(end) <=
+                    static_cast<std::uintmax_t>(std::numeric_limits<std::streamsize>::max())) {
+                resolved.bytes.resize(static_cast<std::size_t>(end));
+                stream.seekg(0);
+                stream.read(reinterpret_cast<char*>(resolved.bytes.data()),
+                            static_cast<std::streamsize>(resolved.bytes.size()));
+                if (stream) {
+                    resolved.status = ProjectResourceStatus::referenced;
+                } else {
+                    resolved.bytes.clear();
+                }
+            }
+        }
+        if (resolved.status == ProjectResourceStatus::missing) {
+            resolution.missing_identifiers.push_back(resource.identifier);
+        }
+        resolution.resources.push_back(std::move(resolved));
+    }
+    return resolution;
 }
 
 }  // namespace ctex::io

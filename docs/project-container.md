@@ -44,7 +44,31 @@ The reader verifies coordinates, exact edge extents, decoded sizes, duplicate
 identities and compression output before publishing a decoded image. Unknown
 tile encodings preserve the complete section opaquely instead of guessing.
 
-The current in-memory `ProjectContainer` is the extensible framing and tiled
-pixel foundation. Resource packing, atomic filesystem publication, autosave,
+## Project resource section
+
+Section kind 2, version 1 stores external resources independently of tiled
+document pixels. Every record has a stable identifier, a caller-defined kind
+such as `image`, `font`, `mesh-map`, or `mesh`, and a relative path. Resources
+are referenced by that path by default. Setting `ProjectResource::packed_bytes`
+embeds the exact payload while retaining the original path for later unpacking
+or source attribution; an empty packed payload remains distinguishable from an
+unpacked reference.
+
+`resolve_project_resources` resolves references relative to the directory that
+contains the project. Packed resources do not access the filesystem. A missing
+or unreadable referenced file does not prevent the container from opening: its
+resolved status is `missing`, its identifier is included in
+`missing_identifiers`, and other resources remain available. Absolute paths,
+paths containing a parent (`..`) component, empty metadata, and duplicate
+identifiers are refused so a project cannot accidentally bind outside its
+portable directory layout.
+
+Resource count, string length, and individual packed-payload limits are
+configurable through `ProjectContainerReadLimits`. An unknown storage encoding
+causes the complete resource section to be reported and retained opaquely for a
+lossless re-save.
+
+The current in-memory `ProjectContainer` is the extensible framing, tiled pixel,
+and portable resource foundation. Atomic filesystem publication, autosave,
 standalone assets and the complete document object schema are added by the
 subsequent project-I/O roadmap tasks.
