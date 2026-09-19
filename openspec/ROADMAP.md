@@ -7,7 +7,7 @@ decisions taken and questions still open.
 ## Status
 
 Implementation started. 24 capabilities, 332 requirements, 400 scenarios and
-222 tasks, 28 done. Foundation and the complete headless color-management
+222 tasks, 29 done. Foundation and the complete headless color-management
 scenario suite are green. Slice-A now has memory-buffer PNG input/output with
 8/16-bit preservation and hostile-input ceilings; full image-format breadth
 remains scheduled for slice D. Extensible channel descriptors and sparse
@@ -47,6 +47,9 @@ rejected by a linear topological validation pass.
 Socket links now use an explicit coercion matrix with linear Rec. 709 luminance
 weights. Non-coercible links name both types, and connecting to an occupied input
 transactionally replaces and reports the prior link without edit-time conversion.
+The built-in graph catalogue now declares all 52 specified input, texture,
+colour/filter and vector/math nodes with stable schemas. Blend and normal modes
+are complete, and scalar/vector math operations carry documented formulas.
 
 ## Milestones
 

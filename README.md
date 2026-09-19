@@ -30,6 +30,78 @@ brush/eraser, tiled undo, save/reopen and PNG export on a real model. Resource
 use and input-to-visible latency are measured before expanding the tool and
 material catalogue. See [the roadmap](openspec/ROADMAP.md).
 
+## Main features
+
+The current implementation provides:
+
+- Sparse tiled image storage for one-to-four-channel 8-bit, 16-bit, and
+  floating-point pixels, with tile-level dirty tracking.
+- Linear Rec. 709 and sRGB colour transforms, semantic input policies,
+  preview-only 3D LUTs, ordered dithering, and promoted-precision operations.
+- Memory-buffer PNG decoding and encoding with 8/16-bit preservation,
+  content-based detection, metadata handling, and allocation limits.
+- Extensible semantic channels and a nine-channel metallic/roughness PBR preset,
+  with independent precision and allocation-free disabled channels.
+- Texture-set documents derived from mesh partitions and named UVs, with stable
+  identities and independent channel storage.
+- Validated read-only mesh ingest and reusable flat CPU acceleration structures.
+- Perspective and orthographic ray picking, ordered occlusion, configurable
+  backface policy, inverse UV picking, surface snapping, region selection,
+  deterministic shared-boundary ownership, and bounded cancellable batches.
+- A device-independent material graph with canonical serialization, cloning,
+  comparison, edit-time cycle diagnostics, typed socket coercion, and atomic
+  one-link-per-input replacement. Its
+  [built-in node catalogue](docs/material-node-catalogue.md) declares all input,
+  texture, colour/filter, vector, and math node schemas.
+- Strict C++20 builds, sanitizer coverage, OpenSpec validation, dependency
+  layering checks, licence auditing, and deterministic-output gates.
+
+The layer stack, painting engine, shader emission, host transport, project IO,
+bindings, and complete export workflow remain roadmap work and are not presented
+as implemented APIs yet.
+
+## Architecture
+
+CyberTexel is split into enforced, acyclic modules. Arrows point from a consumer
+to the module it depends on; only `exec` may include graphics-backend headers.
+
+```mermaid
+flowchart TD
+    CAPI["capi Public composition"] --> IMG["image Pixels and colour"]
+    CAPI --> MESH["mesh Geometry views"]
+    CAPI --> PICK["pick Surface queries"]
+    CAPI --> GRAPH["graph Material documents"]
+    CAPI --> EMIT["emit Shaders and pass plans"]
+    CAPI --> DOC["doc Texture documents"]
+    CAPI --> PAINT["paint Painting operations"]
+    CAPI --> MAPS["maps Mesh maps"]
+    CAPI --> XPORT["xport Texture export"]
+    CAPI --> IO["io Project and image IO"]
+    CAPI --> EXEC["exec Backend execution"]
+    PICK --> MESH
+    GRAPH --> IMG
+    EMIT --> GRAPH
+    EMIT --> IMG
+    DOC --> GRAPH
+    DOC --> IMG
+    DOC --> MESH
+    PAINT --> DOC
+    PAINT --> EMIT
+    PAINT --> PICK
+    MAPS --> DOC
+    MAPS --> IMG
+    XPORT --> DOC
+    IO --> DOC
+    IO --> IMG
+    EXEC --> EMIT
+    EXEC --> IMG
+
+    style CAPI fill:#E3F2FD,stroke:#1565C0
+    style EXEC fill:#FFF3E0,stroke:#EF6C00
+    style IMG fill:#E8F5E9,stroke:#2E7D32
+    style MESH fill:#E8F5E9,stroke:#2E7D32
+```
+
 ## Where it sits
 
 | Repository | Owns |
@@ -44,7 +116,7 @@ The seams are a format and an interface, following CyberRemesherAndUV's
 `pipeline-bridge` precedent: CyberTexel defines the mesh-map set it consumes and
 a provider interface; CyberRemesherAndUV implements the baking behind it.
 
-## Capabilities
+## Planned capabilities
 
 Twenty-four, specified before any code exists:
 

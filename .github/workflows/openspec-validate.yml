@@ -58,6 +58,8 @@ jobs:
       run: just test-graph-cycles
     - name: Material graph socket links
       run: just test-graph-sockets
+    - name: Material graph catalogue
+      run: just test-graph-catalogue
     - name: Test suite
       run: just test
 

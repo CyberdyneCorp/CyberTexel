@@ -68,6 +68,10 @@ Foundation implementation is in progress.
   diagnostics and cyclic-input rejection during deserialization.
 - Explicit material graph socket coercions, typed incompatibility diagnostics,
   and transactional one-link-per-input replacement reporting.
+- A 52-type built-in material node catalogue with stable declarations, typed
+  sockets, constrained properties, complete blend and normal modes, and
+  formula-bearing scalar/vector math operations.
+- README architecture diagram and a current, implementation-scoped feature list.
 
 ### Changed
 

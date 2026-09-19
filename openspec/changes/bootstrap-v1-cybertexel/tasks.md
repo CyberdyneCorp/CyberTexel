@@ -143,7 +143,12 @@ colour/vector coercion matrix with linear Rec. 709 luminance weights. Link edits
 return their required emission coercion and any displaced connection; invalid
 types and cycles are refused before transactional one-link-per-input replacement.
 Deserialization enforces the same invariants. The built-in node catalogue (6.4)
-is next.
+adds all 52 specified input, texture, colour/filter and vector/math types as
+versioned immutable declarations with typed sockets, property choices and a
+`GraphNode` factory. The Blend declaration carries all twenty shared modes; Mix
+Normal Map carries partial-derivative, whiteout and reoriented modes; scalar and
+vector math operations have machine-readable and reference-document formulas.
+Node groups and propagation (6.5) are next.
 
 ## 1. Foundation
 
@@ -220,7 +225,7 @@ is next.
 - [x] 6.1 Graph document: nodes, links, sockets, serialization, comparison
 - [x] 6.2 Edit-time cycle detection and its diagnostics
 - [x] 6.3 Socket typing, coercion rules, one-link-per-input, refusal of non-coercible links
-- [ ] 6.4 Node catalogue: input, texture, colour and filter, vector and math
+- [x] 6.4 Node catalogue: input, texture, colour and filter, vector and math
 - [ ] 6.5 Node groups, socket propagation, recursion refusal
 - [ ] 6.6 Graph validation independent of emission
 - [ ] 6.7 Host-registered node types with CPU and emission semantics, replay eligibility and parity fixtures; opaque preservation of unknown types

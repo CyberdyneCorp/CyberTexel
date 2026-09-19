@@ -60,3 +60,6 @@ values, and documents that do not have exactly one output.
 Serialization, cloning, and equality include node positions, unconnected socket
 values, properties, links, and the next stable identity. The graph module has no
 device, host, or shading-language type; emission remains a separate module.
+
+The versioned built-in declarations and their math/normal formulas are listed in
+the [material node catalogue](material-node-catalogue.md).

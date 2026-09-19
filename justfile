@@ -110,6 +110,9 @@ test-graph-cycles: build
 test-graph-sockets: build
     ctest --test-dir build/headless --output-on-failure -R '^material-graph-socket-links$'
 
+test-graph-catalogue: build
+    ctest --test-dir build/headless --output-on-failure -R '^material-graph-catalogue$'
+
 examples:
     @just _unimplemented examples 16.2
 
