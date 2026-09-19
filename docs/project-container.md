@@ -68,6 +68,21 @@ configurable through `ProjectContainerReadLimits`. An unknown storage encoding
 causes the complete resource section to be reported and retained opaquely for a
 lossless re-save.
 
+## Standalone asset section
+
+Section kind 3, version 1 stores versioned standalone asset records. Each record
+has a stable identifier, an extensible string kind, an asset-format version, an
+opaque payload, and explicit lists of project-resource and tiled-image
+dependencies. The built-in kind vocabulary covers materials, smart materials,
+smart masks, brushes, stroke presets, export presets, and node groups. Payloads
+remain owned by those domain serializers; the container preserves kinds and
+versions it does not yet interpret.
+
+Asset and dependency counts, payload bytes, and all identifier lengths use the
+same configurable read limits and checked framing as the other sections.
+Duplicate asset identities or dependencies, empty metadata, and version zero
+are refused.
+
 ## Atomic and deterministic save
 
 `save_project_container_atomic` encodes the complete project before touching
@@ -89,5 +104,5 @@ Periodic background publication and restart discovery build on this format and
 are described in [Project snapshots, autosave, and recovery](project-autosave.md).
 
 The current in-memory `ProjectContainer` is the extensible framing, tiled pixel,
-and portable resource foundation. Standalone assets and the complete document
-object schema are added by subsequent project-I/O roadmap tasks.
+portable resource, and standalone asset foundation. The complete document
+object schema is added by subsequent project-I/O roadmap tasks.

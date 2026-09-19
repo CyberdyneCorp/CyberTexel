@@ -24,6 +24,7 @@ struct ProjectSnapshotImageSource {
 struct ProjectSnapshotMetadata {
     ContainerSchemaVersion schema_version{current_container_schema};
     std::vector<ProjectResource> resources;
+    std::vector<StandaloneAsset> assets;
     std::vector<OpaqueContainerSection> opaque_sections;
 };
 

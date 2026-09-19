@@ -418,6 +418,12 @@ bool write_determinism_artifact() {
          .kind = "mesh",
          .relative_path = "meshes/source.glb",
          .packed_bytes = std::vector<std::byte>{std::byte{'g'}, std::byte{'l'}, std::byte{'b'}}});
+    container.assets.push_back({.identifier = "materials/example",
+                                .kind = "material",
+                                .format_version = 1,
+                                .resource_dependencies = {"mesh/source"},
+                                .tiled_image_dependencies = {"layers/paint/pbr.base-color"},
+                                .payload = {std::byte{'m'}, std::byte{'a'}, std::byte{'t'}}});
     container.opaque_sections.push_back(
         {.kind = 0x80000001U,
          .version = 3,

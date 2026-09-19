@@ -177,7 +177,11 @@ ctex_add_module(
 ctex_add_module(
     io
     DEPENDS doc image
-    SOURCES src/io/io.cpp src/io/project_container.cpp src/io/project_autosave.cpp
+    SOURCES
+        src/io/io.cpp
+        src/io/project_container.cpp
+        src/io/project_autosave.cpp
+        src/io/standalone_asset.cpp
 )
 target_link_libraries(ctex_io PRIVATE ctex_lodepng Threads::Threads)
 set(
@@ -286,6 +290,10 @@ if(BUILD_TESTING)
     ctex_configure_cpp_target(ctex_project_autosave_test)
     target_link_libraries(ctex_project_autosave_test PRIVATE cybertexel)
     add_test(NAME project-autosave COMMAND ctex_project_autosave_test)
+    add_executable(ctex_standalone_asset_test tests/io/standalone_asset_test.cpp)
+    ctex_configure_cpp_target(ctex_standalone_asset_test)
+    target_link_libraries(ctex_standalone_asset_test PRIVATE cybertexel)
+    add_test(NAME standalone-asset COMMAND ctex_standalone_asset_test)
     add_test(
         NAME project-container-determinism
         COMMAND "${CTEX_PYTHON3_EXECUTABLE}" tools/check_determinism.py project-save
@@ -1085,6 +1093,7 @@ if(BUILD_TESTING)
     set_tests_properties(
         project-container
         project-autosave
+        standalone-asset
         project-container-determinism
         PROPERTIES LABELS project-io-scenario
     )

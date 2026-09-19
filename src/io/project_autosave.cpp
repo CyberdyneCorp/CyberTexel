@@ -170,6 +170,7 @@ ProjectContainer materialize_project_snapshot(const ProjectSaveSnapshot& snapsho
     ProjectContainer container{.schema_version = snapshot.impl_->metadata.schema_version,
                                .tiled_images = {},
                                .resources = snapshot.impl_->metadata.resources,
+                               .assets = snapshot.impl_->metadata.assets,
                                .opaque_sections = snapshot.impl_->metadata.opaque_sections};
     container.tiled_images.reserve(snapshot.impl_->images.size());
     for (const PinnedImage& pinned : snapshot.impl_->images) {

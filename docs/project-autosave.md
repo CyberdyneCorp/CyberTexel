@@ -1,10 +1,10 @@
 # Project snapshots, autosave, and recovery
 
 `capture_project_snapshot` captures one host-supplied committed project
-revision. The caller supplies `ProjectSnapshotMetadata` (schema, resources, and
-opaque sections, with no pixel vectors) plus the live tiled images that belong
-to that revision. Capture visits only allocated tiles and
-pins their immutable storage handles; it does not copy, compress, or write
+revision. The caller supplies `ProjectSnapshotMetadata` (schema, resources,
+standalone assets, and opaque sections, with no pixel vectors) plus the live
+tiled images that belong to that revision. Capture visits only allocated tiles
+and pins their immutable storage handles; it does not copy, compress, or write
 pixel payloads. It also verifies that each image revision stayed fixed during
 capture. The host should call it at a committed edit boundary, then may resume
 painting immediately. Later writes use the tiled image's copy-on-write storage,

@@ -18,6 +18,8 @@ inline constexpr std::uint32_t tiled_pixel_section_kind = 1;
 inline constexpr std::uint32_t tiled_pixel_section_version = 1;
 inline constexpr std::uint32_t project_resource_section_kind = 2;
 inline constexpr std::uint32_t project_resource_section_version = 1;
+inline constexpr std::uint32_t standalone_asset_section_kind = 3;
+inline constexpr std::uint32_t standalone_asset_section_version = 1;
 
 enum class TileCompression : std::uint8_t { zlib_deflate = 1 };
 
@@ -55,10 +57,21 @@ struct ProjectResource {
     friend bool operator==(const ProjectResource&, const ProjectResource&) = default;
 };
 
+struct StandaloneAsset {
+    std::string identifier;
+    std::string kind;
+    std::uint32_t format_version{1};
+    std::vector<std::string> resource_dependencies;
+    std::vector<std::string> tiled_image_dependencies;
+    std::vector<std::byte> payload;
+    friend bool operator==(const StandaloneAsset&, const StandaloneAsset&) = default;
+};
+
 struct ProjectContainer {
     ContainerSchemaVersion schema_version{current_container_schema};
     std::vector<StoredTiledImage> tiled_images;
     std::vector<ProjectResource> resources;
+    std::vector<StandaloneAsset> assets;
     std::vector<OpaqueContainerSection> opaque_sections;
 };
 
@@ -102,6 +115,7 @@ enum class ProjectContainerErrorCode : std::uint8_t {
     malformed_section,
     invalid_tile,
     invalid_resource,
+    invalid_asset,
     invalid_snapshot,
     compression_failed,
     over_limit,
@@ -122,9 +136,12 @@ struct ProjectContainerReadLimits {
     std::size_t maximum_images{1'000'000};
     std::size_t maximum_tiles{16'000'000};
     std::size_t maximum_resources{1'000'000};
+    std::size_t maximum_assets{1'000'000};
+    std::size_t maximum_asset_dependencies{16'000'000};
     std::size_t maximum_string_bytes{1ULL << 20};
     std::size_t maximum_decoded_tile_bytes{1ULL << 30};
     std::size_t maximum_packed_resource_bytes{1ULL << 30};
+    std::size_t maximum_asset_payload_bytes{1ULL << 30};
 };
 
 [[nodiscard]] ContainerSchemaVersion probe_project_container_version(

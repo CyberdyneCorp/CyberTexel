@@ -124,7 +124,9 @@ The current implementation provides:
   explicit missing-resource reports. Saves are atomically published and
   byte-identical for unchanged projects; [copy-on-write snapshots and periodic
   autosave](docs/project-autosave.md) keep compression and filesystem work off
-  the paint thread and expose restart recovery candidates.
+  the paint thread and expose restart recovery candidates. The same container
+  supports [referenced or self-contained standalone asset packages](docs/standalone-assets.md)
+  for materials, smart content, brushes, presets, and node groups.
 - Extensible semantic channels and a nine-channel metallic/roughness PBR preset,
   with independent precision and allocation-free disabled channels.
 - Texture-set documents derived from mesh partitions and named UVs, with stable

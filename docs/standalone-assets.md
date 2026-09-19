@@ -1,0 +1,33 @@
+# Standalone asset packages
+
+CyberTexel exports materials, smart materials, smart masks, brushes, stroke
+presets, export presets, and node groups through the same versioned container
+used by projects. A `StandaloneAsset` carries the domain serializer's opaque
+payload and format version plus explicit external-resource and tiled-image
+dependencies. The packaging layer does not reinterpret that payload.
+
+`package_standalone_asset` selects exactly one asset and only its declared
+dependencies from a source container. Unknown opaque sections are retained so
+an older build does not discard future package data. The default export keeps
+external resources as relative references. With `self_contained` enabled,
+every referenced resource is read relative to `source_directory` and embedded;
+already packed resources and tiled images remain embedded without another
+filesystem dependency. A missing declaration, ambiguous identity, or missing
+file refuses the package instead of substituting content.
+
+`save_standalone_asset_atomic` builds the complete package before using the
+normal atomic project publication path. A packaging failure therefore cannot
+replace a valid existing asset file.
+
+`import_standalone_asset` accepts container bytes and the package's containing
+directory. It requires exactly one asset, verifies that every declared
+dependency is present in the package, resolves referenced resources, and
+returns the parsed package with the normal missing-resource report. Its
+`self_contained` flag is true only when every declared external resource has an
+embedded payload; such a package opens after all source files are removed.
+
+`install_standalone_asset` atomically adds an imported asset to a container used
+as a library. Referenced dependencies are packed from their resolved bytes so
+their meaning does not change when the library moves. Equal existing resources
+or tiled images are reused; conflicting or duplicate identities and missing
+dependencies refuse the whole install without partially changing the library.

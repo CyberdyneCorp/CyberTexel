@@ -8,6 +8,7 @@
 #include <span>
 #include <string_view>
 #include <thread>
+#include <utility>
 #include <vector>
 
 namespace {
@@ -62,7 +63,16 @@ bool pinned_snapshot_remains_consistent_while_painting_continues() {
     image.write_pixel(canvas_size - 1, canvas_size - 1, before);
     image.write_pixel(0, 0, before);
 
-    const ProjectSaveSnapshot snapshot = capture(41, image);
+    ProjectSnapshotMetadata metadata;
+    metadata.assets.push_back({.identifier = "materials/snapshot",
+                               .kind = "material",
+                               .format_version = 1,
+                               .resource_dependencies = {},
+                               .tiled_image_dependencies = {"layers/base-color"},
+                               .payload = {std::byte{'m'}}});
+    const ProjectSnapshotImageSource source{.resource_id = "layers/base-color", .image = &image};
+    const ProjectSaveSnapshot snapshot =
+        capture_project_snapshot(41, std::move(metadata), std::span(&source, 1));
     image.write_pixel(canvas_size - 1, canvas_size - 1, after);
     const ProjectContainer materialized = materialize_project_snapshot(snapshot);
     const image::TiledImage restored = restore_tiled_image(materialized.tiled_images.front());
@@ -70,6 +80,8 @@ bool pinned_snapshot_remains_consistent_while_painting_continues() {
     return expect(snapshot.revision() == 41 && snapshot.image_count() == 1 &&
                       snapshot.retained_pixel_bytes() == image.tile_bytes() * 2 &&
                       materialized.tiled_images.front().occupied_tiles.size() == 2 &&
+                      materialized.assets.size() == 1 &&
+                      materialized.assets.front().identifier == "materials/snapshot" &&
                       materialized.tiled_images.front().occupied_tiles.front().coordinate ==
                           image::TileCoordinate{0, 0} &&
                       materialized.tiled_images.front().occupied_tiles.back().coordinate ==
