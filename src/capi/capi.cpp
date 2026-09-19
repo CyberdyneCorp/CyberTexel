@@ -15,6 +15,7 @@
 #include <ctex/paint/masking.hpp>
 #include <ctex/paint/stroke.hpp>
 #include <ctex/paint/stroke_preset.hpp>
+#include <ctex/paint/work.hpp>
 #include <exception>
 #include <iterator>
 #include <limits>
@@ -1728,6 +1729,49 @@ ctex_paint_rejection_info capi_rejection_info(const ctex::paint::RejectionReport
     };
 }
 
+std::vector<ctex::paint::StampTexelFootprint> paint_work_footprints(
+    const ctex_paint_work_descriptor& work) {
+    std::vector<ctex::paint::StampTexelFootprint> footprints;
+    footprints.reserve(work.stamp_footprint_count);
+    for (std::size_t index = 0; index < work.stamp_footprint_count; ++index) {
+        const ctex_paint_stamp_footprint& footprint = work.stamp_footprints[index];
+        footprints.push_back({
+            .stamp_ordinal = footprint.stamp_ordinal,
+            .minimum_x = footprint.minimum_x,
+            .minimum_y = footprint.minimum_y,
+            .maximum_x = footprint.maximum_x,
+            .maximum_y = footprint.maximum_y,
+        });
+    }
+    return footprints;
+}
+
+ctex_paint_work_info capi_paint_work_info(const ctex::paint::PaintWorkReport& report) {
+    return {
+        .size = CTEX_PAINT_WORK_INFO_CURRENT_SIZE,
+        .canvas_tile_count = report.canvas_tile_count,
+        .footprint_count = report.footprint_count,
+        .candidate_tile_visits = report.candidate_tile_visits,
+        .processed_tile_count = report.processed_tiles.size(),
+        .resolved_dilation_radius = report.dilation_radius,
+        .dilation_radius_clamped =
+            report.parameter_report.clamp_for("seam_dilation.radius").has_value() ? 1U : 0U,
+    };
+}
+
+void copy_paint_work_tiles(const ctex::paint::PaintWorkReport& report,
+                           ctex_paint_tile_coordinate* processed_tiles) {
+    if (processed_tiles == nullptr) {
+        return;
+    }
+    for (std::size_t index = 0; index < report.processed_tiles.size(); ++index) {
+        processed_tiles[index] = {
+            .x = report.processed_tiles[index].x,
+            .y = report.processed_tiles[index].y,
+        };
+    }
+}
+
 ctex::paint::RejectionSettings accept_all_rejection_settings() {
     return {
         .depth_enabled = false,
@@ -2639,6 +2683,67 @@ extern "C" ctex_result ctex_paint_evaluate_rejected_coverage(
                            error.what());
         } catch (const std::out_of_range& error) {
             throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_INVALID_PAINT_REJECTION,
+                           error.what());
+        }
+    });
+}
+
+extern "C" ctex_result ctex_paint_work_init(ctex_paint_work_descriptor* out_work) {
+    return call_boundary("ctex_paint_work_init", [&] {
+        if (out_work == nullptr) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                           "out_work is required");
+        }
+        *out_work = {
+            .size = CTEX_PAINT_WORK_DESCRIPTOR_CURRENT_SIZE,
+            .canvas_width = 0,
+            .canvas_height = 0,
+            .tile_size = ctex::image::default_tile_size,
+            .dilation_radius = ctex::paint::default_seam_dilation_radius,
+            .stamp_footprints = nullptr,
+            .stamp_footprint_count = 0,
+        };
+    });
+}
+
+extern "C" ctex_result ctex_paint_plan_work(const ctex_paint_work_descriptor* work,
+                                            ctex_paint_work_info* out_info,
+                                            ctex_paint_tile_coordinate* processed_tiles,
+                                            std::size_t processed_tile_capacity,
+                                            std::size_t* out_processed_tile_count) {
+    return call_boundary("ctex_paint_plan_work", [&] {
+        if (work == nullptr || out_info == nullptr || out_processed_tile_count == nullptr) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                           "work, out_info and out_processed_tile_count are required");
+        }
+        validate_structure_size(work->size, CTEX_PAINT_WORK_DESCRIPTOR_V1_SIZE,
+                                CTEX_PAINT_WORK_DESCRIPTOR_CURRENT_SIZE, "work.size");
+        validate_structure_size(out_info->size, CTEX_PAINT_WORK_INFO_V1_SIZE,
+                                CTEX_PAINT_WORK_INFO_CURRENT_SIZE, "out_info.size");
+        if (work->stamp_footprints == nullptr && work->stamp_footprint_count != 0) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                           "stamp_footprints is null with nonzero count");
+        }
+        try {
+            const std::vector<ctex::paint::StampTexelFootprint> footprints =
+                paint_work_footprints(*work);
+            const ctex::paint::PaintWorkReport report = ctex::paint::plan_paint_work({
+                .canvas_width = work->canvas_width,
+                .canvas_height = work->canvas_height,
+                .tile_size = work->tile_size,
+                .dilation_radius = work->dilation_radius,
+                .stamp_footprints = footprints,
+            });
+            *out_processed_tile_count = report.processed_tiles.size();
+            validate_output_array(processed_tiles, processed_tile_capacity,
+                                  report.processed_tiles.size(), "processed_tiles");
+            *out_info = capi_paint_work_info(report);
+            copy_paint_work_tiles(report, processed_tiles);
+        } catch (const std::length_error& error) {
+            throw_boundary(CTEX_RESULT_OVER_BUDGET, CTEX_DIAGNOSTIC_PAINT_LIMIT_EXCEEDED,
+                           error.what());
+        } catch (const std::invalid_argument& error) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_INVALID_PAINT_WORK,
                            error.what());
         }
     });

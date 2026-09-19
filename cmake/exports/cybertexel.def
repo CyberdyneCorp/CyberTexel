@@ -30,7 +30,9 @@ EXPORTS
     ctex_paint_combine_masks
     ctex_paint_evaluate_material_coordinates
     ctex_paint_evaluate_rejected_coverage
+    ctex_paint_plan_work
     ctex_paint_rejection_init
+    ctex_paint_work_init
     ctex_paint_evaluate_tile_deposition
     ctex_paint_evaluate_tile_coverage
     ctex_quantize_unorm8

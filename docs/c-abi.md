@@ -213,6 +213,15 @@ top-left-origin viewport coordinates. Backface rejection uses counter-clockwise
 triangle winding and directions from the surface toward the camera. All inputs
 are borrowed only for the call, and output remains unchanged on failure.
 
+`ctex_paint_work_init` supplies the canonical 64-texel storage-tile size and
+two-texel seam-dilation radius. `ctex_paint_plan_work` accepts exact half-open
+stamp footprints in canvas coordinates, expands and clips them by the resolved
+dilation radius, and returns the deduplicated storage tiles in deterministic
+row-major order. Its report includes total canvas tiles, supplied footprints,
+candidate visits before deduplication, the exact processed count, and any
+dilation-radius clamp. Planning scales with reachable footprint tiles rather
+than scanning the canvas; it does not mutate a document or invoke processing.
+
 `ctex_paint_evaluate_tile_deposition` evaluates the same bounded tile through
 per-stamp deposition and alpha discard. Non-building mode reports maximum
 coverage and maximum `opacity * flow * coverage`; explicit build-up mode applies
@@ -222,8 +231,9 @@ plus a per-texel write mask. Alpha discard defaults to 0.1 for 8-bit output and
 0.004 for 16-bit or floating-point output; a custom threshold is clamped to the
 normalized range and that clamp is reported in the result metadata.
 
-All tile paint operations are capped at `CTEX_MAX_PAINT_TILE_TEXEL_COUNT` (1,048,576)
-texels so this boundary cannot silently allocate a canvas-sized intermediate.
+Per-tile raster, coordinate, rejection, deposition and blending operations are
+capped at `CTEX_MAX_PAINT_TILE_TEXEL_COUNT` (1,048,576) texels so these
+boundaries cannot silently allocate a canvas-sized intermediate.
 
 `ctex_paint_combine_masks` intersects any number of active-layer masks with
 optional colour-ID, geometry, screen and UV-island selections. Null mask input
@@ -277,7 +287,7 @@ The contract is stated per entry-point family:
 | --- | --- |
 | `ctex_get_version`, `ctex_get_abi_version` | Process-safe and callable concurrently from any thread |
 | `ctex_get_working_color_space`, `ctex_color_space_get_name`, `ctex_channel_get_color_policy`, `ctex_channel_get_bit_depth_warning`, `ctex_resolve_input_color_space`, `ctex_color_convert`, `ctex_color_input_to_working`, `ctex_accumulate_height`, `ctex_quantize_unorm8` | Stateless, process-safe and callable concurrently from any thread |
-| `ctex_image_decode_memory`, `ctex_image_encode_memory`, `ctex_stroke_settings_init`, `ctex_stroke_resolve`, `ctex_stroke_preset_serialize`, `ctex_stroke_preset_deserialize`, `ctex_paint_evaluate_tile_coverage`, `ctex_paint_evaluate_material_coordinates`, `ctex_paint_rejection_init`, `ctex_paint_evaluate_rejected_coverage`, `ctex_paint_combine_masks`, `ctex_paint_evaluate_tile_deposition`, `ctex_paint_blend_snapshot` | Stateless and safe to call concurrently; inputs are borrowed only for the call and outputs are caller-owned |
+| `ctex_image_decode_memory`, `ctex_image_encode_memory`, `ctex_stroke_settings_init`, `ctex_stroke_resolve`, `ctex_stroke_preset_serialize`, `ctex_stroke_preset_deserialize`, `ctex_paint_evaluate_tile_coverage`, `ctex_paint_evaluate_material_coordinates`, `ctex_paint_rejection_init`, `ctex_paint_evaluate_rejected_coverage`, `ctex_paint_work_init`, `ctex_paint_plan_work`, `ctex_paint_combine_masks`, `ctex_paint_evaluate_tile_deposition`, `ctex_paint_blend_snapshot` | Stateless and safe to call concurrently; inputs are borrowed only for the call and outputs are caller-owned |
 | `ctex_cube_lut_create` | Process-safe; each successful call creates independent immutable state and captures the active allocator |
 | `ctex_cube_lut_apply_preview` | Safe to call concurrently, including against the same immutable LUT handle |
 | `ctex_cube_lut_destroy` | The caller ensures no application call is using that handle; distinct handles may be destroyed concurrently |

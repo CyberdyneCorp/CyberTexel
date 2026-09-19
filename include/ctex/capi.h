@@ -76,7 +76,8 @@ typedef enum ctex_diagnostic_code {
     CTEX_DIAGNOSTIC_INVALID_PAINT_BLEND = 40,
     CTEX_DIAGNOSTIC_INVALID_PAINT_MASK = 41,
     CTEX_DIAGNOSTIC_INVALID_PAINT_COORDINATES = 42,
-    CTEX_DIAGNOSTIC_INVALID_PAINT_REJECTION = 43
+    CTEX_DIAGNOSTIC_INVALID_PAINT_REJECTION = 43,
+    CTEX_DIAGNOSTIC_INVALID_PAINT_WORK = 44
 } ctex_diagnostic_code;
 
 typedef enum ctex_log_severity {
@@ -509,6 +510,45 @@ typedef struct ctex_paint_rejection_info {
 
 #define CTEX_PAINT_REJECTION_INFO_V1_SIZE ((uint32_t)sizeof(ctex_paint_rejection_info))
 #define CTEX_PAINT_REJECTION_INFO_CURRENT_SIZE ((uint32_t)sizeof(ctex_paint_rejection_info))
+
+typedef struct ctex_paint_stamp_footprint {
+    uint64_t stamp_ordinal;
+    uint32_t minimum_x;
+    uint32_t minimum_y;
+    uint32_t maximum_x;
+    uint32_t maximum_y;
+} ctex_paint_stamp_footprint;
+
+typedef struct ctex_paint_tile_coordinate {
+    uint32_t x;
+    uint32_t y;
+} ctex_paint_tile_coordinate;
+
+typedef struct ctex_paint_work_descriptor {
+    uint32_t size;
+    uint32_t canvas_width;
+    uint32_t canvas_height;
+    uint32_t tile_size;
+    uint32_t dilation_radius;
+    const ctex_paint_stamp_footprint* stamp_footprints;
+    size_t stamp_footprint_count;
+} ctex_paint_work_descriptor;
+
+#define CTEX_PAINT_WORK_DESCRIPTOR_V1_SIZE ((uint32_t)sizeof(ctex_paint_work_descriptor))
+#define CTEX_PAINT_WORK_DESCRIPTOR_CURRENT_SIZE ((uint32_t)sizeof(ctex_paint_work_descriptor))
+
+typedef struct ctex_paint_work_info {
+    uint32_t size;
+    uint64_t canvas_tile_count;
+    size_t footprint_count;
+    size_t candidate_tile_visits;
+    size_t processed_tile_count;
+    uint32_t resolved_dilation_radius;
+    uint32_t dilation_radius_clamped;
+} ctex_paint_work_info;
+
+#define CTEX_PAINT_WORK_INFO_V1_SIZE ((uint32_t)sizeof(ctex_paint_work_info))
+#define CTEX_PAINT_WORK_INFO_CURRENT_SIZE ((uint32_t)sizeof(ctex_paint_work_info))
 
 typedef struct ctex_paint_deposition_descriptor {
     uint32_t size;
@@ -963,6 +1003,16 @@ CTEX_API ctex_result ctex_paint_evaluate_rejected_coverage(
     const ctex_resolved_stroke_descriptor* stroke, const ctex_paint_rejection_descriptor* rejection,
     ctex_paint_rejection_info* out_info, double* coverage, size_t coverage_capacity,
     size_t* out_coverage_count);
+
+/* Initializes the canonical storage-tile size and seam-dilation radius. */
+CTEX_API ctex_result ctex_paint_work_init(ctex_paint_work_descriptor* out_work);
+
+/* Plans and reports the exact storage tiles reachable by supplied footprints. */
+CTEX_API ctex_result ctex_paint_plan_work(const ctex_paint_work_descriptor* work,
+                                          ctex_paint_work_info* out_info,
+                                          ctex_paint_tile_coordinate* processed_tiles,
+                                          size_t processed_tile_capacity,
+                                          size_t* out_processed_tile_count);
 
 /* Intersects every active normalized mask for one bounded tile. */
 CTEX_API ctex_result ctex_paint_combine_masks(uint32_t width, uint32_t height,
