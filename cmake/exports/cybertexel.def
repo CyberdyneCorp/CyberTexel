@@ -18,6 +18,19 @@ EXPORTS
     ctex_mesh_map_set_synchronize_mesh
     ctex_mesh_map_set_release
     ctex_mesh_map_set_release_all
+    ctex_mesh_map_generator_get_info
+    ctex_mesh_map_generator_generate
+    ctex_mesh_map_set_request_bake
+    ctex_mesh_map_bake_session_create
+    ctex_mesh_map_bake_session_destroy
+    ctex_mesh_map_bake_session_get_info
+    ctex_mesh_map_bake_session_begin
+    ctex_mesh_map_bake_session_cancel
+    ctex_mesh_map_bake_session_complete
+    ctex_mesh_map_bake_session_edit_settings
+    ctex_mesh_map_bake_session_undo_settings
+    ctex_mesh_map_bake_request_token_destroy
+    ctex_mesh_map_bake_request_token_get_info
     ctex_texture_set_query_channel_delta
     ctex_texture_set_reset_channel_revision_history
     ctex_transport_snapshot_pool_create

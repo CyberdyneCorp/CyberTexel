@@ -173,6 +173,13 @@ before return. The document and mesh are non-owning parents of the opaque map
 set and therefore outlive it; separate map sets may be used concurrently only
 when their parent documents and meshes are also distinct.
 
+The generator catalogue and execution path cross the same boundary through
+`ctex_mesh_map_generator_get_info` and `ctex_mesh_map_generator_generate`.
+Caller-owned outputs include the float mask, packed parameter names and
+meanings, resolved values, clamp reports, stale-map identities and diagnostic
+text. A missing required map returns `CTEX_RESULT_MISSING_RESOURCE`; no mask is
+published as a neutral substitute.
+
 The C mesh boundary also accepts a declared tangent frame plus one signed
 tangent per triangle corner and reports whether a mesh retained supplied data
 or generated the pinned default. Normal-map import compares the whole reported
@@ -187,6 +194,19 @@ and requested resolution. The provider returns a borrowed strided pixel-buffer
 view; CyberTexel validates and copies it
 before the callback returns, then binds it transactionally. Provider memory
 never becomes document-owned memory by accident.
+
+The C equivalent is `ctex_mesh_map_set_request_bake`. Its callback descriptors
+carry the same identities, progress and cancellation contract, and provider
+callbacks execute synchronously on the calling thread. The provider is not
+retained and no baker is linked into CyberTexel.
+
+`ctex_mesh_map_bake_session_*` exposes the asynchronous state machine without
+retaining a provider. Allocator-owned request tokens make the session, mesh,
+texture set, UV set, bake-settings revision and request generation inspectable.
+Completion binds only a current token and reports `bound`, `stale`, `cancelled`,
+`invalid_output` or `unknown_token`. Settings edits and their accepted map
+replacements form one undo step, and undo invalidates pending completions before
+restoring the exact prior binding snapshot.
 
 `BakeControl` carries C-style progress and cancellation callbacks. CyberTexel
 reports initial zero progress, forwards valid monotonic provider progress below

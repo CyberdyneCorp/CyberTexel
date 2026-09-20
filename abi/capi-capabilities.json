@@ -108,14 +108,21 @@
       {"requirement": "Mesh limits are declared", "symbols": ["ctex_mesh_create", "ctex_mesh_replace"]}
     ]},
     {"name": "mesh-maps", "kind": "runtime", "requirements": [
+      {"requirement": "The library does not bake", "symbols": ["ctex_mesh_map_set_request_bake", "ctex_mesh_map_generator_generate"]},
       {"requirement": "The mesh map set", "symbols": ["ctex_mesh_map_set_create", "ctex_mesh_map_set_destroy", "ctex_mesh_map_kind_get_name", "ctex_mesh_map_set_get_info", "ctex_mesh_map_set_get_entries"]},
       {"requirement": "Maps are per texture set", "symbols": ["ctex_mesh_map_set_create", "ctex_mesh_map_set_get_info"]},
+      {"requirement": "Bake provider interface", "symbols": ["ctex_mesh_map_set_request_bake"]},
+      {"requirement": "No build dependency on a baker", "symbols": ["ctex_mesh_map_set_request_bake"]},
       {"requirement": "A missing map fails loudly", "symbols": ["ctex_mesh_map_set_sample", "ctex_mesh_map_set_check_requirements"]},
       {"requirement": "Map staleness", "symbols": ["ctex_mesh_map_set_synchronize_mesh", "ctex_mesh_map_set_sample", "ctex_mesh_map_set_get_entries"]},
       {"requirement": "Import of externally produced maps", "symbols": ["ctex_mesh_map_set_import_external"]},
       {"requirement": "Normal map conventions", "symbols": ["ctex_mesh_map_set_import_external", "ctex_mesh_map_set_sample", "ctex_mesh_map_set_get_entries"]},
+      {"requirement": "Generators", "symbols": ["ctex_mesh_map_generator_get_info", "ctex_mesh_map_generator_generate"]},
+      {"requirement": "Generator parameters are documented and bounded", "symbols": ["ctex_mesh_map_generator_get_info", "ctex_mesh_map_generator_generate"]},
+      {"requirement": "Generators are deterministic", "symbols": ["ctex_mesh_map_generator_generate"]},
       {"requirement": "Map memory is accounted", "symbols": ["ctex_texture_set_get_memory_report", "ctex_mesh_map_set_get_info", "ctex_mesh_map_set_get_entries", "ctex_mesh_map_set_release", "ctex_mesh_map_set_release_all"]},
-      {"requirement": "Tangent frame contract", "symbols": ["ctex_mesh_create_with_tangent_data", "ctex_mesh_replace_with_tangent_data", "ctex_mesh_get_tangent_frame", "ctex_mesh_map_set_import_external", "ctex_mesh_map_set_get_entries"]}
+      {"requirement": "Tangent frame contract", "symbols": ["ctex_mesh_create_with_tangent_data", "ctex_mesh_replace_with_tangent_data", "ctex_mesh_get_tangent_frame", "ctex_mesh_map_set_import_external", "ctex_mesh_map_set_get_entries"]},
+      {"requirement": "Versioned asynchronous bake requests", "symbols": ["ctex_mesh_map_bake_session_create", "ctex_mesh_map_bake_session_destroy", "ctex_mesh_map_bake_session_get_info", "ctex_mesh_map_bake_session_begin", "ctex_mesh_map_bake_session_cancel", "ctex_mesh_map_bake_session_complete", "ctex_mesh_map_bake_session_edit_settings", "ctex_mesh_map_bake_session_undo_settings", "ctex_mesh_map_bake_request_token_destroy", "ctex_mesh_map_bake_request_token_get_info"]}
     ]},
     {"name": "paint-engine", "kind": "runtime", "requirements": [
       {"requirement": "Texture-space rasterization", "symbols": ["ctex_paint_evaluate_tile_coverage"]},

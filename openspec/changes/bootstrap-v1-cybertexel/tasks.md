@@ -999,6 +999,18 @@ ownership, mirrored handedness, atomic tangent refusal, revision synchronization
 and selective release. Eight mesh-map requirements now have public evidence and
 the exact remaining C ABI gap is 48 runtime requirements.
 
+The mesh-map execution continuation exposes all eight deterministic generators,
+their complete required-map and bounded-parameter catalogue, resolved values,
+clamp reports and float masks. Synchronous C callbacks let a host advertise and
+produce maps with progress and cancellation while the library validates and
+copies borrowed output without linking a baker. Allocator-owned asynchronous
+sessions and request tokens reject superseded, cancelled, foreign, malformed and
+duplicate completions and group settings edits with accepted map replacements
+for atomic undo. A strict-C fixture covers the catalogue, deterministic output,
+provider ownership, cancellation, token identity, stale-result refusal and undo.
+All mesh-map requirements now have public evidence and the exact remaining C ABI
+gap is 41 runtime requirements.
+
 ## 1. Foundation
 
 - [x] 1.1 CMake project, C++20, warnings as errors, presets for headless, macOS, Linux, Windows, iOS, Android

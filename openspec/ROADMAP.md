@@ -239,8 +239,11 @@ requests retain their snapshot, validate the whole completion batch before
 publishing caller buffers, and expose complete, cancelled and failed terminal
 states. Public mesh-map sets now expose external import, per-texture-set
 identity, missing and stale input reporting, supplied/generated tangent frames,
-normal conventions, sampling, memory accounting and host-driven release. Exactly
-48 runtime requirements remain without C ABI evidence; those gaps must be
+normal conventions, sampling, memory accounting and host-driven release. The
+same boundary now exposes deterministic generator inventory and evaluation,
+synchronous host bake-provider callbacks, and versioned asynchronous completion
+tokens with atomic settings/map undo. Mesh-maps is fully mapped. Exactly 41
+runtime requirements remain without C ABI evidence; those gaps must be
 implemented before task 14.8 can close.
 
 ## Milestones

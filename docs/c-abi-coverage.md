@@ -131,6 +131,10 @@ Shader emission is therefore fully mapped. Public mesh-map sets now bind one
 texture set and mesh revision, copy externally produced pixels, expose
 resolution mismatch, normal convention and tangent-frame metadata, reject
 missing inputs explicitly, report revision staleness, and account and release
-resident map bytes. Exactly 48 runtime requirements remain unmapped overall.
+resident map bytes. The same boundary now exposes the deterministic generator
+catalogue and evaluation results, synchronous host-owned bake-provider callbacks,
+and versioned asynchronous request tokens with stale-result rejection and
+settings/map undo. Mesh-maps is therefore fully mapped. Exactly 41 runtime
+requirements remain unmapped overall.
 The gate is not part of the aggregate `just check` until that count reaches zero;
 its unit tests run in the normal tooling suite throughout the migration.

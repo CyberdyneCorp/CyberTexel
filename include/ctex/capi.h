@@ -143,6 +143,8 @@ typedef struct ctex_transport_snapshot_pool ctex_transport_snapshot_pool;
 typedef struct ctex_transport_snapshot ctex_transport_snapshot;
 typedef struct ctex_transport_readback ctex_transport_readback;
 typedef struct ctex_mesh_map_set ctex_mesh_map_set;
+typedef struct ctex_mesh_map_bake_session ctex_mesh_map_bake_session;
+typedef struct ctex_mesh_map_bake_request_token ctex_mesh_map_bake_request_token;
 typedef struct ctex_executor_registry ctex_executor_registry;
 typedef struct ctex_cpu_execution_result ctex_cpu_execution_result;
 typedef struct ctex_parity_gate_result ctex_parity_gate_result;
@@ -2665,6 +2667,270 @@ typedef struct ctex_mesh_map_release_info {
 #define CTEX_MESH_MAP_RELEASE_INFO_V1_SIZE ((uint32_t)sizeof(ctex_mesh_map_release_info))
 #define CTEX_MESH_MAP_RELEASE_INFO_CURRENT_SIZE ((uint32_t)sizeof(ctex_mesh_map_release_info))
 
+typedef enum ctex_mesh_map_generator_kind {
+    CTEX_MESH_MAP_GENERATOR_AMBIENT_OCCLUSION = 0,
+    CTEX_MESH_MAP_GENERATOR_CURVATURE = 1,
+    CTEX_MESH_MAP_GENERATOR_THICKNESS = 2,
+    CTEX_MESH_MAP_GENERATOR_POSITION_GRADIENT = 3,
+    CTEX_MESH_MAP_GENERATOR_WORLD_SPACE_DIRECTION = 4,
+    CTEX_MESH_MAP_GENERATOR_DIRT = 5,
+    CTEX_MESH_MAP_GENERATOR_EDGE_WEAR = 6,
+    CTEX_MESH_MAP_GENERATOR_SCRATCHES = 7
+} ctex_mesh_map_generator_kind;
+
+typedef struct ctex_mesh_map_generator_parameter_descriptor {
+    uint32_t size;
+    size_t name_offset;
+    size_t name_size;
+    double default_value;
+    double minimum;
+    double maximum;
+    size_t meaning_offset;
+    size_t meaning_size;
+} ctex_mesh_map_generator_parameter_descriptor;
+
+#define CTEX_MESH_MAP_GENERATOR_PARAMETER_DESCRIPTOR_V1_SIZE \
+    ((uint32_t)sizeof(ctex_mesh_map_generator_parameter_descriptor))
+#define CTEX_MESH_MAP_GENERATOR_PARAMETER_DESCRIPTOR_CURRENT_SIZE \
+    ((uint32_t)sizeof(ctex_mesh_map_generator_parameter_descriptor))
+
+typedef struct ctex_mesh_map_generator_info {
+    uint32_t size;
+    uint32_t kind;
+    size_t name_offset;
+    size_t name_size;
+    size_t required_map_count;
+    size_t parameter_count;
+    size_t required_string_size;
+} ctex_mesh_map_generator_info;
+
+#define CTEX_MESH_MAP_GENERATOR_INFO_V1_SIZE ((uint32_t)sizeof(ctex_mesh_map_generator_info))
+#define CTEX_MESH_MAP_GENERATOR_INFO_CURRENT_SIZE ((uint32_t)sizeof(ctex_mesh_map_generator_info))
+
+typedef struct ctex_mesh_map_generator_parameter {
+    uint32_t size;
+    const char* name;
+    double value;
+} ctex_mesh_map_generator_parameter;
+
+#define CTEX_MESH_MAP_GENERATOR_PARAMETER_V1_SIZE \
+    ((uint32_t)sizeof(ctex_mesh_map_generator_parameter))
+#define CTEX_MESH_MAP_GENERATOR_PARAMETER_CURRENT_SIZE \
+    ((uint32_t)sizeof(ctex_mesh_map_generator_parameter))
+
+typedef struct ctex_mesh_map_generator_resolved_parameter {
+    size_t name_offset;
+    size_t name_size;
+    double value;
+} ctex_mesh_map_generator_resolved_parameter;
+
+typedef struct ctex_mesh_map_generator_parameter_clamp {
+    size_t name_offset;
+    size_t name_size;
+    double supplied;
+    double resolved;
+} ctex_mesh_map_generator_parameter_clamp;
+
+typedef struct ctex_mesh_map_generator_result_info {
+    uint32_t size;
+    uint32_t width;
+    uint32_t height;
+    size_t row_stride_bytes;
+    size_t required_mask_value_count;
+    size_t required_resolved_parameter_count;
+    size_t required_parameter_clamp_count;
+    size_t required_stale_map_count;
+    size_t message_offset;
+    size_t message_size;
+    size_t required_string_size;
+} ctex_mesh_map_generator_result_info;
+
+#define CTEX_MESH_MAP_GENERATOR_RESULT_INFO_V1_SIZE \
+    ((uint32_t)sizeof(ctex_mesh_map_generator_result_info))
+#define CTEX_MESH_MAP_GENERATOR_RESULT_INFO_CURRENT_SIZE \
+    ((uint32_t)sizeof(ctex_mesh_map_generator_result_info))
+
+typedef enum ctex_mesh_map_bake_provider_status {
+    CTEX_MESH_MAP_BAKE_PROVIDER_COMPLETED = 0,
+    CTEX_MESH_MAP_BAKE_PROVIDER_CANCELLED = 1,
+    CTEX_MESH_MAP_BAKE_PROVIDER_FAILED = 2
+} ctex_mesh_map_bake_provider_status;
+
+typedef enum ctex_mesh_map_bake_request_status {
+    CTEX_MESH_MAP_BAKE_COMPLETED = 0,
+    CTEX_MESH_MAP_BAKE_CANCELLED = 1,
+    CTEX_MESH_MAP_BAKE_UNSUPPORTED = 2,
+    CTEX_MESH_MAP_BAKE_REQUEST_PROVIDER_FAILED = 3
+} ctex_mesh_map_bake_request_status;
+
+typedef enum ctex_mesh_map_bake_completion_disposition {
+    CTEX_MESH_MAP_BAKE_BOUND = 0,
+    CTEX_MESH_MAP_BAKE_STALE = 1,
+    CTEX_MESH_MAP_BAKE_COMPLETION_CANCELLED = 2,
+    CTEX_MESH_MAP_BAKE_INVALID_OUTPUT = 3,
+    CTEX_MESH_MAP_BAKE_UNKNOWN_TOKEN = 4
+} ctex_mesh_map_bake_completion_disposition;
+
+typedef uint32_t (*ctex_mesh_map_bake_can_produce_fn)(void* user_data, uint32_t kind);
+typedef uint32_t (*ctex_mesh_map_bake_is_cancelled_fn)(void* user_data);
+typedef void (*ctex_mesh_map_bake_report_progress_fn)(void* user_data, double fraction);
+
+typedef struct ctex_mesh_map_bake_request_descriptor {
+    uint32_t size;
+    uint32_t kind;
+    const char* texture_set_id;
+    const char* uv_set;
+    uint64_t mesh_revision;
+    uint64_t bake_settings_revision;
+    uint64_t request_generation;
+    const ctex_tangent_frame_descriptor* tangent_frame;
+    uint32_t width;
+    uint32_t height;
+} ctex_mesh_map_bake_request_descriptor;
+
+#define CTEX_MESH_MAP_BAKE_REQUEST_DESCRIPTOR_V1_SIZE \
+    ((uint32_t)sizeof(ctex_mesh_map_bake_request_descriptor))
+#define CTEX_MESH_MAP_BAKE_REQUEST_DESCRIPTOR_CURRENT_SIZE \
+    ((uint32_t)sizeof(ctex_mesh_map_bake_request_descriptor))
+
+typedef struct ctex_mesh_map_bake_control {
+    uint32_t size;
+    void* user_data;
+    ctex_mesh_map_bake_is_cancelled_fn is_cancelled;
+    ctex_mesh_map_bake_report_progress_fn report_progress;
+} ctex_mesh_map_bake_control;
+
+#define CTEX_MESH_MAP_BAKE_CONTROL_V1_SIZE ((uint32_t)sizeof(ctex_mesh_map_bake_control))
+#define CTEX_MESH_MAP_BAKE_CONTROL_CURRENT_SIZE ((uint32_t)sizeof(ctex_mesh_map_bake_control))
+
+typedef struct ctex_mesh_map_bake_output_descriptor {
+    uint32_t size;
+    ctex_mesh_map_pixel_buffer_descriptor buffer;
+    uint32_t has_normal_convention;
+    uint32_t normal_convention;
+    const ctex_tangent_frame_descriptor* tangent_frame;
+    const char* detail;
+} ctex_mesh_map_bake_output_descriptor;
+
+#define CTEX_MESH_MAP_BAKE_OUTPUT_DESCRIPTOR_V1_SIZE \
+    ((uint32_t)sizeof(ctex_mesh_map_bake_output_descriptor))
+#define CTEX_MESH_MAP_BAKE_OUTPUT_DESCRIPTOR_CURRENT_SIZE \
+    ((uint32_t)sizeof(ctex_mesh_map_bake_output_descriptor))
+
+typedef uint32_t (*ctex_mesh_map_bake_request_fn)(
+    void* user_data, const ctex_mesh_map_bake_request_descriptor* request,
+    const ctex_mesh_map_bake_control* control, ctex_mesh_map_bake_output_descriptor* output);
+
+typedef struct ctex_mesh_map_bake_provider_descriptor {
+    uint32_t size;
+    const char* name;
+    void* user_data;
+    ctex_mesh_map_bake_can_produce_fn can_produce;
+    ctex_mesh_map_bake_request_fn request;
+} ctex_mesh_map_bake_provider_descriptor;
+
+#define CTEX_MESH_MAP_BAKE_PROVIDER_DESCRIPTOR_V1_SIZE \
+    ((uint32_t)sizeof(ctex_mesh_map_bake_provider_descriptor))
+#define CTEX_MESH_MAP_BAKE_PROVIDER_DESCRIPTOR_CURRENT_SIZE \
+    ((uint32_t)sizeof(ctex_mesh_map_bake_provider_descriptor))
+
+typedef struct ctex_mesh_map_bake_control_descriptor {
+    uint32_t size;
+    void* user_data;
+    ctex_mesh_map_bake_is_cancelled_fn is_cancelled;
+    ctex_mesh_map_bake_report_progress_fn report_progress;
+} ctex_mesh_map_bake_control_descriptor;
+
+#define CTEX_MESH_MAP_BAKE_CONTROL_DESCRIPTOR_V1_SIZE \
+    ((uint32_t)sizeof(ctex_mesh_map_bake_control_descriptor))
+#define CTEX_MESH_MAP_BAKE_CONTROL_DESCRIPTOR_CURRENT_SIZE \
+    ((uint32_t)sizeof(ctex_mesh_map_bake_control_descriptor))
+
+typedef struct ctex_mesh_map_bake_result_info {
+    uint32_t size;
+    uint32_t status;
+    uint32_t has_binding;
+    uint32_t replaced_existing;
+    uint32_t resolution_mismatch;
+    uint32_t stale;
+    uint64_t produced_mesh_revision;
+    uint64_t current_mesh_revision;
+} ctex_mesh_map_bake_result_info;
+
+#define CTEX_MESH_MAP_BAKE_RESULT_INFO_V1_SIZE ((uint32_t)sizeof(ctex_mesh_map_bake_result_info))
+#define CTEX_MESH_MAP_BAKE_RESULT_INFO_CURRENT_SIZE \
+    ((uint32_t)sizeof(ctex_mesh_map_bake_result_info))
+
+typedef struct ctex_mesh_map_bake_session_info {
+    uint32_t size;
+    uint64_t settings_revision;
+    size_t pending_request_count;
+    size_t undo_step_count;
+} ctex_mesh_map_bake_session_info;
+
+#define CTEX_MESH_MAP_BAKE_SESSION_INFO_V1_SIZE ((uint32_t)sizeof(ctex_mesh_map_bake_session_info))
+#define CTEX_MESH_MAP_BAKE_SESSION_INFO_CURRENT_SIZE \
+    ((uint32_t)sizeof(ctex_mesh_map_bake_session_info))
+
+typedef struct ctex_mesh_map_bake_token_info {
+    uint32_t size;
+    uint64_t session_identity;
+    uint32_t kind;
+    uint64_t mesh_revision;
+    uint64_t bake_settings_revision;
+    uint64_t request_generation;
+    uint32_t width;
+    uint32_t height;
+    uint32_t has_tangent_frame;
+    ctex_tangent_frame_descriptor tangent_frame;
+    size_t required_texture_set_id_size;
+    size_t required_uv_set_size;
+    size_t required_tangent_uv_set_size;
+} ctex_mesh_map_bake_token_info;
+
+#define CTEX_MESH_MAP_BAKE_TOKEN_INFO_V1_SIZE ((uint32_t)sizeof(ctex_mesh_map_bake_token_info))
+#define CTEX_MESH_MAP_BAKE_TOKEN_INFO_CURRENT_SIZE ((uint32_t)sizeof(ctex_mesh_map_bake_token_info))
+
+typedef struct ctex_mesh_map_bake_completion_info {
+    uint32_t size;
+    uint32_t disposition;
+    uint32_t has_binding;
+    uint32_t replaced_existing;
+    uint32_t resolution_mismatch;
+    uint32_t stale;
+} ctex_mesh_map_bake_completion_info;
+
+#define CTEX_MESH_MAP_BAKE_COMPLETION_INFO_V1_SIZE \
+    ((uint32_t)sizeof(ctex_mesh_map_bake_completion_info))
+#define CTEX_MESH_MAP_BAKE_COMPLETION_INFO_CURRENT_SIZE \
+    ((uint32_t)sizeof(ctex_mesh_map_bake_completion_info))
+
+typedef struct ctex_mesh_map_bake_settings_edit_info {
+    uint32_t size;
+    uint64_t previous_revision;
+    uint64_t current_revision;
+    size_t invalidated_request_count;
+} ctex_mesh_map_bake_settings_edit_info;
+
+#define CTEX_MESH_MAP_BAKE_SETTINGS_EDIT_INFO_V1_SIZE \
+    ((uint32_t)sizeof(ctex_mesh_map_bake_settings_edit_info))
+#define CTEX_MESH_MAP_BAKE_SETTINGS_EDIT_INFO_CURRENT_SIZE \
+    ((uint32_t)sizeof(ctex_mesh_map_bake_settings_edit_info))
+
+typedef struct ctex_mesh_map_bake_settings_undo_info {
+    uint32_t size;
+    uint32_t restored;
+    uint64_t previous_revision;
+    uint64_t restored_revision;
+    size_t restored_map_count;
+    size_t invalidated_request_count;
+} ctex_mesh_map_bake_settings_undo_info;
+
+#define CTEX_MESH_MAP_BAKE_SETTINGS_UNDO_INFO_V1_SIZE \
+    ((uint32_t)sizeof(ctex_mesh_map_bake_settings_undo_info))
+#define CTEX_MESH_MAP_BAKE_SETTINGS_UNDO_INFO_CURRENT_SIZE \
+    ((uint32_t)sizeof(ctex_mesh_map_bake_settings_undo_info))
+
 typedef enum ctex_executor_route {
     CTEX_EXECUTOR_ROUTE_HOST_EXECUTED = 0,
     CTEX_EXECUTOR_ROUTE_CPU_REFERENCE = 1,
@@ -5148,6 +5414,56 @@ CTEX_API ctex_result ctex_mesh_map_set_release(ctex_mesh_map_set* map_set, uint3
                                                ctex_mesh_map_release_info* out_info);
 CTEX_API ctex_result ctex_mesh_map_set_release_all(ctex_mesh_map_set* map_set,
                                                    ctex_mesh_map_release_info* out_info);
+
+/* Enumerates and evaluates deterministic CPU mesh-map mask generators. */
+CTEX_API ctex_result ctex_mesh_map_generator_get_info(
+    uint32_t kind, ctex_mesh_map_generator_info* out_info, uint32_t* required_maps,
+    size_t required_map_capacity, ctex_mesh_map_generator_parameter_descriptor* parameters,
+    size_t parameter_capacity, char* strings, size_t string_capacity);
+CTEX_API ctex_result ctex_mesh_map_generator_generate(
+    const ctex_mesh_map_set* map_set, uint32_t kind, uint32_t width, uint32_t height,
+    const ctex_mesh_map_generator_parameter* parameters, size_t parameter_count,
+    ctex_mesh_map_generator_result_info* out_info, float* mask_values, size_t mask_value_capacity,
+    ctex_mesh_map_generator_resolved_parameter* resolved_parameters,
+    size_t resolved_parameter_capacity, ctex_mesh_map_generator_parameter_clamp* parameter_clamps,
+    size_t parameter_clamp_capacity, ctex_mesh_map_staleness* stale_maps, size_t stale_map_capacity,
+    char* strings, size_t string_capacity);
+
+/* Invokes a host-owned baker synchronously; CyberTexel only validates and copies its output. */
+CTEX_API ctex_result ctex_mesh_map_set_request_bake(
+    ctex_mesh_map_set* map_set, const ctex_mesh_map_bake_provider_descriptor* provider,
+    uint32_t kind, uint32_t width, uint32_t height, uint64_t bake_settings_revision,
+    uint64_t request_generation, const ctex_mesh_map_bake_control_descriptor* control,
+    ctex_mesh_map_bake_result_info* out_info);
+
+/* Versioned asynchronous requests retain no provider and publish only explicit completion data. */
+CTEX_API ctex_result ctex_mesh_map_bake_session_create(ctex_mesh_map_set* map_set,
+                                                       uint64_t initial_settings_revision,
+                                                       ctex_mesh_map_bake_session** out_session);
+CTEX_API void ctex_mesh_map_bake_session_destroy(ctex_mesh_map_bake_session* session);
+CTEX_API ctex_result ctex_mesh_map_bake_session_get_info(const ctex_mesh_map_bake_session* session,
+                                                         ctex_mesh_map_bake_session_info* out_info);
+CTEX_API ctex_result ctex_mesh_map_bake_session_begin(ctex_mesh_map_bake_session* session,
+                                                      uint32_t kind, uint32_t width,
+                                                      uint32_t height,
+                                                      ctex_mesh_map_bake_request_token** out_token);
+CTEX_API ctex_result ctex_mesh_map_bake_session_cancel(
+    ctex_mesh_map_bake_session* session, const ctex_mesh_map_bake_request_token* token,
+    uint32_t* out_cancelled);
+CTEX_API ctex_result ctex_mesh_map_bake_session_complete(
+    ctex_mesh_map_bake_session* session, const ctex_mesh_map_bake_request_token* token,
+    const ctex_mesh_map_bake_output_descriptor* output,
+    ctex_mesh_map_bake_completion_info* out_info);
+CTEX_API ctex_result
+ctex_mesh_map_bake_session_edit_settings(ctex_mesh_map_bake_session* session, uint64_t revision,
+                                         ctex_mesh_map_bake_settings_edit_info* out_info);
+CTEX_API ctex_result ctex_mesh_map_bake_session_undo_settings(
+    ctex_mesh_map_bake_session* session, ctex_mesh_map_bake_settings_undo_info* out_info);
+CTEX_API void ctex_mesh_map_bake_request_token_destroy(ctex_mesh_map_bake_request_token* token);
+CTEX_API ctex_result ctex_mesh_map_bake_request_token_get_info(
+    const ctex_mesh_map_bake_request_token* token, ctex_mesh_map_bake_token_info* out_info,
+    char* texture_set_id, size_t texture_set_id_size, char* uv_set, size_t uv_set_size,
+    char* tangent_uv_set, size_t tangent_uv_set_size);
 
 /*
  * Picking indexes retain a non-owning mesh reference; destroy them before the

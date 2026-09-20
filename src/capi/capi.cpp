@@ -29,7 +29,9 @@
 #include <ctex/io/standalone_asset.hpp>
 #include <ctex/io/texture_encode.hpp>
 #include <ctex/io/texture_export.hpp>
+#include <ctex/maps/bake_provider.hpp>
 #include <ctex/maps/external_import.hpp>
+#include <ctex/maps/generators.hpp>
 #include <ctex/maps/mesh_maps.hpp>
 #include <ctex/paint/blending.hpp>
 #include <ctex/paint/blur_smear.hpp>
@@ -284,6 +286,27 @@ struct ctex_mesh_map_set {
     ctex_document* document;
     const ctex_mesh* mesh;
     ctex::maps::MeshMapSet value;
+};
+
+struct ctex_mesh_map_bake_session {
+    ctex_mesh_map_bake_session(ctex_allocator_state allocator_value,
+                               ctex_mesh_map_set* map_set_value, std::uint64_t settings_revision)
+        : allocator(allocator_value),
+          map_set(map_set_value),
+          value(map_set_value->value, settings_revision) {}
+
+    ctex_allocator_state allocator;
+    ctex_mesh_map_set* map_set;
+    ctex::maps::AsyncBakeSession value;
+};
+
+struct ctex_mesh_map_bake_request_token {
+    ctex_mesh_map_bake_request_token(ctex_allocator_state allocator_value,
+                                     ctex::maps::BakeRevisionToken token)
+        : allocator(allocator_value), value(std::move(token)) {}
+
+    ctex_allocator_state allocator;
+    ctex::maps::BakeRevisionToken value;
 };
 
 struct ctex_executor_registry {
@@ -771,6 +794,53 @@ void destroy_mesh_map_set(ctex_mesh_map_set* map_set) noexcept {
     const ctex_allocator_state allocator = map_set->allocator;
     map_set->~ctex_mesh_map_set();
     deallocate_storage(allocator, map_set, sizeof(ctex_mesh_map_set), alignof(ctex_mesh_map_set));
+}
+
+ctex_mesh_map_bake_session* create_mesh_map_bake_session(const ctex_allocator_state& allocator,
+                                                         ctex_mesh_map_set* map_set,
+                                                         std::uint64_t settings_revision) {
+    void* storage = allocate_storage(allocator, sizeof(ctex_mesh_map_bake_session),
+                                     alignof(ctex_mesh_map_bake_session));
+    try {
+        return ::new (storage) ctex_mesh_map_bake_session(allocator, map_set, settings_revision);
+    } catch (...) {
+        deallocate_storage(allocator, storage, sizeof(ctex_mesh_map_bake_session),
+                           alignof(ctex_mesh_map_bake_session));
+        throw;
+    }
+}
+
+void destroy_mesh_map_bake_session(ctex_mesh_map_bake_session* session) noexcept {
+    if (session == nullptr) {
+        return;
+    }
+    const ctex_allocator_state allocator = session->allocator;
+    session->~ctex_mesh_map_bake_session();
+    deallocate_storage(allocator, session, sizeof(ctex_mesh_map_bake_session),
+                       alignof(ctex_mesh_map_bake_session));
+}
+
+ctex_mesh_map_bake_request_token* create_mesh_map_bake_token(const ctex_allocator_state& allocator,
+                                                             ctex::maps::BakeRevisionToken token) {
+    void* storage = allocate_storage(allocator, sizeof(ctex_mesh_map_bake_request_token),
+                                     alignof(ctex_mesh_map_bake_request_token));
+    try {
+        return ::new (storage) ctex_mesh_map_bake_request_token(allocator, std::move(token));
+    } catch (...) {
+        deallocate_storage(allocator, storage, sizeof(ctex_mesh_map_bake_request_token),
+                           alignof(ctex_mesh_map_bake_request_token));
+        throw;
+    }
+}
+
+void destroy_mesh_map_bake_token(ctex_mesh_map_bake_request_token* token) noexcept {
+    if (token == nullptr) {
+        return;
+    }
+    const ctex_allocator_state allocator = token->allocator;
+    token->~ctex_mesh_map_bake_request_token();
+    deallocate_storage(allocator, token, sizeof(ctex_mesh_map_bake_request_token),
+                       alignof(ctex_mesh_map_bake_request_token));
 }
 
 ctex_executor_registry* create_executor_registry(const ctex_allocator_state& allocator) {
@@ -1864,6 +1934,320 @@ ctex_mesh_map_entry_info mesh_map_entry_info(const ctex::maps::MeshMapDescriptor
         result.tangent_handedness_encoding = static_cast<std::uint32_t>(frame.handedness_encoding);
     }
     return result;
+}
+
+ctex::maps::MeshMapGeneratorKind mesh_map_generator_kind(std::uint32_t value) {
+    if (value > CTEX_MESH_MAP_GENERATOR_SCRATCHES) {
+        throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_INVALID_ENUM_VALUE,
+                       "mesh_map_generator_kind=" + std::to_string(value));
+    }
+    return static_cast<ctex::maps::MeshMapGeneratorKind>(value);
+}
+
+std::vector<ctex::maps::MeshMapGeneratorParameter> mesh_map_generator_parameters(
+    const ctex_mesh_map_generator_parameter* parameters, std::size_t parameter_count) {
+    if (parameters == nullptr && parameter_count != 0) {
+        throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                       "generator parameters=null with nonzero count");
+    }
+    std::vector<ctex::maps::MeshMapGeneratorParameter> result;
+    result.reserve(parameter_count);
+    for (std::size_t index = 0; index < parameter_count; ++index) {
+        validate_structure_size(parameters[index].size, CTEX_MESH_MAP_GENERATOR_PARAMETER_V1_SIZE,
+                                CTEX_MESH_MAP_GENERATOR_PARAMETER_CURRENT_SIZE,
+                                "mesh map generator parameter size");
+        if (parameters[index].name == nullptr) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                           "mesh map generator parameter name=null");
+        }
+        result.push_back({.name = parameters[index].name, .value = parameters[index].value});
+    }
+    return result;
+}
+
+std::size_t append_packed_string(std::vector<std::string>& strings, std::string_view value) {
+    const std::size_t offset = texture_set_id_buffer_size(strings);
+    strings.emplace_back(value);
+    return offset;
+}
+
+void copy_generator_mask(const ctex::image::TiledImage& mask, float* output) {
+    std::size_t index = 0;
+    for (std::uint32_t y = 0; y < mask.height(); ++y) {
+        for (std::uint32_t x = 0; x < mask.width(); ++x, ++index) {
+            const std::span<const std::byte> pixel = mask.read_pixel(x, y);
+            std::memcpy(output + index, pixel.data(), sizeof(float));
+        }
+    }
+}
+
+struct CApiGeneratorOutput {
+    std::vector<std::string> strings;
+    std::vector<ctex_mesh_map_generator_resolved_parameter> resolved;
+    std::vector<ctex_mesh_map_generator_parameter_clamp> clamps;
+    std::size_t message_offset{};
+};
+
+CApiGeneratorOutput capi_generator_output(const ctex::maps::MeshMapGeneratorResult& result) {
+    CApiGeneratorOutput output;
+    output.strings.reserve(result.parameter_report.resolved.size() +
+                           result.parameter_report.clamps.size() + 1);
+    output.resolved.reserve(result.parameter_report.resolved.size());
+    for (const auto& parameter : result.parameter_report.resolved) {
+        const std::size_t offset = append_packed_string(output.strings, parameter.name);
+        output.resolved.push_back({.name_offset = offset,
+                                   .name_size = parameter.name.size() + 1,
+                                   .value = parameter.value});
+    }
+    output.clamps.reserve(result.parameter_report.clamps.size());
+    for (const auto& clamp : result.parameter_report.clamps) {
+        const std::size_t offset = append_packed_string(output.strings, clamp.name);
+        output.clamps.push_back({.name_offset = offset,
+                                 .name_size = clamp.name.size() + 1,
+                                 .supplied = clamp.supplied,
+                                 .resolved = clamp.resolved});
+    }
+    output.message_offset = append_packed_string(output.strings, result.map_report.message);
+    return output;
+}
+
+void copy_capi_generator_output(const ctex::maps::MeshMapGeneratorResult& result,
+                                const CApiGeneratorOutput& output, float* mask_values,
+                                ctex_mesh_map_generator_resolved_parameter* resolved_parameters,
+                                ctex_mesh_map_generator_parameter_clamp* parameter_clamps,
+                                ctex_mesh_map_staleness* stale_maps, char* strings) {
+    if (mask_values != nullptr) {
+        copy_generator_mask(*result.mask, mask_values);
+    }
+    if (resolved_parameters != nullptr) {
+        std::copy(output.resolved.begin(), output.resolved.end(), resolved_parameters);
+    }
+    if (parameter_clamps != nullptr) {
+        std::copy(output.clamps.begin(), output.clamps.end(), parameter_clamps);
+    }
+    if (stale_maps != nullptr) {
+        std::transform(result.map_report.stale_maps.begin(), result.map_report.stale_maps.end(),
+                       stale_maps, mesh_map_staleness);
+    }
+    if (strings != nullptr) {
+        copy_packed_strings(output.strings, strings);
+    }
+}
+
+ctex_tangent_frame_descriptor capi_tangent_frame(const ctex::mesh::TangentFrameDescriptor& frame) {
+    return {
+        .size = CTEX_TANGENT_FRAME_DESCRIPTOR_CURRENT_SIZE,
+        .algorithm = static_cast<std::uint32_t>(frame.algorithm),
+        .algorithm_version = frame.algorithm_version,
+        .normal_orientation = static_cast<std::uint32_t>(frame.normal_orientation),
+        .coordinate_handedness = static_cast<std::uint32_t>(frame.coordinate_handedness),
+        .uv_v_axis = static_cast<std::uint32_t>(frame.uv_v_axis),
+        .handedness_encoding = static_cast<std::uint32_t>(frame.handedness_encoding),
+        .uv_set = frame.uv_set.c_str(),
+    };
+}
+
+struct CApiBakeProviderAdapter {
+    const ctex_mesh_map_bake_provider_descriptor* descriptor{};
+    std::optional<ctex::mesh::TangentFrameDescriptor> output_tangent_frame;
+    std::string output_detail;
+};
+
+bool capi_bake_can_produce(void* user_data, ctex::maps::MeshMapKind kind) noexcept {
+    const auto& adapter = *static_cast<CApiBakeProviderAdapter*>(user_data);
+    return adapter.descriptor->can_produce(adapter.descriptor->user_data,
+                                           static_cast<std::uint32_t>(kind)) != 0;
+}
+
+struct CApiBakeControlAdapter {
+    const ctex::maps::BakeControl* value{};
+};
+
+std::uint32_t capi_bake_is_cancelled(void* user_data) {
+    const auto& adapter = *static_cast<CApiBakeControlAdapter*>(user_data);
+    return adapter.value->is_cancelled != nullptr &&
+                   adapter.value->is_cancelled(adapter.value->user_data)
+               ? 1U
+               : 0U;
+}
+
+void capi_bake_report_progress(void* user_data, double fraction) {
+    const auto& adapter = *static_cast<CApiBakeControlAdapter*>(user_data);
+    if (adapter.value->report_progress != nullptr) {
+        adapter.value->report_progress(adapter.value->user_data, {.fraction = fraction});
+    }
+}
+
+ctex::maps::BakeProviderStatus capi_bake_request(void* user_data,
+                                                 const ctex::maps::BakeRequest* request,
+                                                 const ctex::maps::BakeControl* control,
+                                                 ctex::maps::BakeProviderOutput* output) noexcept {
+    auto& adapter = *static_cast<CApiBakeProviderAdapter*>(user_data);
+    try {
+        std::optional<ctex_tangent_frame_descriptor> request_tangent;
+        if (request->tangent_frame != nullptr) {
+            request_tangent = capi_tangent_frame(*request->tangent_frame);
+        }
+        const ctex_mesh_map_bake_request_descriptor capi_request{
+            .size = CTEX_MESH_MAP_BAKE_REQUEST_DESCRIPTOR_CURRENT_SIZE,
+            .kind = static_cast<std::uint32_t>(request->kind),
+            .texture_set_id = request->texture_set_id,
+            .uv_set = request->uv_set,
+            .mesh_revision = request->mesh_revision,
+            .bake_settings_revision = request->bake_settings_revision,
+            .request_generation = request->request_generation,
+            .tangent_frame = request_tangent ? &*request_tangent : nullptr,
+            .width = request->width,
+            .height = request->height,
+        };
+        CApiBakeControlAdapter control_adapter{.value = control};
+        const ctex_mesh_map_bake_control capi_control{
+            .size = CTEX_MESH_MAP_BAKE_CONTROL_CURRENT_SIZE,
+            .user_data = &control_adapter,
+            .is_cancelled = capi_bake_is_cancelled,
+            .report_progress = capi_bake_report_progress,
+        };
+        ctex_mesh_map_bake_output_descriptor capi_output{
+            .size = CTEX_MESH_MAP_BAKE_OUTPUT_DESCRIPTOR_CURRENT_SIZE,
+            .buffer = {.size = CTEX_MESH_MAP_PIXEL_BUFFER_DESCRIPTOR_CURRENT_SIZE,
+                       .width = 0,
+                       .height = 0,
+                       .component_type = 0,
+                       .component_count = 0,
+                       .row_stride_bytes = 0,
+                       .pixels = nullptr,
+                       .pixel_bytes = 0},
+            .has_normal_convention = 0,
+            .normal_convention = 0,
+            .tangent_frame = nullptr,
+            .detail = nullptr,
+        };
+        const std::uint32_t status = adapter.descriptor->request(
+            adapter.descriptor->user_data, &capi_request, &capi_control, &capi_output);
+        if (status > CTEX_MESH_MAP_BAKE_PROVIDER_FAILED) {
+            adapter.output_detail = "bake provider returned an invalid status";
+            output->detail = adapter.output_detail.c_str();
+            return ctex::maps::BakeProviderStatus::failed;
+        }
+        if (status != CTEX_MESH_MAP_BAKE_PROVIDER_COMPLETED) {
+            adapter.output_detail = capi_output.detail == nullptr ? "" : capi_output.detail;
+            output->detail = adapter.output_detail.c_str();
+            return static_cast<ctex::maps::BakeProviderStatus>(status);
+        }
+        validate_structure_size(capi_output.size, CTEX_MESH_MAP_BAKE_OUTPUT_DESCRIPTOR_V1_SIZE,
+                                CTEX_MESH_MAP_BAKE_OUTPUT_DESCRIPTOR_CURRENT_SIZE,
+                                "bake provider output size");
+        if (capi_output.has_normal_convention > 1U) {
+            throw std::invalid_argument("bake output normal convention flag is invalid");
+        }
+        output->image = mesh_map_pixel_buffer(capi_output.buffer);
+        if (capi_output.has_normal_convention != 0U) {
+            output->normal_convention = mesh_map_normal_convention(capi_output.normal_convention);
+        }
+        adapter.output_tangent_frame.reset();
+        if (capi_output.tangent_frame != nullptr) {
+            adapter.output_tangent_frame = tangent_frame_descriptor(*capi_output.tangent_frame);
+            output->tangent_frame = adapter.output_tangent_frame;
+        }
+        adapter.output_detail = capi_output.detail == nullptr ? "" : capi_output.detail;
+        output->detail = adapter.output_detail.c_str();
+        return ctex::maps::BakeProviderStatus::completed;
+    } catch (const std::exception& error) {
+        adapter.output_detail = error.what();
+        output->detail = adapter.output_detail.c_str();
+        return ctex::maps::BakeProviderStatus::failed;
+    } catch (...) {
+        adapter.output_detail = "bake provider adapter failed";
+        output->detail = adapter.output_detail.c_str();
+        return ctex::maps::BakeProviderStatus::failed;
+    }
+}
+
+struct CApiCallerBakeControl {
+    const ctex_mesh_map_bake_control_descriptor* descriptor{};
+};
+
+bool capi_caller_bake_cancelled(void* user_data) noexcept {
+    const auto& adapter = *static_cast<CApiCallerBakeControl*>(user_data);
+    return adapter.descriptor->is_cancelled != nullptr &&
+           adapter.descriptor->is_cancelled(adapter.descriptor->user_data) != 0;
+}
+
+void capi_caller_bake_progress(void* user_data, ctex::maps::BakeProgress progress) noexcept {
+    const auto& adapter = *static_cast<CApiCallerBakeControl*>(user_data);
+    if (adapter.descriptor->report_progress != nullptr) {
+        adapter.descriptor->report_progress(adapter.descriptor->user_data, progress.fraction);
+    }
+}
+
+ctex::maps::BakeProviderOutput mesh_map_bake_output(
+    const ctex_mesh_map_bake_output_descriptor& descriptor,
+    std::optional<ctex::mesh::TangentFrameDescriptor>& tangent_frame) {
+    validate_structure_size(descriptor.size, CTEX_MESH_MAP_BAKE_OUTPUT_DESCRIPTOR_V1_SIZE,
+                            CTEX_MESH_MAP_BAKE_OUTPUT_DESCRIPTOR_CURRENT_SIZE,
+                            "bake output descriptor size");
+    if (descriptor.has_normal_convention > 1U) {
+        throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_INVALID_DESCRIPTOR_VALUE,
+                       "bake output normal convention flag must be zero or one");
+    }
+    tangent_frame.reset();
+    if (descriptor.tangent_frame != nullptr) {
+        tangent_frame = tangent_frame_descriptor(*descriptor.tangent_frame);
+    }
+    ctex::maps::BakeProviderOutput result{
+        .image = mesh_map_pixel_buffer(descriptor.buffer),
+        .normal_convention = std::nullopt,
+        .tangent_frame = tangent_frame,
+        .detail = descriptor.detail,
+    };
+    if (descriptor.has_normal_convention != 0U) {
+        result.normal_convention = mesh_map_normal_convention(descriptor.normal_convention);
+    }
+    return result;
+}
+
+void set_mesh_map_bake_token_info(const ctex::maps::BakeRevisionToken& value,
+                                  ctex_mesh_map_bake_token_info& out_info, char* texture_set_id,
+                                  std::size_t texture_set_id_size, char* uv_set,
+                                  std::size_t uv_set_size, char* tangent_uv_set,
+                                  std::size_t tangent_uv_set_size) {
+    const std::size_t required_texture_set_id_size = value.texture_set_id.size() + 1;
+    const std::size_t required_uv_set_size = value.uv_set.size() + 1;
+    const std::size_t required_tangent_uv_set_size =
+        value.tangent_frame ? value.tangent_frame->uv_set.size() + 1 : 0;
+    ctex_tangent_frame_descriptor tangent{};
+    if (value.tangent_frame) {
+        tangent = capi_tangent_frame(*value.tangent_frame);
+        tangent.uv_set = tangent_uv_set;
+    }
+    out_info = {
+        .size = CTEX_MESH_MAP_BAKE_TOKEN_INFO_CURRENT_SIZE,
+        .session_identity = value.session_identity,
+        .kind = static_cast<std::uint32_t>(value.kind),
+        .mesh_revision = value.mesh_revision,
+        .bake_settings_revision = value.bake_settings_revision,
+        .request_generation = value.request_generation,
+        .width = value.width,
+        .height = value.height,
+        .has_tangent_frame = value.tangent_frame ? 1U : 0U,
+        .tangent_frame = tangent,
+        .required_texture_set_id_size = required_texture_set_id_size,
+        .required_uv_set_size = required_uv_set_size,
+        .required_tangent_uv_set_size = required_tangent_uv_set_size,
+    };
+    validate_string_buffer(texture_set_id, texture_set_id_size, required_texture_set_id_size);
+    validate_string_buffer(uv_set, uv_set_size, required_uv_set_size);
+    validate_string_buffer(tangent_uv_set, tangent_uv_set_size, required_tangent_uv_set_size);
+    if (texture_set_id != nullptr) {
+        std::memcpy(texture_set_id, value.texture_set_id.c_str(), required_texture_set_id_size);
+    }
+    if (uv_set != nullptr) {
+        std::memcpy(uv_set, value.uv_set.c_str(), required_uv_set_size);
+    }
+    if (tangent_uv_set != nullptr && value.tangent_frame) {
+        std::memcpy(tangent_uv_set, value.tangent_frame->uv_set.c_str(),
+                    required_tangent_uv_set_size);
+    }
 }
 
 ctex::pick::BackfacePolicy pick_backface_policy(std::uint32_t value) {
@@ -13989,6 +14373,349 @@ extern "C" ctex_result ctex_mesh_map_set_release_all(ctex_mesh_map_set* map_set,
             .released_map_count = result.released_maps.size(),
             .resident_pixel_bytes_released = result.resident_pixel_bytes_released,
         };
+    });
+}
+
+extern "C" ctex_result ctex_mesh_map_generator_get_info(
+    std::uint32_t kind, ctex_mesh_map_generator_info* out_info, std::uint32_t* required_maps,
+    std::size_t required_map_capacity, ctex_mesh_map_generator_parameter_descriptor* parameters,
+    std::size_t parameter_capacity, char* strings, std::size_t string_capacity) {
+    return call_mesh_map_boundary("ctex_mesh_map_generator_get_info", [&] {
+        if (out_info == nullptr) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                           "out_info=null");
+        }
+        validate_structure_size(out_info->size, CTEX_MESH_MAP_GENERATOR_INFO_V1_SIZE,
+                                CTEX_MESH_MAP_GENERATOR_INFO_CURRENT_SIZE,
+                                "mesh map generator info size");
+        const auto info = ctex::maps::mesh_map_generator_info(mesh_map_generator_kind(kind));
+        std::vector<std::string> packed_strings;
+        packed_strings.reserve(1 + info.parameters.size() * 2);
+        const std::size_t name_offset = append_packed_string(packed_strings, info.name);
+        std::vector<ctex_mesh_map_generator_parameter_descriptor> descriptors;
+        descriptors.reserve(info.parameters.size());
+        for (const auto& parameter : info.parameters) {
+            const std::size_t parameter_name_offset =
+                append_packed_string(packed_strings, parameter.name);
+            const std::size_t meaning_offset =
+                append_packed_string(packed_strings, parameter.meaning);
+            descriptors.push_back({
+                .size = CTEX_MESH_MAP_GENERATOR_PARAMETER_DESCRIPTOR_CURRENT_SIZE,
+                .name_offset = parameter_name_offset,
+                .name_size = parameter.name.size() + 1,
+                .default_value = parameter.default_value,
+                .minimum = parameter.minimum,
+                .maximum = parameter.maximum,
+                .meaning_offset = meaning_offset,
+                .meaning_size = parameter.meaning.size() + 1,
+            });
+        }
+        const std::size_t required_string_size = texture_set_id_buffer_size(packed_strings);
+        *out_info = {
+            .size = CTEX_MESH_MAP_GENERATOR_INFO_CURRENT_SIZE,
+            .kind = kind,
+            .name_offset = name_offset,
+            .name_size = info.name.size() + 1,
+            .required_map_count = info.required_maps.size(),
+            .parameter_count = info.parameters.size(),
+            .required_string_size = required_string_size,
+        };
+        validate_output_array(required_maps, required_map_capacity, info.required_maps.size(),
+                              "generator required maps");
+        validate_output_array(parameters, parameter_capacity, descriptors.size(),
+                              "generator parameter descriptors");
+        validate_string_buffer(strings, string_capacity, required_string_size);
+        if (required_maps != nullptr) {
+            std::transform(info.required_maps.begin(), info.required_maps.end(), required_maps,
+                           [](const auto value) { return static_cast<std::uint32_t>(value); });
+        }
+        if (parameters != nullptr) {
+            std::copy(descriptors.begin(), descriptors.end(), parameters);
+        }
+        if (strings != nullptr) {
+            copy_packed_strings(packed_strings, strings);
+        }
+    });
+}
+
+extern "C" ctex_result ctex_mesh_map_generator_generate(
+    const ctex_mesh_map_set* map_set, std::uint32_t kind, std::uint32_t width, std::uint32_t height,
+    const ctex_mesh_map_generator_parameter* parameters, std::size_t parameter_count,
+    ctex_mesh_map_generator_result_info* out_info, float* mask_values,
+    std::size_t mask_value_capacity,
+    ctex_mesh_map_generator_resolved_parameter* resolved_parameters,
+    std::size_t resolved_parameter_capacity,
+    ctex_mesh_map_generator_parameter_clamp* parameter_clamps, std::size_t parameter_clamp_capacity,
+    ctex_mesh_map_staleness* stale_maps, std::size_t stale_map_capacity, char* strings,
+    std::size_t string_capacity) {
+    return call_mesh_map_boundary("ctex_mesh_map_generator_generate", [&] {
+        if (map_set == nullptr || out_info == nullptr) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                           map_set == nullptr ? "map_set=null" : "out_info=null");
+        }
+        validate_structure_size(out_info->size, CTEX_MESH_MAP_GENERATOR_RESULT_INFO_V1_SIZE,
+                                CTEX_MESH_MAP_GENERATOR_RESULT_INFO_CURRENT_SIZE,
+                                "mesh map generator result info size");
+        const auto input_parameters = mesh_map_generator_parameters(parameters, parameter_count);
+        const auto result = ctex::maps::generate_mesh_map_mask(
+            mesh_map_generator_kind(kind), map_set->value, width, height, input_parameters);
+        const CApiGeneratorOutput output = capi_generator_output(result);
+        const std::size_t required_string_size = texture_set_id_buffer_size(output.strings);
+        const std::size_t mask_value_count =
+            static_cast<std::size_t>(result.mask->width()) * result.mask->height();
+        *out_info = {
+            .size = CTEX_MESH_MAP_GENERATOR_RESULT_INFO_CURRENT_SIZE,
+            .width = result.mask->width(),
+            .height = result.mask->height(),
+            .row_stride_bytes = static_cast<std::size_t>(result.mask->width()) * sizeof(float),
+            .required_mask_value_count = mask_value_count,
+            .required_resolved_parameter_count = output.resolved.size(),
+            .required_parameter_clamp_count = output.clamps.size(),
+            .required_stale_map_count = result.map_report.stale_maps.size(),
+            .message_offset = output.message_offset,
+            .message_size = result.map_report.message.size() + 1,
+            .required_string_size = required_string_size,
+        };
+        validate_output_array(mask_values, mask_value_capacity, mask_value_count,
+                              "generator mask values");
+        validate_output_array(resolved_parameters, resolved_parameter_capacity,
+                              output.resolved.size(), "resolved generator parameters");
+        validate_output_array(parameter_clamps, parameter_clamp_capacity, output.clamps.size(),
+                              "generator parameter clamps");
+        validate_output_array(stale_maps, stale_map_capacity, result.map_report.stale_maps.size(),
+                              "generator stale maps");
+        validate_string_buffer(strings, string_capacity, required_string_size);
+        copy_capi_generator_output(result, output, mask_values, resolved_parameters,
+                                   parameter_clamps, stale_maps, strings);
+    });
+}
+
+extern "C" ctex_result ctex_mesh_map_set_request_bake(
+    ctex_mesh_map_set* map_set, const ctex_mesh_map_bake_provider_descriptor* provider,
+    std::uint32_t kind, std::uint32_t width, std::uint32_t height,
+    std::uint64_t bake_settings_revision, std::uint64_t request_generation,
+    const ctex_mesh_map_bake_control_descriptor* control,
+    ctex_mesh_map_bake_result_info* out_info) {
+    return call_mesh_map_boundary("ctex_mesh_map_set_request_bake", [&] {
+        if (map_set == nullptr || provider == nullptr || out_info == nullptr) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                           "map_set, provider and out_info are required");
+        }
+        validate_structure_size(provider->size, CTEX_MESH_MAP_BAKE_PROVIDER_DESCRIPTOR_V1_SIZE,
+                                CTEX_MESH_MAP_BAKE_PROVIDER_DESCRIPTOR_CURRENT_SIZE,
+                                "bake provider descriptor size");
+        validate_structure_size(out_info->size, CTEX_MESH_MAP_BAKE_RESULT_INFO_V1_SIZE,
+                                CTEX_MESH_MAP_BAKE_RESULT_INFO_CURRENT_SIZE,
+                                "bake result info size");
+        if (provider->name == nullptr || provider->can_produce == nullptr ||
+            provider->request == nullptr) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                           "bake provider name and callbacks are required");
+        }
+        CApiCallerBakeControl caller_control{.descriptor = control};
+        ctex::maps::BakeControl core_control{};
+        if (control != nullptr) {
+            validate_structure_size(control->size, CTEX_MESH_MAP_BAKE_CONTROL_DESCRIPTOR_V1_SIZE,
+                                    CTEX_MESH_MAP_BAKE_CONTROL_DESCRIPTOR_CURRENT_SIZE,
+                                    "bake control descriptor size");
+            core_control = {.user_data = &caller_control,
+                            .is_cancelled = capi_caller_bake_cancelled,
+                            .report_progress = capi_caller_bake_progress};
+        }
+        CApiBakeProviderAdapter adapter{
+            .descriptor = provider,
+            .output_tangent_frame = std::nullopt,
+            .output_detail = {},
+        };
+        const ctex::maps::BakeProvider core_provider{
+            .name = provider->name,
+            .user_data = &adapter,
+            .can_produce = capi_bake_can_produce,
+            .request = capi_bake_request,
+        };
+        const auto result = ctex::maps::request_bake(
+            core_provider, map_set->value, mesh_map_kind(kind), width, height, core_control,
+            {.bake_settings_revision = bake_settings_revision,
+             .request_generation = request_generation});
+        const auto& binding = result.binding;
+        const auto& stale = binding ? binding->staleness : std::nullopt;
+        *out_info = {
+            .size = CTEX_MESH_MAP_BAKE_RESULT_INFO_CURRENT_SIZE,
+            .status = static_cast<std::uint32_t>(result.status),
+            .has_binding = binding ? 1U : 0U,
+            .replaced_existing = binding && binding->replaced_existing ? 1U : 0U,
+            .resolution_mismatch = binding && binding->resolution_mismatch ? 1U : 0U,
+            .stale = stale ? 1U : 0U,
+            .produced_mesh_revision =
+                stale ? stale->produced_mesh_revision : map_set->value.mesh_revision(),
+            .current_mesh_revision = map_set->value.mesh_revision(),
+        };
+        switch (result.status) {
+            case ctex::maps::BakeRequestStatus::completed:
+                return;
+            case ctex::maps::BakeRequestStatus::cancelled:
+                throw_boundary(CTEX_RESULT_CANCELLED, CTEX_DIAGNOSTIC_INVALID_MESH_MAP,
+                               result.message);
+            case ctex::maps::BakeRequestStatus::unsupported:
+                throw_boundary(CTEX_RESULT_UNSUPPORTED_OPERATION, CTEX_DIAGNOSTIC_INVALID_MESH_MAP,
+                               result.message);
+            case ctex::maps::BakeRequestStatus::provider_failed:
+                throw_boundary(CTEX_RESULT_INTERNAL_ERROR, CTEX_DIAGNOSTIC_INVALID_MESH_MAP,
+                               result.message);
+        }
+    });
+}
+
+extern "C" ctex_result ctex_mesh_map_bake_session_create(ctex_mesh_map_set* map_set,
+                                                         std::uint64_t initial_settings_revision,
+                                                         ctex_mesh_map_bake_session** out_session) {
+    return call_mesh_map_boundary("ctex_mesh_map_bake_session_create", [&] {
+        if (map_set == nullptr || out_session == nullptr) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                           map_set == nullptr ? "map_set=null" : "out_session=null");
+        }
+        *out_session = nullptr;
+        *out_session =
+            create_mesh_map_bake_session(map_set->allocator, map_set, initial_settings_revision);
+    });
+}
+
+extern "C" void ctex_mesh_map_bake_session_destroy(ctex_mesh_map_bake_session* session) {
+    destroy_mesh_map_bake_session(session);
+}
+
+extern "C" ctex_result ctex_mesh_map_bake_session_get_info(
+    const ctex_mesh_map_bake_session* session, ctex_mesh_map_bake_session_info* out_info) {
+    return call_mesh_map_boundary("ctex_mesh_map_bake_session_get_info", [&] {
+        if (session == nullptr || out_info == nullptr) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                           session == nullptr ? "session=null" : "out_info=null");
+        }
+        validate_structure_size(out_info->size, CTEX_MESH_MAP_BAKE_SESSION_INFO_V1_SIZE,
+                                CTEX_MESH_MAP_BAKE_SESSION_INFO_CURRENT_SIZE,
+                                "bake session info size");
+        *out_info = {
+            .size = CTEX_MESH_MAP_BAKE_SESSION_INFO_CURRENT_SIZE,
+            .settings_revision = session->value.settings_revision(),
+            .pending_request_count = session->value.pending_request_count(),
+            .undo_step_count = session->value.undo_step_count(),
+        };
+    });
+}
+
+extern "C" ctex_result ctex_mesh_map_bake_session_begin(
+    ctex_mesh_map_bake_session* session, std::uint32_t kind, std::uint32_t width,
+    std::uint32_t height, ctex_mesh_map_bake_request_token** out_token) {
+    return call_mesh_map_boundary("ctex_mesh_map_bake_session_begin", [&] {
+        if (session == nullptr || out_token == nullptr) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                           session == nullptr ? "session=null" : "out_token=null");
+        }
+        *out_token = nullptr;
+        auto token = session->value.begin_request(mesh_map_kind(kind), width, height);
+        *out_token = create_mesh_map_bake_token(session->allocator, std::move(token));
+    });
+}
+
+extern "C" ctex_result ctex_mesh_map_bake_session_cancel(
+    ctex_mesh_map_bake_session* session, const ctex_mesh_map_bake_request_token* token,
+    std::uint32_t* out_cancelled) {
+    return call_mesh_map_boundary("ctex_mesh_map_bake_session_cancel", [&] {
+        if (session == nullptr || token == nullptr || out_cancelled == nullptr) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                           "session, token and out_cancelled are required");
+        }
+        *out_cancelled = session->value.cancel(token->value) ? 1U : 0U;
+    });
+}
+
+extern "C" ctex_result ctex_mesh_map_bake_session_complete(
+    ctex_mesh_map_bake_session* session, const ctex_mesh_map_bake_request_token* token,
+    const ctex_mesh_map_bake_output_descriptor* output,
+    ctex_mesh_map_bake_completion_info* out_info) {
+    return call_mesh_map_boundary("ctex_mesh_map_bake_session_complete", [&] {
+        if (session == nullptr || token == nullptr || output == nullptr || out_info == nullptr) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                           "session, token, output and out_info are required");
+        }
+        validate_structure_size(out_info->size, CTEX_MESH_MAP_BAKE_COMPLETION_INFO_V1_SIZE,
+                                CTEX_MESH_MAP_BAKE_COMPLETION_INFO_CURRENT_SIZE,
+                                "bake completion info size");
+        std::optional<ctex::mesh::TangentFrameDescriptor> tangent_frame;
+        const auto core_output = mesh_map_bake_output(*output, tangent_frame);
+        const auto result = session->value.complete(token->value, core_output);
+        const auto& binding = result.binding;
+        *out_info = {
+            .size = CTEX_MESH_MAP_BAKE_COMPLETION_INFO_CURRENT_SIZE,
+            .disposition = static_cast<std::uint32_t>(result.disposition),
+            .has_binding = binding ? 1U : 0U,
+            .replaced_existing = binding && binding->replaced_existing ? 1U : 0U,
+            .resolution_mismatch = binding && binding->resolution_mismatch ? 1U : 0U,
+            .stale = binding && binding->staleness ? 1U : 0U,
+        };
+    });
+}
+
+extern "C" ctex_result ctex_mesh_map_bake_session_edit_settings(
+    ctex_mesh_map_bake_session* session, std::uint64_t revision,
+    ctex_mesh_map_bake_settings_edit_info* out_info) {
+    return call_mesh_map_boundary("ctex_mesh_map_bake_session_edit_settings", [&] {
+        if (session == nullptr || out_info == nullptr) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                           session == nullptr ? "session=null" : "out_info=null");
+        }
+        validate_structure_size(out_info->size, CTEX_MESH_MAP_BAKE_SETTINGS_EDIT_INFO_V1_SIZE,
+                                CTEX_MESH_MAP_BAKE_SETTINGS_EDIT_INFO_CURRENT_SIZE,
+                                "bake settings edit info size");
+        const auto result = session->value.edit_settings(revision);
+        *out_info = {
+            .size = CTEX_MESH_MAP_BAKE_SETTINGS_EDIT_INFO_CURRENT_SIZE,
+            .previous_revision = result.previous_revision,
+            .current_revision = result.current_revision,
+            .invalidated_request_count = result.invalidated_requests.size(),
+        };
+    });
+}
+
+extern "C" ctex_result ctex_mesh_map_bake_session_undo_settings(
+    ctex_mesh_map_bake_session* session, ctex_mesh_map_bake_settings_undo_info* out_info) {
+    return call_mesh_map_boundary("ctex_mesh_map_bake_session_undo_settings", [&] {
+        if (session == nullptr || out_info == nullptr) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                           session == nullptr ? "session=null" : "out_info=null");
+        }
+        validate_structure_size(out_info->size, CTEX_MESH_MAP_BAKE_SETTINGS_UNDO_INFO_V1_SIZE,
+                                CTEX_MESH_MAP_BAKE_SETTINGS_UNDO_INFO_CURRENT_SIZE,
+                                "bake settings undo info size");
+        const auto result = session->value.undo_settings_edit();
+        *out_info = {
+            .size = CTEX_MESH_MAP_BAKE_SETTINGS_UNDO_INFO_CURRENT_SIZE,
+            .restored = result.restored ? 1U : 0U,
+            .previous_revision = result.previous_revision,
+            .restored_revision = result.restored_revision,
+            .restored_map_count = result.restored_maps.size(),
+            .invalidated_request_count = result.invalidated_requests.size(),
+        };
+    });
+}
+
+extern "C" void ctex_mesh_map_bake_request_token_destroy(ctex_mesh_map_bake_request_token* token) {
+    destroy_mesh_map_bake_token(token);
+}
+
+extern "C" ctex_result ctex_mesh_map_bake_request_token_get_info(
+    const ctex_mesh_map_bake_request_token* token, ctex_mesh_map_bake_token_info* out_info,
+    char* texture_set_id, std::size_t texture_set_id_size, char* uv_set, std::size_t uv_set_size,
+    char* tangent_uv_set, std::size_t tangent_uv_set_size) {
+    return call_mesh_map_boundary("ctex_mesh_map_bake_request_token_get_info", [&] {
+        if (token == nullptr || out_info == nullptr) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                           token == nullptr ? "token=null" : "out_info=null");
+        }
+        validate_structure_size(out_info->size, CTEX_MESH_MAP_BAKE_TOKEN_INFO_V1_SIZE,
+                                CTEX_MESH_MAP_BAKE_TOKEN_INFO_CURRENT_SIZE, "bake token info size");
+        set_mesh_map_bake_token_info(token->value, *out_info, texture_set_id, texture_set_id_size,
+                                     uv_set, uv_set_size, tangent_uv_set, tangent_uv_set_size);
     });
 }
 

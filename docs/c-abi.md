@@ -140,9 +140,33 @@ every missing or stale input rather than substituting neutral values.
 After `ctex_mesh_replace`, `ctex_mesh_map_set_synchronize_mesh` first supports a
 non-mutating sizing call and then advances the set revision while returning the
 bindings made stale by that change. Selective and bulk release report the actual
-resident tile bytes removed. The library has no implicit baking behavior in
-this surface; bake providers, generators, and asynchronous bake requests remain
-separate C ABI work.
+resident tile bytes removed. The library has no implicit baking behavior.
+
+`ctex_mesh_map_generator_get_info` exposes the stable eight-generator catalogue,
+each required map and every parameter's default, range and meaning through
+caller-owned arrays and packed strings. `ctex_mesh_map_generator_generate`
+returns a tightly packed float mask together with the complete resolved
+parameter set, all clamps, stale inputs and the named requirement diagnostic.
+Sizing calls evaluate but do not publish caller buffers; repeated calls over the
+same map set and parameters are byte-deterministic.
+
+`ctex_mesh_map_set_request_bake` is the synchronous host-provider seam. The
+provider advertises supported map kinds, receives the texture-set, UV, mesh,
+settings and generation identities, and reports progress and cancellation on
+the calling thread. Returned pixels are borrowed only for the callback and are
+validated and copied before return. Unsupported, cancelled and provider-failed
+requests return their matching `ctex_result`, leave bindings unchanged and put
+the detailed named reason in the thread-local diagnostic. Callbacks must not
+throw or unwind across the C boundary.
+
+For host-scheduled work, `ctex_mesh_map_bake_session_*` creates versioned request
+tokens and accepts explicit completion data. Only the latest token whose
+session, texture-set, UV, mesh, settings and generation identities remain
+current can bind. Superseded, cancelled, malformed, foreign and duplicate
+completions return a structured disposition without publishing pixels. Settings
+edits snapshot bindings as one undo step; undo restores that snapshot and
+invalidates pending work. Tokens are independent allocator-owned handles and
+must be destroyed; sessions must be destroyed before their non-owning map set.
 
 ## Host transport
 
