@@ -77,10 +77,16 @@
     ]},
     {"name": "language-bindings", "kind": "non-runtime", "rationale": "Bindings mirror the C ABI and are checked by their own parity gate.", "evidence": ["just gate-binding-parity"]},
     {"name": "material-graph", "kind": "runtime", "requirements": [
+      {"requirement": "Graph document", "symbols": ["ctex_material_graph_create_default", "ctex_material_graph_inspect", "ctex_material_graph_compare", "ctex_material_graph_add_builtin_node", "ctex_material_graph_set_input_value", "ctex_material_graph_set_property_value", "ctex_material_graph_add_link"]},
+      {"requirement": "Output node", "symbols": ["ctex_material_graph_create_default", "ctex_material_graph_inspect"]},
       {"requirement": "Node catalogue — input", "symbols": ["ctex_material_graph_get_builtin_catalogue"]},
       {"requirement": "Node catalogue — texture", "symbols": ["ctex_material_graph_get_builtin_catalogue"]},
       {"requirement": "Node catalogue — colour and filter", "symbols": ["ctex_material_graph_get_builtin_catalogue"]},
-      {"requirement": "Node catalogue — vector and math", "symbols": ["ctex_material_graph_get_builtin_catalogue"]}
+      {"requirement": "Node catalogue — vector and math", "symbols": ["ctex_material_graph_get_builtin_catalogue"]},
+      {"requirement": "Socket types and coercion", "symbols": ["ctex_material_graph_get_builtin_catalogue", "ctex_material_graph_add_link"]},
+      {"requirement": "One link per input", "symbols": ["ctex_material_graph_add_link"]},
+      {"requirement": "Cycle detection is explicit", "symbols": ["ctex_material_graph_add_link"]},
+      {"requirement": "Validation before emission", "symbols": ["ctex_material_graph_validate"]}
     ]},
     {"name": "mesh-and-texture-sets", "kind": "runtime", "requirements": [
       {"requirement": "Mesh ingest is read-only", "symbols": ["ctex_mesh_create", "ctex_mesh_destroy"]},

@@ -92,7 +92,9 @@ used by tool execution. The complete named tool inventory is now public. The
 complete 52-node built-in material catalogue now publishes stable schemas,
 property choices and all documented scalar/vector math formulas. Existing
 smart-material inspection and shelf resolution also expose the preset migration
-and forward-version refusal policy. Exactly 86 runtime requirements remain
-unmapped.
+and forward-version refusal policy. Canonical graph documents now expose their
+nine-channel output, typed edits, comparison, coercing link replacement, atomic
+cycle refusal and resource-aware validation independently of emission. Exactly
+80 runtime requirements remain unmapped.
 The gate is not part of the aggregate `just check` until that count reaches zero;
 its unit tests run in the normal tooling suite throughout the migration.

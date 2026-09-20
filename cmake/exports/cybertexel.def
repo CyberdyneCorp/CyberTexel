@@ -97,6 +97,14 @@ EXPORTS
     ctex_project_asset_export
     ctex_project_asset_install
     ctex_material_graph_get_builtin_catalogue
+    ctex_material_graph_create_default
+    ctex_material_graph_inspect
+    ctex_material_graph_compare
+    ctex_material_graph_add_builtin_node
+    ctex_material_graph_set_input_value
+    ctex_material_graph_set_property_value
+    ctex_material_graph_add_link
+    ctex_material_graph_validate
     ctex_preset_library_enumerate
     ctex_preset_library_resolve
     ctex_smart_material_add_anchor_reference

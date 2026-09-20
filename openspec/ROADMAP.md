@@ -204,8 +204,11 @@ tool inventory and all 69 audited numeric controls now expose discoverable
 contextual defaults, bounds and shared clamp results. The complete built-in
 material-node catalogue now exposes all 52 schemas, property choices and
 documented math formulas, while preset inspection exposes schema migration and
-forward-version refusal. Exactly 86 runtime requirements still lack C ABI
-evidence; those gaps must be implemented before task 14.8 can close.
+forward-version refusal. Canonical material graph documents now expose the
+nine-channel output, typed node edits, complete comparison, link coercion and
+replacement, atomic cycle refusal and pre-emission validation. Exactly 80
+runtime requirements still lack C ABI evidence; those gaps must be implemented
+before task 14.8 can close.
 
 ## Milestones
 

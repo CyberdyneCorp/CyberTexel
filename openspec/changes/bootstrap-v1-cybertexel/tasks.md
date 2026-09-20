@@ -896,6 +896,13 @@ smart-material migration and seven-kind shelf validation now also carry explicit
 C ABI coverage evidence for versioned presets. The exact remaining C ABI gap is
 86 runtime requirements.
 
+The material-document continuation exposes canonical caller-owned graph bytes,
+readable inspection, exact comparison, the nine-channel default output, typed
+built-in node edits and link mutation. Link results report coercion and replaced
+sources; incompatible types and cycles preserve the input document. Independent
+validation names missing resources without emission. The exact remaining C ABI
+gap is 80 runtime requirements.
+
 ## 1. Foundation
 
 - [x] 1.1 CMake project, C++20, warnings as errors, presets for headless, macOS, Linux, Windows, iOS, Android

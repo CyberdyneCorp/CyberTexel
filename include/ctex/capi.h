@@ -89,7 +89,8 @@ typedef enum ctex_diagnostic_code {
     CTEX_DIAGNOSTIC_INVALID_PRESET_LIBRARY = 53,
     CTEX_DIAGNOSTIC_INVALID_HOST_TRANSPORT = 54,
     CTEX_DIAGNOSTIC_INVALID_EXECUTOR = 55,
-    CTEX_DIAGNOSTIC_INVALID_PAINT_TOOL = 56
+    CTEX_DIAGNOSTIC_INVALID_PAINT_TOOL = 56,
+    CTEX_DIAGNOSTIC_INVALID_MATERIAL_GRAPH = 57
 } ctex_diagnostic_code;
 
 typedef enum ctex_log_severity {
@@ -150,6 +151,7 @@ typedef struct ctex_host_recovery_report ctex_host_recovery_report;
 #define CTEX_DEFAULT_TILE_SIZE ((uint32_t)64)
 #define CTEX_NO_SURFACE_TRIANGLE UINT32_MAX
 #define CTEX_NO_UV_ISLAND UINT32_MAX
+#define CTEX_MAX_MATERIAL_GRAPH_SERIALIZED_SIZE ((size_t)67108864)
 
 typedef enum ctex_partition_source_kind {
     CTEX_PARTITION_SOURCE_MATERIAL = 0,
@@ -3303,6 +3305,90 @@ typedef struct ctex_material_graph_catalogue_info {
 #define CTEX_MATERIAL_GRAPH_CATALOGUE_INFO_CURRENT_SIZE \
     ((uint32_t)sizeof(ctex_material_graph_catalogue_info))
 
+typedef enum ctex_material_graph_socket_coercion {
+    CTEX_MATERIAL_GRAPH_COERCION_IDENTITY = 0,
+    CTEX_MATERIAL_GRAPH_COERCION_SCALAR_TO_VECTOR = 1,
+    CTEX_MATERIAL_GRAPH_COERCION_VECTOR_TO_SCALAR = 2,
+    CTEX_MATERIAL_GRAPH_COERCION_COLOUR_TO_VECTOR = 3,
+    CTEX_MATERIAL_GRAPH_COERCION_COLOUR_TO_SCALAR = 4
+} ctex_material_graph_socket_coercion;
+
+typedef enum ctex_material_graph_diagnostic_code {
+    CTEX_MATERIAL_GRAPH_UNCONNECTED_REQUIRED_INPUT = 0,
+    CTEX_MATERIAL_GRAPH_MISSING_MESH_MAP = 1,
+    CTEX_MATERIAL_GRAPH_MISSING_IMAGE_RESOURCE = 2,
+    CTEX_MATERIAL_GRAPH_MISSING_GROUP = 3,
+    CTEX_MATERIAL_GRAPH_MISSING_NODE_TYPE = 4,
+    CTEX_MATERIAL_GRAPH_INCOMPATIBLE_NODE_INTERFACE = 5,
+    CTEX_MATERIAL_GRAPH_UNSUPPORTED_EMISSION_TARGET = 6,
+    CTEX_MATERIAL_GRAPH_UNREACHABLE_NODE = 7
+} ctex_material_graph_diagnostic_code;
+
+typedef struct ctex_material_graph_info {
+    uint32_t size;
+    uint64_t output_node_id;
+    size_t node_count;
+    size_t link_count;
+    size_t output_channel_count;
+    size_t canonical_size;
+    size_t report_size;
+} ctex_material_graph_info;
+
+#define CTEX_MATERIAL_GRAPH_INFO_V1_SIZE ((uint32_t)sizeof(ctex_material_graph_info))
+#define CTEX_MATERIAL_GRAPH_INFO_CURRENT_SIZE ((uint32_t)sizeof(ctex_material_graph_info))
+
+typedef struct ctex_material_graph_link_descriptor {
+    uint32_t size;
+    uint64_t source_node;
+    const char* source_socket;
+    uint64_t target_node;
+    const char* target_socket;
+} ctex_material_graph_link_descriptor;
+
+#define CTEX_MATERIAL_GRAPH_LINK_DESCRIPTOR_V1_SIZE \
+    ((uint32_t)sizeof(ctex_material_graph_link_descriptor))
+#define CTEX_MATERIAL_GRAPH_LINK_DESCRIPTOR_CURRENT_SIZE \
+    ((uint32_t)sizeof(ctex_material_graph_link_descriptor))
+
+typedef struct ctex_material_graph_link_info {
+    uint32_t size;
+    ctex_material_graph_info graph;
+    uint32_t coercion;
+    uint32_t replaced;
+    uint64_t replaced_source_node;
+    size_t replaced_source_socket_size;
+} ctex_material_graph_link_info;
+
+#define CTEX_MATERIAL_GRAPH_LINK_INFO_V1_SIZE ((uint32_t)sizeof(ctex_material_graph_link_info))
+#define CTEX_MATERIAL_GRAPH_LINK_INFO_CURRENT_SIZE ((uint32_t)sizeof(ctex_material_graph_link_info))
+
+typedef struct ctex_material_graph_validation_resources_descriptor {
+    uint32_t size;
+    const char* const* image_resources;
+    size_t image_resource_count;
+    const char* const* mesh_maps;
+    size_t mesh_map_count;
+} ctex_material_graph_validation_resources_descriptor;
+
+#define CTEX_MATERIAL_GRAPH_VALIDATION_RESOURCES_DESCRIPTOR_V1_SIZE \
+    ((uint32_t)sizeof(ctex_material_graph_validation_resources_descriptor))
+#define CTEX_MATERIAL_GRAPH_VALIDATION_RESOURCES_DESCRIPTOR_CURRENT_SIZE \
+    ((uint32_t)sizeof(ctex_material_graph_validation_resources_descriptor))
+
+typedef struct ctex_material_graph_validation_info {
+    uint32_t size;
+    uint32_t valid;
+    size_t error_count;
+    size_t warning_count;
+    size_t diagnostic_count;
+    size_t report_size;
+} ctex_material_graph_validation_info;
+
+#define CTEX_MATERIAL_GRAPH_VALIDATION_INFO_V1_SIZE \
+    ((uint32_t)sizeof(ctex_material_graph_validation_info))
+#define CTEX_MATERIAL_GRAPH_VALIDATION_INFO_CURRENT_SIZE \
+    ((uint32_t)sizeof(ctex_material_graph_validation_info))
+
 typedef enum ctex_smart_material_value_type {
     CTEX_SMART_MATERIAL_VALUE_SCALAR = 0,
     CTEX_SMART_MATERIAL_VALUE_VECTOR = 1,
@@ -3594,6 +3680,55 @@ CTEX_API ctex_result ctex_project_asset_install(
  */
 CTEX_API ctex_result ctex_material_graph_get_builtin_catalogue(
     ctex_material_graph_catalogue_info* out_info, char* report_output, size_t report_output_size);
+
+/* Creates the canonical graph containing the nine default material outputs. */
+CTEX_API ctex_result ctex_material_graph_create_default(ctex_material_graph_info* out_info,
+                                                        void* canonical_output,
+                                                        size_t canonical_output_size,
+                                                        char* report_output,
+                                                        size_t report_output_size);
+
+/* Validates, canonicalizes and inspects one serialized graph atomically. */
+CTEX_API ctex_result ctex_material_graph_inspect(const void* serialized, size_t serialized_size,
+                                                 ctex_material_graph_info* out_info,
+                                                 void* canonical_output,
+                                                 size_t canonical_output_size, char* report_output,
+                                                 size_t report_output_size);
+
+/* Compares complete canonical graph documents, including positions and values. */
+CTEX_API ctex_result ctex_material_graph_compare(const void* left, size_t left_size,
+                                                 const void* right, size_t right_size,
+                                                 uint32_t* out_equal);
+
+/* Adds one declared built-in node and returns its stable graph-local identity. */
+CTEX_API ctex_result ctex_material_graph_add_builtin_node(
+    const void* serialized, size_t serialized_size, const char* type_id, ctex_vec2f position,
+    ctex_material_graph_info* out_info, uint64_t* out_node_id, void* canonical_output,
+    size_t canonical_output_size);
+
+/* Updates one typed unconnected input value without changing its declaration. */
+CTEX_API ctex_result ctex_material_graph_set_input_value(
+    const void* serialized, size_t serialized_size, uint64_t node_id, const char* input_id,
+    const ctex_smart_material_value_descriptor* value, ctex_material_graph_info* out_info,
+    void* canonical_output, size_t canonical_output_size);
+
+/* Updates one typed node property without changing its declaration. */
+CTEX_API ctex_result ctex_material_graph_set_property_value(
+    const void* serialized, size_t serialized_size, uint64_t node_id, const char* property_id,
+    const ctex_smart_material_value_descriptor* value, ctex_material_graph_info* out_info,
+    void* canonical_output, size_t canonical_output_size);
+
+/* Adds or replaces one input link and reports its coercion and prior source. */
+CTEX_API ctex_result ctex_material_graph_add_link(
+    const void* serialized, size_t serialized_size, const ctex_material_graph_link_descriptor* link,
+    ctex_material_graph_link_info* out_info, void* canonical_output, size_t canonical_output_size,
+    char* replaced_source_socket, size_t replaced_source_socket_size);
+
+/* Validates a graph without emission and returns deterministic JSON diagnostics. */
+CTEX_API ctex_result ctex_material_graph_validate(
+    const void* serialized, size_t serialized_size,
+    const ctex_material_graph_validation_resources_descriptor* resources,
+    ctex_material_graph_validation_info* out_info, char* report_output, size_t report_output_size);
 
 /*
  * Validates and migrates a canonical smart-material serialization. The output
