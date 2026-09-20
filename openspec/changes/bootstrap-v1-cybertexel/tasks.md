@@ -713,6 +713,12 @@ validation, and plan dependency-ordered reevaluation. Caller-owned canonical
 bytes and JSON reports remain atomic. The exact remaining C ABI gap is 139
 runtime requirements.
 
+The resource continuation exposes two more smart-material requirements. Hosts
+can package canonical materials from explicit portable resource manifests,
+optionally embed every dependency, and import through ordered search paths.
+Import reports packed, referenced and missing inputs by stable identity without
+substitution. The exact remaining C ABI gap is 137 runtime requirements.
+
 ## 1. Foundation
 
 - [x] 1.1 CMake project, C++20, warnings as errors, presets for headless, macOS, Linux, Windows, iOS, Android

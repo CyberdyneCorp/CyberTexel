@@ -2,6 +2,9 @@
 
 #include <cstddef>
 #include <ctex/doc/smart_material.hpp>
+#include <ctex/io/project_container.hpp>
+#include <filesystem>
+#include <fstream>
 #include <iostream>
 #include <string>
 #include <string_view>
@@ -17,21 +20,26 @@ bool expect(bool condition, std::string_view message) {
 }
 
 ctex::graph::GraphDocument graph_fixture(std::string name) {
-    return ctex::graph::GraphDocument({.role = ctex::graph::NodeRole::output,
-                                       .type_id = "ctex.output.smart-material-capi",
-                                       .type_version = 1,
-                                       .display_name = std::move(name),
-                                       .position = {},
-                                       .inputs = {{.identifier = "value",
-                                                   .display_name = "Value",
-                                                   .type = ctex::graph::SocketType::scalar,
-                                                   .value = 0.25},
-                                                  {.identifier = "anchor",
-                                                   .display_name = "Anchor",
-                                                   .type = ctex::graph::SocketType::image,
-                                                   .value = ctex::graph::ImageValue{}}},
-                                       .outputs = {},
-                                       .properties = {}});
+    return ctex::graph::GraphDocument(
+        {.role = ctex::graph::NodeRole::output,
+         .type_id = "ctex.output.smart-material-capi",
+         .type_version = 1,
+         .display_name = std::move(name),
+         .position = {},
+         .inputs = {{.identifier = "value",
+                     .display_name = "Value",
+                     .type = ctex::graph::SocketType::scalar,
+                     .value = 0.25},
+                    {.identifier = "anchor",
+                     .display_name = "Anchor",
+                     .type = ctex::graph::SocketType::image,
+                     .value = ctex::graph::ImageValue{}},
+                    {.identifier = "texture",
+                     .display_name = "Texture",
+                     .type = ctex::graph::SocketType::image,
+                     .value = ctex::graph::ImageValue{"images/noise"}}},
+         .outputs = {},
+         .properties = {}});
 }
 
 ctex::doc::SmartMaterialPreset material_fixture() {
@@ -92,7 +100,7 @@ ctex::doc::SmartMaterialPreset material_fixture() {
                                .consumer_entry_identifier = "coat",
                                .consumer_node_id = 1,
                                .consumer_input_identifier = "anchor"}},
-        .resource_references = {},
+        .resource_references = {{.identifier = "images/noise", .kind = "image"}},
     };
 }
 
@@ -141,7 +149,8 @@ bool inspection_reports_content(std::string_view serialized) {
                       result.info.model_specific_entry_count == 1 &&
                       result.info.model_specific_pixel_bytes == 1 &&
                       result.info.exposed_parameter_count == 1 && result.info.anchor_count == 1 &&
-                      result.info.anchor_reference_count == 1,
+                      result.info.anchor_reference_count == 1 &&
+                      result.info.resource_reference_count == 1,
                   "smart material content metrics are incomplete") &&
            expect(result.report.find("\"id\":\"painted-mask\"") != std::string::npos &&
                       result.report.find("\"content\":\"model-specific\"") != std::string::npos &&
@@ -266,13 +275,133 @@ bool versions_are_migrated_or_refused(std::string_view serialized) {
                   "future smart material schema was not refused by name");
 }
 
+bool package_material(std::string_view serialized, const ctex_project_resource_descriptor& resource,
+                      const ctex_project_asset_export_options_descriptor& options,
+                      std::vector<std::byte>& package) {
+    ctex_project_container_info info{};
+    info.size = CTEX_PROJECT_CONTAINER_INFO_CURRENT_SIZE;
+    if (!expect(ctex_smart_material_package(serialized.data(), serialized.size(), &resource, 1,
+                                            &options, &info, nullptr, 0, nullptr,
+                                            0) == CTEX_RESULT_SUCCESS,
+                "smart material package sizing failed")) {
+        return false;
+    }
+    package.resize(info.canonical_size);
+    std::vector<char> report(info.report_size);
+    return expect(ctex_smart_material_package(serialized.data(), serialized.size(), &resource, 1,
+                                              &options, &info, package.data(), package.size(),
+                                              report.data(), report.size()) == CTEX_RESULT_SUCCESS,
+                  "smart material packaging failed") &&
+           expect(info.asset_count == 1 && info.resource_count == 1,
+                  "smart material package omitted its asset or resource");
+}
+
+bool import_material(const std::vector<std::byte>& package,
+                     const ctex_project_asset_search_paths_descriptor* search_paths,
+                     MaterialResult& result) {
+    if (!expect(
+            ctex_smart_material_import(package.data(), package.size(), nullptr, search_paths,
+                                       &result.info, nullptr, 0, nullptr, 0) == CTEX_RESULT_SUCCESS,
+            "smart material import sizing failed")) {
+        return false;
+    }
+    result.canonical.resize(result.info.canonical_size);
+    std::vector<char> report(result.info.report_size);
+    if (!expect(ctex_smart_material_import(package.data(), package.size(), nullptr, search_paths,
+                                           &result.info, result.canonical.data(),
+                                           result.canonical.size(), report.data(),
+                                           report.size()) == CTEX_RESULT_SUCCESS,
+                "smart material import failed")) {
+        return false;
+    }
+    result.report = report.data();
+    return true;
+}
+
+bool resources_are_portable_and_self_contained(std::string_view serialized) {
+    const std::filesystem::path root = "ctex-capi-smart-material-resources";
+    std::error_code ignored;
+    std::filesystem::remove_all(root, ignored);
+    std::filesystem::create_directories(root / "textures");
+    {
+        std::ofstream file(root / "textures/noise.bin", std::ios::binary);
+        file.write("noise", 5);
+    }
+    const ctex_project_resource_descriptor resource{
+        .size = CTEX_PROJECT_RESOURCE_DESCRIPTOR_CURRENT_SIZE,
+        .identifier = "images/noise",
+        .kind = "image",
+        .relative_path = "textures/noise.bin",
+        .packed = 0,
+        .packed_bytes = nullptr,
+        .packed_byte_count = 0,
+    };
+    const std::string root_text = root.string();
+    const ctex_project_asset_export_options_descriptor self_contained{
+        .size = CTEX_PROJECT_ASSET_EXPORT_OPTIONS_DESCRIPTOR_CURRENT_SIZE,
+        .self_contained = 1,
+        .source_directory = root_text.c_str(),
+    };
+    const ctex_project_asset_export_options_descriptor referenced{
+        .size = CTEX_PROJECT_ASSET_EXPORT_OPTIONS_DESCRIPTOR_CURRENT_SIZE,
+        .self_contained = 0,
+        .source_directory = nullptr,
+    };
+    std::vector<std::byte> packed_package;
+    std::vector<std::byte> referenced_package;
+    if (!package_material(serialized, resource, self_contained, packed_package) ||
+        !package_material(serialized, resource, referenced, referenced_package)) {
+        std::filesystem::remove_all(root, ignored);
+        return false;
+    }
+    const ctex::io::ProjectContainerReadResult packed =
+        ctex::io::read_project_container(packed_package);
+    MaterialResult packed_import;
+    if (!expect(packed.container.resources.front().packed_bytes.has_value() &&
+                    packed.container.resources.front().packed_bytes->size() == 5,
+                "self-contained package did not embed its resource") ||
+        !import_material(packed_package, nullptr, packed_import)) {
+        std::filesystem::remove_all(root, ignored);
+        return false;
+    }
+    const char* paths[] = {root_text.c_str()};
+    const ctex_project_asset_search_paths_descriptor search_paths{
+        .size = CTEX_PROJECT_ASSET_SEARCH_PATHS_DESCRIPTOR_CURRENT_SIZE,
+        .paths = paths,
+        .path_count = 1,
+    };
+    MaterialResult referenced_import;
+    if (!import_material(referenced_package, &search_paths, referenced_import)) {
+        std::filesystem::remove_all(root, ignored);
+        return false;
+    }
+    std::filesystem::remove(root / "textures/noise.bin", ignored);
+    MaterialResult missing_import;
+    const bool missing_succeeded =
+        import_material(referenced_package, &search_paths, missing_import);
+    std::filesystem::remove_all(root, ignored);
+    return expect(packed_import.canonical == serialized &&
+                      packed_import.report.find("\"status\":\"packed\"") != std::string::npos &&
+                      packed_import.report.find("\"resources_complete\":true") != std::string::npos,
+                  "self-contained import did not report packed resources") &&
+           expect(referenced_import.report.find("\"status\":\"referenced\"") != std::string::npos,
+                  "moved resource was not resolved through the search path") &&
+           expect(
+               missing_succeeded &&
+                   missing_import.report.find("\"id\":\"images/noise\"") != std::string::npos &&
+                   missing_import.report.find("\"status\":\"missing\"") != std::string::npos &&
+                   missing_import.report.find("\"resources_complete\":false") != std::string::npos,
+               "missing resource was substituted or not reported by identity");
+}
+
 }  // namespace
 
 int main() {
     const std::string serialized = ctex::doc::serialize_smart_material(material_fixture());
     return inspection_reports_content(serialized) && parameter_updates_all_bindings(serialized) &&
                    anchors_are_atomic_and_planned(serialized) &&
-                   versions_are_migrated_or_refused(serialized)
+                   versions_are_migrated_or_refused(serialized) &&
+                   resources_are_portable_and_self_contained(serialized)
                ? 0
                : 1;
 }

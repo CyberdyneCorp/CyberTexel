@@ -1589,6 +1589,21 @@ typedef struct ctex_project_asset_search_paths_descriptor {
 #define CTEX_PROJECT_ASSET_SEARCH_PATHS_DESCRIPTOR_CURRENT_SIZE \
     ((uint32_t)sizeof(ctex_project_asset_search_paths_descriptor))
 
+typedef struct ctex_project_resource_descriptor {
+    uint32_t size;
+    const char* identifier;
+    const char* kind;
+    const char* relative_path;
+    uint32_t packed;
+    const void* packed_bytes;
+    size_t packed_byte_count;
+} ctex_project_resource_descriptor;
+
+#define CTEX_PROJECT_RESOURCE_DESCRIPTOR_V1_SIZE \
+    ((uint32_t)sizeof(ctex_project_resource_descriptor))
+#define CTEX_PROJECT_RESOURCE_DESCRIPTOR_CURRENT_SIZE \
+    ((uint32_t)sizeof(ctex_project_resource_descriptor))
+
 typedef enum ctex_smart_material_value_type {
     CTEX_SMART_MATERIAL_VALUE_SCALAR = 0,
     CTEX_SMART_MATERIAL_VALUE_VECTOR = 1,
@@ -1862,6 +1877,22 @@ CTEX_API ctex_result ctex_smart_material_add_anchor_reference(
 CTEX_API ctex_result ctex_smart_material_plan_anchor_evaluation(
     const void* serialized, size_t serialized_size, const char* const* changed_anchor_identifiers,
     size_t changed_anchor_count, char* output, size_t output_size, size_t* out_required_size);
+
+/* Packages a canonical smart material with its declared portable resources. */
+CTEX_API ctex_result ctex_smart_material_package(
+    const void* serialized, size_t serialized_size,
+    const ctex_project_resource_descriptor* resources, size_t resource_count,
+    const ctex_project_asset_export_options_descriptor* options,
+    ctex_project_container_info* out_info, void* package_output, size_t package_output_size,
+    char* report_output, size_t report_output_size);
+
+/* Imports a package and reports each image input as packed, referenced, or missing. */
+CTEX_API ctex_result ctex_smart_material_import(
+    const void* package_encoded, size_t package_encoded_size,
+    const ctex_project_container_read_limits_descriptor* limits,
+    const ctex_project_asset_search_paths_descriptor* search_paths,
+    ctex_smart_material_info* out_info, void* canonical_output, size_t canonical_output_size,
+    char* report_output, size_t report_output_size);
 
 /*
  * Initializes the current stroke settings descriptor to the canonical defaults.

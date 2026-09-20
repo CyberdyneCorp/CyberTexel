@@ -10,6 +10,7 @@
 #include <ctex/image/color_policy.hpp>
 #include <ctex/io/image_io.hpp>
 #include <ctex/io/project_container.hpp>
+#include <ctex/io/smart_material_package.hpp>
 #include <ctex/io/standalone_asset.hpp>
 #include <ctex/io/texture_encode.hpp>
 #include <ctex/io/texture_export.hpp>
@@ -4242,6 +4243,99 @@ std::string smart_material_anchor_plan_json(const ctex::doc::SmartMaterialPreset
     return json;
 }
 
+ctex::io::ProjectResource project_resource(const ctex_project_resource_descriptor& descriptor) {
+    validate_structure_size(descriptor.size, CTEX_PROJECT_RESOURCE_DESCRIPTOR_V1_SIZE,
+                            CTEX_PROJECT_RESOURCE_DESCRIPTOR_CURRENT_SIZE, "project resource size");
+    if (descriptor.identifier == nullptr || descriptor.kind == nullptr ||
+        descriptor.relative_path == nullptr) {
+        throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                       "project resource metadata contains null");
+    }
+    if (descriptor.packed > 1U ||
+        (descriptor.packed == 0U &&
+         (descriptor.packed_bytes != nullptr || descriptor.packed_byte_count != 0)) ||
+        (descriptor.packed != 0U && descriptor.packed_bytes == nullptr &&
+         descriptor.packed_byte_count != 0)) {
+        throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_INVALID_PROJECT_CONTAINER,
+                       "project resource packed payload is inconsistent");
+    }
+    std::optional<std::vector<std::byte>> packed;
+    if (descriptor.packed != 0U) {
+        packed.emplace();
+        if (descriptor.packed_byte_count != 0) {
+            const auto* begin = static_cast<const std::byte*>(descriptor.packed_bytes);
+            packed->assign(begin, begin + descriptor.packed_byte_count);
+        }
+    }
+    return {.identifier = descriptor.identifier,
+            .kind = descriptor.kind,
+            .relative_path = descriptor.relative_path,
+            .packed_bytes = std::move(packed)};
+}
+
+std::vector<ctex::io::ProjectResource> project_resources(
+    const ctex_project_resource_descriptor* descriptors, std::size_t count) {
+    if (descriptors == nullptr && count != 0) {
+        throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                       "resources=null");
+    }
+    std::vector<ctex::io::ProjectResource> result;
+    result.reserve(count);
+    for (std::size_t index = 0; index < count; ++index) {
+        result.push_back(project_resource(descriptors[index]));
+    }
+    return result;
+}
+
+std::string_view project_resource_status_name(ctex::io::ProjectResourceStatus status) {
+    switch (status) {
+        case ctex::io::ProjectResourceStatus::packed:
+            return "packed";
+        case ctex::io::ProjectResourceStatus::referenced:
+            return "referenced";
+        case ctex::io::ProjectResourceStatus::missing:
+            return "missing";
+    }
+    return "unknown";
+}
+
+void append_smart_material_import_report(std::string& report,
+                                         const ctex::io::SmartMaterialImportResult& imported) {
+    report.pop_back();
+    report += ",\"resources_complete\":";
+    report += imported.resources_complete() ? "true" : "false";
+    report += ",\"resource_resolution\":[";
+    for (std::size_t index = 0; index < imported.asset.resources.resources.size(); ++index) {
+        if (index != 0) {
+            report.push_back(',');
+        }
+        const ctex::io::ResolvedProjectResource& resource =
+            imported.asset.resources.resources[index];
+        report += "{\"id\":";
+        append_json_text(report, resource.identifier);
+        report += ",\"kind\":";
+        append_json_text(report, resource.kind);
+        report += ",\"status\":";
+        append_json_text(report, project_resource_status_name(resource.status));
+        report += ",\"bytes\":" + std::to_string(resource.bytes.size()) + "}";
+    }
+    report += "],\"image_inputs\":[";
+    for (std::size_t index = 0; index < imported.image_inputs.size(); ++index) {
+        if (index != 0) {
+            report.push_back(',');
+        }
+        const ctex::io::SmartMaterialImageInputResolution& input = imported.image_inputs[index];
+        report += "{\"entry\":";
+        append_json_text(report, input.input.entry_identifier);
+        report += ",\"resource\":";
+        append_json_text(report, input.input.resource_identifier);
+        report += ",\"status\":";
+        append_json_text(report, project_resource_status_name(input.status));
+        report.push_back('}');
+    }
+    report += "]}";
+}
+
 }  // namespace
 
 void* ctex_host_memory_resource::do_allocate(std::size_t bytes, std::size_t alignment) {
@@ -5038,6 +5132,74 @@ extern "C" ctex_result ctex_smart_material_plan_anchor_evaluation(
             }
         } catch (const ctex::doc::SmartMaterialError& error) {
             throw_smart_material_error(error);
+        }
+    });
+}
+
+extern "C" ctex_result ctex_smart_material_package(
+    const void* serialized, std::size_t serialized_size,
+    const ctex_project_resource_descriptor* resources, std::size_t resource_count,
+    const ctex_project_asset_export_options_descriptor* options,
+    ctex_project_container_info* out_info, void* package_output, std::size_t package_output_size,
+    char* report_output, std::size_t report_output_size) {
+    return call_boundary("ctex_smart_material_package", [&] {
+        if (out_info == nullptr) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                           "out_info=null");
+        }
+        validate_structure_size(out_info->size, CTEX_PROJECT_CONTAINER_INFO_V1_SIZE,
+                                CTEX_PROJECT_CONTAINER_INFO_CURRENT_SIZE,
+                                "project container info size");
+        PreparedSmartMaterial source = prepare_smart_material(serialized, serialized_size);
+        try {
+            ctex::io::ProjectContainer package = ctex::io::package_smart_material(
+                source.material, project_resources(resources, resource_count),
+                project_asset_export_options(options));
+            PreparedProjectContainer prepared =
+                prepare_project_container(project_container_result(std::move(package)));
+            *out_info = prepared.info;
+            validate_project_container_outputs(prepared, package_output, package_output_size,
+                                               report_output, report_output_size);
+            write_project_container_outputs(prepared, package_output, report_output);
+        } catch (const ctex::doc::SmartMaterialError& error) {
+            throw_smart_material_error(error);
+        } catch (const ctex::io::ProjectContainerError& error) {
+            throw_project_container_error(error);
+        }
+    });
+}
+
+extern "C" ctex_result ctex_smart_material_import(
+    const void* package_encoded, std::size_t package_encoded_size,
+    const ctex_project_container_read_limits_descriptor* limits,
+    const ctex_project_asset_search_paths_descriptor* search_paths,
+    ctex_smart_material_info* out_info, void* canonical_output, std::size_t canonical_output_size,
+    char* report_output, std::size_t report_output_size) {
+    return call_boundary("ctex_smart_material_import", [&] {
+        if (out_info == nullptr) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                           "out_info=null");
+        }
+        validate_structure_size(out_info->size, CTEX_SMART_MATERIAL_INFO_V1_SIZE,
+                                CTEX_SMART_MATERIAL_INFO_CURRENT_SIZE, "smart material info size");
+        try {
+            const std::vector<std::filesystem::path> paths =
+                project_asset_search_paths(search_paths);
+            ctex::io::SmartMaterialImportResult imported = ctex::io::import_smart_material(
+                project_container_bytes(package_encoded, package_encoded_size),
+                std::span<const std::filesystem::path>(paths), project_container_limits(limits));
+            const std::uint32_t source_schema =
+                imported.asset.package.assets.front().format_version;
+            PreparedSmartMaterial prepared =
+                prepare_smart_material(std::move(imported.material), source_schema);
+            append_smart_material_import_report(prepared.report, imported);
+            prepared.info.report_size = prepared.report.size() + 1;
+            return_smart_material(std::move(prepared), out_info, canonical_output,
+                                  canonical_output_size, report_output, report_output_size);
+        } catch (const ctex::doc::SmartMaterialError& error) {
+            throw_smart_material_error(error);
+        } catch (const ctex::io::ProjectContainerError& error) {
+            throw_project_container_error(error);
         }
     });
 }

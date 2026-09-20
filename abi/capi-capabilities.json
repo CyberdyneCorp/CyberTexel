@@ -115,7 +115,9 @@
       {"requirement": "Exposed parameters", "symbols": ["ctex_smart_material_set_parameter"]},
       {"requirement": "Anchor points", "symbols": ["ctex_smart_material_set_anchor", "ctex_smart_material_add_anchor_reference"]},
       {"requirement": "Anchor cycles are refused", "symbols": ["ctex_smart_material_add_anchor_reference"]},
-      {"requirement": "Evaluation order", "symbols": ["ctex_smart_material_plan_anchor_evaluation"]}
+      {"requirement": "Evaluation order", "symbols": ["ctex_smart_material_plan_anchor_evaluation"]},
+      {"requirement": "Resource resolution is portable", "symbols": ["ctex_smart_material_import"]},
+      {"requirement": "Self-contained packaging", "symbols": ["ctex_smart_material_package", "ctex_smart_material_import"]}
     ]},
     {"name": "stroke-model", "kind": "runtime", "requirements": [
       {"requirement": "A stroke resolves to ordered stamps", "symbols": ["ctex_stroke_settings_init", "ctex_stroke_resolve"]},

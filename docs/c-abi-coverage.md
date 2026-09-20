@@ -34,7 +34,8 @@ array contents. Picking indexes preserve allocator provenance, rebuild after
 mesh replacement, report traversal cost, and expose ray, UV, snap, region and
 bounded cancellable batch queries without a GPU. Smart-material validation now
 exposes canonical migration, mixed-content inventories, typed parameter
-fan-out, anchor editing, cycle refusal and dependency-ordered evaluation.
-Exactly 139 runtime requirements remain unmapped.
+fan-out, anchor editing, cycle refusal, dependency-ordered evaluation, portable
+resource resolution and self-contained packaging. Exactly 137 runtime
+requirements remain unmapped.
 The gate is not part of the aggregate `just check` until that count reaches zero;
 its unit tests run in the normal tooling suite throughout the migration.
