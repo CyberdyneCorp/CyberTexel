@@ -105,6 +105,10 @@ EXPORTS
     ctex_material_graph_set_property_value
     ctex_material_graph_add_link
     ctex_material_graph_validate
+    ctex_material_graph_library_create_empty
+    ctex_material_graph_library_inspect
+    ctex_material_graph_library_add_preset
+    ctex_material_graph_library_resolve_preset
     ctex_material_graph_workspace_create
     ctex_material_graph_workspace_destroy
     ctex_material_graph_workspace_get_info

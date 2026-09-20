@@ -735,6 +735,15 @@ API call returns, and are copied immediately after the callback returns. The
 host keeps callback user data alive until no operation can use the registration
 and the registry is destroyed.
 
+Material presets use canonical caller-owned library bytes rather than a process
+handle. `ctex_material_graph_library_add_preset` saves a graph with its stable
+identity, display name and thumbnail resource; duplicate identities are refused.
+Inspection validates and reorders presets by stable identity, returning exact
+canonical bytes plus deterministic JSON metadata. Resolving a preset returns an
+independent canonical graph document. Consequently the same library bytes on a
+second machine resolve an identity to the same graph without depending on
+insertion order or local paths. Library input is bounded to 256 MiB.
+
 ## ABI version and compatibility
 
 `ctex_get_abi_version` is safe before any handle exists and returns the major,
@@ -775,6 +784,7 @@ The contract is stated per entry-point family:
 | `ctex_image_decode_memory`, `ctex_image_expand_channels`, `ctex_image_resample`, `ctex_image_encode_memory`, `ctex_material_graph_get_builtin_catalogue`, `ctex_material_graph_create_default`, `ctex_material_graph_inspect`, `ctex_material_graph_compare`, `ctex_material_graph_add_builtin_node`, `ctex_material_graph_set_input_value`, `ctex_material_graph_set_property_value`, `ctex_material_graph_add_link`, `ctex_material_graph_validate`, `ctex_stroke_settings_init`, `ctex_stroke_resolve`, `ctex_stroke_preset_serialize`, `ctex_stroke_preset_deserialize`, `ctex_paint_evaluate_tile_coverage`, `ctex_paint_evaluate_material_coordinates`, `ctex_paint_rejection_init`, `ctex_paint_evaluate_rejected_coverage`, `ctex_paint_work_init`, `ctex_paint_plan_work`, `ctex_paint_seam_dilation_init`, `ctex_paint_dilate_uv_seams`, `ctex_paint_filter_surface_scalar`, `ctex_paint_filter_surface_tangent_vector`, `ctex_paint_plan_island_padding`, `ctex_paint_apply_island_padding`, `ctex_paint_combine_masks`, `ctex_paint_evaluate_tile_deposition`, `ctex_paint_blend_snapshot`, `ctex_paint_apply_brush`, `ctex_paint_apply_eraser`, `ctex_paint_apply_fill`, `ctex_paint_apply_clone`, `ctex_paint_apply_blur`, `ctex_paint_apply_smear`, `ctex_paint_resolve_stencil_mask`, `ctex_paint_rasterize_decal`, `ctex_paint_apply_projection`, `ctex_paint_apply_text`, `ctex_paint_pick_enabled_channels`, `ctex_paint_select_colour_id`, `ctex_paint_select_polygon`, `ctex_paint_get_parameter_catalogue`, `ctex_paint_validate_parameter` | Stateless and safe to call concurrently; inputs are borrowed only for the call and outputs are caller-owned |
 | `ctex_texture_export_get_built_in_preset_ids`, `ctex_texture_export_run` | Stateless and safe to call concurrently; callback state belongs to the host and must support the host's chosen concurrency |
 | `ctex_project_container_create_empty`, `ctex_project_container_probe_version`, `ctex_project_container_normalize`, `ctex_project_container_save_atomic`, `ctex_project_asset_export`, `ctex_project_asset_install` | Stateless and safe to call concurrently. Saves to distinct paths are independent; callers serialize saves to the same destination when publication order matters |
+| `ctex_material_graph_library_create_empty`, `ctex_material_graph_library_inspect`, `ctex_material_graph_library_add_preset`, `ctex_material_graph_library_resolve_preset` | Stateless and safe to call concurrently; serialized inputs are borrowed only for the call and all canonical, graph and report outputs are caller-owned |
 | `ctex_smart_material_inspect`, `ctex_smart_material_set_parameter`, `ctex_smart_material_set_anchor`, `ctex_smart_material_add_anchor_reference`, `ctex_smart_material_plan_anchor_evaluation`, `ctex_smart_material_package`, `ctex_smart_material_import` | Stateless and safe to call concurrently; all returned storage is caller-owned |
 | `ctex_preset_library_enumerate`, `ctex_preset_library_resolve` | Stateless and safe to call concurrently; descriptors and encoded shelf contents are borrowed only for the call and outputs are caller-owned |
 | `ctex_texture_set_apply_smart_material`, `ctex_texture_set_apply_smart_mask`, `ctex_texture_set_get_preset_applications`, `ctex_texture_set_set_applied_entry_state`, `ctex_texture_set_undo_last_preset_application` | Distinct documents are independent; callers serialize these operations with every other operation on the same document |

@@ -920,6 +920,14 @@ unknown types remain canonical and are named as non-emittable. Emission-only
 registrations are refused before insertion. The exact remaining C ABI gap is 76
 runtime requirements.
 
+The material-library continuation exposes bounded canonical caller-owned
+library bytes. Strict-C callers save named graphs with stable identities and
+thumbnail resources, inspect deterministic identity-ordered metadata, transfer
+libraries across machines and resolve independent graph documents. Duplicate
+and missing identities are named and refused, and insertion order cannot change
+the bytes. This completes C coverage for every material-graph requirement. The
+exact remaining C ABI gap is 75 runtime requirements.
+
 ## 1. Foundation
 
 - [x] 1.1 CMake project, C++20, warnings as errors, presets for headless, macOS, Linux, Windows, iOS, Android

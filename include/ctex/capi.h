@@ -154,6 +154,7 @@ typedef struct ctex_material_graph_node_registry ctex_material_graph_node_regist
 #define CTEX_NO_SURFACE_TRIANGLE UINT32_MAX
 #define CTEX_NO_UV_ISLAND UINT32_MAX
 #define CTEX_MAX_MATERIAL_GRAPH_SERIALIZED_SIZE ((size_t)67108864)
+#define CTEX_MAX_MATERIAL_GRAPH_LIBRARY_SERIALIZED_SIZE ((size_t)268435456)
 
 typedef enum ctex_partition_source_kind {
     CTEX_PARTITION_SOURCE_MATERIAL = 0,
@@ -3391,6 +3392,32 @@ typedef struct ctex_material_graph_validation_info {
 #define CTEX_MATERIAL_GRAPH_VALIDATION_INFO_CURRENT_SIZE \
     ((uint32_t)sizeof(ctex_material_graph_validation_info))
 
+typedef struct ctex_material_graph_library_info {
+    uint32_t size;
+    size_t preset_count;
+    size_t canonical_size;
+    size_t report_size;
+} ctex_material_graph_library_info;
+
+#define CTEX_MATERIAL_GRAPH_LIBRARY_INFO_V1_SIZE \
+    ((uint32_t)sizeof(ctex_material_graph_library_info))
+#define CTEX_MATERIAL_GRAPH_LIBRARY_INFO_CURRENT_SIZE \
+    ((uint32_t)sizeof(ctex_material_graph_library_info))
+
+typedef struct ctex_material_graph_preset_descriptor {
+    uint32_t size;
+    const char* stable_id;
+    const char* name;
+    const char* thumbnail_resource;
+    const void* graph_serialized;
+    size_t graph_serialized_size;
+} ctex_material_graph_preset_descriptor;
+
+#define CTEX_MATERIAL_GRAPH_PRESET_DESCRIPTOR_V1_SIZE \
+    ((uint32_t)sizeof(ctex_material_graph_preset_descriptor))
+#define CTEX_MATERIAL_GRAPH_PRESET_DESCRIPTOR_CURRENT_SIZE \
+    ((uint32_t)sizeof(ctex_material_graph_preset_descriptor))
+
 typedef enum ctex_smart_material_value_type {
     CTEX_SMART_MATERIAL_VALUE_SCALAR = 0,
     CTEX_SMART_MATERIAL_VALUE_VECTOR = 1,
@@ -3949,6 +3976,30 @@ CTEX_API ctex_result ctex_material_graph_validate(
     const void* serialized, size_t serialized_size,
     const ctex_material_graph_validation_resources_descriptor* resources,
     ctex_material_graph_validation_info* out_info, char* report_output, size_t report_output_size);
+
+/* Creates the canonical empty named-material library. */
+CTEX_API ctex_result ctex_material_graph_library_create_empty(
+    ctex_material_graph_library_info* out_info, void* canonical_output,
+    size_t canonical_output_size, char* report_output, size_t report_output_size);
+
+/* Validates, canonicalizes and enumerates stable material preset identities. */
+CTEX_API ctex_result ctex_material_graph_library_inspect(
+    const void* serialized, size_t serialized_size, ctex_material_graph_library_info* out_info,
+    void* canonical_output, size_t canonical_output_size, char* report_output,
+    size_t report_output_size);
+
+/* Saves one graph with a stable identity, display name and thumbnail resource. */
+CTEX_API ctex_result ctex_material_graph_library_add_preset(
+    const void* serialized, size_t serialized_size,
+    const ctex_material_graph_preset_descriptor* preset, ctex_material_graph_library_info* out_info,
+    void* canonical_output, size_t canonical_output_size, char* report_output,
+    size_t report_output_size);
+
+/* Resolves a stable preset identity to an independent canonical graph document. */
+CTEX_API ctex_result ctex_material_graph_library_resolve_preset(
+    const void* serialized, size_t serialized_size, const char* stable_id,
+    ctex_material_graph_info* out_info, void* canonical_output, size_t canonical_output_size,
+    char* report_output, size_t report_output_size);
 
 /* Creates an allocator-owned workspace for reusable material node groups. */
 CTEX_API ctex_result

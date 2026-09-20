@@ -213,7 +213,10 @@ or transitive recursion refusal with complete cycle diagnostics. Host node
 registries now expose versioned declarations, CPU and emission callbacks,
 determinism, dependencies, supported targets and executable parity fixtures.
 Registered nodes participate in documents, groups and validation; unknown nodes
-round-trip opaquely and are named as non-emittable. Exactly 76 runtime
+round-trip opaquely and are named as non-emittable. Canonical material libraries
+now save named graphs with stable identities and thumbnail resources, order
+presets independently of insertion and resolve the same graph after transfer.
+All material-graph requirements are now mapped through C. Exactly 75 runtime
 requirements still lack C ABI evidence; those gaps must be implemented before
 task 14.8 can close.
 

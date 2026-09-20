@@ -16,6 +16,7 @@
 #include <ctex/exec/vulkan_executor.hpp>
 #include <ctex/graph/catalogue.hpp>
 #include <ctex/graph/groups.hpp>
+#include <ctex/graph/material_library.hpp>
 #include <ctex/graph/validation.hpp>
 #include <ctex/image/channel_expansion.hpp>
 #include <ctex/image/color_policy.hpp>
@@ -7219,6 +7220,84 @@ std::string material_graph_host_contract_json(const ctex::graph::NodeParityRepor
     return output;
 }
 
+std::string material_graph_library_report_json(const ctex::graph::MaterialLibrary& library) {
+    std::string output = "{\"presets\":[";
+    const std::span presets = library.presets();
+    for (std::size_t index = 0; index < presets.size(); ++index) {
+        if (index != 0) {
+            output.push_back(',');
+        }
+        const ctex::graph::MaterialPreset& preset = presets[index];
+        output += "{\"stable_id\":";
+        append_json_text(output, preset.stable_id);
+        output += ",\"name\":";
+        append_json_text(output, preset.name);
+        output += ",\"thumbnail_resource\":";
+        append_json_text(output, preset.thumbnail_resource);
+        output += ",\"node_count\":" + std::to_string(preset.graph.nodes().size()) +
+                  ",\"link_count\":" + std::to_string(preset.graph.links().size()) + "}";
+    }
+    output += "]}";
+    return output;
+}
+
+struct PreparedMaterialGraphLibrary {
+    ctex::graph::MaterialLibrary library;
+    std::string canonical;
+    std::string report;
+    ctex_material_graph_library_info info;
+};
+
+PreparedMaterialGraphLibrary prepare_material_graph_library(ctex::graph::MaterialLibrary library) {
+    std::string canonical = ctex::graph::serialize_material_library(library);
+    if (canonical.size() > CTEX_MAX_MATERIAL_GRAPH_LIBRARY_SERIALIZED_SIZE) {
+        throw_boundary(CTEX_RESULT_OVER_BUDGET, CTEX_DIAGNOSTIC_INVALID_MATERIAL_GRAPH,
+                       "material graph library exceeds the serialized size limit");
+    }
+    std::string report = material_graph_library_report_json(library);
+    const ctex_material_graph_library_info info = {
+        .size = CTEX_MATERIAL_GRAPH_LIBRARY_INFO_CURRENT_SIZE,
+        .preset_count = library.presets().size(),
+        .canonical_size = canonical.size(),
+        .report_size = report.size() + 1,
+    };
+    return {std::move(library), std::move(canonical), std::move(report), info};
+}
+
+std::string_view material_graph_library_bytes(const void* serialized, std::size_t serialized_size) {
+    if (serialized == nullptr) {
+        throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                       "serialized=null");
+    }
+    if (serialized_size == 0 || serialized_size > CTEX_MAX_MATERIAL_GRAPH_LIBRARY_SERIALIZED_SIZE) {
+        throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_INVALID_MATERIAL_GRAPH,
+                       "serialized_size=" + std::to_string(serialized_size));
+    }
+    return {static_cast<const char*>(serialized), serialized_size};
+}
+
+PreparedMaterialGraphLibrary prepare_material_graph_library(const void* serialized,
+                                                            std::size_t serialized_size) {
+    return prepare_material_graph_library(ctex::graph::deserialize_material_library(
+        material_graph_library_bytes(serialized, serialized_size)));
+}
+
+void return_material_graph_library(const PreparedMaterialGraphLibrary& prepared,
+                                   ctex_material_graph_library_info& info, void* canonical_output,
+                                   std::size_t canonical_output_size, char* report_output,
+                                   std::size_t report_output_size) {
+    info = prepared.info;
+    validate_output_array(canonical_output, canonical_output_size, prepared.canonical.size(),
+                          "canonical_output");
+    validate_string_buffer(report_output, report_output_size, prepared.info.report_size);
+    if (canonical_output != nullptr) {
+        std::memcpy(canonical_output, prepared.canonical.data(), prepared.canonical.size());
+    }
+    if (report_output != nullptr) {
+        std::memcpy(report_output, prepared.report.c_str(), prepared.info.report_size);
+    }
+}
+
 void include_listing_thumbnail(ctex::io::ResolvedPreset& resolved) {
     const auto found =
         std::find_if(resolved.package.tiled_images.begin(), resolved.package.tiled_images.end(),
@@ -9102,6 +9181,98 @@ extern "C" ctex_result ctex_material_graph_validate(
         if (report_output != nullptr) {
             std::memcpy(report_output, report.c_str(), out_info->report_size);
         }
+    });
+}
+
+extern "C" ctex_result ctex_material_graph_library_create_empty(
+    ctex_material_graph_library_info* out_info, void* canonical_output,
+    std::size_t canonical_output_size, char* report_output, std::size_t report_output_size) {
+    return call_material_graph_boundary("ctex_material_graph_library_create_empty", [&] {
+        if (out_info == nullptr) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                           "out_info=null");
+        }
+        validate_structure_size(out_info->size, CTEX_MATERIAL_GRAPH_LIBRARY_INFO_V1_SIZE,
+                                CTEX_MATERIAL_GRAPH_LIBRARY_INFO_CURRENT_SIZE,
+                                "material graph library info size");
+        const PreparedMaterialGraphLibrary prepared =
+            prepare_material_graph_library(ctex::graph::MaterialLibrary{});
+        return_material_graph_library(prepared, *out_info, canonical_output, canonical_output_size,
+                                      report_output, report_output_size);
+    });
+}
+
+extern "C" ctex_result ctex_material_graph_library_inspect(
+    const void* serialized, std::size_t serialized_size, ctex_material_graph_library_info* out_info,
+    void* canonical_output, std::size_t canonical_output_size, char* report_output,
+    std::size_t report_output_size) {
+    return call_material_graph_boundary("ctex_material_graph_library_inspect", [&] {
+        if (out_info == nullptr) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                           "out_info=null");
+        }
+        validate_structure_size(out_info->size, CTEX_MATERIAL_GRAPH_LIBRARY_INFO_V1_SIZE,
+                                CTEX_MATERIAL_GRAPH_LIBRARY_INFO_CURRENT_SIZE,
+                                "material graph library info size");
+        const PreparedMaterialGraphLibrary prepared =
+            prepare_material_graph_library(serialized, serialized_size);
+        return_material_graph_library(prepared, *out_info, canonical_output, canonical_output_size,
+                                      report_output, report_output_size);
+    });
+}
+
+extern "C" ctex_result ctex_material_graph_library_add_preset(
+    const void* serialized, std::size_t serialized_size,
+    const ctex_material_graph_preset_descriptor* preset, ctex_material_graph_library_info* out_info,
+    void* canonical_output, std::size_t canonical_output_size, char* report_output,
+    std::size_t report_output_size) {
+    return call_material_graph_boundary("ctex_material_graph_library_add_preset", [&] {
+        if (preset == nullptr || out_info == nullptr) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                           preset == nullptr ? "preset=null" : "out_info=null");
+        }
+        validate_structure_size(preset->size, CTEX_MATERIAL_GRAPH_PRESET_DESCRIPTOR_V1_SIZE,
+                                CTEX_MATERIAL_GRAPH_PRESET_DESCRIPTOR_CURRENT_SIZE,
+                                "material graph preset descriptor size");
+        validate_structure_size(out_info->size, CTEX_MATERIAL_GRAPH_LIBRARY_INFO_V1_SIZE,
+                                CTEX_MATERIAL_GRAPH_LIBRARY_INFO_CURRENT_SIZE,
+                                "material graph library info size");
+        if (preset->stable_id == nullptr || preset->name == nullptr ||
+            preset->thumbnail_resource == nullptr) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                           "preset stable_id, name and thumbnail_resource are required");
+        }
+        PreparedMaterialGraphLibrary source =
+            prepare_material_graph_library(serialized, serialized_size);
+        source.library.add({.stable_id = preset->stable_id,
+                            .name = preset->name,
+                            .thumbnail_resource = preset->thumbnail_resource,
+                            .graph = ctex::graph::deserialize_graph(material_graph_bytes(
+                                preset->graph_serialized, preset->graph_serialized_size))});
+        const PreparedMaterialGraphLibrary prepared =
+            prepare_material_graph_library(std::move(source.library));
+        return_material_graph_library(prepared, *out_info, canonical_output, canonical_output_size,
+                                      report_output, report_output_size);
+    });
+}
+
+extern "C" ctex_result ctex_material_graph_library_resolve_preset(
+    const void* serialized, std::size_t serialized_size, const char* stable_id,
+    ctex_material_graph_info* out_info, void* canonical_output, std::size_t canonical_output_size,
+    char* report_output, std::size_t report_output_size) {
+    return call_material_graph_boundary("ctex_material_graph_library_resolve_preset", [&] {
+        if (stable_id == nullptr || out_info == nullptr) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                           stable_id == nullptr ? "stable_id=null" : "out_info=null");
+        }
+        validate_structure_size(out_info->size, CTEX_MATERIAL_GRAPH_INFO_V1_SIZE,
+                                CTEX_MATERIAL_GRAPH_INFO_CURRENT_SIZE, "material graph info size");
+        PreparedMaterialGraphLibrary library =
+            prepare_material_graph_library(serialized, serialized_size);
+        const PreparedMaterialGraph prepared =
+            prepare_material_graph(library.library.instantiate(stable_id));
+        return_material_graph(prepared, *out_info, canonical_output, canonical_output_size,
+                              report_output, report_output_size);
     });
 }
 
