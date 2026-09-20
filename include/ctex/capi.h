@@ -3525,6 +3525,11 @@ typedef enum ctex_shader_filter_mode {
     CTEX_SHADER_FILTER_LINEAR = 1
 } ctex_shader_filter_mode;
 
+typedef enum ctex_shader_preview_kind {
+    CTEX_SHADER_PREVIEW_LIT = 0,
+    CTEX_SHADER_PREVIEW_CHANNEL_INSPECTION = 1
+} ctex_shader_preview_kind;
+
 typedef struct ctex_shader_texture_descriptor {
     uint32_t size;
     const char* logical_id;
@@ -3652,6 +3657,65 @@ typedef struct ctex_shader_emission_cache_info {
 #define CTEX_SHADER_EMISSION_CACHE_INFO_V1_SIZE ((uint32_t)sizeof(ctex_shader_emission_cache_info))
 #define CTEX_SHADER_EMISSION_CACHE_INFO_CURRENT_SIZE \
     ((uint32_t)sizeof(ctex_shader_emission_cache_info))
+
+typedef struct ctex_shader_preview_channel_descriptor {
+    uint32_t size;
+    const char* semantic_id;
+    uint32_t component_count;
+    ctex_shader_texture_descriptor texture;
+} ctex_shader_preview_channel_descriptor;
+
+#define CTEX_SHADER_PREVIEW_CHANNEL_DESCRIPTOR_V1_SIZE \
+    ((uint32_t)sizeof(ctex_shader_preview_channel_descriptor))
+#define CTEX_SHADER_PREVIEW_CHANNEL_DESCRIPTOR_CURRENT_SIZE \
+    ((uint32_t)sizeof(ctex_shader_preview_channel_descriptor))
+
+typedef struct ctex_shader_preview_environment_descriptor {
+    uint32_t size;
+    ctex_shader_texture_descriptor radiance;
+    ctex_shader_texture_descriptor diffuse_irradiance;
+    ctex_shader_texture_descriptor specular_brdf_lookup;
+} ctex_shader_preview_environment_descriptor;
+
+#define CTEX_SHADER_PREVIEW_ENVIRONMENT_DESCRIPTOR_V1_SIZE \
+    ((uint32_t)sizeof(ctex_shader_preview_environment_descriptor))
+#define CTEX_SHADER_PREVIEW_ENVIRONMENT_DESCRIPTOR_CURRENT_SIZE \
+    ((uint32_t)sizeof(ctex_shader_preview_environment_descriptor))
+
+typedef struct ctex_shader_preview_request {
+    uint32_t size;
+    const char* stable_identity;
+    uint32_t target; /* ctex_material_graph_emission_target */
+    ctex_shader_device_features_descriptor features;
+    const ctex_shader_preview_channel_descriptor* channels;
+    size_t channel_count;
+    ctex_shader_texture_descriptor output;
+    const ctex_shader_preview_environment_descriptor* environment; /* optional */
+    size_t analytic_light_count;
+    uint32_t vertex_count;
+} ctex_shader_preview_request;
+
+#define CTEX_SHADER_PREVIEW_REQUEST_V1_SIZE ((uint32_t)sizeof(ctex_shader_preview_request))
+#define CTEX_SHADER_PREVIEW_REQUEST_CURRENT_SIZE ((uint32_t)sizeof(ctex_shader_preview_request))
+
+typedef struct ctex_shader_preview_info {
+    uint32_t size;
+    uint32_t target;
+    uint32_t kind; /* ctex_shader_preview_kind */
+    uint32_t fallback_lighting;
+    uint32_t cache_hit;
+    size_t vertex_artifact_size;
+    size_t fragment_artifact_size;
+    size_t pass_plan_size;
+    size_t workaround_report_size;
+    size_t pass_count;
+    size_t logical_resource_count;
+    size_t binding_count;
+    size_t workaround_count;
+} ctex_shader_preview_info;
+
+#define CTEX_SHADER_PREVIEW_INFO_V1_SIZE ((uint32_t)sizeof(ctex_shader_preview_info))
+#define CTEX_SHADER_PREVIEW_INFO_CURRENT_SIZE ((uint32_t)sizeof(ctex_shader_preview_info))
 
 typedef struct ctex_material_graph_property_descriptor {
     uint32_t size;
@@ -4243,7 +4307,7 @@ CTEX_API ctex_result ctex_shader_emit_material(
     size_t pass_plan_output_size, char* workaround_report_output,
     size_t workaround_report_output_size);
 
-/* Creates a thread-safe cache for material and layer-stack emission results. */
+/* Creates a thread-safe cache for material, layer-stack, and preview emission results. */
 CTEX_API ctex_result ctex_shader_emission_cache_create(ctex_shader_emission_cache** out_cache);
 CTEX_API void ctex_shader_emission_cache_destroy(ctex_shader_emission_cache* cache);
 CTEX_API ctex_result ctex_shader_emission_cache_get_info(const ctex_shader_emission_cache* cache,
@@ -4270,6 +4334,22 @@ CTEX_API ctex_result ctex_shader_emit_layer_stack(
     ctex_shader_layer_stack_info* out_info, void* artifact_blob, size_t artifact_blob_size,
     char* artifact_report_output, size_t artifact_report_output_size, char* pass_plan_output,
     size_t pass_plan_output_size, char* workaround_report_output,
+    size_t workaround_report_output_size);
+
+/* Emits a lit material preview with declared environment and analytic-light inputs. */
+CTEX_API ctex_result ctex_shader_emit_lit_preview(
+    ctex_shader_emission_cache* cache, const ctex_shader_preview_request* request,
+    ctex_shader_preview_info* out_info, void* vertex_artifact, size_t vertex_artifact_size,
+    void* fragment_artifact, size_t fragment_artifact_size, char* pass_plan_output,
+    size_t pass_plan_output_size, char* workaround_report_output,
+    size_t workaround_report_output_size);
+
+/* Emits an unlit shader that displays exactly one requested semantic channel. */
+CTEX_API ctex_result ctex_shader_emit_channel_inspection(
+    ctex_shader_emission_cache* cache, const ctex_shader_preview_request* request,
+    const char* semantic_id, ctex_shader_preview_info* out_info, void* vertex_artifact,
+    size_t vertex_artifact_size, void* fragment_artifact, size_t fragment_artifact_size,
+    char* pass_plan_output, size_t pass_plan_output_size, char* workaround_report_output,
     size_t workaround_report_output_size);
 
 /*

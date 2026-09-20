@@ -948,6 +948,17 @@ cover fitting and split stacks, SPIR-V bytes, float-filter fallback, cache key
 separation, byte-identical hits and atomic output refusal. The exact remaining C
 ABI gap is 65 runtime requirements.
 
+The preview-emission continuation exposes lit material previews and unlit
+single-channel inspection for all four shader targets. Versioned C descriptors
+carry document channels, optional environment resources and analytic-light
+count. The JSON pass plan now publishes texture dimensions, encodings and mip
+conventions plus every uniform field offset. Missing environments select the
+documented deterministic fallback without unbound textures. Preview results
+share the observable emission cache. A strict-C fixture covers all nine channel
+inspection routes, every fallback target, complete lighting declarations,
+cache identity, invalid environment refusal and atomic sizing. The exact
+remaining C ABI gap is 63 runtime requirements.
+
 ## 1. Foundation
 
 - [x] 1.1 CMake project, C++20, warnings as errors, presets for headless, macOS, Linux, Windows, iOS, Android

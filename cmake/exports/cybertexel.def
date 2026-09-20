@@ -136,6 +136,8 @@ EXPORTS
     ctex_shader_emission_cache_clear
     ctex_shader_emit_material_cached
     ctex_shader_emit_layer_stack
+    ctex_shader_emit_lit_preview
+    ctex_shader_emit_channel_inspection
     ctex_preset_library_enumerate
     ctex_preset_library_resolve
     ctex_smart_material_add_anchor_reference

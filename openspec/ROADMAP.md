@@ -223,7 +223,10 @@ pass plans. Concurrent calls over distinct graphs and targets match their serial
 results. Layer stacks now cross the boundary as one-pass or deterministic split
 compositing with packed per-pass artifacts and carried intermediates. A shared,
 observable cache serves byte-identical material and layer-stack results keyed by
-content, target and device features. Exactly 65 runtime requirements still lack C ABI evidence; those
+content, target and device features. Lit previews now cross C with complete
+environment texture contracts, uniform layouts, analytic lights and deterministic
+fallback lighting; every channel has an unlit inspection route. Exactly 63
+runtime requirements still lack C ABI evidence; those
 gaps must be implemented before task 14.8 can close.
 
 ## Milestones

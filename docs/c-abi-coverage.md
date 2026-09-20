@@ -114,7 +114,10 @@ device handles. Concurrent calls over different graphs and targets match their
 serial results. Layer stacks now expose one-pass and binding-budget-split
 compositing, packed per-pass artifacts and explicit carried intermediates.
 Material and layer-stack results can share an observable cache keyed by content,
-target and device features. Exactly 65 runtime requirements remain unmapped
+target and device features. Lit previews now declare complete environment and
+analytic-light inputs, including uniform layouts, while every document channel
+has an unlit inspection route and missing environments use defined fallback
+lighting. Exactly 63 runtime requirements remain unmapped
 overall.
 The gate is not part of the aggregate `just check` until that count reaches zero;
 its unit tests run in the normal tooling suite throughout the migration.
