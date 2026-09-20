@@ -22,7 +22,11 @@ The gate is intentionally red while task 14.8 is in progress. The current C ABI
 fully maps its boundary requirements and records the implemented document and
 texture-set, colour-management, read-only mesh-ingest, bounded in-memory image
 I/O, canonical stroke reconstruction, paint-engine primitives and complete CPU
-picking operations, but 168 runtime requirements still lack C entry points.
+picking operations. Texture export is reachable through data-driven presets,
+planning, sampling and caller-owned output callbacks. Project containers now
+expose bounded canonical open/re-save, version probing, opaque-content
+preservation and atomic publication. Exactly 146 runtime requirements still
+lack C entry points.
 Mesh handles own allocator-routed
 copies of host buffers, expose named UV sets and revision changes, and enforce
 the declared 100,000,000-vertex and 100,000,000-triangle ceilings before reading

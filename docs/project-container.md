@@ -117,6 +117,18 @@ gate exercises the atomic filesystem API rather than only the memory encoder.
 Periodic background publication and restart discovery build on this format and
 are described in [Project snapshots, autosave, and recovery](project-autosave.md).
 
+## C ABI access
+
+The public C boundary exposes header probing, canonical empty-container
+creation, bounded open/re-encode with a JSON inventory, and atomic filesystem
+publication. `ctex_project_container_normalize` reports exact caller-buffer
+sizes before writing either the canonical bytes or NUL-terminated report, and
+preserves newer-schema and opaque sections. Passing a null read-limits
+descriptor uses `ProjectContainerReadLimits` defaults; a supplied versioned
+descriptor controls every input, allocation, record, string, tile, resource and
+asset ceiling. See [C ABI](c-abi.md#project-containers) for the complete calling
+contract.
+
 The current in-memory `ProjectContainer` is the extensible framing, tiled pixel,
 portable resource, and standalone asset foundation. The complete document
 object schema is added by subsequent project-I/O roadmap tasks.

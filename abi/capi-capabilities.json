@@ -97,7 +97,15 @@
       {"requirement": "Batched picking", "symbols": ["ctex_pick_nearest_batch"]},
       {"requirement": "Picking is bounded and reports its cost", "symbols": ["ctex_pick_nearest_batch", "ctex_pick_index_get_info"]}
     ]},
-    {"name": "project-io", "kind": "runtime", "requirements": []},
+    {"name": "project-io", "kind": "runtime", "requirements": [
+      {"requirement": "Backward-open reading", "symbols": ["ctex_project_container_normalize"]},
+      {"requirement": "Versioning", "symbols": ["ctex_project_container_probe_version"]},
+      {"requirement": "Pixel storage", "symbols": ["ctex_project_container_create_empty", "ctex_project_container_normalize"]},
+      {"requirement": "Referenced versus packed resources", "symbols": ["ctex_project_container_normalize"]},
+      {"requirement": "Save is atomic", "symbols": ["ctex_project_container_save_atomic"]},
+      {"requirement": "Untrusted input is bounded", "symbols": ["ctex_project_container_normalize", "ctex_project_container_save_atomic"]},
+      {"requirement": "Deterministic writing", "symbols": ["ctex_project_container_create_empty", "ctex_project_container_normalize", "ctex_project_container_save_atomic"]}
+    ]},
     {"name": "resource-residency", "kind": "runtime", "requirements": []},
     {"name": "shader-emission", "kind": "runtime", "requirements": []},
     {"name": "smart-materials", "kind": "runtime", "requirements": []},

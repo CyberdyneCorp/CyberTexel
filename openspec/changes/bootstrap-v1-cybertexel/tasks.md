@@ -690,6 +690,14 @@ and extensible registered channel components. Callback bytes remain borrowed so
 the host retains allocation and file-publication control. The exact remaining C
 ABI gap is 153 runtime requirements.
 
+The next slice exposes seven project-container requirements through four public
+C operations. Hosts can create canonical empty containers, probe schema versions
+without decoding bodies, open untrusted bytes under explicit limits, inspect a
+deterministic JSON inventory, preserve opaque future sections on canonical
+re-save, and atomically publish validated files. Canonical bytes and reports use
+caller-owned buffers that are validated together before either is written. The
+exact remaining C ABI gap is 146 runtime requirements.
+
 ## 1. Foundation
 
 - [x] 1.1 CMake project, C++20, warnings as errors, presets for headless, macOS, Linux, Windows, iOS, Android

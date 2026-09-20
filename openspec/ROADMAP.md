@@ -151,8 +151,12 @@ texture-export slice now exposes data-driven and built-in presets, the complete
 token vocabulary, all spatial and layer scopes, filename and resolution
 planning, padding, dry runs, JSON reports, progress, cancellation, registered
 channels and caller-owned in-memory output delivery. The gate correctly remains
-red with 153 runtime requirements still lacking C ABI
-evidence; those gaps must be implemented before task 14.8 can close.
+red. The project-container slice adds fixed-header schema probing,
+deterministic empty-container creation, bounded canonical open/re-save with a
+machine-readable inventory, opaque future-content preservation and atomic
+filesystem publication. Both byte and report outputs retain the caller-owned
+two-call contract. Exactly 146 runtime requirements still lack C ABI evidence;
+those gaps must be implemented before task 14.8 can close.
 
 ## Milestones
 

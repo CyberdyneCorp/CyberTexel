@@ -83,7 +83,8 @@ typedef enum ctex_diagnostic_code {
     CTEX_DIAGNOSTIC_INVALID_PAINT_SURFACE_CACHE = 47,
     CTEX_DIAGNOSTIC_INVALID_PAINT_PREVIEW = 48,
     CTEX_DIAGNOSTIC_INVALID_PICK_QUERY = 49,
-    CTEX_DIAGNOSTIC_INVALID_TEXTURE_EXPORT = 50
+    CTEX_DIAGNOSTIC_INVALID_TEXTURE_EXPORT = 50,
+    CTEX_DIAGNOSTIC_INVALID_PROJECT_CONTAINER = 51
 } ctex_diagnostic_code;
 
 typedef enum ctex_log_severity {
@@ -1516,6 +1517,55 @@ typedef struct ctex_texture_export_info {
 #define CTEX_TEXTURE_EXPORT_INFO_V1_SIZE ((uint32_t)sizeof(ctex_texture_export_info))
 #define CTEX_TEXTURE_EXPORT_INFO_CURRENT_SIZE ((uint32_t)sizeof(ctex_texture_export_info))
 
+typedef struct ctex_project_container_read_limits_descriptor {
+    uint32_t size;
+    size_t maximum_input_bytes;
+    size_t maximum_total_allocation_bytes;
+    size_t maximum_sections;
+    size_t maximum_images;
+    size_t maximum_tiles;
+    size_t maximum_resources;
+    size_t maximum_assets;
+    size_t maximum_asset_dependencies;
+    size_t maximum_string_bytes;
+    size_t maximum_decoded_tile_bytes;
+    size_t maximum_packed_resource_bytes;
+    size_t maximum_asset_payload_bytes;
+} ctex_project_container_read_limits_descriptor;
+
+#define CTEX_PROJECT_CONTAINER_READ_LIMITS_DESCRIPTOR_V1_SIZE \
+    ((uint32_t)sizeof(ctex_project_container_read_limits_descriptor))
+#define CTEX_PROJECT_CONTAINER_READ_LIMITS_DESCRIPTOR_CURRENT_SIZE \
+    ((uint32_t)sizeof(ctex_project_container_read_limits_descriptor))
+
+typedef struct ctex_project_container_version {
+    uint32_t size;
+    uint32_t major;
+    uint32_t minor;
+    uint32_t patch;
+} ctex_project_container_version;
+
+#define CTEX_PROJECT_CONTAINER_VERSION_V1_SIZE ((uint32_t)sizeof(ctex_project_container_version))
+#define CTEX_PROJECT_CONTAINER_VERSION_CURRENT_SIZE \
+    ((uint32_t)sizeof(ctex_project_container_version))
+
+typedef struct ctex_project_container_info {
+    uint32_t size;
+    ctex_project_container_version source_schema;
+    uint32_t newer_schema;
+    size_t tiled_image_count;
+    size_t resource_count;
+    size_t asset_count;
+    size_t opaque_section_count;
+    size_t occupied_tile_count;
+    size_t packed_resource_bytes;
+    size_t canonical_size;
+    size_t report_size;
+} ctex_project_container_info;
+
+#define CTEX_PROJECT_CONTAINER_INFO_V1_SIZE ((uint32_t)sizeof(ctex_project_container_info))
+#define CTEX_PROJECT_CONTAINER_INFO_CURRENT_SIZE ((uint32_t)sizeof(ctex_project_container_info))
+
 typedef enum ctex_color_space {
     CTEX_COLOR_SPACE_LINEAR_REC709 = 0,
     CTEX_COLOR_SPACE_SRGB_REC709 = 1
@@ -1651,6 +1701,39 @@ CTEX_API ctex_result ctex_texture_export_run(
     const ctex_texture_export_preset_descriptor* preset,
     const ctex_texture_export_options_descriptor* options,
     const ctex_texture_export_callbacks_descriptor* callbacks, ctex_texture_export_info* out_info);
+
+/*
+ * Creates the canonical byte representation of an empty project container.
+ * A null output with zero size queries the exact byte count.
+ */
+CTEX_API ctex_result ctex_project_container_create_empty(void* output, size_t output_size,
+                                                         size_t* out_required_size);
+
+/* Reads only the fixed project-container header and reports its schema version. */
+CTEX_API ctex_result ctex_project_container_probe_version(
+    const void* encoded, size_t encoded_size, ctex_project_container_version* out_version);
+
+/*
+ * Opens untrusted bytes under explicit limits, preserves supported and opaque
+ * content, and deterministically emits canonical bytes plus a NUL-terminated
+ * JSON inspection report. A null limits descriptor selects the documented
+ * defaults. Required output sizes are returned in out_info; both outputs follow
+ * the atomic two-call caller-buffer contract.
+ */
+CTEX_API ctex_result ctex_project_container_normalize(
+    const void* encoded, size_t encoded_size,
+    const ctex_project_container_read_limits_descriptor* limits,
+    ctex_project_container_info* out_info, void* canonical_output, size_t canonical_output_size,
+    char* report_output, size_t report_output_size);
+
+/*
+ * Validates and atomically publishes canonical project bytes at path. A null
+ * limits descriptor selects the documented defaults.
+ */
+CTEX_API ctex_result
+ctex_project_container_save_atomic(const void* encoded, size_t encoded_size,
+                                   const ctex_project_container_read_limits_descriptor* limits,
+                                   const char* path, ctex_project_container_info* out_info);
 
 /*
  * Initializes the current stroke settings descriptor to the canonical defaults.

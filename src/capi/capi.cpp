@@ -8,6 +8,7 @@
 #include <cstring>
 #include <ctex/image/color_policy.hpp>
 #include <ctex/io/image_io.hpp>
+#include <ctex/io/project_container.hpp>
 #include <ctex/io/texture_encode.hpp>
 #include <ctex/io/texture_export.hpp>
 #include <ctex/paint/blending.hpp>
@@ -3643,6 +3644,242 @@ void validate_export_callbacks(const ctex_texture_export_callbacks_descriptor* c
     }
 }
 
+std::span<const std::byte> project_container_bytes(const void* encoded, std::size_t encoded_size) {
+    if (encoded == nullptr) {
+        throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT, "encoded=null");
+    }
+    return {static_cast<const std::byte*>(encoded), encoded_size};
+}
+
+ctex::io::ProjectContainerReadLimits project_container_limits(
+    const ctex_project_container_read_limits_descriptor* descriptor) {
+    if (descriptor == nullptr) {
+        return {};
+    }
+    validate_structure_size(descriptor->size, CTEX_PROJECT_CONTAINER_READ_LIMITS_DESCRIPTOR_V1_SIZE,
+                            CTEX_PROJECT_CONTAINER_READ_LIMITS_DESCRIPTOR_CURRENT_SIZE,
+                            "project container limits size");
+    return {
+        .maximum_input_bytes = descriptor->maximum_input_bytes,
+        .maximum_total_allocation_bytes = descriptor->maximum_total_allocation_bytes,
+        .maximum_sections = descriptor->maximum_sections,
+        .maximum_images = descriptor->maximum_images,
+        .maximum_tiles = descriptor->maximum_tiles,
+        .maximum_resources = descriptor->maximum_resources,
+        .maximum_assets = descriptor->maximum_assets,
+        .maximum_asset_dependencies = descriptor->maximum_asset_dependencies,
+        .maximum_string_bytes = descriptor->maximum_string_bytes,
+        .maximum_decoded_tile_bytes = descriptor->maximum_decoded_tile_bytes,
+        .maximum_packed_resource_bytes = descriptor->maximum_packed_resource_bytes,
+        .maximum_asset_payload_bytes = descriptor->maximum_asset_payload_bytes,
+    };
+}
+
+[[noreturn]] void throw_project_container_error(const ctex::io::ProjectContainerError& error) {
+    switch (error.code()) {
+        case ctex::io::ProjectContainerErrorCode::over_limit:
+            throw_boundary(CTEX_RESULT_OVER_BUDGET, CTEX_DIAGNOSTIC_INVALID_PROJECT_CONTAINER,
+                           error.what());
+        case ctex::io::ProjectContainerErrorCode::filesystem_failure:
+        case ctex::io::ProjectContainerErrorCode::compression_failed:
+            throw_boundary(CTEX_RESULT_INTERNAL_ERROR, CTEX_DIAGNOSTIC_INVALID_PROJECT_CONTAINER,
+                           error.what());
+        case ctex::io::ProjectContainerErrorCode::malformed_header:
+        case ctex::io::ProjectContainerErrorCode::malformed_section:
+        case ctex::io::ProjectContainerErrorCode::invalid_tile:
+        case ctex::io::ProjectContainerErrorCode::invalid_resource:
+        case ctex::io::ProjectContainerErrorCode::invalid_asset:
+        case ctex::io::ProjectContainerErrorCode::invalid_snapshot:
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_INVALID_PROJECT_CONTAINER,
+                           error.what());
+    }
+    throw_boundary(CTEX_RESULT_INTERNAL_ERROR, CTEX_DIAGNOSTIC_UNEXPECTED_EXCEPTION,
+                   "unknown project container failure");
+}
+
+void append_json_text(std::string& output, std::string_view value) {
+    constexpr std::string_view digits = "0123456789abcdef";
+    output.push_back('"');
+    for (const unsigned char byte : value) {
+        switch (byte) {
+            case '"':
+                output += "\\\"";
+                break;
+            case '\\':
+                output += "\\\\";
+                break;
+            case '\b':
+                output += "\\b";
+                break;
+            case '\f':
+                output += "\\f";
+                break;
+            case '\n':
+                output += "\\n";
+                break;
+            case '\r':
+                output += "\\r";
+                break;
+            case '\t':
+                output += "\\t";
+                break;
+            default:
+                if (byte < 0x20U) {
+                    output += "\\u00";
+                    output.push_back(digits[byte >> 4U]);
+                    output.push_back(digits[byte & 0x0fU]);
+                } else {
+                    output.push_back(static_cast<char>(byte));
+                }
+                break;
+        }
+    }
+    output.push_back('"');
+}
+
+void append_project_image_json(std::string& output, const ctex::io::StoredTiledImage& image) {
+    output += "{\"id\":";
+    append_json_text(output, image.resource_id);
+    output += ",\"width\":" + std::to_string(image.width);
+    output += ",\"height\":" + std::to_string(image.height);
+    output += ",\"tile_size\":" + std::to_string(image.tile_size);
+    output += ",\"channel_type\":" +
+              std::to_string(static_cast<std::uint32_t>(image.format.channel_type));
+    output += ",\"channel_count\":" + std::to_string(image.format.channel_count);
+    output += ",\"occupied_tiles\":" + std::to_string(image.occupied_tiles.size()) + "}";
+}
+
+void append_project_resource_json(std::string& output, const ctex::io::ProjectResource& resource) {
+    output += "{\"id\":";
+    append_json_text(output, resource.identifier);
+    output += ",\"kind\":";
+    append_json_text(output, resource.kind);
+    output += ",\"path\":";
+    append_json_text(output, resource.relative_path);
+    output += ",\"storage\":";
+    append_json_text(output, resource.packed_bytes.has_value() ? "packed" : "referenced");
+    output +=
+        ",\"packed_bytes\":" +
+        std::to_string(resource.packed_bytes.has_value() ? resource.packed_bytes->size() : 0) + "}";
+}
+
+void append_project_asset_json(std::string& output, const ctex::io::StandaloneAsset& asset) {
+    output += "{\"id\":";
+    append_json_text(output, asset.identifier);
+    output += ",\"kind\":";
+    append_json_text(output, asset.kind);
+    output += ",\"version\":" + std::to_string(asset.format_version);
+    output += ",\"resource_dependencies\":" + std::to_string(asset.resource_dependencies.size());
+    output += ",\"image_dependencies\":" + std::to_string(asset.tiled_image_dependencies.size());
+    output += ",\"payload_bytes\":" + std::to_string(asset.payload.size()) + "}";
+}
+
+std::string project_container_report_json(const ctex::io::ProjectContainerReadResult& read) {
+    const ctex::io::ProjectContainer& container = read.container;
+    std::string output =
+        "{\"schema\":{\"major\":" + std::to_string(read.report.source_schema.major) +
+        ",\"minor\":" + std::to_string(read.report.source_schema.minor) +
+        ",\"patch\":" + std::to_string(read.report.source_schema.patch) +
+        "},\"newer_schema\":" + (read.report.newer_schema ? "true" : "false") + ",\"images\":[";
+    for (std::size_t index = 0; index < container.tiled_images.size(); ++index) {
+        if (index != 0) {
+            output.push_back(',');
+        }
+        append_project_image_json(output, container.tiled_images[index]);
+    }
+    output += "],\"resources\":[";
+    for (std::size_t index = 0; index < container.resources.size(); ++index) {
+        if (index != 0) {
+            output.push_back(',');
+        }
+        append_project_resource_json(output, container.resources[index]);
+    }
+    output += "],\"assets\":[";
+    for (std::size_t index = 0; index < container.assets.size(); ++index) {
+        if (index != 0) {
+            output.push_back(',');
+        }
+        append_project_asset_json(output, container.assets[index]);
+    }
+    output += "],\"unknown_parts\":[";
+    for (std::size_t index = 0; index < read.report.unknown_parts.size(); ++index) {
+        if (index != 0) {
+            output.push_back(',');
+        }
+        const ctex::io::UnknownContainerPart& part = read.report.unknown_parts[index];
+        output += "{\"kind\":" + std::to_string(part.section_kind) +
+                  ",\"version\":" + std::to_string(part.section_version) +
+                  ",\"payload_bytes\":" + std::to_string(part.payload_bytes) + ",\"message\":";
+        append_json_text(output, part.message);
+        output.push_back('}');
+    }
+    output += "]}";
+    return output;
+}
+
+struct ProjectContainerMetrics {
+    std::size_t occupied_tiles{};
+    std::size_t packed_resource_bytes{};
+};
+
+ProjectContainerMetrics project_container_metrics(const ctex::io::ProjectContainer& container) {
+    ProjectContainerMetrics result;
+    for (const ctex::io::StoredTiledImage& image : container.tiled_images) {
+        result.occupied_tiles += image.occupied_tiles.size();
+    }
+    for (const ctex::io::ProjectResource& resource : container.resources) {
+        if (resource.packed_bytes.has_value()) {
+            result.packed_resource_bytes += resource.packed_bytes->size();
+        }
+    }
+    return result;
+}
+
+struct PreparedProjectContainer {
+    ctex::io::ProjectContainerReadResult read;
+    std::vector<std::byte> canonical;
+    std::string report;
+    ctex_project_container_info info{};
+};
+
+PreparedProjectContainer prepare_project_container(
+    const void* encoded, std::size_t encoded_size,
+    const ctex_project_container_read_limits_descriptor* limits) {
+    try {
+        ctex::io::ProjectContainerReadResult read = ctex::io::read_project_container(
+            project_container_bytes(encoded, encoded_size), project_container_limits(limits));
+        std::vector<std::byte> canonical = ctex::io::write_project_container(read.container);
+        std::string report = project_container_report_json(read);
+        const ProjectContainerMetrics metrics = project_container_metrics(read.container);
+        const ctex::io::ProjectContainer& container = read.container;
+        ctex_project_container_info info{
+            .size = CTEX_PROJECT_CONTAINER_INFO_CURRENT_SIZE,
+            .source_schema =
+                {
+                    .size = CTEX_PROJECT_CONTAINER_VERSION_CURRENT_SIZE,
+                    .major = read.report.source_schema.major,
+                    .minor = read.report.source_schema.minor,
+                    .patch = read.report.source_schema.patch,
+                },
+            .newer_schema = read.report.newer_schema ? 1U : 0U,
+            .tiled_image_count = container.tiled_images.size(),
+            .resource_count = container.resources.size(),
+            .asset_count = container.assets.size(),
+            .opaque_section_count = container.opaque_sections.size(),
+            .occupied_tile_count = metrics.occupied_tiles,
+            .packed_resource_bytes = metrics.packed_resource_bytes,
+            .canonical_size = canonical.size(),
+            .report_size = report.size() + 1,
+        };
+        return {.read = std::move(read),
+                .canonical = std::move(canonical),
+                .report = std::move(report),
+                .info = info};
+    } catch (const ctex::io::ProjectContainerError& error) {
+        throw_project_container_error(error);
+    }
+}
+
 }  // namespace
 
 void* ctex_host_memory_resource::do_allocate(std::size_t bytes, std::size_t alignment) {
@@ -4150,6 +4387,105 @@ extern "C" ctex_result ctex_texture_export_run(
             throw_boundary(CTEX_RESULT_CANCELLED, CTEX_DIAGNOSTIC_INVALID_TEXTURE_EXPORT,
                            "texture export was cancelled");
         }
+    });
+}
+
+extern "C" ctex_result ctex_project_container_create_empty(void* output, std::size_t output_size,
+                                                           std::size_t* out_required_size) {
+    return call_boundary("ctex_project_container_create_empty", [&] {
+        if (out_required_size == nullptr) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                           "out_required_size=null");
+        }
+        try {
+            const std::vector<std::byte> encoded =
+                ctex::io::write_project_container(ctex::io::ProjectContainer{});
+            *out_required_size = encoded.size();
+            validate_string_buffer(static_cast<char*>(output), output_size, encoded.size());
+            if (output != nullptr) {
+                std::memcpy(output, encoded.data(), encoded.size());
+            }
+        } catch (const ctex::io::ProjectContainerError& error) {
+            throw_project_container_error(error);
+        }
+    });
+}
+
+extern "C" ctex_result ctex_project_container_probe_version(
+    const void* encoded, std::size_t encoded_size, ctex_project_container_version* out_version) {
+    return call_boundary("ctex_project_container_probe_version", [&] {
+        if (out_version == nullptr) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                           "out_version=null");
+        }
+        validate_structure_size(out_version->size, CTEX_PROJECT_CONTAINER_VERSION_V1_SIZE,
+                                CTEX_PROJECT_CONTAINER_VERSION_CURRENT_SIZE,
+                                "project container version size");
+        try {
+            const ctex::io::ContainerSchemaVersion version =
+                ctex::io::probe_project_container_version(
+                    project_container_bytes(encoded, encoded_size));
+            *out_version = {
+                .size = CTEX_PROJECT_CONTAINER_VERSION_CURRENT_SIZE,
+                .major = version.major,
+                .minor = version.minor,
+                .patch = version.patch,
+            };
+        } catch (const ctex::io::ProjectContainerError& error) {
+            throw_project_container_error(error);
+        }
+    });
+}
+
+extern "C" ctex_result ctex_project_container_normalize(
+    const void* encoded, std::size_t encoded_size,
+    const ctex_project_container_read_limits_descriptor* limits,
+    ctex_project_container_info* out_info, void* canonical_output,
+    std::size_t canonical_output_size, char* report_output, std::size_t report_output_size) {
+    return call_boundary("ctex_project_container_normalize", [&] {
+        if (out_info == nullptr) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                           "out_info=null");
+        }
+        validate_structure_size(out_info->size, CTEX_PROJECT_CONTAINER_INFO_V1_SIZE,
+                                CTEX_PROJECT_CONTAINER_INFO_CURRENT_SIZE,
+                                "project container info size");
+        PreparedProjectContainer prepared =
+            prepare_project_container(encoded, encoded_size, limits);
+        *out_info = prepared.info;
+        validate_string_buffer(static_cast<char*>(canonical_output), canonical_output_size,
+                               prepared.canonical.size());
+        validate_string_buffer(report_output, report_output_size, prepared.info.report_size);
+        if (canonical_output != nullptr) {
+            std::memcpy(canonical_output, prepared.canonical.data(), prepared.canonical.size());
+        }
+        if (report_output != nullptr) {
+            std::memcpy(report_output, prepared.report.c_str(), prepared.info.report_size);
+        }
+    });
+}
+
+extern "C" ctex_result ctex_project_container_save_atomic(
+    const void* encoded, std::size_t encoded_size,
+    const ctex_project_container_read_limits_descriptor* limits, const char* path,
+    ctex_project_container_info* out_info) {
+    return call_boundary("ctex_project_container_save_atomic", [&] {
+        if (path == nullptr || out_info == nullptr) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                           path == nullptr ? "path=null" : "out_info=null");
+        }
+        validate_structure_size(out_info->size, CTEX_PROJECT_CONTAINER_INFO_V1_SIZE,
+                                CTEX_PROJECT_CONTAINER_INFO_CURRENT_SIZE,
+                                "project container info size");
+        PreparedProjectContainer prepared =
+            prepare_project_container(encoded, encoded_size, limits);
+        try {
+            ctex::io::save_project_container_atomic(std::filesystem::path(path),
+                                                    prepared.read.container);
+        } catch (const ctex::io::ProjectContainerError& error) {
+            throw_project_container_error(error);
+        }
+        *out_info = prepared.info;
     });
 }
 

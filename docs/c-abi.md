@@ -211,6 +211,28 @@ the call returns `CTEX_RESULT_CANCELLED`. Callback views and byte spans remain
 valid only for the callback. All callbacks run on the calling thread, carry the
 configured user-data pointer and must not throw across the C boundary.
 
+## Project containers
+
+The project-container boundary accepts and returns complete encoded container
+bytes rather than exposing C++ container objects. `ctex_project_container_create_empty`
+uses the normal null-buffer sizing call to create a canonical empty container,
+and `ctex_project_container_probe_version` reads only its fixed header.
+
+`ctex_project_container_normalize` opens caller-supplied bytes under either the
+default limits or a `ctex_project_container_read_limits_descriptor`. It returns
+the exact canonical byte and NUL-terminated JSON-report sizes in
+`ctex_project_container_info`. The report inventories tiled images, referenced
+or packed resources, standalone assets and unknown sections. Newer schema
+versions and unsupported sections are reported and retained in the canonical
+output. Both output buffers are validated before either is written, so a short
+buffer never exposes a partial pair.
+
+`ctex_project_container_save_atomic` applies the same validation and limits,
+then publishes the normalized container through the core sibling-temporary,
+synchronize and atomic-replace path. It does not write a destination until the
+whole input has parsed and re-encoded successfully. Repeated normalization or
+save of unchanged input is byte-identical.
+
 ## Stroke reconstruction
 
 `ctex_stroke_settings_init` produces the complete canonical default settings,
@@ -405,6 +427,8 @@ The contract is stated per entry-point family:
 | `ctex_get_version`, `ctex_get_abi_version` | Process-safe and callable concurrently from any thread |
 | `ctex_get_working_color_space`, `ctex_color_space_get_name`, `ctex_channel_get_color_policy`, `ctex_channel_get_bit_depth_warning`, `ctex_resolve_input_color_space`, `ctex_color_convert`, `ctex_color_input_to_working`, `ctex_accumulate_height`, `ctex_quantize_unorm8` | Stateless, process-safe and callable concurrently from any thread |
 | `ctex_image_decode_memory`, `ctex_image_encode_memory`, `ctex_stroke_settings_init`, `ctex_stroke_resolve`, `ctex_stroke_preset_serialize`, `ctex_stroke_preset_deserialize`, `ctex_paint_evaluate_tile_coverage`, `ctex_paint_evaluate_material_coordinates`, `ctex_paint_rejection_init`, `ctex_paint_evaluate_rejected_coverage`, `ctex_paint_work_init`, `ctex_paint_plan_work`, `ctex_paint_seam_dilation_init`, `ctex_paint_dilate_uv_seams`, `ctex_paint_filter_surface_scalar`, `ctex_paint_filter_surface_tangent_vector`, `ctex_paint_plan_island_padding`, `ctex_paint_apply_island_padding`, `ctex_paint_combine_masks`, `ctex_paint_evaluate_tile_deposition`, `ctex_paint_blend_snapshot` | Stateless and safe to call concurrently; inputs are borrowed only for the call and outputs are caller-owned |
+| `ctex_texture_export_get_built_in_preset_ids`, `ctex_texture_export_run` | Stateless and safe to call concurrently; callback state belongs to the host and must support the host's chosen concurrency |
+| `ctex_project_container_create_empty`, `ctex_project_container_probe_version`, `ctex_project_container_normalize`, `ctex_project_container_save_atomic` | Stateless and safe to call concurrently. Saves to distinct paths are independent; callers serialize saves to the same destination when publication order matters |
 | `ctex_paint_dilation_session_create`, `ctex_paint_dilation_session_destroy`, `ctex_paint_dilation_session_stage_tile`, `ctex_paint_dilation_session_get_preview`, `ctex_paint_dilation_session_finish` | Distinct sessions are independent and may be used concurrently; callers serialize staging, preview, finish and destruction of the same session |
 | `ctex_paint_surface_map_cache_create`, `ctex_paint_surface_map_cache_destroy`, `ctex_paint_surface_map_cache_clear`, `ctex_paint_surface_map_cache_get_statistics`, `ctex_paint_surface_map_cache_lookup` | Distinct caches are independent and may be used concurrently; callers serialize lookup, statistics, clearing and destruction of the same cache, and keep each mesh alive for its lookup call |
 | `ctex_paint_preview_session_create`, `ctex_paint_preview_session_destroy`, `ctex_paint_preview_session_write_pixel`, `ctex_paint_preview_session_get_info`, `ctex_paint_preview_session_get_pixels`, `ctex_paint_preview_session_get_changed_tiles`, `ctex_paint_preview_session_finalize`, `ctex_paint_preview_session_commit`, `ctex_paint_preview_session_cancel` | Distinct sessions on distinct documents are independent; callers serialize every operation on a session and every operation on its document, and keep the document alive through session destruction |
