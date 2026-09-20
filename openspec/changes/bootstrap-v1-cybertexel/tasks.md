@@ -846,6 +846,12 @@ surface placement and pinned material. Transform edits require no repick, while
 resolved frames, source samples, composed strength and enabled channels publish
 atomically. The exact remaining C ABI gap is 100 runtime requirements.
 
+The Projection continuation exposes camera projection with an explicit visible
+surface mask, finite planar frames and repeating squared-normal-weighted
+triplanar mapping. Resolved parameter clamps, source indices, weights, composed
+strength and every enabled channel publish atomically. The exact remaining C ABI
+gap is 99 runtime requirements.
+
 ## 1. Foundation
 
 - [x] 1.1 CMake project, C++20, warnings as errors, presets for headless, macOS, Linux, Windows, iOS, Android

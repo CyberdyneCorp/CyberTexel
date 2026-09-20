@@ -191,8 +191,10 @@ mapping with explicit cross-set refusal. Blur and Smear now expose immutable
 stroke-start filtering through explicit surface-aware neighborhoods and mappings.
 Stencil now resolves screen-anchored transformable masks for the canonical
 deposition pipeline. Decal now explicitly rasterizes retained placements and pinned materials through
-resolved surface frames. Exactly 100 runtime requirements still lack C ABI evidence;
-those gaps must be implemented before task 14.8 can close.
+resolved surface frames. Projection now applies pinned materials through camera,
+planar and triplanar mappings with explicit weighted samples. Exactly 99 runtime
+requirements still lack C ABI evidence; those gaps must be implemented before
+task 14.8 can close.
 
 ## Milestones
 

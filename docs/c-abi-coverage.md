@@ -75,7 +75,8 @@ neighborhoods and mappings. Stencil now resolves bounded screen-anchored,
 transformable and invertible masks that compose with canonical deposition and
 Brush shading. Decal now rasterizes caller-retained placements and pinned materials
 through resolved surface frames with atomic sample, strength and channel output.
-Exactly 100 runtime requirements remain
-unmapped.
+Projection now exposes camera-visible, finite planar and repeating triplanar
+material application with weighted samples and atomic channel output. Exactly 99
+runtime requirements remain unmapped.
 The gate is not part of the aggregate `just check` until that count reaches zero;
 its unit tests run in the normal tooling suite throughout the migration.

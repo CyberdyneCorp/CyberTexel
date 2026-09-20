@@ -33,6 +33,7 @@
 #include <ctex/paint/fill.hpp>
 #include <ctex/paint/masking.hpp>
 #include <ctex/paint/preview.hpp>
+#include <ctex/paint/projection.hpp>
 #include <ctex/paint/seam_dilation.hpp>
 #include <ctex/paint/seam_filter.hpp>
 #include <ctex/paint/stroke.hpp>
@@ -3807,6 +3808,110 @@ void copy_paint_decal_outputs(const ctex_paint_decal_outputs* outputs,
     }
     std::copy(result.source_sample_indices.begin(), result.source_sample_indices.end(),
               outputs->source_sample_indices);
+    std::copy(result.strength.begin(), result.strength.end(), outputs->strength);
+    copy_paint_tool_outputs(result.channels, outputs->channels);
+}
+
+ctex::paint::CachedSurfaceMaps paint_projection_surface(
+    const ctex_paint_projection_descriptor& descriptor, std::size_t pixel_count) {
+    require_paint_tool_array(descriptor.surface_texels, descriptor.surface_texel_count,
+                             "surface_texels");
+    require_paint_tool_array(descriptor.coverage, descriptor.coverage_count, "coverage");
+    if (descriptor.surface_texel_count != pixel_count || descriptor.coverage_count != pixel_count) {
+        throw std::invalid_argument("projection surface counts do not match its dimensions");
+    }
+    ctex::paint::CachedSurfaceMaps result{
+        .texture_set_id = "capi.projection",
+        .uv_set = "capi.projection",
+        .mesh_revision = 0,
+        .surface = {.width = descriptor.width,
+                    .height = descriptor.height,
+                    .tile_origin = {},
+                    .texels = {}},
+        .coverage = {descriptor.coverage, descriptor.coverage + pixel_count},
+        .triangle_identity = {},
+        .uv_island_identity = {},
+    };
+    result.surface.texels.reserve(pixel_count);
+    for (std::size_t index = 0; index < pixel_count; ++index) {
+        const ctex_paint_surface_texel& source = descriptor.surface_texels[index];
+        result.surface.texels.push_back({.position = stroke_vec(source.position),
+                                         .normal = stroke_vec(source.normal),
+                                         .geometric_normal = stroke_vec(source.geometric_normal),
+                                         .uv = {source.uv.x, source.uv.y},
+                                         .triangle = source.triangle});
+    }
+    return result;
+}
+
+ctex::paint::ProjectionMapping paint_projection_mapping(
+    const ctex_paint_projection_descriptor& descriptor, std::size_t pixel_count) {
+    switch (descriptor.mode) {
+        case CTEX_PAINT_PROJECTION_CAMERA: {
+            require_paint_tool_array(descriptor.camera_visible_surface,
+                                     descriptor.camera_visible_surface_count,
+                                     "camera_visible_surface");
+            if (descriptor.camera_visible_surface_count != pixel_count) {
+                throw std::invalid_argument(
+                    "camera visible-surface count does not match projection dimensions");
+            }
+            ctex::pick::Mat4f matrix;
+            std::copy(std::begin(descriptor.camera_view_projection),
+                      std::end(descriptor.camera_view_projection), matrix.values.begin());
+            return ctex::paint::CameraProjection{
+                .view_projection = matrix,
+                .visible_surface = {{descriptor.camera_visible_surface, pixel_count}}};
+        }
+        case CTEX_PAINT_PROJECTION_PLANAR:
+            return ctex::paint::PlanarProjection{
+                .frame = {.origin = stroke_vec(descriptor.planar_origin),
+                          .u_axis = stroke_vec(descriptor.planar_u_axis),
+                          .v_axis = stroke_vec(descriptor.planar_v_axis)},
+                .extent = {descriptor.planar_extent.x, descriptor.planar_extent.y}};
+        case CTEX_PAINT_PROJECTION_TRIPLANAR:
+            return ctex::paint::TriplanarProjection{
+                .scale = descriptor.triplanar_scale,
+                .offset = {descriptor.triplanar_offset.x, descriptor.triplanar_offset.y}};
+        default:
+            throw std::invalid_argument("paint projection mode is invalid");
+    }
+}
+
+double resolved_paint_parameter(const ctex::paint::ToolParameterReport& report,
+                                std::string_view name, double requested) {
+    const auto clamp = report.clamp_for(name);
+    return clamp.has_value() ? clamp->resolved : requested;
+}
+
+void validate_paint_projection_outputs(const ctex_paint_projection_outputs* outputs,
+                                       const ctex::paint::ProjectionResult& result,
+                                       std::size_t pixel_count) {
+    if (outputs == nullptr) {
+        return;
+    }
+    validate_structure_size(outputs->size, CTEX_PAINT_PROJECTION_OUTPUTS_V1_SIZE,
+                            CTEX_PAINT_PROJECTION_OUTPUTS_CURRENT_SIZE, "outputs.size");
+    validate_output_array(outputs->samples, outputs->sample_capacity, pixel_count,
+                          "outputs.samples");
+    validate_output_array(outputs->strength, outputs->strength_capacity, pixel_count,
+                          "outputs.strength");
+    validate_paint_tool_outputs(outputs->channels, outputs->channel_count, result.channels.size(),
+                                pixel_count);
+}
+
+void copy_paint_projection_outputs(const ctex_paint_projection_outputs* outputs,
+                                   const ctex::paint::ProjectionResult& result) {
+    if (outputs == nullptr) {
+        return;
+    }
+    for (std::size_t index = 0; index < result.samples.size(); ++index) {
+        const ctex::paint::ProjectionSample& source = result.samples[index];
+        ctex_paint_projection_sample& destination = outputs->samples[index];
+        std::copy(source.source_indices.begin(), source.source_indices.end(),
+                  std::begin(destination.source_indices));
+        std::copy(source.weights.begin(), source.weights.end(), std::begin(destination.weights));
+        destination.count = source.count;
+    }
     std::copy(result.strength.begin(), result.strength.end(), outputs->strength);
     copy_paint_tool_outputs(result.channels, outputs->channels);
 }
@@ -8517,6 +8622,109 @@ extern "C" ctex_result ctex_paint_rasterize_decal(const ctex_paint_decal_descrip
             };
             validate_paint_decal_outputs(outputs, result, pixel_count);
             copy_paint_decal_outputs(outputs, result);
+        } catch (const std::invalid_argument& error) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_INVALID_PAINT_TOOL,
+                           error.what());
+        }
+    });
+}
+
+extern "C" ctex_result ctex_paint_apply_projection(
+    const ctex_paint_projection_descriptor* descriptor, ctex_paint_projection_info* out_info,
+    const ctex_paint_projection_outputs* outputs) {
+    return call_boundary("ctex_paint_apply_projection", [&] {
+        if (descriptor == nullptr || out_info == nullptr) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                           descriptor == nullptr ? "descriptor=null" : "out_info=null");
+        }
+        validate_structure_size(descriptor->size, CTEX_PAINT_PROJECTION_DESCRIPTOR_V1_SIZE,
+                                CTEX_PAINT_PROJECTION_DESCRIPTOR_CURRENT_SIZE, "descriptor.size");
+        validate_structure_size(out_info->size, CTEX_PAINT_PROJECTION_INFO_V1_SIZE,
+                                CTEX_PAINT_PROJECTION_INFO_CURRENT_SIZE, "out_info.size");
+        const std::size_t pixel_count = bounded_paint_pixel_count(
+            descriptor->width, descriptor->height, CTEX_DIAGNOSTIC_INVALID_PAINT_TOOL);
+        const std::size_t material_pixel_count =
+            bounded_paint_pixel_count(descriptor->material_width, descriptor->material_height,
+                                      CTEX_DIAGNOSTIC_INVALID_PAINT_TOOL);
+        try {
+            const ctex::paint::CachedSurfaceMaps surface =
+                paint_projection_surface(*descriptor, pixel_count);
+            const auto layer = paint_tool_channels(descriptor->enabled_layer_snapshot,
+                                                   descriptor->enabled_layer_channel_count,
+                                                   pixel_count, "enabled_layer_snapshot");
+            ctex::paint::DecalMaterial material{
+                .width = descriptor->material_width,
+                .height = descriptor->material_height,
+                .channels =
+                    paint_tool_channels(descriptor->material, descriptor->material_channel_count,
+                                        material_pixel_count, "material"),
+                .opacity = {},
+            };
+            require_paint_tool_array(descriptor->material_opacity,
+                                     descriptor->material_opacity_count, "material_opacity");
+            if (descriptor->material_opacity_count != material_pixel_count) {
+                throw std::invalid_argument(
+                    "projection material opacity count does not match its dimensions");
+            }
+            material.opacity.assign(descriptor->material_opacity,
+                                    descriptor->material_opacity + material_pixel_count);
+            if (descriptor->blend_mode == nullptr) {
+                throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                               "blend_mode=null");
+            }
+            const PaintMaskStorage masks = paint_mask_storage(descriptor->masks);
+            const ctex::paint::ProjectionSettings settings{
+                .mapping = paint_projection_mapping(*descriptor, pixel_count),
+                .blend_mode = descriptor->blend_mode,
+                .masks = masks.inputs(),
+                .rejection_acceptance = paint_fill_optional_view(
+                    descriptor->rejection_acceptance, descriptor->rejection_acceptance_count,
+                    "rejection_acceptance"),
+            };
+            const ctex::paint::ProjectionResult result =
+                ctex::paint::apply_projection(surface, layer, material, settings);
+            const auto& report = result.parameter_report;
+            *out_info = {
+                .size = CTEX_PAINT_PROJECTION_INFO_CURRENT_SIZE,
+                .resolved_mode = descriptor->mode,
+                .resolved_planar_extent =
+                    {resolved_paint_parameter(
+                         report, ctex::paint::projection_planar_extent_x_parameter.name,
+                         descriptor->planar_extent.x),
+                     resolved_paint_parameter(
+                         report, ctex::paint::projection_planar_extent_y_parameter.name,
+                         descriptor->planar_extent.y)},
+                .resolved_triplanar_scale = resolved_paint_parameter(
+                    report, ctex::paint::projection_triplanar_scale_parameter.name,
+                    descriptor->triplanar_scale),
+                .resolved_triplanar_offset =
+                    {resolved_paint_parameter(
+                         report, ctex::paint::projection_triplanar_offset_x_parameter.name,
+                         descriptor->triplanar_offset.x),
+                     resolved_paint_parameter(
+                         report, ctex::paint::projection_triplanar_offset_y_parameter.name,
+                         descriptor->triplanar_offset.y)},
+                .planar_extent_x_clamped =
+                    report.clamp_for(ctex::paint::projection_planar_extent_x_parameter.name)
+                        .has_value(),
+                .planar_extent_y_clamped =
+                    report.clamp_for(ctex::paint::projection_planar_extent_y_parameter.name)
+                        .has_value(),
+                .triplanar_scale_clamped =
+                    report.clamp_for(ctex::paint::projection_triplanar_scale_parameter.name)
+                        .has_value(),
+                .triplanar_offset_x_clamped =
+                    report.clamp_for(ctex::paint::projection_triplanar_offset_x_parameter.name)
+                        .has_value(),
+                .triplanar_offset_y_clamped =
+                    report.clamp_for(ctex::paint::projection_triplanar_offset_y_parameter.name)
+                        .has_value(),
+                .applied_channel_count = result.channels.size(),
+                .required_sample_count = pixel_count,
+                .required_pixels_per_channel = pixel_count,
+            };
+            validate_paint_projection_outputs(outputs, result, pixel_count);
+            copy_paint_projection_outputs(outputs, result);
         } catch (const std::invalid_argument& error) {
             throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_INVALID_PAINT_TOOL,
                            error.what());

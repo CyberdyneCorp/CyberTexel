@@ -1283,6 +1283,88 @@ typedef struct ctex_paint_decal_outputs {
 #define CTEX_PAINT_DECAL_OUTPUTS_CURRENT_SIZE ((uint32_t)sizeof(ctex_paint_decal_outputs))
 #define CTEX_PAINT_NO_DECAL_SAMPLE ((size_t)-1)
 
+typedef enum ctex_paint_projection_mode {
+    CTEX_PAINT_PROJECTION_CAMERA = 0,
+    CTEX_PAINT_PROJECTION_PLANAR = 1,
+    CTEX_PAINT_PROJECTION_TRIPLANAR = 2
+} ctex_paint_projection_mode;
+
+typedef struct ctex_paint_projection_descriptor {
+    uint32_t size;
+    uint32_t width;
+    uint32_t height;
+    const ctex_paint_surface_texel* surface_texels;
+    size_t surface_texel_count;
+    const uint8_t* coverage;
+    size_t coverage_count;
+    uint32_t mode;
+    float camera_view_projection[16];
+    const double* camera_visible_surface;
+    size_t camera_visible_surface_count;
+    ctex_vec3d planar_origin;
+    ctex_vec3d planar_u_axis;
+    ctex_vec3d planar_v_axis;
+    ctex_vec2d planar_extent;
+    double triplanar_scale;
+    ctex_vec2d triplanar_offset;
+    uint32_t material_width;
+    uint32_t material_height;
+    const ctex_paint_tool_channel_descriptor* material;
+    size_t material_channel_count;
+    const double* material_opacity;
+    size_t material_opacity_count;
+    const ctex_paint_tool_channel_descriptor* enabled_layer_snapshot;
+    size_t enabled_layer_channel_count;
+    const ctex_paint_mask_inputs_descriptor* masks;
+    const double* rejection_acceptance;
+    size_t rejection_acceptance_count;
+    const char* blend_mode;
+} ctex_paint_projection_descriptor;
+
+#define CTEX_PAINT_PROJECTION_DESCRIPTOR_V1_SIZE \
+    ((uint32_t)sizeof(ctex_paint_projection_descriptor))
+#define CTEX_PAINT_PROJECTION_DESCRIPTOR_CURRENT_SIZE \
+    ((uint32_t)sizeof(ctex_paint_projection_descriptor))
+
+typedef struct ctex_paint_projection_sample {
+    size_t source_indices[3];
+    double weights[3];
+    size_t count;
+} ctex_paint_projection_sample;
+
+typedef struct ctex_paint_projection_info {
+    uint32_t size;
+    uint32_t resolved_mode;
+    ctex_vec2d resolved_planar_extent;
+    double resolved_triplanar_scale;
+    ctex_vec2d resolved_triplanar_offset;
+    uint32_t planar_extent_x_clamped;
+    uint32_t planar_extent_y_clamped;
+    uint32_t triplanar_scale_clamped;
+    uint32_t triplanar_offset_x_clamped;
+    uint32_t triplanar_offset_y_clamped;
+    size_t applied_channel_count;
+    size_t required_sample_count;
+    size_t required_pixels_per_channel;
+} ctex_paint_projection_info;
+
+#define CTEX_PAINT_PROJECTION_INFO_V1_SIZE ((uint32_t)sizeof(ctex_paint_projection_info))
+#define CTEX_PAINT_PROJECTION_INFO_CURRENT_SIZE ((uint32_t)sizeof(ctex_paint_projection_info))
+
+typedef struct ctex_paint_projection_outputs {
+    uint32_t size;
+    ctex_paint_projection_sample* samples;
+    size_t sample_capacity;
+    double* strength;
+    size_t strength_capacity;
+    const ctex_paint_tool_channel_output* channels;
+    size_t channel_count;
+} ctex_paint_projection_outputs;
+
+#define CTEX_PAINT_PROJECTION_OUTPUTS_V1_SIZE ((uint32_t)sizeof(ctex_paint_projection_outputs))
+#define CTEX_PAINT_PROJECTION_OUTPUTS_CURRENT_SIZE ((uint32_t)sizeof(ctex_paint_projection_outputs))
+#define CTEX_PAINT_NO_PROJECTION_SAMPLE ((size_t)-1)
+
 typedef struct ctex_stroke_preset_info {
     uint32_t size;
     uint32_t schema_version;
@@ -3305,6 +3387,11 @@ CTEX_API ctex_result ctex_paint_resolve_stencil_mask(
 CTEX_API ctex_result ctex_paint_rasterize_decal(const ctex_paint_decal_descriptor* descriptor,
                                                 ctex_paint_decal_info* out_info,
                                                 const ctex_paint_decal_outputs* outputs);
+
+/* Projects a pinned material through a camera, planar frame or triplanar mapping. */
+CTEX_API ctex_result ctex_paint_apply_projection(const ctex_paint_projection_descriptor* descriptor,
+                                                 ctex_paint_projection_info* out_info,
+                                                 const ctex_paint_projection_outputs* outputs);
 
 /*
  * Installs one process-wide sink. Pass NULL to uninstall it. The callback can

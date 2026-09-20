@@ -1119,6 +1119,95 @@ static int decal_rasterizes_a_retained_editable_placement(void) {
     return passed;
 }
 
+static int projection_exposes_camera_planar_and_triplanar_mapping(void) {
+    const ctex_paint_surface_texel surface = {
+        {0.25, 0.75, 0.25}, {0.7071067811865476, 0.5, 0.5}, {0, 0, 1}, {0, 0}, 0};
+    const uint8_t coverage = 1;
+    const double visible_surface = 0.5;
+    const ctex_vec4f layer_pixel = {0, 0, 0, 1};
+    const ctex_vec4f material_pixels[4] = {
+        {0.1f, 0, 0, 1}, {0.2f, 0, 0, 1}, {0.3f, 0, 0, 1}, {0.4f, 0, 0, 1}};
+    const double opacity[4] = {1, 1, 1, 1};
+    const ctex_paint_tool_channel_descriptor layer = {
+        CTEX_PAINT_TOOL_CHANNEL_DESCRIPTOR_CURRENT_SIZE, "pbr.base_color", 3, &layer_pixel, 1};
+    const ctex_paint_tool_channel_descriptor material = {
+        CTEX_PAINT_TOOL_CHANNEL_DESCRIPTOR_CURRENT_SIZE, "pbr.base_color", 3, material_pixels, 4};
+    ctex_paint_projection_descriptor descriptor = {
+        .size = CTEX_PAINT_PROJECTION_DESCRIPTOR_CURRENT_SIZE,
+        .width = 1,
+        .height = 1,
+        .surface_texels = &surface,
+        .surface_texel_count = 1,
+        .coverage = &coverage,
+        .coverage_count = 1,
+        .mode = CTEX_PAINT_PROJECTION_CAMERA,
+        .camera_view_projection = {1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1},
+        .camera_visible_surface = &visible_surface,
+        .camera_visible_surface_count = 1,
+        .planar_origin = {0, 0, 0},
+        .planar_u_axis = {1, 0, 0},
+        .planar_v_axis = {0, 1, 0},
+        .planar_extent = {2, 2},
+        .triplanar_scale = 1,
+        .triplanar_offset = {0, 0},
+        .material_width = 2,
+        .material_height = 2,
+        .material = &material,
+        .material_channel_count = 1,
+        .material_opacity = opacity,
+        .material_opacity_count = 4,
+        .enabled_layer_snapshot = &layer,
+        .enabled_layer_channel_count = 1,
+        .blend_mode = "normal"};
+    ctex_paint_projection_info info = {.size = CTEX_PAINT_PROJECTION_INFO_CURRENT_SIZE};
+    ctex_paint_projection_sample sample = {{99, 99, 99}, {-1, -1, -1}, 99};
+    double strength = -1;
+    ctex_vec4f pixel = {-1, -1, -1, -1};
+    const ctex_paint_tool_channel_output channel = {CTEX_PAINT_TOOL_CHANNEL_OUTPUT_CURRENT_SIZE,
+                                                    &pixel, 1};
+    ctex_paint_projection_outputs outputs = {
+        CTEX_PAINT_PROJECTION_OUTPUTS_CURRENT_SIZE, &sample, 0, &strength, 1, &channel, 1};
+    int passed =
+        expect(ctex_paint_apply_projection(&descriptor, &info, NULL) == CTEX_RESULT_SUCCESS) &&
+        expect(info.required_sample_count == 1 && info.applied_channel_count == 1) &&
+        expect(ctex_paint_apply_projection(&descriptor, &info, &outputs) ==
+               CTEX_RESULT_BUFFER_TOO_SMALL) &&
+        expect(sample.source_indices[0] == 99 && near(strength, -1) && near_float(pixel.x, -1));
+    outputs.sample_capacity = 1;
+    if (passed) {
+        passed = expect(ctex_paint_apply_projection(&descriptor, &info, &outputs) ==
+                        CTEX_RESULT_SUCCESS) &&
+                 expect(sample.count == 1 && sample.source_indices[0] == 1 &&
+                        near(sample.weights[0], 1)) &&
+                 expect(near(strength, 0.5) && near_float(pixel.x, 0.1f));
+    }
+    descriptor.mode = CTEX_PAINT_PROJECTION_PLANAR;
+    if (passed) {
+        passed = expect(ctex_paint_apply_projection(&descriptor, &info, &outputs) ==
+                        CTEX_RESULT_SUCCESS) &&
+                 expect(info.resolved_mode == CTEX_PAINT_PROJECTION_PLANAR) &&
+                 expect(sample.count == 1 && sample.source_indices[0] == 1) &&
+                 expect(near(strength, 1) && near_float(pixel.x, 0.2f));
+    }
+    descriptor.mode = CTEX_PAINT_PROJECTION_TRIPLANAR;
+    if (passed) {
+        passed = expect(ctex_paint_apply_projection(&descriptor, &info, &outputs) ==
+                        CTEX_RESULT_SUCCESS) &&
+                 expect(sample.count == 3 && sample.source_indices[0] == 3 &&
+                        sample.source_indices[1] == 2 && sample.source_indices[2] == 0) &&
+                 expect(near(sample.weights[0], 0.5) && near(sample.weights[1], 0.25) &&
+                        near(sample.weights[2], 0.25)) &&
+                 expect(near(strength, 1) && near_float(pixel.x, 0.3f));
+    }
+    descriptor.triplanar_scale = 0;
+    if (passed) {
+        passed = expect(ctex_paint_apply_projection(&descriptor, &info, &outputs) ==
+                        CTEX_RESULT_SUCCESS) &&
+                 expect(info.triplanar_scale_clamped == 1 && info.resolved_triplanar_scale > 0);
+    }
+    return passed;
+}
+
 static int invalid_inputs_are_stable_diagnostics(void) {
     ctex_mesh* mesh = coverage_mesh();
     ctex_paint_tile_coverage_descriptor tile = {
@@ -1177,6 +1266,7 @@ int main(void) {
                    blur_and_smear_filter_the_immutable_snapshot() &&
                    stencil_resolves_a_screen_anchored_invertible_mask() &&
                    decal_rasterizes_a_retained_editable_placement() &&
+                   projection_exposes_camera_planar_and_triplanar_mapping() &&
                    invalid_inputs_are_stable_diagnostics()
                ? 0
                : 1;
