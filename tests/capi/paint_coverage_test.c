@@ -1067,6 +1067,58 @@ static int stencil_resolves_a_screen_anchored_invertible_mask(void) {
     return passed;
 }
 
+static int decal_rasterizes_a_retained_editable_placement(void) {
+    const ctex_paint_surface_texel surface[2] = {
+        {{0, 0, 0}, {0, 0, 1}, {0, 0, 1}, {0.25, 0.5}, 0},
+        {{0.25, -0.25, 0}, {0, 0, 1}, {0, 0, 1}, {0.75, 0.5}, 1}};
+    const uint8_t coverage[2] = {1, 1};
+    const ctex_vec4f layer_pixels[2] = {{0, 0, 0, 1}, {0, 0, 0, 1}};
+    const ctex_vec4f material_pixels[2] = {{0.2f, 0, 0, 1}, {0.8f, 0, 0, 1}};
+    const double opacity[2] = {0.5, 0.5};
+    const ctex_paint_tool_channel_descriptor layer = {
+        CTEX_PAINT_TOOL_CHANNEL_DESCRIPTOR_CURRENT_SIZE, "pbr.base_color", 3, layer_pixels, 2};
+    const ctex_paint_tool_channel_descriptor material = {
+        CTEX_PAINT_TOOL_CHANNEL_DESCRIPTOR_CURRENT_SIZE, "pbr.base_color", 3, material_pixels, 2};
+    ctex_paint_decal_descriptor descriptor = {.size = CTEX_PAINT_DECAL_DESCRIPTOR_CURRENT_SIZE,
+                                              .width = 2,
+                                              .height = 1,
+                                              .surface_texels = surface,
+                                              .surface_texel_count = 2,
+                                              .coverage = coverage,
+                                              .coverage_count = 2,
+                                              .placement = {{0, 0, 0}, {0, 0, 1}, {0, 1, {1, 1}}},
+                                              .material_width = 2,
+                                              .material_height = 1,
+                                              .material = &material,
+                                              .material_channel_count = 1,
+                                              .material_opacity = opacity,
+                                              .material_opacity_count = 2,
+                                              .enabled_layer_snapshot = &layer,
+                                              .enabled_layer_channel_count = 1,
+                                              .blend_mode = "normal"};
+    ctex_paint_decal_info info = {.size = CTEX_PAINT_DECAL_INFO_CURRENT_SIZE};
+    size_t samples[2] = {99, 99};
+    double strength[2] = {-1, -1};
+    ctex_vec4f pixels[2] = {{-1, -1, -1, -1}, {-1, -1, -1, -1}};
+    const ctex_paint_tool_channel_output channel = {CTEX_PAINT_TOOL_CHANNEL_OUTPUT_CURRENT_SIZE,
+                                                    pixels, 2};
+    const ctex_paint_decal_outputs outputs = {
+        CTEX_PAINT_DECAL_OUTPUTS_CURRENT_SIZE, samples, 2, strength, 2, &channel, 1};
+    int passed =
+        expect(ctex_paint_rasterize_decal(&descriptor, &info, &outputs) == CTEX_RESULT_SUCCESS) &&
+        expect(samples[0] == 1 && samples[1] == 1) &&
+        expect(near(strength[0], 0.5) && near(strength[1], 0.5)) &&
+        expect(near_float(pixels[1].x, 0.4f));
+    if (passed) {
+        descriptor.placement.transform.rotation_radians = 1.5707963267948966;
+        passed = expect(ctex_paint_rasterize_decal(&descriptor, &info, &outputs) ==
+                        CTEX_RESULT_SUCCESS) &&
+                 expect(samples[0] == 1 && samples[1] == 0) &&
+                 expect(near_float(pixels[1].x, 0.1f));
+    }
+    return passed;
+}
+
 static int invalid_inputs_are_stable_diagnostics(void) {
     ctex_mesh* mesh = coverage_mesh();
     ctex_paint_tile_coverage_descriptor tile = {
@@ -1124,6 +1176,7 @@ int main(void) {
                    clone_maps_aligned_and_fixed_sources_and_refuses_cross_set() &&
                    blur_and_smear_filter_the_immutable_snapshot() &&
                    stencil_resolves_a_screen_anchored_invertible_mask() &&
+                   decal_rasterizes_a_retained_editable_placement() &&
                    invalid_inputs_are_stable_diagnostics()
                ? 0
                : 1;

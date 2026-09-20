@@ -1214,6 +1214,75 @@ typedef struct ctex_paint_stencil_info {
 #define CTEX_PAINT_STENCIL_INFO_V1_SIZE ((uint32_t)sizeof(ctex_paint_stencil_info))
 #define CTEX_PAINT_STENCIL_INFO_CURRENT_SIZE ((uint32_t)sizeof(ctex_paint_stencil_info))
 
+typedef struct ctex_paint_decal_transform {
+    double rotation_radians;
+    double uniform_scale;
+    ctex_vec2d axis_scale;
+} ctex_paint_decal_transform;
+
+typedef struct ctex_paint_decal_placement {
+    ctex_vec3d position;
+    ctex_vec3d surface_normal;
+    ctex_paint_decal_transform transform;
+} ctex_paint_decal_placement;
+
+typedef struct ctex_paint_decal_descriptor {
+    uint32_t size;
+    uint32_t width;
+    uint32_t height;
+    const ctex_paint_surface_texel* surface_texels;
+    size_t surface_texel_count;
+    const uint8_t* coverage;
+    size_t coverage_count;
+    ctex_paint_decal_placement placement;
+    uint32_t material_width;
+    uint32_t material_height;
+    const ctex_paint_tool_channel_descriptor* material;
+    size_t material_channel_count;
+    const double* material_opacity;
+    size_t material_opacity_count;
+    const ctex_paint_tool_channel_descriptor* enabled_layer_snapshot;
+    size_t enabled_layer_channel_count;
+    const ctex_paint_mask_inputs_descriptor* masks;
+    const double* rejection_acceptance;
+    size_t rejection_acceptance_count;
+    const char* blend_mode;
+} ctex_paint_decal_descriptor;
+
+#define CTEX_PAINT_DECAL_DESCRIPTOR_V1_SIZE ((uint32_t)sizeof(ctex_paint_decal_descriptor))
+#define CTEX_PAINT_DECAL_DESCRIPTOR_CURRENT_SIZE ((uint32_t)sizeof(ctex_paint_decal_descriptor))
+
+typedef struct ctex_paint_decal_info {
+    uint32_t size;
+    ctex_paint_decal_placement resolved_placement;
+    ctex_vec3d frame_tangent;
+    ctex_vec3d frame_bitangent;
+    ctex_vec2d frame_scale;
+    uint32_t rotation_clamped;
+    uint32_t uniform_scale_clamped;
+    uint32_t axis_scale_x_clamped;
+    uint32_t axis_scale_y_clamped;
+    size_t applied_channel_count;
+    size_t required_pixels_per_channel;
+} ctex_paint_decal_info;
+
+#define CTEX_PAINT_DECAL_INFO_V1_SIZE ((uint32_t)sizeof(ctex_paint_decal_info))
+#define CTEX_PAINT_DECAL_INFO_CURRENT_SIZE ((uint32_t)sizeof(ctex_paint_decal_info))
+
+typedef struct ctex_paint_decal_outputs {
+    uint32_t size;
+    size_t* source_sample_indices;
+    size_t source_sample_capacity;
+    double* strength;
+    size_t strength_capacity;
+    const ctex_paint_tool_channel_output* channels;
+    size_t channel_count;
+} ctex_paint_decal_outputs;
+
+#define CTEX_PAINT_DECAL_OUTPUTS_V1_SIZE ((uint32_t)sizeof(ctex_paint_decal_outputs))
+#define CTEX_PAINT_DECAL_OUTPUTS_CURRENT_SIZE ((uint32_t)sizeof(ctex_paint_decal_outputs))
+#define CTEX_PAINT_NO_DECAL_SAMPLE ((size_t)-1)
+
 typedef struct ctex_stroke_preset_info {
     uint32_t size;
     uint32_t schema_version;
@@ -3231,6 +3300,11 @@ CTEX_API ctex_result ctex_paint_apply_smear(const ctex_paint_smear_descriptor* d
 CTEX_API ctex_result ctex_paint_resolve_stencil_mask(
     const ctex_paint_stencil_descriptor* descriptor, ctex_paint_stencil_info* out_info,
     double* mask_values, size_t mask_value_capacity);
+
+/* Rasterizes a retained surface placement and pinned decal material explicitly. */
+CTEX_API ctex_result ctex_paint_rasterize_decal(const ctex_paint_decal_descriptor* descriptor,
+                                                ctex_paint_decal_info* out_info,
+                                                const ctex_paint_decal_outputs* outputs);
 
 /*
  * Installs one process-wide sink. Pass NULL to uninstall it. The callback can

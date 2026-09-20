@@ -136,6 +136,7 @@ EXPORTS
     ctex_paint_preview_session_get_pixels
     ctex_paint_preview_session_write_pixel
     ctex_paint_rejection_init
+    ctex_paint_rasterize_decal
     ctex_paint_resolve_stencil_mask
     ctex_paint_seam_dilation_init
     ctex_paint_surface_map_cache_clear

@@ -73,7 +73,9 @@ publishes resolved sample indices and refuses cross-set operations. Blur and
 Smear now filter immutable stroke-start snapshots through explicit surface-aware
 neighborhoods and mappings. Stencil now resolves bounded screen-anchored,
 transformable and invertible masks that compose with canonical deposition and
-Brush shading. Exactly 101 runtime requirements remain
+Brush shading. Decal now rasterizes caller-retained placements and pinned materials
+through resolved surface frames with atomic sample, strength and channel output.
+Exactly 100 runtime requirements remain
 unmapped.
 The gate is not part of the aggregate `just check` until that count reaches zero;
 its unit tests run in the normal tooling suite throughout the migration.

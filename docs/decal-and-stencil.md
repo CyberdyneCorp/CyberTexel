@@ -27,6 +27,11 @@ This implements the retained tool-level entry required by roadmap item 10.5.
 Project serialization, document tile invalidation and undo/redo integration
 remain scheduled together in editable-authoring task 20.4.
 
+`ctex_paint_rasterize_decal` exposes the same explicit rasterization through the
+public C boundary. Hosts retain the placement and pinned material descriptors,
+edit the transform without repicking, and receive the resolved frame, sample
+indices, composed strength and enabled channels atomically.
+
 Stencil produces a paint restriction from an opacity image anchored in screen
 coordinates. Its position, rotation and per-axis scale are evaluated only
 against caller-supplied screen positions, independent of model coordinates or

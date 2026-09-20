@@ -3740,6 +3740,77 @@ std::vector<ctex::paint::Vec2d> paint_stencil_screen_positions(
     return result;
 }
 
+ctex::paint::CachedSurfaceMaps paint_decal_surface(const ctex_paint_decal_descriptor& descriptor,
+                                                   std::size_t pixel_count) {
+    require_paint_tool_array(descriptor.surface_texels, descriptor.surface_texel_count,
+                             "surface_texels");
+    require_paint_tool_array(descriptor.coverage, descriptor.coverage_count, "coverage");
+    if (descriptor.surface_texel_count != pixel_count || descriptor.coverage_count != pixel_count) {
+        throw std::invalid_argument("decal surface counts do not match its dimensions");
+    }
+    ctex::paint::CachedSurfaceMaps result{
+        .texture_set_id = "capi.decal",
+        .uv_set = "capi.decal",
+        .mesh_revision = 0,
+        .surface = {.width = descriptor.width,
+                    .height = descriptor.height,
+                    .tile_origin = {},
+                    .texels = {}},
+        .coverage = {descriptor.coverage, descriptor.coverage + pixel_count},
+        .triangle_identity = {},
+        .uv_island_identity = {},
+    };
+    result.surface.texels.reserve(pixel_count);
+    for (std::size_t index = 0; index < pixel_count; ++index) {
+        const ctex_paint_surface_texel& source = descriptor.surface_texels[index];
+        result.surface.texels.push_back({.position = stroke_vec(source.position),
+                                         .normal = stroke_vec(source.normal),
+                                         .geometric_normal = stroke_vec(source.geometric_normal),
+                                         .uv = {source.uv.x, source.uv.y},
+                                         .triangle = source.triangle});
+    }
+    return result;
+}
+
+ctex::paint::DecalPlacement paint_decal_placement(const ctex_paint_decal_placement& placement) {
+    return {
+        .position = stroke_vec(placement.position),
+        .surface_normal = stroke_vec(placement.surface_normal),
+        .transform = {.rotation_radians = placement.transform.rotation_radians,
+                      .uniform_scale = placement.transform.uniform_scale,
+                      .axis_scale = {placement.transform.axis_scale.x,
+                                     placement.transform.axis_scale.y}},
+        .parameter_report = {},
+    };
+}
+
+void validate_paint_decal_outputs(const ctex_paint_decal_outputs* outputs,
+                                  const ctex::paint::DecalRasterResult& result,
+                                  std::size_t pixel_count) {
+    if (outputs == nullptr) {
+        return;
+    }
+    validate_structure_size(outputs->size, CTEX_PAINT_DECAL_OUTPUTS_V1_SIZE,
+                            CTEX_PAINT_DECAL_OUTPUTS_CURRENT_SIZE, "outputs.size");
+    validate_output_array(outputs->source_sample_indices, outputs->source_sample_capacity,
+                          pixel_count, "outputs.source_sample_indices");
+    validate_output_array(outputs->strength, outputs->strength_capacity, pixel_count,
+                          "outputs.strength");
+    validate_paint_tool_outputs(outputs->channels, outputs->channel_count, result.channels.size(),
+                                pixel_count);
+}
+
+void copy_paint_decal_outputs(const ctex_paint_decal_outputs* outputs,
+                              const ctex::paint::DecalRasterResult& result) {
+    if (outputs == nullptr) {
+        return;
+    }
+    std::copy(result.source_sample_indices.begin(), result.source_sample_indices.end(),
+              outputs->source_sample_indices);
+    std::copy(result.strength.begin(), result.strength.end(), outputs->strength);
+    copy_paint_tool_outputs(result.channels, outputs->channels);
+}
+
 void validate_paint_tool_outputs(const ctex_paint_tool_channel_output* outputs,
                                  std::size_t output_count, std::size_t required_channels,
                                  std::size_t required_pixels) {
@@ -8349,6 +8420,103 @@ extern "C" ctex_result ctex_paint_apply_smear(const ctex_paint_smear_descriptor*
             validate_paint_tool_outputs(output_channels, output_channel_count,
                                         result.channels.size(), pixel_count);
             copy_paint_tool_outputs(result.channels, output_channels);
+        } catch (const std::invalid_argument& error) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_INVALID_PAINT_TOOL,
+                           error.what());
+        }
+    });
+}
+
+extern "C" ctex_result ctex_paint_rasterize_decal(const ctex_paint_decal_descriptor* descriptor,
+                                                  ctex_paint_decal_info* out_info,
+                                                  const ctex_paint_decal_outputs* outputs) {
+    return call_boundary("ctex_paint_rasterize_decal", [&] {
+        if (descriptor == nullptr || out_info == nullptr) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                           descriptor == nullptr ? "descriptor=null" : "out_info=null");
+        }
+        validate_structure_size(descriptor->size, CTEX_PAINT_DECAL_DESCRIPTOR_V1_SIZE,
+                                CTEX_PAINT_DECAL_DESCRIPTOR_CURRENT_SIZE, "descriptor.size");
+        validate_structure_size(out_info->size, CTEX_PAINT_DECAL_INFO_V1_SIZE,
+                                CTEX_PAINT_DECAL_INFO_CURRENT_SIZE, "out_info.size");
+        const std::size_t pixel_count = bounded_paint_pixel_count(
+            descriptor->width, descriptor->height, CTEX_DIAGNOSTIC_INVALID_PAINT_TOOL);
+        const std::size_t material_pixel_count =
+            bounded_paint_pixel_count(descriptor->material_width, descriptor->material_height,
+                                      CTEX_DIAGNOSTIC_INVALID_PAINT_TOOL);
+        try {
+            const ctex::paint::CachedSurfaceMaps surface =
+                paint_decal_surface(*descriptor, pixel_count);
+            const auto layer = paint_tool_channels(descriptor->enabled_layer_snapshot,
+                                                   descriptor->enabled_layer_channel_count,
+                                                   pixel_count, "enabled_layer_snapshot");
+            ctex::paint::DecalMaterial material{
+                .width = descriptor->material_width,
+                .height = descriptor->material_height,
+                .channels =
+                    paint_tool_channels(descriptor->material, descriptor->material_channel_count,
+                                        material_pixel_count, "material"),
+                .opacity = {},
+            };
+            require_paint_tool_array(descriptor->material_opacity,
+                                     descriptor->material_opacity_count, "material_opacity");
+            if (descriptor->material_opacity_count != material_pixel_count) {
+                throw std::invalid_argument(
+                    "decal material opacity count does not match its dimensions");
+            }
+            material.opacity.assign(descriptor->material_opacity,
+                                    descriptor->material_opacity + material_pixel_count);
+            const PaintMaskStorage masks = paint_mask_storage(descriptor->masks);
+            if (descriptor->blend_mode == nullptr) {
+                throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                               "blend_mode=null");
+            }
+            const ctex::paint::DecalRasterSettings settings{
+                .blend_mode = descriptor->blend_mode,
+                .masks = masks.inputs(),
+                .rejection_acceptance = paint_fill_optional_view(
+                    descriptor->rejection_acceptance, descriptor->rejection_acceptance_count,
+                    "rejection_acceptance"),
+            };
+            const ctex::paint::DecalRasterResult result = ctex::paint::rasterize_decal(
+                surface, layer, paint_decal_placement(descriptor->placement), material, settings);
+            const ctex::paint::DecalTransform& resolved = result.frame.resolved_transform;
+            *out_info = {
+                .size = CTEX_PAINT_DECAL_INFO_CURRENT_SIZE,
+                .resolved_placement = {.position = {result.frame.origin.x, result.frame.origin.y,
+                                                    result.frame.origin.z},
+                                       .surface_normal = {result.frame.normal.x,
+                                                          result.frame.normal.y,
+                                                          result.frame.normal.z},
+                                       .transform = {.rotation_radians = resolved.rotation_radians,
+                                                     .uniform_scale = resolved.uniform_scale,
+                                                     .axis_scale = {resolved.axis_scale.x,
+                                                                    resolved.axis_scale.y}}},
+                .frame_tangent = {result.frame.tangent.x, result.frame.tangent.y,
+                                  result.frame.tangent.z},
+                .frame_bitangent = {result.frame.bitangent.x, result.frame.bitangent.y,
+                                    result.frame.bitangent.z},
+                .frame_scale = {result.frame.scale.x, result.frame.scale.y},
+                .rotation_clamped =
+                    result.parameter_report.clamp_for(ctex::paint::decal_rotation_parameter.name)
+                        .has_value(),
+                .uniform_scale_clamped =
+                    result.parameter_report
+                        .clamp_for(ctex::paint::decal_uniform_scale_parameter.name)
+                        .has_value(),
+                .axis_scale_x_clamped =
+                    result.parameter_report
+                        .clamp_for(ctex::paint::decal_axis_scale_x_parameter.name)
+                        .has_value(),
+                .axis_scale_y_clamped =
+                    result.parameter_report
+                        .clamp_for(ctex::paint::decal_axis_scale_y_parameter.name)
+                        .has_value(),
+                .applied_channel_count = result.channels.size(),
+                .required_pixels_per_channel = pixel_count,
+            };
+            validate_paint_decal_outputs(outputs, result, pixel_count);
+            copy_paint_decal_outputs(outputs, result);
         } catch (const std::invalid_argument& error) {
             throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_INVALID_PAINT_TOOL,
                            error.what());
