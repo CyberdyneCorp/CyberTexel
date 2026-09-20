@@ -25,13 +25,14 @@ I/O, canonical stroke reconstruction, paint-engine primitives and complete CPU
 picking operations. Texture export is reachable through data-driven presets,
 planning, sampling and caller-owned output callbacks. Project containers now
 expose bounded canonical open/re-save, version probing, opaque-content
-preservation and atomic publication. Exactly 146 runtime requirements still
-lack C entry points.
-Mesh handles own allocator-routed
-copies of host buffers, expose named UV sets and revision changes, and enforce
-the declared 100,000,000-vertex and 100,000,000-triangle ceilings before reading
+preservation and atomic publication. Project I/O additionally exposes
+standalone asset export and installation, including self-contained packing and
+caller-provided resource search paths. Mesh handles own allocator-routed copies
+of host buffers, expose named UV sets and revision changes, and enforce the
+declared 100,000,000-vertex and 100,000,000-triangle ceilings before reading
 array contents. Picking indexes preserve allocator provenance, rebuild after
 mesh replacement, report traversal cost, and expose ray, UV, snap, region and
-bounded cancellable batch queries without a GPU.
+bounded cancellable batch queries without a GPU. Exactly 144 runtime
+requirements remain unmapped.
 The gate is not part of the aggregate `just check` until that count reaches zero;
 its unit tests run in the normal tooling suite throughout the migration.

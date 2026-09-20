@@ -698,6 +698,13 @@ re-save, and atomically publish validated files. Canonical bytes and reports use
 caller-owned buffers that are validated together before either is written. The
 exact remaining C ABI gap is 146 runtime requirements.
 
+The standalone-asset continuation exposes two more project-I/O requirements.
+Hosts can extract one named asset with only its declared resources and tiled
+images, optionally packing external files into a self-contained package, then
+install packages into encoded libraries while resolving referenced resources
+through ordered search paths. Conflict rejection and byte/report delivery are
+atomic. The exact remaining C ABI gap is 144 runtime requirements.
+
 ## 1. Foundation
 
 - [x] 1.1 CMake project, C++20, warnings as errors, presets for headless, macOS, Linux, Windows, iOS, Android

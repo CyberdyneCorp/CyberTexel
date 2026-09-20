@@ -154,9 +154,12 @@ channels and caller-owned in-memory output delivery. The gate correctly remains
 red. The project-container slice adds fixed-header schema probing,
 deterministic empty-container creation, bounded canonical open/re-save with a
 machine-readable inventory, opaque future-content preservation and atomic
-filesystem publication. Both byte and report outputs retain the caller-owned
-two-call contract. Exactly 146 runtime requirements still lack C ABI evidence;
-those gaps must be implemented before task 14.8 can close.
+filesystem publication. Standalone asset export and installation select exact
+dependencies, optionally pack external resources, and resolve referenced
+resources through ordered caller search paths. All byte and report outputs
+retain the caller-owned two-call contract. Exactly 144 runtime requirements
+still lack C ABI evidence; those gaps must be implemented before task 14.8 can
+close.
 
 ## Milestones
 

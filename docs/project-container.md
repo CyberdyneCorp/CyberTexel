@@ -129,6 +129,12 @@ descriptor controls every input, allocation, record, string, tile, resource and
 asset ceiling. See [C ABI](c-abi.md#project-containers) for the complete calling
 contract.
 
+Standalone assets are also available without exposing C++ objects.
+`ctex_project_asset_export` produces either a referenced or self-contained
+package containing one asset and its exact dependencies, while
+`ctex_project_asset_install` resolves any referenced resources through caller
+search paths and atomically returns an updated encoded library container.
+
 The current in-memory `ProjectContainer` is the extensible framing, tiled pixel,
 portable resource, and standalone asset foundation. The complete document
 object schema is added by subsequent project-I/O roadmap tasks.

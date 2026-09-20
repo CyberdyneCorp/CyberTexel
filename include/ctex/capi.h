@@ -1566,6 +1566,28 @@ typedef struct ctex_project_container_info {
 #define CTEX_PROJECT_CONTAINER_INFO_V1_SIZE ((uint32_t)sizeof(ctex_project_container_info))
 #define CTEX_PROJECT_CONTAINER_INFO_CURRENT_SIZE ((uint32_t)sizeof(ctex_project_container_info))
 
+typedef struct ctex_project_asset_export_options_descriptor {
+    uint32_t size;
+    uint32_t self_contained;
+    const char* source_directory;
+} ctex_project_asset_export_options_descriptor;
+
+#define CTEX_PROJECT_ASSET_EXPORT_OPTIONS_DESCRIPTOR_V1_SIZE \
+    ((uint32_t)sizeof(ctex_project_asset_export_options_descriptor))
+#define CTEX_PROJECT_ASSET_EXPORT_OPTIONS_DESCRIPTOR_CURRENT_SIZE \
+    ((uint32_t)sizeof(ctex_project_asset_export_options_descriptor))
+
+typedef struct ctex_project_asset_search_paths_descriptor {
+    uint32_t size;
+    const char* const* paths;
+    size_t path_count;
+} ctex_project_asset_search_paths_descriptor;
+
+#define CTEX_PROJECT_ASSET_SEARCH_PATHS_DESCRIPTOR_V1_SIZE \
+    ((uint32_t)sizeof(ctex_project_asset_search_paths_descriptor))
+#define CTEX_PROJECT_ASSET_SEARCH_PATHS_DESCRIPTOR_CURRENT_SIZE \
+    ((uint32_t)sizeof(ctex_project_asset_search_paths_descriptor))
+
 typedef enum ctex_color_space {
     CTEX_COLOR_SPACE_LINEAR_REC709 = 0,
     CTEX_COLOR_SPACE_SRGB_REC709 = 1
@@ -1734,6 +1756,30 @@ CTEX_API ctex_result
 ctex_project_container_save_atomic(const void* encoded, size_t encoded_size,
                                    const ctex_project_container_read_limits_descriptor* limits,
                                    const char* path, ctex_project_container_info* out_info);
+
+/*
+ * Extracts one asset and its exact resource/image dependencies from a project
+ * container. Self-contained export packs referenced resources from the source
+ * directory. Outputs use the same atomic two-call contract as normalization.
+ */
+CTEX_API ctex_result ctex_project_asset_export(
+    const void* project_encoded, size_t project_encoded_size,
+    const ctex_project_container_read_limits_descriptor* limits, const char* asset_identifier,
+    const ctex_project_asset_export_options_descriptor* options,
+    ctex_project_container_info* out_info, void* asset_output, size_t asset_output_size,
+    char* report_output, size_t report_output_size);
+
+/*
+ * Opens a standalone asset package, resolves referenced resources through the
+ * supplied search paths, and atomically returns an updated library container.
+ * A null search-path descriptor permits only already-packed resources.
+ */
+CTEX_API ctex_result ctex_project_asset_install(
+    const void* library_encoded, size_t library_encoded_size, const void* asset_encoded,
+    size_t asset_encoded_size, const ctex_project_container_read_limits_descriptor* limits,
+    const ctex_project_asset_search_paths_descriptor* search_paths,
+    ctex_project_container_info* out_info, void* library_output, size_t library_output_size,
+    char* report_output, size_t report_output_size);
 
 /*
  * Initializes the current stroke settings descriptor to the canonical defaults.

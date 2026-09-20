@@ -104,7 +104,9 @@
       {"requirement": "Referenced versus packed resources", "symbols": ["ctex_project_container_normalize"]},
       {"requirement": "Save is atomic", "symbols": ["ctex_project_container_save_atomic"]},
       {"requirement": "Untrusted input is bounded", "symbols": ["ctex_project_container_normalize", "ctex_project_container_save_atomic"]},
-      {"requirement": "Deterministic writing", "symbols": ["ctex_project_container_create_empty", "ctex_project_container_normalize", "ctex_project_container_save_atomic"]}
+      {"requirement": "Deterministic writing", "symbols": ["ctex_project_container_create_empty", "ctex_project_container_normalize", "ctex_project_container_save_atomic"]},
+      {"requirement": "Import of individual assets", "symbols": ["ctex_project_asset_install"]},
+      {"requirement": "Export of individual assets", "symbols": ["ctex_project_asset_export"]}
     ]},
     {"name": "resource-residency", "kind": "runtime", "requirements": []},
     {"name": "shader-emission", "kind": "runtime", "requirements": []},
