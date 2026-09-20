@@ -1647,6 +1647,34 @@ typedef struct ctex_smart_material_info {
 #define CTEX_SMART_MATERIAL_INFO_V1_SIZE ((uint32_t)sizeof(ctex_smart_material_info))
 #define CTEX_SMART_MATERIAL_INFO_CURRENT_SIZE ((uint32_t)sizeof(ctex_smart_material_info))
 
+typedef enum ctex_applied_preset_kind {
+    CTEX_APPLIED_PRESET_SMART_MATERIAL = 0,
+    CTEX_APPLIED_PRESET_SMART_MASK = 1
+} ctex_applied_preset_kind;
+
+typedef struct ctex_preset_application_info {
+    uint32_t size;
+    uint32_t kind;
+    uint32_t schema_version;
+    size_t entry_count;
+    size_t application_count;
+    size_t undo_step_count;
+} ctex_preset_application_info;
+
+#define CTEX_PRESET_APPLICATION_INFO_V1_SIZE ((uint32_t)sizeof(ctex_preset_application_info))
+#define CTEX_PRESET_APPLICATION_INFO_CURRENT_SIZE ((uint32_t)sizeof(ctex_preset_application_info))
+
+typedef struct ctex_preset_undo_info {
+    uint32_t size;
+    uint32_t removed;
+    size_t removed_entry_count;
+    size_t application_count;
+    size_t undo_step_count;
+} ctex_preset_undo_info;
+
+#define CTEX_PRESET_UNDO_INFO_V1_SIZE ((uint32_t)sizeof(ctex_preset_undo_info))
+#define CTEX_PRESET_UNDO_INFO_CURRENT_SIZE ((uint32_t)sizeof(ctex_preset_undo_info))
+
 typedef enum ctex_color_space {
     CTEX_COLOR_SPACE_LINEAR_REC709 = 0,
     CTEX_COLOR_SPACE_SRGB_REC709 = 1
@@ -2182,6 +2210,28 @@ CTEX_API ctex_result ctex_texture_set_get_channel_info(
 CTEX_API ctex_result ctex_texture_set_get_memory_report(const ctex_document* document,
                                                         const char* texture_set_id,
                                                         ctex_texture_set_memory_report* out_report);
+CTEX_API ctex_result ctex_texture_set_apply_smart_material(ctex_document* document,
+                                                           const char* texture_set_id,
+                                                           const void* serialized,
+                                                           size_t serialized_size,
+                                                           const char* application_identifier,
+                                                           ctex_preset_application_info* out_info);
+CTEX_API ctex_result ctex_texture_set_apply_smart_mask(
+    ctex_document* document, const char* texture_set_id, const void* serialized,
+    size_t serialized_size, const char* application_identifier, const char* target_entry_identifier,
+    ctex_preset_application_info* out_info);
+CTEX_API ctex_result ctex_texture_set_get_preset_applications(const ctex_document* document,
+                                                              const char* texture_set_id,
+                                                              char* report_output,
+                                                              size_t report_output_size,
+                                                              size_t* out_required_size);
+CTEX_API ctex_result ctex_texture_set_set_applied_entry_state(ctex_document* document,
+                                                              const char* texture_set_id,
+                                                              const char* entry_identifier,
+                                                              uint32_t enabled, double opacity);
+CTEX_API ctex_result ctex_texture_set_undo_last_preset_application(ctex_document* document,
+                                                                   const char* texture_set_id,
+                                                                   ctex_preset_undo_info* out_info);
 
 /*
  * Creates an isolated copy-on-write preview for one enabled channel. The

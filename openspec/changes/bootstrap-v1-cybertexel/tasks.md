@@ -719,6 +719,13 @@ optionally embed every dependency, and import through ordered search paths.
 Import reports packed, referenced and missing inputs by stable identity without
 substitution. The exact remaining C ABI gap is 137 runtime requirements.
 
+The application continuation exposes four more smart-material requirements.
+Hosts can instantiate material and mask fragments into a texture set, inspect
+ordinary entries with stable origin metadata, edit entry state independently,
+and remove every entry in an application through one undo operation. Refused
+mask targets leave the document unchanged. The exact remaining C ABI gap is 133
+runtime requirements.
+
 ## 1. Foundation
 
 - [x] 1.1 CMake project, C++20, warnings as errors, presets for headless, macOS, Linux, Windows, iOS, Android

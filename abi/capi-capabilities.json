@@ -117,7 +117,11 @@
       {"requirement": "Anchor cycles are refused", "symbols": ["ctex_smart_material_add_anchor_reference"]},
       {"requirement": "Evaluation order", "symbols": ["ctex_smart_material_plan_anchor_evaluation"]},
       {"requirement": "Resource resolution is portable", "symbols": ["ctex_smart_material_import"]},
-      {"requirement": "Self-contained packaging", "symbols": ["ctex_smart_material_package", "ctex_smart_material_import"]}
+      {"requirement": "Self-contained packaging", "symbols": ["ctex_smart_material_package", "ctex_smart_material_import"]},
+      {"requirement": "A smart material is a parameterised stack", "symbols": ["ctex_texture_set_apply_smart_material", "ctex_texture_set_get_preset_applications"]},
+      {"requirement": "Smart masks", "symbols": ["ctex_texture_set_apply_smart_mask", "ctex_texture_set_get_preset_applications"]},
+      {"requirement": "Applying is one undo step", "symbols": ["ctex_texture_set_apply_smart_material", "ctex_texture_set_apply_smart_mask", "ctex_texture_set_undo_last_preset_application"]},
+      {"requirement": "Instantiation is inspectable", "symbols": ["ctex_texture_set_get_preset_applications", "ctex_texture_set_set_applied_entry_state"]}
     ]},
     {"name": "stroke-model", "kind": "runtime", "requirements": [
       {"requirement": "A stroke resolves to ordered stamps", "symbols": ["ctex_stroke_settings_init", "ctex_stroke_resolve"]},

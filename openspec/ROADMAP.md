@@ -161,9 +161,11 @@ retain the caller-owned two-call contract. The smart-material authoring slice
 adds canonical validation and migration, mixed-content reporting, typed
 parameter fan-out, anchor editing with cycle refusal, and dependency-ordered
 evaluation planning. Portable resource manifests now support ordered search-path
-resolution, explicit missing-input reports and self-contained packaging. Exactly
-137 runtime requirements still lack C ABI evidence; those gaps must be
-implemented before task 14.8 can close.
+resolution, explicit missing-input reports and self-contained packaging.
+Material and mask fragments can now be instantiated transactionally, inspected
+and edited as ordinary entries with retained origin metadata, and removed as a
+single undo step. Exactly 133 runtime requirements still lack C ABI evidence;
+those gaps must be implemented before task 14.8 can close.
 
 ## Milestones
 

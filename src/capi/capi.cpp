@@ -4336,6 +4336,72 @@ void append_smart_material_import_report(std::string& report,
     report += "]}";
 }
 
+void append_applied_entry_json(std::string& output, const ctex::doc::SmartMaterialEntry& entry) {
+    output += "{\"id\":";
+    append_json_text(output, entry.identifier);
+    output += ",\"parent\":";
+    append_json_text(output, entry.parent_identifier);
+    output += ",\"kind\":" + std::to_string(static_cast<std::uint32_t>(entry.kind));
+    output += ",\"enabled\":";
+    output += entry.enabled ? "true" : "false";
+    output += ",\"opacity\":" + std::to_string(entry.opacity) + "}";
+}
+
+void append_preset_application_json(std::string& output,
+                                    const ctex::doc::AppliedPresetApplication& application) {
+    output += "{\"id\":";
+    append_json_text(output, application.identifier);
+    output += ",\"kind\":";
+    append_json_text(output, application.kind == ctex::doc::AppliedPresetKind::smart_material
+                                 ? "smart-material"
+                                 : "smart-mask");
+    output += ",\"target\":";
+    append_json_text(output, application.target_entry_identifier);
+    output += ",\"origin\":{\"preset\":";
+    append_json_text(output, application.origin.preset_identifier);
+    output += ",\"schema_version\":" + std::to_string(application.origin.schema_version) +
+              "},\"entries\":[";
+    for (std::size_t index = 0; index < application.fragment.stack.size(); ++index) {
+        if (index != 0) {
+            output.push_back(',');
+        }
+        append_applied_entry_json(output, application.fragment.stack[index]);
+    }
+    output += "]}";
+}
+
+std::string preset_applications_json(const ctex::doc::TextureSet& texture_set) {
+    std::string output =
+        "{\"application_count\":" + std::to_string(texture_set.preset_application_count()) +
+        ",\"undo_step_count\":" + std::to_string(texture_set.preset_undo_step_count()) +
+        ",\"applications\":[";
+    const std::span applications = texture_set.preset_applications();
+    for (std::size_t index = 0; index < applications.size(); ++index) {
+        if (index != 0) {
+            output.push_back(',');
+        }
+        append_preset_application_json(output, applications[index]);
+    }
+    output += "]}";
+    return output;
+}
+
+void set_preset_application_info(ctex_preset_application_info& out_info,
+                                 const ctex::doc::PresetApplicationReport& report,
+                                 ctex::doc::AppliedPresetKind kind, std::size_t application_count,
+                                 std::size_t undo_step_count) {
+    out_info = {
+        .size = CTEX_PRESET_APPLICATION_INFO_CURRENT_SIZE,
+        .kind = kind == ctex::doc::AppliedPresetKind::smart_material
+                    ? CTEX_APPLIED_PRESET_SMART_MATERIAL
+                    : CTEX_APPLIED_PRESET_SMART_MASK,
+        .schema_version = report.origin.schema_version,
+        .entry_count = report.entry_identifiers.size(),
+        .application_count = application_count,
+        .undo_step_count = undo_step_count,
+    };
+}
+
 }  // namespace
 
 void* ctex_host_memory_resource::do_allocate(std::size_t bytes, std::size_t alignment) {
@@ -6672,6 +6738,128 @@ extern "C" ctex_result ctex_texture_set_get_memory_report(
             .channel_pixel_bytes = report.channel_pixel_bytes,
             .mesh_map_pixel_bytes = report.mesh_map_pixel_bytes,
             .total_resident_bytes = report.total_resident_bytes,
+        };
+    });
+}
+
+extern "C" ctex_result ctex_texture_set_apply_smart_material(
+    ctex_document* document, const char* texture_set_id, const void* serialized,
+    std::size_t serialized_size, const char* application_identifier,
+    ctex_preset_application_info* out_info) {
+    return call_boundary("ctex_texture_set_apply_smart_material", [&] {
+        if (document == nullptr || application_identifier == nullptr || out_info == nullptr) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                           "document, application_identifier and out_info are required");
+        }
+        validate_structure_size(out_info->size, CTEX_PRESET_APPLICATION_INFO_V1_SIZE,
+                                CTEX_PRESET_APPLICATION_INFO_CURRENT_SIZE,
+                                "preset application info size");
+        ctex::doc::TextureSet& texture_set = require_texture_set(*document, texture_set_id);
+        try {
+            PreparedSmartMaterial source = prepare_smart_material(serialized, serialized_size);
+            const ctex::doc::PresetApplicationReport report =
+                texture_set.apply_smart_material(source.material, application_identifier);
+            set_preset_application_info(
+                *out_info, report, ctex::doc::AppliedPresetKind::smart_material,
+                texture_set.preset_application_count(), texture_set.preset_undo_step_count());
+        } catch (const ctex::doc::SmartMaterialError& error) {
+            throw_smart_material_error(error);
+        }
+    });
+}
+
+extern "C" ctex_result ctex_texture_set_apply_smart_mask(
+    ctex_document* document, const char* texture_set_id, const void* serialized,
+    std::size_t serialized_size, const char* application_identifier,
+    const char* target_entry_identifier, ctex_preset_application_info* out_info) {
+    return call_boundary("ctex_texture_set_apply_smart_mask", [&] {
+        if (document == nullptr || application_identifier == nullptr ||
+            target_entry_identifier == nullptr || out_info == nullptr) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                           "document, application, target and out_info are required");
+        }
+        validate_structure_size(out_info->size, CTEX_PRESET_APPLICATION_INFO_V1_SIZE,
+                                CTEX_PRESET_APPLICATION_INFO_CURRENT_SIZE,
+                                "preset application info size");
+        ctex::doc::TextureSet& texture_set = require_texture_set(*document, texture_set_id);
+        try {
+            const ctex::doc::SmartMaskPreset mask = ctex::doc::deserialize_smart_mask(
+                smart_material_bytes(serialized, serialized_size));
+            const ctex::doc::PresetApplicationReport report =
+                texture_set.apply_smart_mask(mask, application_identifier, target_entry_identifier);
+            set_preset_application_info(*out_info, report, ctex::doc::AppliedPresetKind::smart_mask,
+                                        texture_set.preset_application_count(),
+                                        texture_set.preset_undo_step_count());
+        } catch (const ctex::doc::SmartMaterialError& error) {
+            throw_smart_material_error(error);
+        }
+    });
+}
+
+extern "C" ctex_result ctex_texture_set_get_preset_applications(const ctex_document* document,
+                                                                const char* texture_set_id,
+                                                                char* report_output,
+                                                                std::size_t report_output_size,
+                                                                std::size_t* out_required_size) {
+    return call_boundary("ctex_texture_set_get_preset_applications", [&] {
+        if (document == nullptr || out_required_size == nullptr) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                           document == nullptr ? "document=null" : "out_required_size=null");
+        }
+        const std::string report =
+            preset_applications_json(require_texture_set(*document, texture_set_id));
+        *out_required_size = report.size() + 1;
+        validate_string_buffer(report_output, report_output_size, *out_required_size);
+        if (report_output != nullptr) {
+            std::memcpy(report_output, report.c_str(), *out_required_size);
+        }
+    });
+}
+
+extern "C" ctex_result ctex_texture_set_set_applied_entry_state(ctex_document* document,
+                                                                const char* texture_set_id,
+                                                                const char* entry_identifier,
+                                                                std::uint32_t enabled,
+                                                                double opacity) {
+    return call_boundary("ctex_texture_set_set_applied_entry_state", [&] {
+        if (document == nullptr || entry_identifier == nullptr) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                           document == nullptr ? "document=null" : "entry_identifier=null");
+        }
+        if (enabled > 1U || !std::isfinite(opacity) || opacity < 0.0 || opacity > 1.0) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_INVALID_DESCRIPTOR_VALUE,
+                           "applied entry state is outside its valid range");
+        }
+        ctex::doc::TextureSet& texture_set = require_texture_set(*document, texture_set_id);
+        try {
+            ctex::doc::SmartMaterialEntry entry = texture_set.applied_entry(entry_identifier);
+            entry.enabled = enabled != 0U;
+            entry.opacity = opacity;
+            texture_set.replace_applied_entry(entry_identifier, std::move(entry));
+        } catch (const ctex::doc::SmartMaterialError& error) {
+            throw_smart_material_error(error);
+        }
+    });
+}
+
+extern "C" ctex_result ctex_texture_set_undo_last_preset_application(
+    ctex_document* document, const char* texture_set_id, ctex_preset_undo_info* out_info) {
+    return call_boundary("ctex_texture_set_undo_last_preset_application", [&] {
+        if (document == nullptr || out_info == nullptr) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                           document == nullptr ? "document=null" : "out_info=null");
+        }
+        validate_structure_size(out_info->size, CTEX_PRESET_UNDO_INFO_V1_SIZE,
+                                CTEX_PRESET_UNDO_INFO_CURRENT_SIZE, "preset undo info size");
+        ctex::doc::TextureSet& texture_set = require_texture_set(*document, texture_set_id);
+        const ctex::doc::PresetApplicationUndoReport report =
+            texture_set.undo_last_preset_application();
+        *out_info = {
+            .size = CTEX_PRESET_UNDO_INFO_CURRENT_SIZE,
+            .removed = report.removed ? 1U : 0U,
+            .removed_entry_count = report.entry_identifiers.size(),
+            .application_count = texture_set.preset_application_count(),
+            .undo_step_count = texture_set.preset_undo_step_count(),
         };
     });
 }

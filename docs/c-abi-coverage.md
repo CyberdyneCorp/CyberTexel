@@ -35,7 +35,9 @@ mesh replacement, report traversal cost, and expose ray, UV, snap, region and
 bounded cancellable batch queries without a GPU. Smart-material validation now
 exposes canonical migration, mixed-content inventories, typed parameter
 fan-out, anchor editing, cycle refusal, dependency-ordered evaluation, portable
-resource resolution and self-contained packaging. Exactly 137 runtime
+resource resolution and self-contained packaging. Material and mask fragments
+can now be applied transactionally, inspected and edited as ordinary entries,
+then removed as one undo step. Exactly 133 runtime
 requirements remain unmapped.
 The gate is not part of the aggregate `just check` until that count reaches zero;
 its unit tests run in the normal tooling suite throughout the migration.
