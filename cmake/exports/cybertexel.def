@@ -7,6 +7,7 @@ EXPORTS
     ctex_mesh_create_with_tangent_data
     ctex_mesh_replace_with_tangent_data
     ctex_mesh_get_tangent_frame
+    ctex_mesh_analyze_uv_overlaps
     ctex_mesh_map_set_create
     ctex_mesh_map_set_destroy
     ctex_mesh_map_kind_get_name

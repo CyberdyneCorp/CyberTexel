@@ -21,6 +21,14 @@ carry a stable key independent of their order and display name. Each face also
 carries one numeric material identifier for picking and material-ID workflows.
 All supplied floating-point attributes must be finite.
 
+`analyze_uv_overlaps` examines one named UV set within one partition, matching
+the boundary of a texture set. It reports unique affected face indices in
+ascending order and counts both broad-phase candidate pairs and confirmed
+positive-area overlaps. Shared edges or vertices and degenerate UV triangles do
+not count as overlaps. The sweep broad phase is deterministic and avoids
+narrow-phase intersection work for faces whose UV bounds cannot intersect;
+faces assigned to other partitions are never compared.
+
 ## Tangent frames
 
 Every validated mesh exposes one tangent frame per triangle corner through

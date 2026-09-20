@@ -246,7 +246,10 @@ tokens with atomic settings/map undo. Mesh-maps is fully mapped. Exactly 41
 runtime requirements remained without C ABI evidence at that point. Periodic
 autosave sessions now expose revision coalescing, worker status, explicit flush,
 recovery discovery and bounded recovery reads through C. Exactly 40 runtime
-requirements remain without C ABI evidence; those gaps must be
+requirements remained without C ABI evidence at that point. Partition-scoped
+UV overlap diagnostics now expose sorted affected faces and deterministic work
+counts through C. Exactly 39 runtime requirements remain without C ABI evidence;
+those gaps must be
 implemented before task 14.8 can close.
 
 ## Milestones

@@ -1696,6 +1696,16 @@ typedef struct ctex_mesh_info {
 #define CTEX_MESH_INFO_V1_SIZE ((uint32_t)sizeof(ctex_mesh_info))
 #define CTEX_MESH_INFO_CURRENT_SIZE ((uint32_t)sizeof(ctex_mesh_info))
 
+typedef struct ctex_mesh_uv_overlap_info {
+    uint32_t size;
+    size_t required_face_count;
+    size_t overlap_pair_count;
+    size_t candidate_pair_count;
+} ctex_mesh_uv_overlap_info;
+
+#define CTEX_MESH_UV_OVERLAP_INFO_V1_SIZE ((uint32_t)sizeof(ctex_mesh_uv_overlap_info))
+#define CTEX_MESH_UV_OVERLAP_INFO_CURRENT_SIZE ((uint32_t)sizeof(ctex_mesh_uv_overlap_info))
+
 typedef enum ctex_pick_occlusion_policy {
     CTEX_PICK_OCCLUSION_NEAREST = 0,
     CTEX_PICK_OCCLUSION_ALL_HITS = 1
@@ -5458,6 +5468,12 @@ CTEX_API ctex_result ctex_mesh_get_info(const ctex_mesh* mesh, ctex_mesh_info* o
 CTEX_API ctex_result ctex_mesh_get_uv_set_names(const ctex_mesh* mesh, char* buffer,
                                                 size_t buffer_size, size_t* out_required_size,
                                                 size_t* out_count);
+/* Reports positive-area UV overlap within one texture-set partition. */
+CTEX_API ctex_result ctex_mesh_analyze_uv_overlaps(const ctex_mesh* mesh, const char* uv_set,
+                                                   uint32_t partition_index,
+                                                   ctex_mesh_uv_overlap_info* out_info,
+                                                   uint32_t* face_indices,
+                                                   size_t face_index_capacity);
 
 /*
  * These variants copy one tangent per triangle corner and retain the complete

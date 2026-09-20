@@ -1021,6 +1021,13 @@ covers deferred work, revision coalescing, stale refusal, flush, discovery,
 malformed candidates and canonical recovery. The exact remaining C ABI gap is
 40 runtime requirements.
 
+The UV-diagnostics continuation detects positive-area overlap within one named
+UV set and texture-set partition, excluding shared boundaries, degenerate
+triangles and faces in other partitions. C++ and strict-C fixtures verify sorted
+affected face indices, two-call sizing, missing-input refusals and deterministic
+broad-phase work counts. Coverage-gap reporting remains outstanding, so task
+4.5 stays open. The exact remaining C ABI gap is 39 runtime requirements.
+
 ## 1. Foundation
 
 - [x] 1.1 CMake project, C++20, warnings as errors, presets for headless, macOS, Linux, Windows, iOS, Android

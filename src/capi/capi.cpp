@@ -34,6 +34,7 @@
 #include <ctex/maps/external_import.hpp>
 #include <ctex/maps/generators.hpp>
 #include <ctex/maps/mesh_maps.hpp>
+#include <ctex/mesh/uv_diagnostics.hpp>
 #include <ctex/paint/blending.hpp>
 #include <ctex/paint/blur_smear.hpp>
 #include <ctex/paint/brush.hpp>
@@ -14404,6 +14405,44 @@ extern "C" ctex_result ctex_mesh_get_uv_set_names(const ctex_mesh* mesh, char* b
                 std::memcpy(buffer + offset, name.c_str(), name.size() + 1);
                 offset += name.size() + 1;
             }
+        }
+    });
+}
+
+extern "C" ctex_result ctex_mesh_analyze_uv_overlaps(const ctex_mesh* mesh, const char* uv_set,
+                                                     std::uint32_t partition_index,
+                                                     ctex_mesh_uv_overlap_info* out_info,
+                                                     std::uint32_t* face_indices,
+                                                     std::size_t face_index_capacity) {
+    return call_boundary("ctex_mesh_analyze_uv_overlaps", [&] {
+        if (mesh == nullptr || uv_set == nullptr || out_info == nullptr) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                           "mesh, uv_set and out_info are required");
+        }
+        validate_structure_size(out_info->size, CTEX_MESH_UV_OVERLAP_INFO_V1_SIZE,
+                                CTEX_MESH_UV_OVERLAP_INFO_CURRENT_SIZE,
+                                "mesh UV overlap info size");
+        if (partition_index >= mesh->state->partition_views.size()) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_INVALID_MESH,
+                           "UV overlap partition index is outside the mesh partition table");
+        }
+        try {
+            const ctex::mesh::UvOverlapReport report = ctex::mesh::analyze_uv_overlaps(
+                mesh->state->mesh_binding().view(), uv_set, partition_index);
+            *out_info = {
+                .size = CTEX_MESH_UV_OVERLAP_INFO_CURRENT_SIZE,
+                .required_face_count = report.face_indices.size(),
+                .overlap_pair_count = report.overlap_pair_count,
+                .candidate_pair_count = report.candidate_pair_count,
+            };
+            validate_output_array(face_indices, face_index_capacity, report.face_indices.size(),
+                                  "overlapping UV face indices");
+            if (face_indices != nullptr) {
+                std::copy(report.face_indices.begin(), report.face_indices.end(), face_indices);
+            }
+        } catch (const std::out_of_range& error) {
+            throw_boundary(CTEX_RESULT_MISSING_RESOURCE, CTEX_DIAGNOSTIC_MISSING_UV_SET,
+                           error.what());
         }
     });
 }

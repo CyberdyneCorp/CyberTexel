@@ -100,7 +100,12 @@ ctex_add_module(
         src/image/resampling.cpp
         src/image/seam_dilation.cpp
 )
-ctex_add_module(mesh)
+ctex_add_module(
+    mesh
+    SOURCES
+        src/mesh/mesh.cpp
+        src/mesh/uv_diagnostics.cpp
+)
 ctex_add_module(
     pick
     DEPENDS mesh
@@ -358,6 +363,10 @@ if(BUILD_TESTING)
         ctex_configure_c_target(ctex_capi_mesh_test)
         target_link_libraries(ctex_capi_mesh_test PRIVATE cybertexel_c)
         add_test(NAME c-abi-mesh-ingest COMMAND ctex_capi_mesh_test)
+        add_executable(ctex_capi_mesh_uv_diagnostics_test tests/capi/mesh_uv_diagnostics_test.c)
+        ctex_configure_c_target(ctex_capi_mesh_uv_diagnostics_test)
+        target_link_libraries(ctex_capi_mesh_uv_diagnostics_test PRIVATE cybertexel_c)
+        add_test(NAME c-abi-mesh-uv-diagnostics COMMAND ctex_capi_mesh_uv_diagnostics_test)
         add_executable(ctex_capi_mesh_maps_test tests/capi/mesh_maps_test.c)
         ctex_configure_c_target(ctex_capi_mesh_maps_test)
         target_link_libraries(ctex_capi_mesh_maps_test PRIVATE cybertexel_c)
@@ -973,6 +982,11 @@ if(BUILD_TESTING)
     target_link_libraries(ctex_mesh_test PRIVATE ctex_doc ctex_mesh ctex_graph ctex_image)
     add_test(NAME mesh-ingest COMMAND ctex_mesh_test)
 
+    add_executable(ctex_mesh_uv_diagnostics_test tests/mesh/uv_diagnostics_test.cpp)
+    ctex_configure_cpp_target(ctex_mesh_uv_diagnostics_test)
+    target_link_libraries(ctex_mesh_uv_diagnostics_test PRIVATE ctex_mesh)
+    add_test(NAME mesh-uv-diagnostics COMMAND ctex_mesh_uv_diagnostics_test)
+
     add_executable(ctex_spatial_index_test tests/pick/spatial_index_test.cpp)
     ctex_configure_cpp_target(ctex_spatial_index_test)
     target_link_libraries(ctex_spatial_index_test PRIVATE ctex_pick ctex_mesh)
@@ -1454,7 +1468,16 @@ if(BUILD_TESTING)
         c-abi-mesh-map-execution
         PROPERTIES LABELS mesh-maps-scenario
     )
-    set_tests_properties(mesh-ingest PROPERTIES LABELS mesh-maps-scenario)
+    set_tests_properties(
+        mesh-ingest
+        mesh-uv-diagnostics
+        c-abi-mesh-ingest
+        c-abi-mesh-uv-diagnostics
+        PROPERTIES LABELS mesh-and-texture-sets-scenario
+    )
+    set_tests_properties(
+        mesh-ingest PROPERTIES LABELS "mesh-maps-scenario;mesh-and-texture-sets-scenario"
+    )
     set_tests_properties(
         project-container
         project-autosave

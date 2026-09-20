@@ -103,6 +103,7 @@
       {"requirement": "Multiple UV sets", "symbols": ["ctex_mesh_create", "ctex_mesh_get_info", "ctex_mesh_get_uv_set_names", "ctex_document_create_texture_set", "ctex_document_create_texture_sets_from_mesh"]},
       {"requirement": "Texture set partitioning", "symbols": ["ctex_document_create_texture_set", "ctex_document_create_texture_sets_from_mesh"]},
       {"requirement": "Per-set resolution and bit depth", "symbols": ["ctex_document_create_texture_set", "ctex_document_create_texture_sets_from_mesh"]},
+      {"requirement": "Overlapping UV detection", "symbols": ["ctex_mesh_analyze_uv_overlaps"]},
       {"requirement": "Set identity is stable", "symbols": ["ctex_document_create_texture_sets_from_mesh", "ctex_document_get_texture_set_ids"]},
       {"requirement": "Mesh revision", "symbols": ["ctex_mesh_replace", "ctex_mesh_get_info"]},
       {"requirement": "Mesh limits are declared", "symbols": ["ctex_mesh_create", "ctex_mesh_replace"]}
