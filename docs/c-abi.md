@@ -770,6 +770,21 @@ their terminating NUL, while SPIR-V sizes are exact binary byte counts.
 Repeated requests are byte-identical, and changing only graph constants changes
 the shader while preserving the pass plan and binding layout.
 
+`ctex_shader_emit_material_inspectable` accepts either serialized graph bytes or
+a named material in a graph workspace. Text artifacts retain deterministic
+producer comments and stable variable names. Its companion JSON maps every
+emitted variable to the qualified group path, node type and ID, and output
+socket. Group paths include every enclosing group identifier and instance ID,
+so identical internal node IDs in different instances remain distinct. The
+SPIR-V artifacts remain raw binary; `binary_companion` identifies the JSON as
+their inspection metadata. The artifacts, plans, workaround report and debug
+metadata share one atomic two-call sizing operation.
+
+`ctex_shader_get_backend_attribution` returns deterministic JSON naming the
+vendored Kongruent backend, Zlib licence, source URL, pinned ArmorPaint and
+upstream revisions, licence file and local-changes record. This runtime report
+matches the dependency information enforced by the repository licence audit.
+
 `ctex_shader_emit_layer_stack` compiles a bottom-to-top premultiplied stack for
 the same four targets. A stack that fits the declared binding budget produces
 one compositing pass; a larger stack is split deterministically, with each later
@@ -780,12 +795,12 @@ publishes the offset and byte size of every stage. The pass-plan and workaround
 outputs use the same atomic sizing contract as material emission.
 
 `ctex_shader_emission_cache_create` creates one cache shared by material,
-layer-stack and preview emission. `ctex_shader_emit_material_cached` caches by canonical
-graph content, host-node registry semantics, target and normalized feature set;
-the layer-stack entry point uses the supplied cache when non-null and otherwise
-emits directly. Cache hits return byte-identical artifacts and plans. Aggregate
-entry, hit and miss counts are observable, and clearing removes entries and
-resets all counters.
+layer-stack and preview emission. `ctex_shader_emit_material_cached` caches by
+canonical graph content, host-node registry semantics, target and normalized
+feature set; the layer-stack entry point uses the supplied cache when non-null
+and otherwise emits directly. Cache hits return byte-identical artifacts and
+plans. Aggregate entry, hit and miss counts are observable, and clearing removes
+entries and resets all counters.
 
 `ctex_shader_emit_lit_preview` compiles the document-channel preview for WGSL,
 MSL, SPIR-V or HLSL. Its optional environment descriptor declares prefiltered
@@ -869,9 +884,10 @@ The contract is stated per entry-point family:
 | `ctex_material_graph_workspace_destroy`, `ctex_material_graph_workspace_get_info`, `ctex_material_graph_workspace_add_material`, `ctex_material_graph_workspace_create_group`, `ctex_material_graph_workspace_instantiate_group`, `ctex_material_graph_workspace_update_group_interface`, `ctex_material_graph_workspace_get_graph`, `ctex_material_graph_workspace_add_builtin_node`, `ctex_material_graph_workspace_set_input_value`, `ctex_material_graph_workspace_set_property_value`, `ctex_material_graph_workspace_add_link` | Calls on distinct workspaces are independent. Every operation on one workspace, including reads and destruction, requires external serialization |
 | `ctex_material_graph_node_registry_create` | Process-safe; each successful call creates an independent registry and captures the active allocator |
 | `ctex_material_graph_node_registry_destroy`, `ctex_material_graph_node_registry_get_info`, `ctex_material_graph_node_registry_register`, `ctex_material_graph_add_registered_node`, `ctex_material_graph_workspace_add_registered_node`, `ctex_material_graph_validate_registered`, `ctex_material_graph_node_registry_verify_contract` | Calls on distinct registries are independent. Registration and destruction require exclusive access; read-only operations may run concurrently when no registration is active. A workspace insertion also requires exclusive access to that workspace. Host callbacks obey the concurrency chosen by the caller and their borrowed request/result storage is valid only for the callback |
-| `ctex_shader_emit_material`, `ctex_shader_emit_layer_stack`, `ctex_shader_emit_lit_preview`, `ctex_shader_emit_channel_inspection` with a null cache | Built-in-only calls are stateless and safe to invoke concurrently. Registry-backed calls may run concurrently while that registry is not being registered into or destroyed; callback state must support the caller's chosen concurrency. Graph, request and registry storage is borrowed only for the call, and every output is caller-owned |
+| `ctex_shader_emit_material`, `ctex_shader_emit_material_inspectable`, `ctex_shader_emit_layer_stack`, `ctex_shader_emit_lit_preview`, `ctex_shader_emit_channel_inspection` with a null cache | Built-in-only serialized-graph calls are stateless and safe to invoke concurrently. Registry-backed calls may run concurrently while that registry is not being registered into or destroyed; callback state must support the caller's chosen concurrency. An inspectable workspace source requires external serialization against every operation and destruction of that workspace. Graph, request, workspace, and registry storage is borrowed only for the call, and every output is caller-owned |
+| `ctex_shader_get_backend_attribution` | Stateless, process-safe and callable concurrently from any thread; the report buffer is caller-owned |
 | `ctex_shader_emission_cache_create` | Process-safe; each successful call creates an independent cache and captures the active allocator |
-| `ctex_shader_emission_cache_destroy`, `ctex_shader_emission_cache_get_info`, `ctex_shader_emission_cache_clear`, `ctex_shader_emit_material_cached`, `ctex_shader_emit_layer_stack`, `ctex_shader_emit_lit_preview`, `ctex_shader_emit_channel_inspection` with a cache | Emission and statistics queries may run concurrently on one cache. Clearing or destruction requires exclusive access. Registries and callback state used by cached material emission follow the registry contract above; all request storage is borrowed only for the call and outputs are caller-owned |
+| `ctex_shader_emission_cache_destroy`, `ctex_shader_emission_cache_get_info`, `ctex_shader_emission_cache_clear`, `ctex_shader_emit_material_cached`, `ctex_shader_emit_material_inspectable`, `ctex_shader_emit_layer_stack`, `ctex_shader_emit_lit_preview`, `ctex_shader_emit_channel_inspection` with a cache | Emission and statistics queries may run concurrently on one cache. Clearing or destruction requires exclusive access. Registries, callback state, and inspectable workspace sources follow their contracts above; all request storage is borrowed only for the call and outputs are caller-owned |
 | `ctex_document_create_texture_set`, `ctex_document_create_texture_sets_from_mesh`, `ctex_document_get_texture_set_ids`, `ctex_texture_set_*` | Calls on distinct document handles are safe concurrently; every call on the same document handle must be externally synchronized, including read-only calls. Mesh-derived creation also requires no concurrent use of that mesh handle |
 | `ctex_mesh_create` | Process-safe; each successful call creates independent owned state and captures the active allocator |
 | `ctex_mesh_destroy`, `ctex_mesh_replace`, `ctex_mesh_get_info`, `ctex_mesh_get_uv_set_names` | Calls on distinct mesh handles are safe concurrently; every call on the same mesh handle must be externally synchronized, including read-only calls |

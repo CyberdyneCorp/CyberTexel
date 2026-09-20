@@ -180,6 +180,9 @@
       {"requirement": "Thread safety", "symbols": ["ctex_shader_emit_material"]},
       {"requirement": "Preview shading", "symbols": ["ctex_shader_emit_lit_preview", "ctex_shader_emit_channel_inspection"]},
       {"requirement": "Declared lighting inputs", "symbols": ["ctex_shader_emit_lit_preview"]},
+      {"requirement": "Result variable naming and reuse", "symbols": ["ctex_shader_emit_material_inspectable"]},
+      {"requirement": "Emitted source is inspectable", "symbols": ["ctex_shader_emit_material_inspectable"]},
+      {"requirement": "Third-party shader backend attribution", "symbols": ["ctex_shader_get_backend_attribution"]},
       {"requirement": "Deterministic output", "symbols": ["ctex_shader_emit_material"]},
       {"requirement": "Resource lifetimes and synchronization in pass plans", "symbols": ["ctex_shader_emit_material"]}
     ]},

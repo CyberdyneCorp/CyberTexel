@@ -959,6 +959,17 @@ inspection routes, every fallback target, complete lighting declarations,
 cache identity, invalid environment refusal and atomic sizing. The exact
 remaining C ABI gap is 63 runtime requirements.
 
+The shader-attribution continuation exposes stable reused result variables and
+structured producing-node metadata for serialized graphs and named workspace
+materials. Qualified paths include every group and instance identity, so
+colliding internal node IDs remain distinct. Text targets retain readable
+producer comments, while raw SPIR-V uses explicit companion JSON. The public
+backend report names Kongruent, its Zlib licence, source, pinned ArmorPaint and
+upstream revisions, licence file and local changes. A strict-C fixture covers
+fan-out reuse, group collisions, binary metadata, attribution and atomic sizing.
+Shader-emission is fully mapped and the exact remaining C ABI gap is 60 runtime
+requirements.
+
 ## 1. Foundation
 
 - [x] 1.1 CMake project, C++20, warnings as errors, presets for headless, macOS, Linux, Windows, iOS, Android

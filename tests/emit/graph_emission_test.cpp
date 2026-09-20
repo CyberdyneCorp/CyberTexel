@@ -1,3 +1,4 @@
+#include <algorithm>
 #include <cstdlib>
 #include <ctex/emit/graph_emission.hpp>
 #include <ctex/graph/catalogue.hpp>
@@ -102,6 +103,11 @@ bool fan_out_emits_one_expression_and_three_references() {
            expect(occurrences(emitted.source, result_name) == 4,
                   "fan-out did not declare once and reference the result three times") &&
            expect(
+               emitted.node_attributions ==
+                   std::vector<ctex::emit::ShaderNodeAttribution>{
+                       {std::string(result_name), "test.constant[2]", "test.constant", 2, "value"}},
+               "fan-out debug metadata did not identify its one emitted declaration") &&
+           expect(
                emitted.resource_identifiers == std::vector<std::string>{"fixture/shared-resource"},
                "fan-out duplicated or lost the node resource dependency");
 }
@@ -175,7 +181,18 @@ bool group_paths_qualify_colliding_internal_node_ids() {
                           std::string::npos &&
                       first.source.find("// node right[3]/ ctex.input.constant-value[3]") !=
                           std::string::npos,
-                  "emitted source did not retain node-attribution comments");
+                  "emitted source did not retain node-attribution comments") &&
+           expect(std::ranges::any_of(first.node_attributions,
+                                      [](const auto& attribution) {
+                                          return attribution.node_path ==
+                                                 "left[2]/ ctex.input.constant-value[3]";
+                                      }) &&
+                      std::ranges::any_of(first.node_attributions,
+                                          [](const auto& attribution) {
+                                              return attribution.node_path ==
+                                                     "right[3]/ ctex.input.constant-value[3]";
+                                          }),
+                  "structured attribution omitted a qualified group path");
 }
 
 bool nested_group_path_contains_every_enclosing_instance() {

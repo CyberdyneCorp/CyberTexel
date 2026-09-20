@@ -117,7 +117,10 @@ Material and layer-stack results can share an observable cache keyed by content,
 target and device features. Lit previews now declare complete environment and
 analytic-light inputs, including uniform layouts, while every document channel
 has an unlit inspection route and missing environments use defined fallback
-lighting. Exactly 63 runtime requirements remain unmapped
-overall.
+lighting. Inspectable material emission now exposes stable reused variables,
+qualified group paths and node attribution for text and binary targets, while
+the pinned Kongruent backend identity and licence are queryable at runtime.
+Shader emission is therefore fully mapped. Exactly 60 runtime requirements
+remain unmapped overall.
 The gate is not part of the aggregate `just check` until that count reaches zero;
 its unit tests run in the normal tooling suite throughout the migration.

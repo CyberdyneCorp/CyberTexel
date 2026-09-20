@@ -456,7 +456,8 @@ MaterialShaderEmission finish_emission(const WgslExpressionProgram& program,
         KongContext compiler;
         shader = compiler.compile(kong_source(program, resources, outputs), request.target);
     }
-    return {make_plan(request, resources, filter), std::move(shader), std::move(workarounds)};
+    return {make_plan(request, resources, filter), std::move(shader), std::move(workarounds),
+            program.node_attributions};
 }
 
 void require_target_semantics(const graph::GraphDocument& graph,

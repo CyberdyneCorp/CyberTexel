@@ -30,6 +30,7 @@ struct MaterialShaderEmission {
     PassPlan pass_plan;
     KongShaderProgram shader;
     std::vector<CapabilityWorkaround> workarounds;
+    std::vector<ShaderNodeAttribution> node_attributions;
     friend bool operator==(const MaterialShaderEmission&, const MaterialShaderEmission&) = default;
 };
 

@@ -225,9 +225,14 @@ compositing with packed per-pass artifacts and carried intermediates. A shared,
 observable cache serves byte-identical material and layer-stack results keyed by
 content, target and device features. Lit previews now cross C with complete
 environment texture contracts, uniform layouts, analytic lights and deterministic
-fallback lighting; every channel has an unlit inspection route. Exactly 63
-runtime requirements still lack C ABI evidence; those
-gaps must be implemented before task 14.8 can close.
+fallback lighting; every channel has an unlit inspection route. Inspectable
+material emission now exposes stable reused variable names and structured
+attribution through C, including qualified workspace group paths and binary
+companion metadata. The
+vendored Kongruent backend identity, licence and pinned revisions are also
+queryable. Shader emission is fully mapped, leaving exactly 60 runtime
+requirements without C ABI evidence; those gaps must be implemented before task
+14.8 can close.
 
 ## Milestones
 

@@ -17,11 +17,21 @@ struct WgslOutputExpression {
     friend bool operator==(const WgslOutputExpression&, const WgslOutputExpression&) = default;
 };
 
+struct ShaderNodeAttribution {
+    std::string variable_name;
+    std::string node_path;
+    std::string type_id;
+    graph::NodeId node_id{};
+    std::string output_socket;
+    friend bool operator==(const ShaderNodeAttribution&, const ShaderNodeAttribution&) = default;
+};
+
 struct WgslExpressionProgram {
     // A deterministic sequence of WGSL statements intended for a function body.
     std::string source;
     std::vector<WgslOutputExpression> outputs;
     std::vector<std::string> resource_identifiers;
+    std::vector<ShaderNodeAttribution> node_attributions;
     friend bool operator==(const WgslExpressionProgram&, const WgslExpressionProgram&) = default;
 };
 

@@ -135,6 +135,8 @@ EXPORTS
     ctex_shader_emission_cache_get_info
     ctex_shader_emission_cache_clear
     ctex_shader_emit_material_cached
+    ctex_shader_emit_material_inspectable
+    ctex_shader_get_backend_attribution
     ctex_shader_emit_layer_stack
     ctex_shader_emit_lit_preview
     ctex_shader_emit_channel_inspection

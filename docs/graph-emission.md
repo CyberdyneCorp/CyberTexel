@@ -15,6 +15,12 @@ hex-encoded in generated names, so arbitrary user-facing names cannot collide
 or inject shader text. Attribution comments retain the producing node and its
 complete group path.
 
+The expression program also carries the same attribution structurally: stable
+variable name, qualified node path, type ID, node ID and output socket. Complete
+material emission preserves that table for all targets. The public
+`ctex_shader_emit_material_inspectable` route publishes it as deterministic JSON
+beside textual shaders or as companion metadata beside raw SPIR-V modules.
+
 Emission starts at the material output and memoizes every requested node output.
 A node callback therefore runs once even when its result fans out to multiple
 consumers. Unreachable nodes emit nothing. Socket coercions are inserted at each

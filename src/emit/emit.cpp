@@ -357,6 +357,19 @@ private:
     void emit_declaration(std::span<const QualifiedGroup> path, const GraphNode& node,
                           const NodeSocket& socket, std::string_view name,
                           std::string_view expression) {
+        std::string node_path;
+        for (const QualifiedGroup& group : path) {
+            node_path.append(group.identifier);
+            node_path.append("[");
+            node_path.append(std::to_string(group.instance_id));
+            node_path.append("]/ ");
+        }
+        node_path.append(node.type_id);
+        node_path.append("[");
+        node_path.append(std::to_string(node.id));
+        node_path.append("]");
+        program_.node_attributions.push_back(
+            {std::string(name), node_path, node.type_id, node.id, socket.identifier});
         program_.source.append("// node ");
         for (const QualifiedGroup& group : path) {
             program_.source.append(comment_text(group.identifier));

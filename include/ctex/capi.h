@@ -3606,6 +3606,46 @@ typedef struct ctex_shader_material_info {
 #define CTEX_SHADER_MATERIAL_INFO_V1_SIZE ((uint32_t)sizeof(ctex_shader_material_info))
 #define CTEX_SHADER_MATERIAL_INFO_CURRENT_SIZE ((uint32_t)sizeof(ctex_shader_material_info))
 
+typedef enum ctex_shader_material_source_kind {
+    CTEX_SHADER_MATERIAL_SOURCE_SERIALIZED_GRAPH = 0,
+    CTEX_SHADER_MATERIAL_SOURCE_WORKSPACE = 1
+} ctex_shader_material_source_kind;
+
+typedef struct ctex_shader_material_source_descriptor {
+    uint32_t size;
+    uint32_t kind; /* ctex_shader_material_source_kind */
+    const void* graph_serialized;
+    size_t graph_serialized_size;
+    const ctex_material_graph_workspace* workspace;
+    const char* material_identifier;
+} ctex_shader_material_source_descriptor;
+
+#define CTEX_SHADER_MATERIAL_SOURCE_DESCRIPTOR_V1_SIZE \
+    ((uint32_t)sizeof(ctex_shader_material_source_descriptor))
+#define CTEX_SHADER_MATERIAL_SOURCE_DESCRIPTOR_CURRENT_SIZE \
+    ((uint32_t)sizeof(ctex_shader_material_source_descriptor))
+
+typedef struct ctex_shader_material_debug_info {
+    uint32_t size;
+    size_t node_attribution_count;
+    size_t metadata_size;
+    uint32_t binary_companion;
+} ctex_shader_material_debug_info;
+
+#define CTEX_SHADER_MATERIAL_DEBUG_INFO_V1_SIZE ((uint32_t)sizeof(ctex_shader_material_debug_info))
+#define CTEX_SHADER_MATERIAL_DEBUG_INFO_CURRENT_SIZE \
+    ((uint32_t)sizeof(ctex_shader_material_debug_info))
+
+typedef struct ctex_shader_backend_attribution_info {
+    uint32_t size;
+    size_t report_size;
+} ctex_shader_backend_attribution_info;
+
+#define CTEX_SHADER_BACKEND_ATTRIBUTION_INFO_V1_SIZE \
+    ((uint32_t)sizeof(ctex_shader_backend_attribution_info))
+#define CTEX_SHADER_BACKEND_ATTRIBUTION_INFO_CURRENT_SIZE \
+    ((uint32_t)sizeof(ctex_shader_backend_attribution_info))
+
 typedef struct ctex_shader_layer_descriptor {
     uint32_t size;
     const char* identifier;
@@ -4322,6 +4362,26 @@ CTEX_API ctex_result ctex_shader_emit_material_cached(
     void* vertex_artifact, size_t vertex_artifact_size, void* fragment_artifact,
     size_t fragment_artifact_size, char* pass_plan_output, size_t pass_plan_output_size,
     char* workaround_report_output, size_t workaround_report_output_size, uint32_t* out_cache_hit);
+
+/*
+ * Emits a serialized graph or a named workspace material and publishes
+ * structured node attribution beside text or binary artifacts. The cache and
+ * registry are optional. SPIR-V reports binary_companion=1 because attribution
+ * remains JSON metadata rather than pretending the module is source text.
+ */
+CTEX_API ctex_result ctex_shader_emit_material_inspectable(
+    ctex_shader_emission_cache* cache, const ctex_material_graph_node_registry* registry,
+    const ctex_shader_material_source_descriptor* source,
+    const ctex_shader_material_request* request, ctex_shader_material_info* out_info,
+    void* vertex_artifact, size_t vertex_artifact_size, void* fragment_artifact,
+    size_t fragment_artifact_size, char* pass_plan_output, size_t pass_plan_output_size,
+    char* workaround_report_output, size_t workaround_report_output_size,
+    ctex_shader_material_debug_info* out_debug_info, char* debug_metadata_output,
+    size_t debug_metadata_output_size, uint32_t* out_cache_hit);
+
+/* Returns the pinned Kongruent backend identity, licence, source and revisions as JSON. */
+CTEX_API ctex_result ctex_shader_get_backend_attribution(
+    ctex_shader_backend_attribution_info* out_info, char* report_output, size_t report_output_size);
 
 /*
  * Emits a bottom-to-top premultiplied layer stack. The packed artifact report

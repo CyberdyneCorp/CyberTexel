@@ -24,8 +24,10 @@ focused shader determinism registry, and the vendored dependency audit.
 | No environment supplied | `preview-emission` | All targets compile the documented deterministic fallback |
 | Host matches the shading model | `preview-emission` | Generated GGX terms and pass inputs match the documented parameter contract |
 | Debugging a material | `graph-emission`, `material-emission` | Readable WGSL retains producing-node and complete group-path comments |
+| Inspecting emission through C | `c-abi-shader-debug` | Stable reused variables and structured node attribution cross the boundary for text and SPIR-V |
+| Name collision across workspace groups through C | `c-abi-shader-debug` | Qualified group paths distinguish colliding internal node IDs in public output |
 | Reproducible build | `shader-emission-determinism` | Graph, complete material, Kong, layer-stack and preview bytes match across clean runs |
-| Audit covers the vendored compiler | `shader-emission-licence-audit` | Kong licence text, source discovery and pinned revision are checked |
+| Audit covers the vendored compiler | `shader-emission-licence-audit`, `c-abi-shader-debug` | Kong licence text, source discovery and pinned revisions are checked and exposed at runtime |
 | Undo resource remains in use | `pass-plan` | Logical generations and derived reader/writer lifetimes survive through the final dependent pass |
 
 The last scenario's execution-side completion record and physical-allocation

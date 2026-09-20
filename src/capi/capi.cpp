@@ -8145,12 +8145,47 @@ std::string shader_workaround_json(std::span<const ctex::emit::CapabilityWorkaro
     return output;
 }
 
+std::string shader_debug_metadata_json(const ctex::emit::MaterialShaderEmission& emission) {
+    std::string output = "{\"schema\":1,\"target\":";
+    append_json_text(output, ctex::emit::shader_target_name(emission.shader.target));
+    output += ",\"binary_companion\":";
+    output += emission.shader.target == ctex::emit::ShaderTarget::spirv ? "true" : "false";
+    output += ",\"node_attributions\":[";
+    for (std::size_t index = 0; index < emission.node_attributions.size(); ++index) {
+        if (index != 0) output.push_back(',');
+        const ctex::emit::ShaderNodeAttribution& attribution = emission.node_attributions[index];
+        output += "{\"variable_name\":";
+        append_json_text(output, attribution.variable_name);
+        output += ",\"node_path\":";
+        append_json_text(output, attribution.node_path);
+        output += ",\"type_id\":";
+        append_json_text(output, attribution.type_id);
+        output += ",\"node_id\":" + std::to_string(attribution.node_id) + ",\"output_socket\":";
+        append_json_text(output, attribution.output_socket);
+        output.push_back('}');
+    }
+    output += "]}";
+    return output;
+}
+
+std::string shader_backend_attribution_json() {
+    std::string output = "{\"name\":\"Kongruent minikong\",\"license\":\"Zlib\",";
+    output += "\"revision\":\"c5ccdf27818a36e67decb691009a3db457d59ab3\",";
+    output += "\"upstream_revision\":\"1b0f3b70673122e3b20701cdb434781a065555d7\",";
+    output += "\"source\":\"https://github.com/armory3d/armorpaint/tree/";
+    output += "c5ccdf27818a36e67decb691009a3db457d59ab3/base/sources/kong\",";
+    output += "\"license_file\":\"thirdparty/licenses/kongruent.txt\",";
+    output += "\"local_changes\":\"thirdparty/kong/CYBERTEXEL_CHANGES.md\"}";
+    return output;
+}
+
 struct PreparedShaderEmission {
     ctex::emit::MaterialShaderEmission value;
     std::vector<std::byte> vertex;
     std::vector<std::byte> fragment;
     std::string pass_plan;
     std::string workarounds;
+    std::string debug_metadata;
 };
 
 std::vector<std::byte> shader_text_artifact(std::string_view source) {
@@ -8185,10 +8220,12 @@ PreparedShaderEmission prepare_shader_emission(ctex::emit::MaterialShaderEmissio
                                   .vertex = {},
                                   .fragment = {},
                                   .pass_plan = {},
-                                  .workarounds = {}};
+                                  .workarounds = {},
+                                  .debug_metadata = {}};
     prepare_shader_artifacts(result.value.shader, result.vertex, result.fragment);
     result.pass_plan = shader_pass_plan_json(result.value.pass_plan);
     result.workarounds = shader_workaround_json(result.value.workarounds);
+    result.debug_metadata = shader_debug_metadata_json(result.value);
     return result;
 }
 
@@ -8240,6 +8277,92 @@ void return_shader_material_emission(const PreparedShaderEmission& prepared, std
         std::memcpy(workaround_report_output, prepared.workarounds.c_str(),
                     out_info->workaround_report_size);
     }
+}
+
+void return_inspectable_material_emission(
+    const PreparedShaderEmission& prepared, std::uint32_t target, bool cache_hit,
+    ctex_shader_material_info* out_info, void* vertex_artifact, std::size_t vertex_artifact_size,
+    void* fragment_artifact, std::size_t fragment_artifact_size, char* pass_plan_output,
+    std::size_t pass_plan_output_size, char* workaround_report_output,
+    std::size_t workaround_report_output_size, ctex_shader_material_debug_info* out_debug_info,
+    char* debug_metadata_output, std::size_t debug_metadata_output_size,
+    std::uint32_t* out_cache_hit) {
+    *out_debug_info = {
+        .size = CTEX_SHADER_MATERIAL_DEBUG_INFO_CURRENT_SIZE,
+        .node_attribution_count = prepared.value.node_attributions.size(),
+        .metadata_size = prepared.debug_metadata.size() + 1,
+        .binary_companion =
+            prepared.value.shader.target == ctex::emit::ShaderTarget::spirv ? 1U : 0U,
+    };
+    validate_string_buffer(debug_metadata_output, debug_metadata_output_size,
+                           out_debug_info->metadata_size);
+    return_shader_material_emission(prepared, target, out_info, vertex_artifact,
+                                    vertex_artifact_size, fragment_artifact, fragment_artifact_size,
+                                    pass_plan_output, pass_plan_output_size,
+                                    workaround_report_output, workaround_report_output_size);
+    if (debug_metadata_output != nullptr) {
+        std::memcpy(debug_metadata_output, prepared.debug_metadata.c_str(),
+                    out_debug_info->metadata_size);
+    }
+    *out_cache_hit = cache_hit ? 1U : 0U;
+}
+
+PreparedShaderEmission emit_material_source(
+    ctex_shader_emission_cache* cache, const ctex_material_graph_node_registry* registry,
+    const ctex_shader_material_source_descriptor& source,
+    const ctex::emit::MaterialShaderEmissionRequest& request, bool& cache_hit) {
+    validate_structure_size(source.size, CTEX_SHADER_MATERIAL_SOURCE_DESCRIPTOR_V1_SIZE,
+                            CTEX_SHADER_MATERIAL_SOURCE_DESCRIPTOR_CURRENT_SIZE,
+                            "shader material source size");
+    if (source.kind == CTEX_SHADER_MATERIAL_SOURCE_SERIALIZED_GRAPH) {
+        if (source.workspace != nullptr || source.material_identifier != nullptr) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_INVALID_SHADER_EMISSION,
+                           "serialized graph source also contains workspace fields");
+        }
+        const ctex::graph::GraphDocument graph = ctex::graph::deserialize_graph(
+            material_graph_bytes(source.graph_serialized, source.graph_serialized_size));
+        if (cache == nullptr) {
+            cache_hit = false;
+            return prepare_shader_emission(
+                registry == nullptr
+                    ? ctex::emit::emit_material_shader(graph, request)
+                    : ctex::emit::emit_material_shader(graph, registry->value, request));
+        }
+        const ctex::emit::CachedMaterialShaderEmission cached =
+            registry == nullptr ? cache->material.emit(graph, request)
+                                : cache->material.emit(graph, registry->value, request);
+        cache_hit = cached.cache_hit;
+        return prepare_shader_emission(*cached.emission);
+    }
+    if (source.kind != CTEX_SHADER_MATERIAL_SOURCE_WORKSPACE) {
+        throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_INVALID_ENUM_VALUE,
+                       "shader material source kind=" + std::to_string(source.kind));
+    }
+    if (source.workspace == nullptr || source.material_identifier == nullptr) {
+        throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                       "workspace and material_identifier are required");
+    }
+    if (source.graph_serialized != nullptr || source.graph_serialized_size != 0) {
+        throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_INVALID_SHADER_EMISSION,
+                       "workspace source also contains serialized graph fields");
+    }
+    if (cache == nullptr) {
+        cache_hit = false;
+        return prepare_shader_emission(
+            registry == nullptr ? ctex::emit::emit_workspace_material_shader(
+                                      source.workspace->value, source.material_identifier, request)
+                                : ctex::emit::emit_workspace_material_shader(
+                                      source.workspace->value, source.material_identifier,
+                                      registry->value, request));
+    }
+    const ctex::emit::CachedMaterialShaderEmission cached =
+        registry == nullptr
+            ? cache->material.emit_material(source.workspace->value, source.material_identifier,
+                                            request)
+            : cache->material.emit_material(source.workspace->value, source.material_identifier,
+                                            registry->value, request);
+    cache_hit = cached.cache_hit;
+    return prepare_shader_emission(*cached.emission);
 }
 
 struct PreparedPreviewEmission {
@@ -10712,6 +10835,61 @@ extern "C" ctex_result ctex_shader_emit_material_cached(
             fragment_artifact, fragment_artifact_size, pass_plan_output, pass_plan_output_size,
             workaround_report_output, workaround_report_output_size);
         *out_cache_hit = cached.cache_hit ? 1U : 0U;
+    });
+}
+
+extern "C" ctex_result ctex_shader_emit_material_inspectable(
+    ctex_shader_emission_cache* cache, const ctex_material_graph_node_registry* registry,
+    const ctex_shader_material_source_descriptor* source,
+    const ctex_shader_material_request* request, ctex_shader_material_info* out_info,
+    void* vertex_artifact, std::size_t vertex_artifact_size, void* fragment_artifact,
+    std::size_t fragment_artifact_size, char* pass_plan_output, std::size_t pass_plan_output_size,
+    char* workaround_report_output, std::size_t workaround_report_output_size,
+    ctex_shader_material_debug_info* out_debug_info, char* debug_metadata_output,
+    std::size_t debug_metadata_output_size, std::uint32_t* out_cache_hit) {
+    return call_shader_emission_boundary("ctex_shader_emit_material_inspectable", [&] {
+        if (source == nullptr || request == nullptr || out_info == nullptr ||
+            out_debug_info == nullptr || out_cache_hit == nullptr) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                           "source, request, info, debug info, and cache-hit output are required");
+        }
+        validate_structure_size(out_info->size, CTEX_SHADER_MATERIAL_INFO_V1_SIZE,
+                                CTEX_SHADER_MATERIAL_INFO_CURRENT_SIZE,
+                                "shader material info size");
+        validate_structure_size(out_debug_info->size, CTEX_SHADER_MATERIAL_DEBUG_INFO_V1_SIZE,
+                                CTEX_SHADER_MATERIAL_DEBUG_INFO_CURRENT_SIZE,
+                                "shader material debug info size");
+        const ctex::emit::MaterialShaderEmissionRequest converted =
+            shader_material_request(*request);
+        bool cache_hit = false;
+        const PreparedShaderEmission prepared =
+            emit_material_source(cache, registry, *source, converted, cache_hit);
+        return_inspectable_material_emission(
+            prepared, request->target, cache_hit, out_info, vertex_artifact, vertex_artifact_size,
+            fragment_artifact, fragment_artifact_size, pass_plan_output, pass_plan_output_size,
+            workaround_report_output, workaround_report_output_size, out_debug_info,
+            debug_metadata_output, debug_metadata_output_size, out_cache_hit);
+    });
+}
+
+extern "C" ctex_result ctex_shader_get_backend_attribution(
+    ctex_shader_backend_attribution_info* out_info, char* report_output,
+    std::size_t report_output_size) {
+    return call_boundary("ctex_shader_get_backend_attribution", [&] {
+        if (out_info == nullptr) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                           "out_info=null");
+        }
+        validate_structure_size(out_info->size, CTEX_SHADER_BACKEND_ATTRIBUTION_INFO_V1_SIZE,
+                                CTEX_SHADER_BACKEND_ATTRIBUTION_INFO_CURRENT_SIZE,
+                                "shader backend attribution info size");
+        const std::string report = shader_backend_attribution_json();
+        *out_info = {.size = CTEX_SHADER_BACKEND_ATTRIBUTION_INFO_CURRENT_SIZE,
+                     .report_size = report.size() + 1};
+        validate_string_buffer(report_output, report_output_size, out_info->report_size);
+        if (report_output != nullptr) {
+            std::memcpy(report_output, report.c_str(), out_info->report_size);
+        }
     });
 }
 
