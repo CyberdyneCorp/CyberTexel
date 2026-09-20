@@ -9,6 +9,7 @@
 #include <ctex/doc/smart_material.hpp>
 #include <ctex/image/color_policy.hpp>
 #include <ctex/io/image_io.hpp>
+#include <ctex/io/preset_library.hpp>
 #include <ctex/io/project_container.hpp>
 #include <ctex/io/smart_material_package.hpp>
 #include <ctex/io/standalone_asset.hpp>
@@ -4402,6 +4403,150 @@ void set_preset_application_info(ctex_preset_application_info& out_info,
     };
 }
 
+[[noreturn]] void throw_preset_library_error(const ctex::io::PresetLibraryError& error) {
+    const ctex_result result = error.code() == ctex::io::PresetLibraryErrorCode::unsupported_version
+                                   ? CTEX_RESULT_UNSUPPORTED_OPERATION
+                                   : CTEX_RESULT_INVALID_ARGUMENT;
+    throw_boundary(result, CTEX_DIAGNOSTIC_INVALID_PRESET_LIBRARY, error.what());
+}
+
+const char* require_preset_library_text(const char* value, std::string_view field) {
+    if (value == nullptr) {
+        throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                       std::string(field) + "=null");
+    }
+    if (value[0] == '\0') {
+        throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_INVALID_PRESET_LIBRARY,
+                       std::string(field) + " is empty");
+    }
+    return value;
+}
+
+ctex::io::PresetShelfEntry preset_shelf_entry(
+    const ctex_preset_shelf_entry_descriptor& descriptor) {
+    validate_structure_size(descriptor.size, CTEX_PRESET_SHELF_ENTRY_DESCRIPTOR_V1_SIZE,
+                            CTEX_PRESET_SHELF_ENTRY_DESCRIPTOR_CURRENT_SIZE,
+                            "preset shelf entry size");
+    if (descriptor.tags == nullptr && descriptor.tag_count != 0) {
+        throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                       "preset shelf entry tags=null with nonzero count");
+    }
+    std::vector<std::string> tags;
+    tags.reserve(descriptor.tag_count);
+    for (std::size_t index = 0; index < descriptor.tag_count; ++index) {
+        tags.emplace_back(require_preset_library_text(descriptor.tags[index], "preset tag"));
+    }
+    return {
+        .asset_identifier =
+            require_preset_library_text(descriptor.asset_identifier, "preset asset identifier"),
+        .display_name = require_preset_library_text(descriptor.display_name, "preset display name"),
+        .tags = std::move(tags),
+        .thumbnail_resource_identifier = require_preset_library_text(
+            descriptor.thumbnail_resource_identifier, "preset thumbnail identifier"),
+    };
+}
+
+ctex::io::PresetShelf preset_shelf(const ctex_preset_shelf_descriptor& descriptor,
+                                   const ctex::io::ProjectContainerReadLimits& limits) {
+    validate_structure_size(descriptor.size, CTEX_PRESET_SHELF_DESCRIPTOR_V1_SIZE,
+                            CTEX_PRESET_SHELF_DESCRIPTOR_CURRENT_SIZE, "preset shelf size");
+    if (descriptor.entries == nullptr && descriptor.entry_count != 0) {
+        throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                       "preset shelf entries=null with nonzero count");
+    }
+    ctex::io::PresetShelf shelf{
+        .identifier = require_preset_library_text(descriptor.identifier, "preset shelf identifier"),
+        .display_name =
+            require_preset_library_text(descriptor.display_name, "preset shelf display name"),
+        .contents =
+            ctex::io::read_project_container(
+                project_container_bytes(descriptor.contents, descriptor.contents_size), limits)
+                .container,
+        .entries = {},
+    };
+    shelf.entries.reserve(descriptor.entry_count);
+    for (std::size_t index = 0; index < descriptor.entry_count; ++index) {
+        shelf.entries.push_back(preset_shelf_entry(descriptor.entries[index]));
+    }
+    return shelf;
+}
+
+ctex::io::PresetLibrary preset_library(const ctex_preset_library_descriptor& descriptor) {
+    validate_structure_size(descriptor.size, CTEX_PRESET_LIBRARY_DESCRIPTOR_V1_SIZE,
+                            CTEX_PRESET_LIBRARY_DESCRIPTOR_CURRENT_SIZE, "preset library size");
+    if (descriptor.shelves == nullptr && descriptor.shelf_count != 0) {
+        throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                       "preset library shelves=null with nonzero count");
+    }
+    const ctex::io::ProjectContainerReadLimits limits =
+        project_container_limits(descriptor.read_limits);
+    ctex::io::PresetLibrary result;
+    result.shelves.reserve(descriptor.shelf_count);
+    for (std::size_t index = 0; index < descriptor.shelf_count; ++index) {
+        result.shelves.push_back(preset_shelf(descriptor.shelves[index], limits));
+    }
+    return result;
+}
+
+void append_preset_listing_json(std::string& output, const ctex::io::PresetListing& listing) {
+    output += "{\"shelf\":";
+    append_json_text(output, listing.shelf_identifier);
+    output += ",\"id\":";
+    append_json_text(output, listing.identifier);
+    output += ",\"kind\":";
+    append_json_text(output, listing.kind);
+    output += ",\"schema_version\":" + std::to_string(listing.format_version);
+    output += ",\"display_name\":";
+    append_json_text(output, listing.display_name);
+    output += ",\"tags\":[";
+    for (std::size_t index = 0; index < listing.tags.size(); ++index) {
+        if (index != 0) {
+            output.push_back(',');
+        }
+        append_json_text(output, listing.tags[index]);
+    }
+    output += "],\"thumbnail\":";
+    append_project_image_json(output, listing.thumbnail);
+    output.push_back('}');
+}
+
+std::string preset_library_json(const ctex::io::PresetLibrary& library) {
+    const std::vector<ctex::io::PresetShelfListing> shelves =
+        ctex::io::enumerate_preset_shelves(library);
+    const std::vector<ctex::io::PresetListing> presets = ctex::io::enumerate_presets(library);
+    std::string output = "{\"shelves\":[";
+    for (std::size_t index = 0; index < shelves.size(); ++index) {
+        if (index != 0) {
+            output.push_back(',');
+        }
+        output += "{\"id\":";
+        append_json_text(output, shelves[index].identifier);
+        output += ",\"display_name\":";
+        append_json_text(output, shelves[index].display_name);
+        output += ",\"preset_count\":" + std::to_string(shelves[index].preset_count) + "}";
+    }
+    output += "],\"presets\":[";
+    for (std::size_t index = 0; index < presets.size(); ++index) {
+        if (index != 0) {
+            output.push_back(',');
+        }
+        append_preset_listing_json(output, presets[index]);
+    }
+    output += "]}";
+    return output;
+}
+
+void include_listing_thumbnail(ctex::io::ResolvedPreset& resolved) {
+    const auto found =
+        std::find_if(resolved.package.tiled_images.begin(), resolved.package.tiled_images.end(),
+                     [&](const ctex::io::StoredTiledImage& image) {
+                         return image.resource_id == resolved.listing.thumbnail.resource_id;
+                     });
+    if (found == resolved.package.tiled_images.end()) {
+        resolved.package.tiled_images.push_back(resolved.listing.thumbnail);
+    }
+}
+
 }  // namespace
 
 void* ctex_host_memory_resource::do_allocate(std::size_t bytes, std::size_t alignment) {
@@ -5266,6 +5411,69 @@ extern "C" ctex_result ctex_smart_material_import(
             throw_smart_material_error(error);
         } catch (const ctex::io::ProjectContainerError& error) {
             throw_project_container_error(error);
+        }
+    });
+}
+
+extern "C" ctex_result ctex_preset_library_enumerate(const ctex_preset_library_descriptor* library,
+                                                     ctex_preset_library_info* out_info,
+                                                     char* report_output,
+                                                     std::size_t report_output_size) {
+    return call_boundary("ctex_preset_library_enumerate", [&] {
+        if (library == nullptr || out_info == nullptr) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                           library == nullptr ? "library=null" : "out_info=null");
+        }
+        validate_structure_size(out_info->size, CTEX_PRESET_LIBRARY_INFO_V1_SIZE,
+                                CTEX_PRESET_LIBRARY_INFO_CURRENT_SIZE, "preset library info size");
+        try {
+            const ctex::io::PresetLibrary converted = preset_library(*library);
+            const std::string report = preset_library_json(converted);
+            const std::size_t preset_count = ctex::io::enumerate_presets(converted).size();
+            *out_info = {
+                .size = CTEX_PRESET_LIBRARY_INFO_CURRENT_SIZE,
+                .shelf_count = converted.shelves.size(),
+                .preset_count = preset_count,
+                .report_size = report.size() + 1,
+            };
+            validate_string_buffer(report_output, report_output_size, out_info->report_size);
+            if (report_output != nullptr) {
+                std::memcpy(report_output, report.c_str(), out_info->report_size);
+            }
+        } catch (const ctex::io::ProjectContainerError& error) {
+            throw_project_container_error(error);
+        } catch (const ctex::io::PresetLibraryError& error) {
+            throw_preset_library_error(error);
+        }
+    });
+}
+
+extern "C" ctex_result ctex_preset_library_resolve(
+    const ctex_preset_library_descriptor* library, const char* preset_identifier,
+    ctex_project_container_info* out_info, void* package_output, std::size_t package_output_size,
+    char* report_output, std::size_t report_output_size) {
+    return call_boundary("ctex_preset_library_resolve", [&] {
+        if (library == nullptr || preset_identifier == nullptr || out_info == nullptr) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                           "library, preset_identifier and out_info are required");
+        }
+        validate_structure_size(out_info->size, CTEX_PROJECT_CONTAINER_INFO_V1_SIZE,
+                                CTEX_PROJECT_CONTAINER_INFO_CURRENT_SIZE,
+                                "project container info size");
+        try {
+            ctex::io::ResolvedPreset resolved =
+                ctex::io::resolve_preset(preset_library(*library), preset_identifier);
+            include_listing_thumbnail(resolved);
+            PreparedProjectContainer prepared =
+                prepare_project_container(project_container_result(std::move(resolved.package)));
+            *out_info = prepared.info;
+            validate_project_container_outputs(prepared, package_output, package_output_size,
+                                               report_output, report_output_size);
+            write_project_container_outputs(prepared, package_output, report_output);
+        } catch (const ctex::io::ProjectContainerError& error) {
+            throw_project_container_error(error);
+        } catch (const ctex::io::PresetLibraryError& error) {
+            throw_preset_library_error(error);
         }
     });
 }

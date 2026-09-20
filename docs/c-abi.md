@@ -280,6 +280,15 @@ entry without losing that origin. One
 `ctex_texture_set_undo_last_preset_application` call removes the complete most
 recent material or mask application.
 
+`ctex_preset_library_enumerate` validates caller-described shelves and returns
+stable JSON listings for all seven preset kinds, including display names,
+sorted tags, schema versions, and thumbnail metadata. Shelf contents are
+bounded project-container bytes. `ctex_preset_library_resolve` selects a preset
+by its globally stable identifier and returns a standalone project-container
+package containing the asset, its exact dependencies, and its shelf thumbnail.
+Future preset versions are refused by identity before enumeration or
+resolution.
+
 ## Stroke reconstruction
 
 `ctex_stroke_settings_init` produces the complete canonical default settings,
@@ -477,6 +486,7 @@ The contract is stated per entry-point family:
 | `ctex_texture_export_get_built_in_preset_ids`, `ctex_texture_export_run` | Stateless and safe to call concurrently; callback state belongs to the host and must support the host's chosen concurrency |
 | `ctex_project_container_create_empty`, `ctex_project_container_probe_version`, `ctex_project_container_normalize`, `ctex_project_container_save_atomic`, `ctex_project_asset_export`, `ctex_project_asset_install` | Stateless and safe to call concurrently. Saves to distinct paths are independent; callers serialize saves to the same destination when publication order matters |
 | `ctex_smart_material_inspect`, `ctex_smart_material_set_parameter`, `ctex_smart_material_set_anchor`, `ctex_smart_material_add_anchor_reference`, `ctex_smart_material_plan_anchor_evaluation`, `ctex_smart_material_package`, `ctex_smart_material_import` | Stateless and safe to call concurrently; all returned storage is caller-owned |
+| `ctex_preset_library_enumerate`, `ctex_preset_library_resolve` | Stateless and safe to call concurrently; descriptors and encoded shelf contents are borrowed only for the call and outputs are caller-owned |
 | `ctex_texture_set_apply_smart_material`, `ctex_texture_set_apply_smart_mask`, `ctex_texture_set_get_preset_applications`, `ctex_texture_set_set_applied_entry_state`, `ctex_texture_set_undo_last_preset_application` | Distinct documents are independent; callers serialize these operations with every other operation on the same document |
 | `ctex_paint_dilation_session_create`, `ctex_paint_dilation_session_destroy`, `ctex_paint_dilation_session_stage_tile`, `ctex_paint_dilation_session_get_preview`, `ctex_paint_dilation_session_finish` | Distinct sessions are independent and may be used concurrently; callers serialize staging, preview, finish and destruction of the same session |
 | `ctex_paint_surface_map_cache_create`, `ctex_paint_surface_map_cache_destroy`, `ctex_paint_surface_map_cache_clear`, `ctex_paint_surface_map_cache_get_statistics`, `ctex_paint_surface_map_cache_lookup` | Distinct caches are independent and may be used concurrently; callers serialize lookup, statistics, clearing and destruction of the same cache, and keep each mesh alive for its lookup call |

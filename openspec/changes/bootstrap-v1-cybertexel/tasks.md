@@ -726,6 +726,13 @@ and remove every entry in an application through one undo operation. Refused
 mask targets leave the document unchanged. The exact remaining C ABI gap is 133
 runtime requirements.
 
+The shelf continuation exposes one more smart-material requirement. Hosts can
+describe bounded encoded shelves, enumerate all seven preset kinds with stable
+metadata and thumbnail details, and resolve a globally stable preset identity
+to a standalone package that includes its thumbnail. Future preset versions
+are refused by identity. The broader cross-kind migration requirement remains
+open. The exact remaining C ABI gap is 132 runtime requirements.
+
 ## 1. Foundation
 
 - [x] 1.1 CMake project, C++20, warnings as errors, presets for headless, macOS, Linux, Windows, iOS, Android

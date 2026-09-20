@@ -37,7 +37,9 @@ exposes canonical migration, mixed-content inventories, typed parameter
 fan-out, anchor editing, cycle refusal, dependency-ordered evaluation, portable
 resource resolution and self-contained packaging. Material and mask fragments
 can now be applied transactionally, inspected and edited as ordinary entries,
-then removed as one undo step. Exactly 133 runtime
+then removed as one undo step. Named shelves enumerate all seven preset kinds
+with metadata and thumbnails, and stable identities resolve to standalone
+packages. Exactly 132 runtime
 requirements remain unmapped.
 The gate is not part of the aggregate `just check` until that count reaches zero;
 its unit tests run in the normal tooling suite throughout the migration.

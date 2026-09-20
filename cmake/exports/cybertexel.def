@@ -52,6 +52,8 @@ EXPORTS
     ctex_project_container_save_atomic
     ctex_project_asset_export
     ctex_project_asset_install
+    ctex_preset_library_enumerate
+    ctex_preset_library_resolve
     ctex_smart_material_add_anchor_reference
     ctex_smart_material_inspect
     ctex_smart_material_import

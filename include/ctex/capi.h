@@ -85,7 +85,8 @@ typedef enum ctex_diagnostic_code {
     CTEX_DIAGNOSTIC_INVALID_PICK_QUERY = 49,
     CTEX_DIAGNOSTIC_INVALID_TEXTURE_EXPORT = 50,
     CTEX_DIAGNOSTIC_INVALID_PROJECT_CONTAINER = 51,
-    CTEX_DIAGNOSTIC_INVALID_SMART_MATERIAL = 52
+    CTEX_DIAGNOSTIC_INVALID_SMART_MATERIAL = 52,
+    CTEX_DIAGNOSTIC_INVALID_PRESET_LIBRARY = 53
 } ctex_diagnostic_code;
 
 typedef enum ctex_log_severity {
@@ -1604,6 +1605,54 @@ typedef struct ctex_project_resource_descriptor {
 #define CTEX_PROJECT_RESOURCE_DESCRIPTOR_CURRENT_SIZE \
     ((uint32_t)sizeof(ctex_project_resource_descriptor))
 
+typedef struct ctex_preset_shelf_entry_descriptor {
+    uint32_t size;
+    const char* asset_identifier;
+    const char* display_name;
+    const char* const* tags;
+    size_t tag_count;
+    const char* thumbnail_resource_identifier;
+} ctex_preset_shelf_entry_descriptor;
+
+#define CTEX_PRESET_SHELF_ENTRY_DESCRIPTOR_V1_SIZE \
+    ((uint32_t)sizeof(ctex_preset_shelf_entry_descriptor))
+#define CTEX_PRESET_SHELF_ENTRY_DESCRIPTOR_CURRENT_SIZE \
+    ((uint32_t)sizeof(ctex_preset_shelf_entry_descriptor))
+
+typedef struct ctex_preset_shelf_descriptor {
+    uint32_t size;
+    const char* identifier;
+    const char* display_name;
+    const void* contents;
+    size_t contents_size;
+    const ctex_preset_shelf_entry_descriptor* entries;
+    size_t entry_count;
+} ctex_preset_shelf_descriptor;
+
+#define CTEX_PRESET_SHELF_DESCRIPTOR_V1_SIZE ((uint32_t)sizeof(ctex_preset_shelf_descriptor))
+#define CTEX_PRESET_SHELF_DESCRIPTOR_CURRENT_SIZE ((uint32_t)sizeof(ctex_preset_shelf_descriptor))
+
+typedef struct ctex_preset_library_descriptor {
+    uint32_t size;
+    const ctex_preset_shelf_descriptor* shelves;
+    size_t shelf_count;
+    const ctex_project_container_read_limits_descriptor* read_limits;
+} ctex_preset_library_descriptor;
+
+#define CTEX_PRESET_LIBRARY_DESCRIPTOR_V1_SIZE ((uint32_t)sizeof(ctex_preset_library_descriptor))
+#define CTEX_PRESET_LIBRARY_DESCRIPTOR_CURRENT_SIZE \
+    ((uint32_t)sizeof(ctex_preset_library_descriptor))
+
+typedef struct ctex_preset_library_info {
+    uint32_t size;
+    size_t shelf_count;
+    size_t preset_count;
+    size_t report_size;
+} ctex_preset_library_info;
+
+#define CTEX_PRESET_LIBRARY_INFO_V1_SIZE ((uint32_t)sizeof(ctex_preset_library_info))
+#define CTEX_PRESET_LIBRARY_INFO_CURRENT_SIZE ((uint32_t)sizeof(ctex_preset_library_info))
+
 typedef enum ctex_smart_material_value_type {
     CTEX_SMART_MATERIAL_VALUE_SCALAR = 0,
     CTEX_SMART_MATERIAL_VALUE_VECTOR = 1,
@@ -1921,6 +1970,18 @@ CTEX_API ctex_result ctex_smart_material_import(
     const ctex_project_asset_search_paths_descriptor* search_paths,
     ctex_smart_material_info* out_info, void* canonical_output, size_t canonical_output_size,
     char* report_output, size_t report_output_size);
+
+/* Validates and enumerates every named shelf and preset in stable order. */
+CTEX_API ctex_result ctex_preset_library_enumerate(const ctex_preset_library_descriptor* library,
+                                                   ctex_preset_library_info* out_info,
+                                                   char* report_output, size_t report_output_size);
+
+/* Resolves one globally stable preset identity into a standalone package. */
+CTEX_API ctex_result ctex_preset_library_resolve(const ctex_preset_library_descriptor* library,
+                                                 const char* preset_identifier,
+                                                 ctex_project_container_info* out_info,
+                                                 void* package_output, size_t package_output_size,
+                                                 char* report_output, size_t report_output_size);
 
 /*
  * Initializes the current stroke settings descriptor to the canonical defaults.

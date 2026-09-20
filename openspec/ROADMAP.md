@@ -164,7 +164,9 @@ evaluation planning. Portable resource manifests now support ordered search-path
 resolution, explicit missing-input reports and self-contained packaging.
 Material and mask fragments can now be instantiated transactionally, inspected
 and edited as ordinary entries with retained origin metadata, and removed as a
-single undo step. Exactly 133 runtime requirements still lack C ABI evidence;
+single undo step. Named shelves enumerate every preset kind with metadata and
+thumbnails, while stable preset identities resolve to standalone packages.
+Exactly 132 runtime requirements still lack C ABI evidence;
 those gaps must be implemented before task 14.8 can close.
 
 ## Milestones

@@ -121,7 +121,8 @@
       {"requirement": "A smart material is a parameterised stack", "symbols": ["ctex_texture_set_apply_smart_material", "ctex_texture_set_get_preset_applications"]},
       {"requirement": "Smart masks", "symbols": ["ctex_texture_set_apply_smart_mask", "ctex_texture_set_get_preset_applications"]},
       {"requirement": "Applying is one undo step", "symbols": ["ctex_texture_set_apply_smart_material", "ctex_texture_set_apply_smart_mask", "ctex_texture_set_undo_last_preset_application"]},
-      {"requirement": "Instantiation is inspectable", "symbols": ["ctex_texture_set_get_preset_applications", "ctex_texture_set_set_applied_entry_state"]}
+      {"requirement": "Instantiation is inspectable", "symbols": ["ctex_texture_set_get_preset_applications", "ctex_texture_set_set_applied_entry_state"]},
+      {"requirement": "Shelf and library", "symbols": ["ctex_preset_library_enumerate", "ctex_preset_library_resolve"]}
     ]},
     {"name": "stroke-model", "kind": "runtime", "requirements": [
       {"requirement": "A stroke resolves to ordered stamps", "symbols": ["ctex_stroke_settings_init", "ctex_stroke_resolve"]},
