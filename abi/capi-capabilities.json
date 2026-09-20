@@ -118,7 +118,8 @@
       {"requirement": "Decal", "symbols": ["ctex_paint_rasterize_decal"]},
       {"requirement": "Projection", "symbols": ["ctex_paint_apply_projection"]},
       {"requirement": "Text", "symbols": ["ctex_paint_apply_text"]},
-      {"requirement": "Particle", "symbols": ["ctex_paint_apply_particles"]}
+      {"requirement": "Particle", "symbols": ["ctex_paint_apply_particles"]},
+      {"requirement": "Picker", "symbols": ["ctex_paint_pick_enabled_channels"]}
     ]},
     {"name": "picking", "kind": "runtime", "requirements": [
       {"requirement": "Ray construction", "symbols": ["ctex_pick_ray_from_screen"]},

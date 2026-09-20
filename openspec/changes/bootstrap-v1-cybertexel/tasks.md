@@ -864,6 +864,12 @@ replay. Ordered contacts, final states, texture-set identities, mapped texels,
 composed strength and enabled channels publish atomically. The exact remaining C
 ABI gap is 97 runtime requirements.
 
+The Picker continuation consumes an existing public surface hit and validates
+all supplied texture-set/UDIM views before resolving exactly one match. Ordered
+enabled-channel values and optional caller-supplied material provenance publish
+atomically through caller-owned buffers. The exact remaining C ABI gap is 96
+runtime requirements.
+
 ## 1. Foundation
 
 - [x] 1.1 CMake project, C++20, warnings as errors, presets for headless, macOS, Linux, Windows, iOS, Android

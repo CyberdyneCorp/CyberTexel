@@ -33,6 +33,7 @@
 #include <ctex/paint/fill.hpp>
 #include <ctex/paint/masking.hpp>
 #include <ctex/paint/particle.hpp>
+#include <ctex/paint/picker.hpp>
 #include <ctex/paint/preview.hpp>
 #include <ctex/paint/projection.hpp>
 #include <ctex/paint/seam_dilation.hpp>
@@ -4303,6 +4304,157 @@ std::size_t validate_paint_particle_call(ctex_pick_index* index,
     }
     return bounded_paint_pixel_count(descriptor->width, descriptor->height,
                                      CTEX_DIAGNOSTIC_INVALID_PAINT_TOOL);
+}
+
+struct PaintPickerViewStorage {
+    std::string_view texture_set_id;
+    ctex::paint::Vec2d tile_origin;
+    std::uint32_t width{};
+    std::uint32_t height{};
+    std::vector<ctex::paint::PaintToolChannelRaster> channels;
+    std::vector<std::string_view> material_identities;
+    bool has_material_provenance{};
+};
+
+struct PaintPickerViews {
+    std::vector<PaintPickerViewStorage> storage;
+    std::vector<ctex::paint::PickerTextureView> views;
+};
+
+PaintPickerViewStorage paint_picker_view_storage(
+    const ctex_paint_picker_texture_view_descriptor& descriptor) {
+    validate_structure_size(descriptor.size, CTEX_PAINT_PICKER_TEXTURE_VIEW_DESCRIPTOR_V1_SIZE,
+                            CTEX_PAINT_PICKER_TEXTURE_VIEW_DESCRIPTOR_CURRENT_SIZE,
+                            "texture_views.size");
+    if (descriptor.texture_set_id == nullptr) {
+        throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                       "texture_views.texture_set_id=null");
+    }
+    const std::size_t pixel_count = bounded_paint_pixel_count(descriptor.width, descriptor.height,
+                                                              CTEX_DIAGNOSTIC_INVALID_PAINT_TOOL);
+    PaintPickerViewStorage result{
+        .texture_set_id = descriptor.texture_set_id,
+        .tile_origin = {descriptor.tile_origin.x, descriptor.tile_origin.y},
+        .width = descriptor.width,
+        .height = descriptor.height,
+        .channels =
+            paint_tool_channels(descriptor.enabled_channels, descriptor.enabled_channel_count,
+                                pixel_count, "texture_views.enabled_channels"),
+        .material_identities = {},
+        .has_material_provenance = descriptor.material_identities != nullptr,
+    };
+    require_paint_tool_array(descriptor.material_identities, descriptor.material_identity_count,
+                             "texture_views.material_identities");
+    result.material_identities.reserve(descriptor.material_identity_count);
+    for (std::size_t index = 0; index < descriptor.material_identity_count; ++index) {
+        if (descriptor.material_identities[index] == nullptr) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                           "texture_views.material_identities entry is null");
+        }
+        result.material_identities.emplace_back(descriptor.material_identities[index]);
+    }
+    return result;
+}
+
+PaintPickerViews paint_picker_views(const ctex_paint_picker_texture_view_descriptor* descriptors,
+                                    std::size_t count) {
+    require_paint_tool_array(descriptors, count, "texture_views");
+    PaintPickerViews result;
+    result.storage.reserve(count);
+    result.views.reserve(count);
+    for (std::size_t index = 0; index < count; ++index) {
+        result.storage.push_back(paint_picker_view_storage(descriptors[index]));
+    }
+    for (const PaintPickerViewStorage& source : result.storage) {
+        std::optional<ctex::paint::MaterialProvenanceView> provenance;
+        if (source.has_material_provenance) {
+            provenance = ctex::paint::MaterialProvenanceView{source.material_identities};
+        }
+        result.views.push_back({.texture_set_id = source.texture_set_id,
+                                .tile_origin = source.tile_origin,
+                                .width = source.width,
+                                .height = source.height,
+                                .enabled_channels = source.channels,
+                                .material_provenance = provenance});
+    }
+    return result;
+}
+
+ctex::pick::HitRecord paint_picker_hit(const ctex_paint_picker_descriptor& descriptor) {
+    if (descriptor.hit_texture_set_id == nullptr) {
+        throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                       "hit_texture_set_id=null");
+    }
+    if (descriptor.hit.has_hit == 0) {
+        throw std::invalid_argument("picker requires a surface hit");
+    }
+    const ctex_pick_hit& hit = descriptor.hit;
+    return {.position = {hit.position.x, hit.position.y, hit.position.z},
+            .interpolated_normal = {hit.interpolated_normal.x, hit.interpolated_normal.y,
+                                    hit.interpolated_normal.z},
+            .geometric_normal = {hit.geometric_normal.x, hit.geometric_normal.y,
+                                 hit.geometric_normal.z},
+            .uv = {hit.uv.x, hit.uv.y},
+            .texture_set_id = descriptor.hit_texture_set_id,
+            .udim_tile = {hit.udim_u, hit.udim_v, hit.udim_number},
+            .triangle_index = hit.triangle_index,
+            .barycentric = {hit.barycentric.x, hit.barycentric.y, hit.barycentric.z},
+            .material_id = hit.material_id,
+            .distance = hit.distance};
+}
+
+std::vector<std::string> paint_picker_strings(const ctex::paint::PickerResult& result) {
+    std::vector<std::string> strings;
+    strings.reserve(result.channels.size() + (result.material_identity.has_value() ? 2 : 1));
+    strings.push_back(result.texture_set_id);
+    if (result.material_identity) {
+        strings.push_back(*result.material_identity);
+    }
+    for (const ctex::paint::PickedChannelValue& channel : result.channels) {
+        strings.push_back(channel.semantic_id);
+    }
+    return strings;
+}
+
+void set_paint_picker_info(ctex_paint_picker_info& info, const ctex::paint::PickerResult& result,
+                           const std::vector<std::string>& strings,
+                           std::size_t required_string_size) {
+    const std::size_t texture_set_id_size = strings.front().size() + 1;
+    const std::size_t material_identity_size = result.material_identity ? strings[1].size() + 1 : 0;
+    info = {.size = CTEX_PAINT_PICKER_INFO_CURRENT_SIZE,
+            .tile_origin = {result.tile_origin.x, result.tile_origin.y},
+            .uv = {result.uv.x, result.uv.y},
+            .texel = result.texel,
+            .has_material_identity = result.material_identity.has_value(),
+            .texture_set_id_offset = 0,
+            .texture_set_id_size = texture_set_id_size,
+            .material_identity_offset = result.material_identity ? texture_set_id_size : 0,
+            .material_identity_size = material_identity_size,
+            .required_channel_count = result.channels.size(),
+            .required_string_size = required_string_size};
+}
+
+void copy_paint_picker_outputs(const ctex::paint::PickerResult& result,
+                               const std::vector<std::string>& strings,
+                               ctex_paint_picker_channel_value* channels, char* output_strings) {
+    if (channels == nullptr || output_strings == nullptr) {
+        return;
+    }
+    copy_packed_strings(strings, output_strings);
+    std::size_t string_offset = strings.front().size() + 1;
+    std::size_t string_index = 1;
+    if (result.material_identity) {
+        string_offset += strings[string_index].size() + 1;
+        ++string_index;
+    }
+    for (std::size_t index = 0; index < result.channels.size(); ++index, ++string_index) {
+        const ctex::paint::PickedChannelValue& source = result.channels[index];
+        channels[index] = {.component_count = source.component_count,
+                           .value = capi_colour(source.value),
+                           .semantic_id_offset = string_offset,
+                           .semantic_id_size = strings[string_index].size() + 1};
+        string_offset += strings[string_index].size() + 1;
+    }
 }
 
 void validate_paint_tool_outputs(const ctex_paint_tool_channel_output* outputs,
@@ -9243,6 +9395,37 @@ extern "C" ctex_result ctex_paint_apply_particles(ctex_pick_index* index,
             set_paint_particle_info(*out_info, result, texture_set_id_size, pixel_count);
             validate_paint_particle_outputs(outputs, result, pixel_count, texture_set_id_size);
             copy_paint_particle_outputs(outputs, result, texture_set_id_size);
+        } catch (const std::invalid_argument& error) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_INVALID_PAINT_TOOL,
+                           error.what());
+        }
+    });
+}
+
+extern "C" ctex_result ctex_paint_pick_enabled_channels(
+    const ctex_paint_picker_descriptor* descriptor, ctex_paint_picker_info* out_info,
+    ctex_paint_picker_channel_value* channels, std::size_t channel_capacity, char* strings,
+    std::size_t string_capacity) {
+    return call_boundary("ctex_paint_pick_enabled_channels", [&] {
+        if (descriptor == nullptr || out_info == nullptr) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                           descriptor == nullptr ? "descriptor=null" : "out_info=null");
+        }
+        validate_structure_size(descriptor->size, CTEX_PAINT_PICKER_DESCRIPTOR_V1_SIZE,
+                                CTEX_PAINT_PICKER_DESCRIPTOR_CURRENT_SIZE, "descriptor.size");
+        validate_structure_size(out_info->size, CTEX_PAINT_PICKER_INFO_V1_SIZE,
+                                CTEX_PAINT_PICKER_INFO_CURRENT_SIZE, "out_info.size");
+        try {
+            const PaintPickerViews texture_views =
+                paint_picker_views(descriptor->texture_views, descriptor->texture_view_count);
+            const ctex::paint::PickerResult result = ctex::paint::pick_enabled_channels(
+                paint_picker_hit(*descriptor), texture_views.views);
+            const std::vector<std::string> packed_strings = paint_picker_strings(result);
+            const std::size_t required_string_size = texture_set_id_buffer_size(packed_strings);
+            set_paint_picker_info(*out_info, result, packed_strings, required_string_size);
+            validate_output_array(channels, channel_capacity, result.channels.size(), "channels");
+            validate_string_buffer(strings, string_capacity, required_string_size);
+            copy_paint_picker_outputs(result, packed_strings, channels, strings);
         } catch (const std::invalid_argument& error) {
             throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_INVALID_PAINT_TOOL,
                            error.what());

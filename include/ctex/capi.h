@@ -1784,6 +1784,58 @@ typedef struct ctex_pick_query_info {
 #define CTEX_PICK_QUERY_INFO_V1_SIZE ((uint32_t)sizeof(ctex_pick_query_info))
 #define CTEX_PICK_QUERY_INFO_CURRENT_SIZE ((uint32_t)sizeof(ctex_pick_query_info))
 
+typedef struct ctex_paint_picker_texture_view_descriptor {
+    uint32_t size;
+    const char* texture_set_id;
+    ctex_vec2d tile_origin;
+    uint32_t width;
+    uint32_t height;
+    const ctex_paint_tool_channel_descriptor* enabled_channels;
+    size_t enabled_channel_count;
+    const char* const* material_identities;
+    size_t material_identity_count;
+} ctex_paint_picker_texture_view_descriptor;
+
+#define CTEX_PAINT_PICKER_TEXTURE_VIEW_DESCRIPTOR_V1_SIZE \
+    ((uint32_t)sizeof(ctex_paint_picker_texture_view_descriptor))
+#define CTEX_PAINT_PICKER_TEXTURE_VIEW_DESCRIPTOR_CURRENT_SIZE \
+    ((uint32_t)sizeof(ctex_paint_picker_texture_view_descriptor))
+
+typedef struct ctex_paint_picker_descriptor {
+    uint32_t size;
+    ctex_pick_hit hit;
+    const char* hit_texture_set_id;
+    const ctex_paint_picker_texture_view_descriptor* texture_views;
+    size_t texture_view_count;
+} ctex_paint_picker_descriptor;
+
+#define CTEX_PAINT_PICKER_DESCRIPTOR_V1_SIZE ((uint32_t)sizeof(ctex_paint_picker_descriptor))
+#define CTEX_PAINT_PICKER_DESCRIPTOR_CURRENT_SIZE ((uint32_t)sizeof(ctex_paint_picker_descriptor))
+
+typedef struct ctex_paint_picker_channel_value {
+    uint32_t component_count;
+    ctex_vec4f value;
+    size_t semantic_id_offset;
+    size_t semantic_id_size;
+} ctex_paint_picker_channel_value;
+
+typedef struct ctex_paint_picker_info {
+    uint32_t size;
+    ctex_vec2d tile_origin;
+    ctex_vec2d uv;
+    size_t texel;
+    uint32_t has_material_identity;
+    size_t texture_set_id_offset;
+    size_t texture_set_id_size;
+    size_t material_identity_offset;
+    size_t material_identity_size;
+    size_t required_channel_count;
+    size_t required_string_size;
+} ctex_paint_picker_info;
+
+#define CTEX_PAINT_PICKER_INFO_V1_SIZE ((uint32_t)sizeof(ctex_paint_picker_info))
+#define CTEX_PAINT_PICKER_INFO_CURRENT_SIZE ((uint32_t)sizeof(ctex_paint_picker_info))
+
 typedef uint32_t (*ctex_pick_cancel_callback)(void* user_data);
 typedef void (*ctex_pick_progress_callback)(size_t completed_rays, size_t total_rays,
                                             void* user_data);
@@ -3637,6 +3689,12 @@ CTEX_API ctex_result ctex_paint_apply_particles(ctex_pick_index* index,
                                                 const ctex_paint_particle_descriptor* descriptor,
                                                 ctex_paint_particle_info* out_info,
                                                 const ctex_paint_particle_outputs* outputs);
+
+/* Reads enabled channel values and optional material provenance at a surface hit. */
+CTEX_API ctex_result ctex_paint_pick_enabled_channels(
+    const ctex_paint_picker_descriptor* descriptor, ctex_paint_picker_info* out_info,
+    ctex_paint_picker_channel_value* channels, size_t channel_capacity, char* strings,
+    size_t string_capacity);
 
 /*
  * Installs one process-wide sink. Pass NULL to uninstall it. The callback can

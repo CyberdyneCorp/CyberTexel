@@ -80,7 +80,9 @@ material application with weighted samples and atomic channel output. Text now
 accepts supplied glyph coverage and length-delimited UTF-8 with per-string size,
 tracking and alignment before atomic decal publication. Particle now exposes
 seeded mesh-collision simulation, ordered contacts and mapped atomic paint
-output through a reusable pick index. Exactly 97
-runtime requirements remain unmapped.
+output through a reusable pick index. Picker now resolves one matching
+texture-set and UDIM view, returning every enabled channel in caller order and
+material provenance only when supplied. Exactly 96 runtime requirements remain
+unmapped.
 The gate is not part of the aggregate `just check` until that count reaches zero;
 its unit tests run in the normal tooling suite throughout the migration.

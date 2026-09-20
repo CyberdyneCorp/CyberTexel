@@ -1450,6 +1450,88 @@ static int particles_replay_deterministically_and_deposit_mapped_contacts(void) 
     return passed;
 }
 
+static int picker_reads_channels_and_optional_material_provenance(void) {
+    const ctex_vec4f base_color[4] = {
+        {0.10F, 0, 0, 1}, {0.11F, 0, 0, 1}, {0.12F, 0, 0, 1}, {0.13F, 0, 0, 1}};
+    const ctex_vec4f roughness[4] = {
+        {0.20F, 0, 0, 1}, {0.21F, 0, 0, 1}, {0.22F, 0, 0, 1}, {0.23F, 0, 0, 1}};
+    const ctex_paint_tool_channel_descriptor channels[2] = {
+        {CTEX_PAINT_TOOL_CHANNEL_DESCRIPTOR_CURRENT_SIZE, "pbr.base_color", 3, base_color, 4},
+        {CTEX_PAINT_TOOL_CHANNEL_DESCRIPTOR_CURRENT_SIZE, "pbr.roughness", 1, roughness, 4}};
+    const char* provenance[4] = {"material:paint", "material:edge", "material:dirt",
+                                 "material:metal"};
+    ctex_paint_picker_texture_view_descriptor view = {
+        .size = CTEX_PAINT_PICKER_TEXTURE_VIEW_DESCRIPTOR_CURRENT_SIZE,
+        .texture_set_id = "set:body",
+        .tile_origin = {1, 0},
+        .width = 2,
+        .height = 2,
+        .enabled_channels = channels,
+        .enabled_channel_count = 2,
+        .material_identities = provenance,
+        .material_identity_count = 4};
+    ctex_paint_picker_descriptor descriptor = {
+        .size = CTEX_PAINT_PICKER_DESCRIPTOR_CURRENT_SIZE,
+        .hit = {.has_hit = 1, .uv = {1.25F, 0.75F}, .udim_u = 1, .udim_v = 0, .udim_number = 1002},
+        .hit_texture_set_id = "set:body",
+        .texture_views = &view,
+        .texture_view_count = 1};
+    ctex_paint_picker_info info = {.size = CTEX_PAINT_PICKER_INFO_CURRENT_SIZE};
+    int passed = expect(ctex_paint_pick_enabled_channels(&descriptor, &info, NULL, 0, NULL, 0) ==
+                        CTEX_RESULT_SUCCESS) &&
+                 expect(info.required_channel_count == 2 && info.required_string_size > 0 &&
+                        info.texel == 0 && info.has_material_identity == 1);
+    ctex_paint_picker_channel_value values[2] = {{.component_count = 99}, {0}};
+    char strings[256] = {'x', '\0'};
+    if (passed) {
+        passed = expect(ctex_paint_pick_enabled_channels(&descriptor, &info, values, 2, NULL, 0) ==
+                        CTEX_RESULT_SUCCESS) &&
+                 expect(values[0].component_count == 99);
+    }
+    if (passed) {
+        passed = expect(ctex_paint_pick_enabled_channels(&descriptor, &info, NULL, 0, strings,
+                                                         sizeof(strings)) == CTEX_RESULT_SUCCESS) &&
+                 expect(strings[0] == 'x');
+    }
+    if (passed) {
+        passed = expect(ctex_paint_pick_enabled_channels(&descriptor, &info, values, 1, strings,
+                                                         sizeof(strings)) ==
+                        CTEX_RESULT_BUFFER_TOO_SMALL) &&
+                 expect(values[0].component_count == 99 && strings[0] == 'x');
+    }
+    if (passed) {
+        passed = expect(ctex_paint_pick_enabled_channels(&descriptor, &info, values, 2, strings,
+                                                         sizeof(strings)) == CTEX_RESULT_SUCCESS) &&
+                 expect(strcmp(strings + info.texture_set_id_offset, "set:body") == 0 &&
+                        strcmp(strings + info.material_identity_offset, "material:paint") == 0) &&
+                 expect(values[0].component_count == 3 && near_float(values[0].value.x, 0.10F) &&
+                        strcmp(strings + values[0].semantic_id_offset, "pbr.base_color") == 0) &&
+                 expect(values[1].component_count == 1 && near_float(values[1].value.x, 0.20F) &&
+                        strcmp(strings + values[1].semantic_id_offset, "pbr.roughness") == 0);
+    }
+    view.material_identities = NULL;
+    view.material_identity_count = 0;
+    if (passed) {
+        passed = expect(ctex_paint_pick_enabled_channels(&descriptor, &info, NULL, 0, NULL, 0) ==
+                        CTEX_RESULT_SUCCESS) &&
+                 expect(info.has_material_identity == 0 && info.material_identity_size == 0);
+    }
+    view.texture_set_id = "set:other";
+    if (passed) {
+        passed = expect(ctex_paint_pick_enabled_channels(&descriptor, &info, NULL, 0, NULL, 0) ==
+                        CTEX_RESULT_INVALID_ARGUMENT);
+    }
+    view.texture_set_id = "set:body";
+    const ctex_paint_picker_texture_view_descriptor overlapping[2] = {view, view};
+    descriptor.texture_views = overlapping;
+    descriptor.texture_view_count = 2;
+    if (passed) {
+        passed = expect(ctex_paint_pick_enabled_channels(&descriptor, &info, NULL, 0, NULL, 0) ==
+                        CTEX_RESULT_INVALID_ARGUMENT);
+    }
+    return passed;
+}
+
 static int invalid_inputs_are_stable_diagnostics(void) {
     ctex_mesh* mesh = coverage_mesh();
     ctex_paint_tile_coverage_descriptor tile = {
@@ -1511,6 +1593,7 @@ int main(void) {
                    projection_exposes_camera_planar_and_triplanar_mapping() &&
                    text_rasterizes_supplied_utf8_font_and_applies_a_decal() &&
                    particles_replay_deterministically_and_deposit_mapped_contacts() &&
+                   picker_reads_channels_and_optional_material_provenance() &&
                    invalid_inputs_are_stable_diagnostics()
                ? 0
                : 1;
