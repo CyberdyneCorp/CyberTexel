@@ -1864,6 +1864,94 @@ typedef struct ctex_paint_colour_id_info {
 #define CTEX_PAINT_COLOUR_ID_INFO_V1_SIZE ((uint32_t)sizeof(ctex_paint_colour_id_info))
 #define CTEX_PAINT_COLOUR_ID_INFO_CURRENT_SIZE ((uint32_t)sizeof(ctex_paint_colour_id_info))
 
+typedef enum ctex_paint_selection_kind {
+    CTEX_PAINT_SELECTION_SCREEN_RECTANGLE = 0,
+    CTEX_PAINT_SELECTION_SCREEN_LASSO = 1,
+    CTEX_PAINT_SELECTION_POLYGON_TRIANGLE = 2,
+    CTEX_PAINT_SELECTION_POLYGON_UV_ISLAND = 3,
+    CTEX_PAINT_SELECTION_POLYGON_CONNECTED_BY_ANGLE = 4
+} ctex_paint_selection_kind;
+
+typedef struct ctex_paint_selection_surface_descriptor {
+    uint32_t size;
+    uint32_t width;
+    uint32_t height;
+    ctex_vec2d tile_origin;
+    const char* texture_set_id;
+    const char* uv_set;
+    uint64_t mesh_revision;
+    const ctex_paint_surface_texel* surface_texels;
+    size_t surface_texel_count;
+    const uint8_t* coverage;
+    size_t coverage_count;
+    const uint32_t* triangle_identity;
+    size_t triangle_identity_count;
+    const uint32_t* uv_island_identity;
+    size_t uv_island_identity_count;
+} ctex_paint_selection_surface_descriptor;
+
+#define CTEX_PAINT_SELECTION_SURFACE_DESCRIPTOR_V1_SIZE \
+    ((uint32_t)sizeof(ctex_paint_selection_surface_descriptor))
+#define CTEX_PAINT_SELECTION_SURFACE_DESCRIPTOR_CURRENT_SIZE \
+    ((uint32_t)sizeof(ctex_paint_selection_surface_descriptor))
+
+typedef struct ctex_paint_screen_selection_descriptor {
+    uint32_t size;
+    uint32_t kind;
+    const ctex_paint_selection_surface_descriptor* surface;
+    ctex_vec2f minimum;
+    ctex_vec2f maximum;
+    const ctex_vec2f* lasso_points;
+    size_t lasso_point_count;
+    ctex_pick_screen_view_descriptor view;
+} ctex_paint_screen_selection_descriptor;
+
+#define CTEX_PAINT_SCREEN_SELECTION_DESCRIPTOR_V1_SIZE \
+    ((uint32_t)sizeof(ctex_paint_screen_selection_descriptor))
+#define CTEX_PAINT_SCREEN_SELECTION_DESCRIPTOR_CURRENT_SIZE \
+    ((uint32_t)sizeof(ctex_paint_screen_selection_descriptor))
+
+typedef struct ctex_paint_polygon_selection_descriptor {
+    uint32_t size;
+    uint32_t kind;
+    const ctex_paint_selection_surface_descriptor* surface;
+    size_t picked_texel;
+    double maximum_angle_degrees;
+    const ctex_paint_fill_triangle_topology* triangle_topology;
+    size_t triangle_topology_count;
+} ctex_paint_polygon_selection_descriptor;
+
+#define CTEX_PAINT_POLYGON_SELECTION_DESCRIPTOR_V1_SIZE \
+    ((uint32_t)sizeof(ctex_paint_polygon_selection_descriptor))
+#define CTEX_PAINT_POLYGON_SELECTION_DESCRIPTOR_CURRENT_SIZE \
+    ((uint32_t)sizeof(ctex_paint_polygon_selection_descriptor))
+
+typedef struct ctex_paint_selection_info {
+    uint32_t size;
+    uint32_t kind;
+    double resolved_maximum_angle_degrees;
+    uint32_t maximum_angle_clamped;
+    size_t selected_texel_count;
+    size_t selected_triangle_count;
+    size_t visited_nodes;
+    size_t tested_leaf_triangles;
+    size_t required_value_count;
+} ctex_paint_selection_info;
+
+#define CTEX_PAINT_SELECTION_INFO_V1_SIZE ((uint32_t)sizeof(ctex_paint_selection_info))
+#define CTEX_PAINT_SELECTION_INFO_CURRENT_SIZE ((uint32_t)sizeof(ctex_paint_selection_info))
+
+typedef struct ctex_paint_selection_outputs {
+    uint32_t size;
+    double* values;
+    size_t value_capacity;
+    uint32_t* selected_triangle_ids;
+    size_t selected_triangle_capacity;
+} ctex_paint_selection_outputs;
+
+#define CTEX_PAINT_SELECTION_OUTPUTS_V1_SIZE ((uint32_t)sizeof(ctex_paint_selection_outputs))
+#define CTEX_PAINT_SELECTION_OUTPUTS_CURRENT_SIZE ((uint32_t)sizeof(ctex_paint_selection_outputs))
+
 typedef uint32_t (*ctex_pick_cancel_callback)(void* user_data);
 typedef void (*ctex_pick_progress_callback)(size_t completed_rays, size_t total_rays,
                                             void* user_data);
@@ -3728,6 +3816,16 @@ CTEX_API ctex_result ctex_paint_pick_enabled_channels(
 CTEX_API ctex_result ctex_paint_select_colour_id(const ctex_paint_colour_id_descriptor* descriptor,
                                                  ctex_paint_colour_id_info* out_info,
                                                  double* values, size_t value_capacity);
+
+/* Selects surface texels through a clipped screen rectangle or lasso. */
+CTEX_API ctex_result ctex_paint_select_screen(
+    ctex_pick_index* index, const ctex_paint_screen_selection_descriptor* descriptor,
+    ctex_paint_selection_info* out_info, const ctex_paint_selection_outputs* outputs);
+
+/* Selects a triangle, UV island or connected-by-angle polygon region. */
+CTEX_API ctex_result ctex_paint_select_polygon(
+    const ctex_paint_polygon_selection_descriptor* descriptor, ctex_paint_selection_info* out_info,
+    const ctex_paint_selection_outputs* outputs);
 
 /*
  * Installs one process-wide sink. Pass NULL to uninstall it. The callback can

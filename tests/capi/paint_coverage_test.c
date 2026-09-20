@@ -46,6 +46,42 @@ static ctex_mesh* coverage_mesh(void) {
     return ctex_mesh_create(&descriptor, &mesh) == CTEX_RESULT_SUCCESS ? mesh : NULL;
 }
 
+static ctex_mesh* selection_mesh(void) {
+    static const ctex_vec3f positions[9] = {
+        {-0.8F, -0.2F, 0.0F}, {-0.4F, -0.2F, 0.0F}, {-0.6F, 0.2F, 0.0F},
+        {-0.2F, 0.0F, 0.0F},  {0.2F, 0.0F, 0.0F},   {0.0F, 0.4F, 0.0F},
+        {0.4F, -0.2F, 0.0F},  {0.8F, -0.2F, 0.0F},  {0.6F, 0.2F, 0.0F}};
+    static const ctex_vec3f normals[9] = {{0, 0, 1}, {0, 0, 1}, {0, 0, 1}, {0, 0, 1}, {0, 0, 1},
+                                          {0, 0, 1}, {0, 0, 1}, {0, 0, 1}, {0, 0, 1}};
+    static const ctex_vec2f uv[9] = {0};
+    static const uint32_t triangles[9] = {0, 1, 2, 3, 4, 5, 6, 7, 8};
+    static const uint32_t face_partitions[3] = {0, 0, 0};
+    static const uint32_t face_materials[3] = {0, 0, 0};
+    static const ctex_uv_set_descriptor uv_set = {CTEX_UV_SET_DESCRIPTOR_CURRENT_SIZE, "paint", uv,
+                                                  9};
+    static const ctex_mesh_partition_descriptor partition = {
+        CTEX_MESH_PARTITION_DESCRIPTOR_CURRENT_SIZE, CTEX_PARTITION_SOURCE_OBJECT, "selection",
+        "Selection"};
+    const ctex_mesh_descriptor descriptor = {.size = CTEX_MESH_DESCRIPTOR_CURRENT_SIZE,
+                                             .positions = positions,
+                                             .position_count = 9,
+                                             .normals = normals,
+                                             .normal_count = 9,
+                                             .triangle_indices = triangles,
+                                             .triangle_index_count = 9,
+                                             .uv_sets = &uv_set,
+                                             .uv_set_count = 1,
+                                             .default_uv_set = "paint",
+                                             .partitions = &partition,
+                                             .partition_count = 1,
+                                             .face_partition_indices = face_partitions,
+                                             .face_partition_index_count = 3,
+                                             .face_material_ids = face_materials,
+                                             .face_material_id_count = 3};
+    ctex_mesh* mesh = NULL;
+    return ctex_mesh_create(&descriptor, &mesh) == CTEX_RESULT_SUCCESS ? mesh : NULL;
+}
+
 static ctex_resolved_stamp stamp(double x, uint64_t ordinal) {
     const ctex_resolved_stamp value = {
         .position = {x, 0.5, 0.0},
@@ -1583,6 +1619,164 @@ static int colour_id_selects_exact_regions_and_reports_empty_results(void) {
     return passed;
 }
 
+static int selection_exposes_screen_polygon_and_stored_mask_regions(void) {
+    ctex_mesh* mesh = selection_mesh();
+    ctex_pick_index* index = NULL;
+    ctex_mesh_info mesh_info = {.size = CTEX_MESH_INFO_CURRENT_SIZE};
+    int passed = mesh != NULL &&
+                 expect(ctex_mesh_get_info(mesh, &mesh_info) == CTEX_RESULT_SUCCESS) &&
+                 expect(ctex_pick_index_create(mesh, &index) == CTEX_RESULT_SUCCESS);
+    const ctex_paint_surface_texel screen_texels[4] = {{.position = {-0.6, 0, 0}, .triangle = 0},
+                                                       {.position = {0, 0, 0}, .triangle = 1},
+                                                       {.position = {-0.2, 0, 0}, .triangle = 1},
+                                                       {.position = {0.6, 0, 0}, .triangle = 2}};
+    const uint8_t screen_coverage[4] = {1, 1, 1, 1};
+    const uint32_t screen_triangles[4] = {0, 1, 1, 2};
+    const uint32_t screen_islands[4] = {10, 10, 10, 20};
+    ctex_paint_selection_surface_descriptor surface = {
+        .size = CTEX_PAINT_SELECTION_SURFACE_DESCRIPTOR_CURRENT_SIZE,
+        .width = 4,
+        .height = 1,
+        .texture_set_id = "object:selection:paint",
+        .uv_set = "paint",
+        .mesh_revision = mesh_info.revision,
+        .surface_texels = screen_texels,
+        .surface_texel_count = 4,
+        .coverage = screen_coverage,
+        .coverage_count = 4,
+        .triangle_identity = screen_triangles,
+        .triangle_identity_count = 4,
+        .uv_island_identity = screen_islands,
+        .uv_island_identity_count = 4};
+    ctex_paint_screen_selection_descriptor screen = {
+        .size = CTEX_PAINT_SCREEN_SELECTION_DESCRIPTOR_CURRENT_SIZE,
+        .kind = CTEX_PAINT_SELECTION_SCREEN_RECTANGLE,
+        .surface = &surface,
+        .minimum = {48, 48},
+        .maximum = {52, 52},
+        .view = {.size = CTEX_PICK_SCREEN_VIEW_DESCRIPTOR_CURRENT_SIZE,
+                 .viewport_width = 100,
+                 .viewport_height = 100}};
+    screen.view.view[0] = screen.view.view[5] = screen.view.view[10] = screen.view.view[15] = 1;
+    screen.view.projection[0] = screen.view.projection[5] = screen.view.projection[10] =
+        screen.view.projection[15] = 1;
+    ctex_paint_selection_info info = {.size = CTEX_PAINT_SELECTION_INFO_CURRENT_SIZE};
+    if (passed) {
+        passed =
+            expect(ctex_paint_select_screen(index, &screen, &info, NULL) == CTEX_RESULT_SUCCESS) &&
+            expect(info.kind == CTEX_PAINT_SELECTION_SCREEN_RECTANGLE &&
+                   info.selected_texel_count == 1 && info.selected_triangle_count == 1 &&
+                   info.required_value_count == 4 && info.visited_nodes > 0);
+    }
+    double values[6] = {-1, -1, -1, -1, -1, -1};
+    uint32_t selected_triangles[3] = {99, 99, 99};
+    ctex_paint_selection_outputs outputs = {.size = CTEX_PAINT_SELECTION_OUTPUTS_CURRENT_SIZE,
+                                            .values = values,
+                                            .value_capacity = 3,
+                                            .selected_triangle_ids = selected_triangles,
+                                            .selected_triangle_capacity = 3};
+    if (passed) {
+        passed = expect(ctex_paint_select_screen(index, &screen, &info, &outputs) ==
+                        CTEX_RESULT_BUFFER_TOO_SMALL) &&
+                 expect(near(values[0], -1) && selected_triangles[0] == 99);
+    }
+    outputs.value_capacity = 6;
+    if (passed) {
+        passed = expect(ctex_paint_select_screen(index, &screen, &info, &outputs) ==
+                        CTEX_RESULT_SUCCESS) &&
+                 expect(near(values[0], 0) && near(values[1], 1) && near(values[2], 0) &&
+                        near(values[3], 0) && selected_triangles[0] == 1);
+    }
+    const ctex_vec2f lasso[5] = {{5, 35}, {35, 35}, {25, 50}, {35, 65}, {5, 65}};
+    screen.kind = CTEX_PAINT_SELECTION_SCREEN_LASSO;
+    screen.lasso_points = lasso;
+    screen.lasso_point_count = 5;
+    if (passed) {
+        passed = expect(ctex_paint_select_screen(index, &screen, &info, &outputs) ==
+                        CTEX_RESULT_SUCCESS) &&
+                 expect(info.kind == CTEX_PAINT_SELECTION_SCREEN_LASSO && near(values[0], 1) &&
+                        near(values[1], 0) && near(values[2], 0) && near(values[3], 0));
+    }
+    surface.mesh_revision += 1;
+    if (passed) {
+        passed = expect(ctex_paint_select_screen(index, &screen, &info, NULL) ==
+                        CTEX_RESULT_INVALID_ARGUMENT);
+    }
+    ctex_pick_index_destroy(index);
+    ctex_mesh_destroy(mesh);
+
+    const ctex_paint_surface_texel polygon_texels[6] = {{.triangle = 0}, {.triangle = 0},
+                                                        {.triangle = 1}, {.triangle = 1},
+                                                        {.triangle = 2}, {.triangle = 2}};
+    const uint8_t polygon_coverage[6] = {1, 1, 1, 1, 1, 1};
+    const uint32_t polygon_triangles[6] = {0, 0, 1, 1, 2, 2};
+    const uint32_t polygon_islands[6] = {10, 10, 10, 10, 20, 20};
+    surface.width = 6;
+    surface.mesh_revision = 1;
+    surface.surface_texels = polygon_texels;
+    surface.surface_texel_count = 6;
+    surface.coverage = polygon_coverage;
+    surface.coverage_count = 6;
+    surface.triangle_identity = polygon_triangles;
+    surface.triangle_identity_count = 6;
+    surface.uv_island_identity = polygon_islands;
+    surface.uv_island_identity_count = 6;
+    const uint32_t adjacent_zero[1] = {1};
+    const uint32_t adjacent_one[2] = {0, 2};
+    const uint32_t adjacent_two[1] = {1};
+    const ctex_paint_fill_triangle_topology topology[3] = {
+        {.triangle_identity = 0,
+         .geometric_normal = {0, 0, 1},
+         .adjacent_triangles = adjacent_zero,
+         .adjacent_triangle_count = 1},
+        {.triangle_identity = 1,
+         .geometric_normal = {0, 0.5, 0.8660254037844386},
+         .adjacent_triangles = adjacent_one,
+         .adjacent_triangle_count = 2},
+        {.triangle_identity = 2,
+         .geometric_normal = {0, 1, 0},
+         .adjacent_triangles = adjacent_two,
+         .adjacent_triangle_count = 1}};
+    ctex_paint_polygon_selection_descriptor polygon = {
+        .size = CTEX_PAINT_POLYGON_SELECTION_DESCRIPTOR_CURRENT_SIZE,
+        .kind = CTEX_PAINT_SELECTION_POLYGON_TRIANGLE,
+        .surface = &surface,
+        .picked_texel = 0,
+        .maximum_angle_degrees = 45,
+        .triangle_topology = topology,
+        .triangle_topology_count = 3};
+    if (passed) {
+        passed =
+            expect(ctex_paint_select_polygon(&polygon, &info, &outputs) == CTEX_RESULT_SUCCESS) &&
+            expect(info.kind == CTEX_PAINT_SELECTION_POLYGON_TRIANGLE &&
+                   info.selected_texel_count == 2 && near(values[0], 1) && near(values[1], 1) &&
+                   near(values[2], 0) && selected_triangles[0] == 0);
+    }
+    polygon.kind = CTEX_PAINT_SELECTION_POLYGON_UV_ISLAND;
+    if (passed) {
+        passed =
+            expect(ctex_paint_select_polygon(&polygon, &info, &outputs) == CTEX_RESULT_SUCCESS) &&
+            expect(info.selected_texel_count == 4 && info.selected_triangle_count == 2 &&
+                   near(values[3], 1) && near(values[4], 0));
+    }
+    polygon.kind = CTEX_PAINT_SELECTION_POLYGON_CONNECTED_BY_ANGLE;
+    if (passed) {
+        passed =
+            expect(ctex_paint_select_polygon(&polygon, &info, &outputs) == CTEX_RESULT_SUCCESS) &&
+            expect(info.selected_texel_count == 4 && info.maximum_angle_clamped == 0 &&
+                   near(info.resolved_maximum_angle_degrees, 45));
+    }
+    polygon.maximum_angle_degrees = -1;
+    if (passed) {
+        passed =
+            expect(ctex_paint_select_polygon(&polygon, &info, &outputs) == CTEX_RESULT_SUCCESS) &&
+            expect(info.selected_texel_count == 2 && info.maximum_angle_clamped == 1 &&
+                   near(info.resolved_maximum_angle_degrees, 0) && near(values[0], 1) &&
+                   near(values[2], 0));
+    }
+    return passed;
+}
+
 static int invalid_inputs_are_stable_diagnostics(void) {
     ctex_mesh* mesh = coverage_mesh();
     ctex_paint_tile_coverage_descriptor tile = {
@@ -1646,6 +1840,7 @@ int main(void) {
                    particles_replay_deterministically_and_deposit_mapped_contacts() &&
                    picker_reads_channels_and_optional_material_provenance() &&
                    colour_id_selects_exact_regions_and_reports_empty_results() &&
+                   selection_exposes_screen_polygon_and_stored_mask_regions() &&
                    invalid_inputs_are_stable_diagnostics()
                ? 0
                : 1;

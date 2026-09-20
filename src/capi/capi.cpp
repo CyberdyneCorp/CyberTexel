@@ -39,6 +39,7 @@
 #include <ctex/paint/projection.hpp>
 #include <ctex/paint/seam_dilation.hpp>
 #include <ctex/paint/seam_filter.hpp>
+#include <ctex/paint/selection.hpp>
 #include <ctex/paint/stroke.hpp>
 #include <ctex/paint/stroke_preset.hpp>
 #include <ctex/paint/surface_cache.hpp>
@@ -3502,13 +3503,12 @@ ctex::paint::CachedSurfaceMaps paint_fill_surface(const ctex_paint_fill_descript
 }
 
 std::vector<ctex::paint::FillTriangleTopology> paint_fill_topology(
-    const ctex_paint_fill_descriptor& descriptor) {
-    require_paint_tool_array(descriptor.triangle_topology, descriptor.triangle_topology_count,
-                             "triangle_topology");
+    const ctex_paint_fill_triangle_topology* topology, std::size_t topology_count) {
+    require_paint_tool_array(topology, topology_count, "triangle_topology");
     std::vector<ctex::paint::FillTriangleTopology> result;
-    result.reserve(descriptor.triangle_topology_count);
-    for (std::size_t index = 0; index < descriptor.triangle_topology_count; ++index) {
-        const ctex_paint_fill_triangle_topology& triangle = descriptor.triangle_topology[index];
+    result.reserve(topology_count);
+    for (std::size_t index = 0; index < topology_count; ++index) {
+        const ctex_paint_fill_triangle_topology& triangle = topology[index];
         require_paint_tool_array(triangle.adjacent_triangles, triangle.adjacent_triangle_count,
                                  "triangle_topology.adjacent_triangles");
         ctex::paint::FillTriangleTopology converted{
@@ -3524,6 +3524,11 @@ std::vector<ctex::paint::FillTriangleTopology> paint_fill_topology(
         result.push_back(std::move(converted));
     }
     return result;
+}
+
+std::vector<ctex::paint::FillTriangleTopology> paint_fill_topology(
+    const ctex_paint_fill_descriptor& descriptor) {
+    return paint_fill_topology(descriptor.triangle_topology, descriptor.triangle_topology_count);
 }
 
 std::optional<ctex::paint::PaintMaskView> paint_fill_optional_view(const double* values,
@@ -4486,6 +4491,132 @@ void set_paint_colour_id_info(ctex_paint_colour_id_info& info,
         .selected_texel_count = selection.selected_texel_count,
         .required_value_count = selection.values.size(),
     };
+}
+
+ctex::paint::CachedSurfaceMaps paint_selection_surface(
+    const ctex_paint_selection_surface_descriptor& descriptor) {
+    validate_structure_size(descriptor.size, CTEX_PAINT_SELECTION_SURFACE_DESCRIPTOR_V1_SIZE,
+                            CTEX_PAINT_SELECTION_SURFACE_DESCRIPTOR_CURRENT_SIZE, "surface.size");
+    if (descriptor.texture_set_id == nullptr || descriptor.uv_set == nullptr) {
+        throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                       "surface texture_set_id and uv_set are required");
+    }
+    const std::size_t pixel_count = bounded_paint_pixel_count(descriptor.width, descriptor.height,
+                                                              CTEX_DIAGNOSTIC_INVALID_PAINT_TOOL);
+    require_paint_tool_array(descriptor.surface_texels, descriptor.surface_texel_count,
+                             "surface.surface_texels");
+    require_paint_tool_array(descriptor.coverage, descriptor.coverage_count, "surface.coverage");
+    require_paint_tool_array(descriptor.triangle_identity, descriptor.triangle_identity_count,
+                             "surface.triangle_identity");
+    require_paint_tool_array(descriptor.uv_island_identity, descriptor.uv_island_identity_count,
+                             "surface.uv_island_identity");
+    if (descriptor.surface_texel_count != pixel_count || descriptor.coverage_count != pixel_count ||
+        descriptor.triangle_identity_count != pixel_count ||
+        descriptor.uv_island_identity_count != pixel_count) {
+        throw std::invalid_argument("selection surface-map counts do not match its dimensions");
+    }
+    ctex::paint::CachedSurfaceMaps result{
+        .texture_set_id = descriptor.texture_set_id,
+        .uv_set = descriptor.uv_set,
+        .mesh_revision = descriptor.mesh_revision,
+        .surface = {.width = descriptor.width,
+                    .height = descriptor.height,
+                    .tile_origin = {descriptor.tile_origin.x, descriptor.tile_origin.y},
+                    .texels = {}},
+        .coverage = {descriptor.coverage, descriptor.coverage + pixel_count},
+        .triangle_identity = {descriptor.triangle_identity,
+                              descriptor.triangle_identity + pixel_count},
+        .uv_island_identity = {descriptor.uv_island_identity,
+                               descriptor.uv_island_identity + pixel_count}};
+    result.surface.texels.reserve(pixel_count);
+    for (std::size_t index = 0; index < pixel_count; ++index) {
+        const ctex_paint_surface_texel& texel = descriptor.surface_texels[index];
+        result.surface.texels.push_back({.position = stroke_vec(texel.position),
+                                         .normal = stroke_vec(texel.normal),
+                                         .geometric_normal = stroke_vec(texel.geometric_normal),
+                                         .uv = {texel.uv.x, texel.uv.y},
+                                         .triangle = texel.triangle});
+    }
+    return result;
+}
+
+std::uint32_t capi_selection_kind(ctex::paint::SelectionKind kind) {
+    switch (kind) {
+        case ctex::paint::SelectionKind::screen_rectangle:
+            return CTEX_PAINT_SELECTION_SCREEN_RECTANGLE;
+        case ctex::paint::SelectionKind::screen_lasso:
+            return CTEX_PAINT_SELECTION_SCREEN_LASSO;
+        case ctex::paint::SelectionKind::polygon_triangle:
+            return CTEX_PAINT_SELECTION_POLYGON_TRIANGLE;
+        case ctex::paint::SelectionKind::polygon_uv_island:
+            return CTEX_PAINT_SELECTION_POLYGON_UV_ISLAND;
+        case ctex::paint::SelectionKind::polygon_connected_by_angle:
+            return CTEX_PAINT_SELECTION_POLYGON_CONNECTED_BY_ANGLE;
+    }
+    throw std::invalid_argument("selection kind is invalid");
+}
+
+ctex::paint::PolygonSelectionMode paint_polygon_selection_mode(std::uint32_t kind) {
+    switch (kind) {
+        case CTEX_PAINT_SELECTION_POLYGON_TRIANGLE:
+            return ctex::paint::PolygonSelectionMode::triangle;
+        case CTEX_PAINT_SELECTION_POLYGON_UV_ISLAND:
+            return ctex::paint::PolygonSelectionMode::uv_island;
+        case CTEX_PAINT_SELECTION_POLYGON_CONNECTED_BY_ANGLE:
+            return ctex::paint::PolygonSelectionMode::connected_by_angle;
+        default:
+            throw std::invalid_argument("polygon selection kind is invalid");
+    }
+}
+
+std::vector<ctex::pick::ScreenPosition> paint_selection_lasso(
+    const ctex_paint_screen_selection_descriptor& descriptor) {
+    require_paint_tool_array(descriptor.lasso_points, descriptor.lasso_point_count, "lasso_points");
+    std::vector<ctex::pick::ScreenPosition> result;
+    result.reserve(descriptor.lasso_point_count);
+    for (std::size_t index = 0; index < descriptor.lasso_point_count; ++index) {
+        result.push_back({descriptor.lasso_points[index].x, descriptor.lasso_points[index].y});
+    }
+    return result;
+}
+
+void set_paint_selection_info(ctex_paint_selection_info& info,
+                              const ctex::paint::SelectionResult& selection,
+                              std::optional<double> requested_angle) {
+    const std::optional clamp =
+        selection.parameter_report.clamp_for(ctex::paint::connected_angle_parameter.name);
+    info = {
+        .size = CTEX_PAINT_SELECTION_INFO_CURRENT_SIZE,
+        .kind = capi_selection_kind(selection.kind),
+        .resolved_maximum_angle_degrees = clamp ? clamp->resolved : requested_angle.value_or(0.0),
+        .maximum_angle_clamped = clamp.has_value(),
+        .selected_texel_count = selection.selected_texel_count,
+        .selected_triangle_count = selection.selected_triangle_ids.size(),
+        .visited_nodes = selection.visited_nodes,
+        .tested_leaf_triangles = selection.tested_leaf_triangles,
+        .required_value_count = selection.values.size()};
+}
+
+void publish_paint_selection(const ctex::paint::SelectionResult& selection,
+                             std::optional<double> requested_angle, ctex_paint_selection_info& info,
+                             const ctex_paint_selection_outputs* outputs) {
+    set_paint_selection_info(info, selection, requested_angle);
+    if (outputs == nullptr) {
+        return;
+    }
+    validate_structure_size(outputs->size, CTEX_PAINT_SELECTION_OUTPUTS_V1_SIZE,
+                            CTEX_PAINT_SELECTION_OUTPUTS_CURRENT_SIZE, "outputs.size");
+    validate_output_array(outputs->values, outputs->value_capacity, selection.values.size(),
+                          "outputs.values");
+    validate_output_array(outputs->selected_triangle_ids, outputs->selected_triangle_capacity,
+                          selection.selected_triangle_ids.size(), "outputs.selected_triangle_ids");
+    if (outputs->values == nullptr ||
+        (!selection.selected_triangle_ids.empty() && outputs->selected_triangle_ids == nullptr)) {
+        return;
+    }
+    std::copy(selection.values.begin(), selection.values.end(), outputs->values);
+    std::copy(selection.selected_triangle_ids.begin(), selection.selected_triangle_ids.end(),
+              outputs->selected_triangle_ids);
 }
 
 void validate_paint_tool_outputs(const ctex_paint_tool_channel_output* outputs,
@@ -9488,6 +9619,83 @@ extern "C" ctex_result ctex_paint_select_colour_id(
             if (values != nullptr) {
                 std::copy(selection.values.begin(), selection.values.end(), values);
             }
+        } catch (const std::invalid_argument& error) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_INVALID_PAINT_TOOL,
+                           error.what());
+        }
+    });
+}
+
+extern "C" ctex_result ctex_paint_select_screen(
+    ctex_pick_index* index, const ctex_paint_screen_selection_descriptor* descriptor,
+    ctex_paint_selection_info* out_info, const ctex_paint_selection_outputs* outputs) {
+    return call_boundary("ctex_paint_select_screen", [&] {
+        if (index == nullptr || descriptor == nullptr || out_info == nullptr ||
+            descriptor->surface == nullptr) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                           "index, descriptor, surface and out_info are required");
+        }
+        validate_structure_size(descriptor->size, CTEX_PAINT_SCREEN_SELECTION_DESCRIPTOR_V1_SIZE,
+                                CTEX_PAINT_SCREEN_SELECTION_DESCRIPTOR_CURRENT_SIZE,
+                                "descriptor.size");
+        validate_structure_size(out_info->size, CTEX_PAINT_SELECTION_INFO_V1_SIZE,
+                                CTEX_PAINT_SELECTION_INFO_CURRENT_SIZE, "out_info.size");
+        try {
+            const ctex::paint::CachedSurfaceMaps surface =
+                paint_selection_surface(*descriptor->surface);
+            const ctex::pick::ScreenRegionView view = pick_screen_view(descriptor->view);
+            ctex::paint::SelectionResult selection;
+            if (descriptor->kind == CTEX_PAINT_SELECTION_SCREEN_RECTANGLE) {
+                selection = ctex::paint::select_screen_rectangle(
+                    index->value, index->mesh->state->mesh_binding(), surface,
+                    {{descriptor->minimum.x, descriptor->minimum.y},
+                     {descriptor->maximum.x, descriptor->maximum.y}},
+                    view);
+            } else if (descriptor->kind == CTEX_PAINT_SELECTION_SCREEN_LASSO) {
+                const std::vector points = paint_selection_lasso(*descriptor);
+                selection = ctex::paint::select_screen_lasso(
+                    index->value, index->mesh->state->mesh_binding(), surface, points, view);
+            } else {
+                throw std::invalid_argument("screen selection kind is invalid");
+            }
+            publish_paint_selection(selection, std::nullopt, *out_info, outputs);
+        } catch (const std::invalid_argument& error) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_INVALID_PAINT_TOOL,
+                           error.what());
+        }
+    });
+}
+
+extern "C" ctex_result ctex_paint_select_polygon(
+    const ctex_paint_polygon_selection_descriptor* descriptor, ctex_paint_selection_info* out_info,
+    const ctex_paint_selection_outputs* outputs) {
+    return call_boundary("ctex_paint_select_polygon", [&] {
+        if (descriptor == nullptr || out_info == nullptr || descriptor->surface == nullptr) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                           "descriptor, surface and out_info are required");
+        }
+        validate_structure_size(descriptor->size, CTEX_PAINT_POLYGON_SELECTION_DESCRIPTOR_V1_SIZE,
+                                CTEX_PAINT_POLYGON_SELECTION_DESCRIPTOR_CURRENT_SIZE,
+                                "descriptor.size");
+        validate_structure_size(out_info->size, CTEX_PAINT_SELECTION_INFO_V1_SIZE,
+                                CTEX_PAINT_SELECTION_INFO_CURRENT_SIZE, "out_info.size");
+        try {
+            const ctex::paint::CachedSurfaceMaps surface =
+                paint_selection_surface(*descriptor->surface);
+            const ctex::paint::PolygonSelectionMode mode =
+                paint_polygon_selection_mode(descriptor->kind);
+            const std::vector topology = paint_fill_topology(descriptor->triangle_topology,
+                                                             descriptor->triangle_topology_count);
+            const ctex::paint::SelectionResult selection = ctex::paint::select_polygon(
+                surface, {.mode = mode,
+                          .picked_texel = descriptor->picked_texel,
+                          .maximum_angle_degrees = descriptor->maximum_angle_degrees,
+                          .triangle_topology = topology});
+            const std::optional<double> requested_angle =
+                mode == ctex::paint::PolygonSelectionMode::connected_by_angle
+                    ? std::optional<double>{descriptor->maximum_angle_degrees}
+                    : std::nullopt;
+            publish_paint_selection(selection, requested_angle, *out_info, outputs);
         } catch (const std::invalid_argument& error) {
             throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_INVALID_PAINT_TOOL,
                            error.what());

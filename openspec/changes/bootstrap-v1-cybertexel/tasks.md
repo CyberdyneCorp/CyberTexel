@@ -876,6 +876,12 @@ status. Its caller-owned scalar selection is directly reusable by existing
 paint restriction, mask-source and visibility inputs. The exact remaining C ABI
 gap is 95 runtime requirements.
 
+The Selection continuation exposes clipped screen rectangle and lasso queries
+through the public pick index, plus triangle, UV-island and connected-by-angle
+polygon expansion. Traversal and clamp reporting accompany caller-owned masks
+and represented triangle IDs. The exact remaining C ABI gap is 94 runtime
+requirements.
+
 ## 1. Foundation
 
 - [x] 1.1 CMake project, C++20, warnings as errors, presets for headless, macOS, Linux, Windows, iOS, Android

@@ -142,6 +142,8 @@ EXPORTS
     ctex_paint_apply_particles
     ctex_paint_pick_enabled_channels
     ctex_paint_select_colour_id
+    ctex_paint_select_screen
+    ctex_paint_select_polygon
     ctex_paint_resolve_stencil_mask
     ctex_paint_seam_dilation_init
     ctex_paint_surface_map_cache_clear

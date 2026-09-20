@@ -120,7 +120,8 @@
       {"requirement": "Text", "symbols": ["ctex_paint_apply_text"]},
       {"requirement": "Particle", "symbols": ["ctex_paint_apply_particles"]},
       {"requirement": "Picker", "symbols": ["ctex_paint_pick_enabled_channels"]},
-      {"requirement": "Colour ID selection", "symbols": ["ctex_paint_select_colour_id"]}
+      {"requirement": "Colour ID selection", "symbols": ["ctex_paint_select_colour_id"]},
+      {"requirement": "Selection tool", "symbols": ["ctex_paint_select_screen", "ctex_paint_select_polygon"]}
     ]},
     {"name": "picking", "kind": "runtime", "requirements": [
       {"requirement": "Ray construction", "symbols": ["ctex_pick_ray_from_screen"]},
