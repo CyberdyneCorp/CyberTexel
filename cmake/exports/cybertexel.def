@@ -16,6 +16,14 @@ EXPORTS
     ctex_transport_snapshot_negotiate_format
     ctex_transport_snapshot_get_tile_memory_layout
     ctex_transport_snapshot_read_tiles
+    ctex_executor_registry_create
+    ctex_executor_registry_destroy
+    ctex_executor_registry_get_count
+    ctex_executor_registry_get_info
+    ctex_executor_registry_select
+    ctex_executor_registry_pin_default
+    ctex_executor_registry_clear_default
+    ctex_executor_make_fallback_report
     ctex_texture_set_apply_smart_material
     ctex_texture_set_apply_smart_mask
     ctex_texture_set_get_preset_applications

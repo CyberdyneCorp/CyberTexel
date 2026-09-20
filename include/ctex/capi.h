@@ -87,7 +87,8 @@ typedef enum ctex_diagnostic_code {
     CTEX_DIAGNOSTIC_INVALID_PROJECT_CONTAINER = 51,
     CTEX_DIAGNOSTIC_INVALID_SMART_MATERIAL = 52,
     CTEX_DIAGNOSTIC_INVALID_PRESET_LIBRARY = 53,
-    CTEX_DIAGNOSTIC_INVALID_HOST_TRANSPORT = 54
+    CTEX_DIAGNOSTIC_INVALID_HOST_TRANSPORT = 54,
+    CTEX_DIAGNOSTIC_INVALID_EXECUTOR = 55
 } ctex_diagnostic_code;
 
 typedef enum ctex_log_severity {
@@ -136,6 +137,7 @@ typedef struct ctex_pick_index ctex_pick_index;
 typedef struct ctex_uv_pick_index ctex_uv_pick_index;
 typedef struct ctex_transport_snapshot_pool ctex_transport_snapshot_pool;
 typedef struct ctex_transport_snapshot ctex_transport_snapshot;
+typedef struct ctex_executor_registry ctex_executor_registry;
 
 #define CTEX_MAX_MESH_VERTEX_COUNT ((size_t)100000000)
 #define CTEX_MAX_MESH_TRIANGLE_COUNT ((size_t)100000000)
@@ -1371,6 +1373,121 @@ typedef struct ctex_transport_tile_readback_destination {
 #define CTEX_TRANSPORT_TILE_READBACK_DESTINATION_CURRENT_SIZE \
     ((uint32_t)sizeof(ctex_transport_tile_readback_destination))
 
+typedef enum ctex_executor_route {
+    CTEX_EXECUTOR_ROUTE_HOST_EXECUTED = 0,
+    CTEX_EXECUTOR_ROUTE_CPU_REFERENCE = 1,
+    CTEX_EXECUTOR_ROUTE_OWNED_GPU = 2
+} ctex_executor_route;
+
+typedef enum ctex_executor_availability {
+    CTEX_EXECUTOR_AVAILABLE = 0,
+    CTEX_EXECUTOR_DEVICE_UNAVAILABLE = 1,
+    CTEX_EXECUTOR_HOST_NOT_ATTACHED = 2
+} ctex_executor_availability;
+
+typedef enum ctex_executor_texture_format {
+    CTEX_EXECUTOR_TEXTURE_R8_UNORM = 0,
+    CTEX_EXECUTOR_TEXTURE_RG8_UNORM = 1,
+    CTEX_EXECUTOR_TEXTURE_RGBA8_UNORM = 2,
+    CTEX_EXECUTOR_TEXTURE_R16_UNORM = 3,
+    CTEX_EXECUTOR_TEXTURE_RG16_UNORM = 4,
+    CTEX_EXECUTOR_TEXTURE_RGBA16_UNORM = 5,
+    CTEX_EXECUTOR_TEXTURE_R16_FLOAT = 6,
+    CTEX_EXECUTOR_TEXTURE_RG16_FLOAT = 7,
+    CTEX_EXECUTOR_TEXTURE_RGBA16_FLOAT = 8,
+    CTEX_EXECUTOR_TEXTURE_R32_FLOAT = 9,
+    CTEX_EXECUTOR_TEXTURE_RG32_FLOAT = 10,
+    CTEX_EXECUTOR_TEXTURE_RGBA32_FLOAT = 11,
+    CTEX_EXECUTOR_TEXTURE_DEPTH32_FLOAT = 12
+} ctex_executor_texture_format;
+
+typedef struct ctex_host_executor_descriptor {
+    uint32_t size;
+    const char* device_name;
+    uint32_t binding_budget;
+    uint32_t maximum_texture_dimension;
+    const uint32_t* supported_texture_formats;
+    size_t supported_texture_format_count;
+    uint32_t floating_point_filtering;
+    uint32_t compute_available;
+    uint32_t attached;
+} ctex_host_executor_descriptor;
+
+#define CTEX_HOST_EXECUTOR_DESCRIPTOR_V1_SIZE ((uint32_t)sizeof(ctex_host_executor_descriptor))
+#define CTEX_HOST_EXECUTOR_DESCRIPTOR_CURRENT_SIZE ((uint32_t)sizeof(ctex_host_executor_descriptor))
+
+typedef struct ctex_executor_info {
+    uint32_t size;
+    uint32_t route;
+    uint32_t availability;
+    uint32_t binding_budget;
+    uint32_t maximum_texture_dimension;
+    size_t supported_texture_format_count;
+    uint32_t floating_point_filtering;
+    uint32_t compute_available;
+    size_t required_identifier_size;
+    size_t required_display_name_size;
+    size_t required_device_name_size;
+} ctex_executor_info;
+
+#define CTEX_EXECUTOR_INFO_V1_SIZE ((uint32_t)sizeof(ctex_executor_info))
+#define CTEX_EXECUTOR_INFO_CURRENT_SIZE ((uint32_t)sizeof(ctex_executor_info))
+
+typedef enum ctex_executor_selection_source {
+    CTEX_EXECUTOR_SELECTION_AUTOMATIC = 0,
+    CTEX_EXECUTOR_SELECTION_EXPLICIT = 1,
+    CTEX_EXECUTOR_SELECTION_ENVIRONMENT = 2
+} ctex_executor_selection_source;
+
+typedef struct ctex_executor_selection_info {
+    uint32_t size;
+    uint32_t source;
+    size_t selected_executor_index;
+    size_t required_requested_identifier_size;
+    size_t required_message_size;
+} ctex_executor_selection_info;
+
+#define CTEX_EXECUTOR_SELECTION_INFO_V1_SIZE ((uint32_t)sizeof(ctex_executor_selection_info))
+#define CTEX_EXECUTOR_SELECTION_INFO_CURRENT_SIZE ((uint32_t)sizeof(ctex_executor_selection_info))
+
+typedef enum ctex_execution_failure_code {
+    CTEX_EXECUTION_FAILURE_DEVICE_UNAVAILABLE = 0,
+    CTEX_EXECUTION_FAILURE_DEVICE_LOST = 1,
+    CTEX_EXECUTION_FAILURE_OPERATION_FAILED = 2,
+    CTEX_EXECUTION_FAILURE_CANCELLED = 3
+} ctex_execution_failure_code;
+
+typedef enum ctex_executor_fallback_disposition {
+    CTEX_EXECUTOR_NO_FALLBACK = 0,
+    CTEX_EXECUTOR_CPU_FALLBACK = 1,
+    CTEX_EXECUTOR_RECOVERY_REQUIRED = 2
+} ctex_executor_fallback_disposition;
+
+typedef struct ctex_executor_fallback_descriptor {
+    uint32_t size;
+    const char* failed_executor;
+    uint32_t failure;
+    const char* failure_detail;
+    uint32_t disposition;
+    const char* fallback_executor;
+    uint32_t recovery_restored;
+} ctex_executor_fallback_descriptor;
+
+#define CTEX_EXECUTOR_FALLBACK_DESCRIPTOR_V1_SIZE \
+    ((uint32_t)sizeof(ctex_executor_fallback_descriptor))
+#define CTEX_EXECUTOR_FALLBACK_DESCRIPTOR_CURRENT_SIZE \
+    ((uint32_t)sizeof(ctex_executor_fallback_descriptor))
+
+typedef struct ctex_executor_fallback_info {
+    uint32_t size;
+    uint32_t disposition;
+    uint32_t recovery_restored;
+    size_t required_message_size;
+} ctex_executor_fallback_info;
+
+#define CTEX_EXECUTOR_FALLBACK_INFO_V1_SIZE ((uint32_t)sizeof(ctex_executor_fallback_info))
+#define CTEX_EXECUTOR_FALLBACK_INFO_CURRENT_SIZE ((uint32_t)sizeof(ctex_executor_fallback_info))
+
 typedef enum ctex_texture_export_texture_set_selection {
     CTEX_TEXTURE_EXPORT_TEXTURE_SET_ALL = 0,
     CTEX_TEXTURE_EXPORT_TEXTURE_SET_SELECTED = 1
@@ -2455,6 +2572,46 @@ CTEX_API ctex_result ctex_transport_snapshot_get_tile_memory_layout(
 CTEX_API ctex_result ctex_transport_snapshot_read_tiles(
     const ctex_transport_snapshot* snapshot, const ctex_transport_format_selection* format,
     const ctex_transport_tile_readback_destination* destinations, size_t destination_count);
+
+/*
+ * Creates a registry containing the always-available CPU reference and
+ * host-executed routes plus an owned-GPU route when that backend was compiled.
+ * host is required and may declare the host route detached.
+ */
+CTEX_API ctex_result ctex_executor_registry_create(const ctex_host_executor_descriptor* host,
+                                                   ctex_executor_registry** out_registry);
+CTEX_API void ctex_executor_registry_destroy(ctex_executor_registry* registry);
+CTEX_API ctex_result ctex_executor_registry_get_count(const ctex_executor_registry* registry,
+                                                      size_t* out_count);
+
+/*
+ * Returns one executor and its complete device feature set by stable sorted
+ * index. All arrays and strings use atomic caller-owned sizing semantics.
+ */
+CTEX_API ctex_result ctex_executor_registry_get_info(
+    const ctex_executor_registry* registry, size_t executor_index, ctex_executor_info* out_info,
+    uint32_t* supported_texture_formats, size_t supported_texture_format_capacity, char* identifier,
+    size_t identifier_size, char* display_name, size_t display_name_size, char* device_name,
+    size_t device_name_size);
+
+/*
+ * A null requested_identifier applies the pinned default, CTEX_EXECUTOR, then
+ * automatic selection. A non-null identifier requests that compiled route.
+ */
+CTEX_API ctex_result ctex_executor_registry_select(const ctex_executor_registry* registry,
+                                                   const char* requested_identifier,
+                                                   ctex_executor_selection_info* out_info,
+                                                   char* requested_identifier_output,
+                                                   size_t requested_identifier_output_size,
+                                                   char* message, size_t message_size);
+CTEX_API ctex_result ctex_executor_registry_pin_default(ctex_executor_registry* registry,
+                                                        const char* identifier);
+CTEX_API ctex_result ctex_executor_registry_clear_default(ctex_executor_registry* registry);
+
+/* Validates and formats the recovery/fallback decision for a failed executor. */
+CTEX_API ctex_result ctex_executor_make_fallback_report(
+    const ctex_executor_fallback_descriptor* descriptor, ctex_executor_fallback_info* out_info,
+    char* message, size_t message_size);
 CTEX_API ctex_result ctex_texture_set_apply_smart_material(ctex_document* document,
                                                            const char* texture_set_id,
                                                            const void* serialized,

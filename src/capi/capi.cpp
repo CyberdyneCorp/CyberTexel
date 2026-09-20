@@ -7,6 +7,9 @@
 #include <cstdio>
 #include <cstring>
 #include <ctex/doc/smart_material.hpp>
+#include <ctex/exec/cpu_reference.hpp>
+#include <ctex/exec/host_execution.hpp>
+#include <ctex/exec/vulkan_executor.hpp>
 #include <ctex/image/color_policy.hpp>
 #include <ctex/io/image_io.hpp>
 #include <ctex/io/preset_library.hpp>
@@ -228,6 +231,14 @@ struct ctex_transport_snapshot {
     ctex_allocator_state allocator;
     ctex::xport::SnapshotDelta value;
     std::vector<ctex::xport::TileMemoryLayout> layouts;
+};
+
+struct ctex_executor_registry {
+    explicit ctex_executor_registry(ctex_allocator_state allocator_value)
+        : allocator(allocator_value) {}
+
+    ctex_allocator_state allocator;
+    ctex::exec::ExecutorRegistry value;
 };
 
 namespace {
@@ -536,6 +547,28 @@ ctex_transport_snapshot* create_transport_snapshot(
                            alignof(ctex_transport_snapshot));
         throw;
     }
+}
+
+ctex_executor_registry* create_executor_registry(const ctex_allocator_state& allocator) {
+    void* storage = allocate_storage(allocator, sizeof(ctex_executor_registry),
+                                     alignof(ctex_executor_registry));
+    try {
+        return ::new (storage) ctex_executor_registry(allocator);
+    } catch (...) {
+        deallocate_storage(allocator, storage, sizeof(ctex_executor_registry),
+                           alignof(ctex_executor_registry));
+        throw;
+    }
+}
+
+void destroy_executor_registry(ctex_executor_registry* registry) noexcept {
+    if (registry == nullptr) {
+        return;
+    }
+    const ctex_allocator_state allocator = registry->allocator;
+    registry->~ctex_executor_registry();
+    deallocate_storage(allocator, registry, sizeof(ctex_executor_registry),
+                       alignof(ctex_executor_registry));
 }
 
 std::size_t texture_set_id_buffer_size(const std::vector<std::string>& identifiers) {
@@ -4802,6 +4835,89 @@ const char* require_transport_text(const char* value, std::string_view field) {
     return value;
 }
 
+void require_executor_boolean(std::uint32_t value, std::string_view field) {
+    if (value > 1U) {
+        throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_INVALID_EXECUTOR,
+                       std::string(field) + " must be zero or one");
+    }
+}
+
+ctex::emit::TextureFormat executor_texture_format(std::uint32_t value) {
+    if (value > CTEX_EXECUTOR_TEXTURE_DEPTH32_FLOAT) {
+        throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_INVALID_ENUM_VALUE,
+                       "executor texture format=" + std::to_string(value));
+    }
+    return static_cast<ctex::emit::TextureFormat>(value);
+}
+
+ctex::emit::DeviceFeatureSet host_executor_features(
+    const ctex_host_executor_descriptor& descriptor) {
+    validate_structure_size(descriptor.size, CTEX_HOST_EXECUTOR_DESCRIPTOR_V1_SIZE,
+                            CTEX_HOST_EXECUTOR_DESCRIPTOR_CURRENT_SIZE,
+                            "host executor descriptor size");
+    if (descriptor.device_name == nullptr || descriptor.supported_texture_formats == nullptr) {
+        throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                       "host device name and supported texture formats are required");
+    }
+    if (descriptor.device_name[0] == '\0' || descriptor.supported_texture_format_count == 0) {
+        throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_INVALID_EXECUTOR,
+                       "host executor requires a device name and texture formats");
+    }
+    require_executor_boolean(descriptor.floating_point_filtering, "floating_point_filtering");
+    require_executor_boolean(descriptor.compute_available, "compute_available");
+    require_executor_boolean(descriptor.attached, "attached");
+    ctex::emit::DeviceFeatureSet features{
+        .binding_budget = descriptor.binding_budget,
+        .maximum_texture_dimension = descriptor.maximum_texture_dimension,
+        .supported_texture_formats = {},
+        .floating_point_filtering = descriptor.floating_point_filtering != 0,
+        .compute_available = descriptor.compute_available != 0,
+    };
+    features.supported_texture_formats.reserve(descriptor.supported_texture_format_count);
+    for (std::size_t index = 0; index < descriptor.supported_texture_format_count; ++index) {
+        features.supported_texture_formats.push_back(
+            executor_texture_format(descriptor.supported_texture_formats[index]));
+    }
+    return features;
+}
+
+const ctex::exec::ExecutorDescriptor& executor_at(const ctex_executor_registry& registry,
+                                                  std::size_t index) {
+    const ctex::exec::Executor* executor = nullptr;
+    const auto descriptors = registry.value.enumerate();
+    if (index >= descriptors.size()) {
+        throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_INVALID_EXECUTOR,
+                       "executor index=" + std::to_string(index) +
+                           " count=" + std::to_string(descriptors.size()));
+    }
+    executor = registry.value.find(descriptors[index].identifier);
+    if (executor == nullptr) {
+        throw std::logic_error("enumerated executor could not be resolved");
+    }
+    return executor->descriptor();
+}
+
+std::size_t executor_index(const ctex_executor_registry& registry, std::string_view identifier) {
+    const auto descriptors = registry.value.enumerate();
+    const auto found = std::find_if(descriptors.begin(), descriptors.end(), [&](const auto& value) {
+        return value.identifier == identifier;
+    });
+    if (found == descriptors.end()) {
+        throw std::logic_error("selected executor is absent from its registry");
+    }
+    return static_cast<std::size_t>(found - descriptors.begin());
+}
+
+void validate_executor_string(char* output, std::size_t output_size, const std::string& value) {
+    validate_string_buffer(output, output_size, value.size() + 1);
+}
+
+void copy_executor_string(const std::string& value, char* output) {
+    if (output != nullptr) {
+        std::memcpy(output, value.c_str(), value.size() + 1);
+    }
+}
+
 void query_transport_snapshot(ctex_transport_snapshot_pool& pool,
                               const ctex::image::TiledImage& image,
                               ctex_transport_revision_cursor synchronized_cursor,
@@ -7513,6 +7629,215 @@ extern "C" ctex_result ctex_transport_snapshot_read_tiles(
         if (readback.status() != ctex::xport::TileReadbackStatus::complete) {
             throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_INVALID_HOST_TRANSPORT,
                            readback.detail());
+        }
+    });
+}
+
+extern "C" ctex_result ctex_executor_registry_create(const ctex_host_executor_descriptor* host,
+                                                     ctex_executor_registry** out_registry) {
+    return call_boundary("ctex_executor_registry_create", [&] {
+        if (out_registry == nullptr) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                           "out_registry=null");
+        }
+        *out_registry = nullptr;
+        if (host == nullptr) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                           "host=null");
+        }
+        ctex::emit::DeviceFeatureSet host_features = host_executor_features(*host);
+        ctex_executor_registry* created = create_executor_registry(current_allocator());
+        try {
+            created->value.add(std::make_shared<ctex::exec::CpuReferenceExecutor>());
+            created->value.add(std::make_shared<ctex::exec::HostExecutedExecutor>(
+                host->device_name, std::move(host_features), host->attached != 0));
+            auto vulkan = ctex::exec::create_vulkan_executor();
+            if (vulkan.compiled && vulkan.executor != nullptr) {
+                created->value.add(std::move(vulkan.executor));
+            }
+            *out_registry = created;
+        } catch (const ctex::exec::ExecutorRegistryError& error) {
+            destroy_executor_registry(created);
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_INVALID_EXECUTOR,
+                           error.what());
+        } catch (const ctex::exec::HostExecutionError& error) {
+            destroy_executor_registry(created);
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_INVALID_EXECUTOR,
+                           error.what());
+        } catch (...) {
+            destroy_executor_registry(created);
+            throw;
+        }
+    });
+}
+
+extern "C" void ctex_executor_registry_destroy(ctex_executor_registry* registry) {
+    destroy_executor_registry(registry);
+}
+
+extern "C" ctex_result ctex_executor_registry_get_count(const ctex_executor_registry* registry,
+                                                        std::size_t* out_count) {
+    return call_boundary("ctex_executor_registry_get_count", [&] {
+        if (registry == nullptr || out_count == nullptr) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                           registry == nullptr ? "registry=null" : "out_count=null");
+        }
+        *out_count = registry->value.enumerate().size();
+    });
+}
+
+extern "C" ctex_result ctex_executor_registry_get_info(
+    const ctex_executor_registry* registry, std::size_t executor_index,
+    ctex_executor_info* out_info, std::uint32_t* supported_texture_formats,
+    std::size_t supported_texture_format_capacity, char* identifier, std::size_t identifier_size,
+    char* display_name, std::size_t display_name_size, char* device_name,
+    std::size_t device_name_size) {
+    return call_boundary("ctex_executor_registry_get_info", [&] {
+        if (registry == nullptr || out_info == nullptr) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                           registry == nullptr ? "registry=null" : "out_info=null");
+        }
+        validate_structure_size(out_info->size, CTEX_EXECUTOR_INFO_V1_SIZE,
+                                CTEX_EXECUTOR_INFO_CURRENT_SIZE, "executor info size");
+        const auto& descriptor = executor_at(*registry, executor_index);
+        *out_info = {
+            .size = CTEX_EXECUTOR_INFO_CURRENT_SIZE,
+            .route = static_cast<std::uint32_t>(descriptor.route),
+            .availability = static_cast<std::uint32_t>(descriptor.availability),
+            .binding_budget = descriptor.features.binding_budget,
+            .maximum_texture_dimension = descriptor.features.maximum_texture_dimension,
+            .supported_texture_format_count = descriptor.features.supported_texture_formats.size(),
+            .floating_point_filtering = descriptor.features.floating_point_filtering ? 1U : 0U,
+            .compute_available = descriptor.features.compute_available ? 1U : 0U,
+            .required_identifier_size = descriptor.identifier.size() + 1,
+            .required_display_name_size = descriptor.display_name.size() + 1,
+            .required_device_name_size = descriptor.device_name.size() + 1,
+        };
+        validate_output_array(supported_texture_formats, supported_texture_format_capacity,
+                              descriptor.features.supported_texture_formats.size(),
+                              "supported_texture_formats");
+        validate_executor_string(identifier, identifier_size, descriptor.identifier);
+        validate_executor_string(display_name, display_name_size, descriptor.display_name);
+        validate_executor_string(device_name, device_name_size, descriptor.device_name);
+        if (supported_texture_formats != nullptr) {
+            std::transform(descriptor.features.supported_texture_formats.begin(),
+                           descriptor.features.supported_texture_formats.end(),
+                           supported_texture_formats,
+                           [](auto format) { return static_cast<std::uint32_t>(format); });
+        }
+        copy_executor_string(descriptor.identifier, identifier);
+        copy_executor_string(descriptor.display_name, display_name);
+        copy_executor_string(descriptor.device_name, device_name);
+    });
+}
+
+extern "C" ctex_result ctex_executor_registry_select(const ctex_executor_registry* registry,
+                                                     const char* requested_identifier,
+                                                     ctex_executor_selection_info* out_info,
+                                                     char* requested_identifier_output,
+                                                     std::size_t requested_identifier_output_size,
+                                                     char* message, std::size_t message_size) {
+    return call_boundary("ctex_executor_registry_select", [&] {
+        if (registry == nullptr || out_info == nullptr) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                           registry == nullptr ? "registry=null" : "out_info=null");
+        }
+        validate_structure_size(out_info->size, CTEX_EXECUTOR_SELECTION_INFO_V1_SIZE,
+                                CTEX_EXECUTOR_SELECTION_INFO_CURRENT_SIZE,
+                                "executor selection info size");
+        try {
+            const ctex::exec::ExecutorSelection selection =
+                requested_identifier == nullptr ? registry->value.select_process_default()
+                                                : registry->value.select(requested_identifier);
+            *out_info = {
+                .size = CTEX_EXECUTOR_SELECTION_INFO_CURRENT_SIZE,
+                .source = static_cast<std::uint32_t>(selection.source),
+                .selected_executor_index =
+                    executor_index(*registry, selection.executor->descriptor().identifier),
+                .required_requested_identifier_size = selection.requested_identifier.size() + 1,
+                .required_message_size = selection.message.size() + 1,
+            };
+            validate_executor_string(requested_identifier_output, requested_identifier_output_size,
+                                     selection.requested_identifier);
+            validate_executor_string(message, message_size, selection.message);
+            copy_executor_string(selection.requested_identifier, requested_identifier_output);
+            copy_executor_string(selection.message, message);
+        } catch (const ctex::exec::ExecutorRegistryError& error) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_INVALID_EXECUTOR,
+                           error.what());
+        }
+    });
+}
+
+extern "C" ctex_result ctex_executor_registry_pin_default(ctex_executor_registry* registry,
+                                                          const char* identifier) {
+    return call_boundary("ctex_executor_registry_pin_default", [&] {
+        if (registry == nullptr || identifier == nullptr) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                           registry == nullptr ? "registry=null" : "identifier=null");
+        }
+        try {
+            registry->value.pin_default(identifier);
+        } catch (const ctex::exec::ExecutorRegistryError& error) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_INVALID_EXECUTOR,
+                           error.what());
+        }
+    });
+}
+
+extern "C" ctex_result ctex_executor_registry_clear_default(ctex_executor_registry* registry) {
+    return call_boundary("ctex_executor_registry_clear_default", [&] {
+        if (registry == nullptr) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                           "registry=null");
+        }
+        registry->value.clear_pinned_default();
+    });
+}
+
+extern "C" ctex_result ctex_executor_make_fallback_report(
+    const ctex_executor_fallback_descriptor* descriptor, ctex_executor_fallback_info* out_info,
+    char* message, std::size_t message_size) {
+    return call_boundary("ctex_executor_make_fallback_report", [&] {
+        if (descriptor == nullptr || out_info == nullptr) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                           descriptor == nullptr ? "descriptor=null" : "out_info=null");
+        }
+        validate_structure_size(descriptor->size, CTEX_EXECUTOR_FALLBACK_DESCRIPTOR_V1_SIZE,
+                                CTEX_EXECUTOR_FALLBACK_DESCRIPTOR_CURRENT_SIZE,
+                                "executor fallback descriptor size");
+        validate_structure_size(out_info->size, CTEX_EXECUTOR_FALLBACK_INFO_V1_SIZE,
+                                CTEX_EXECUTOR_FALLBACK_INFO_CURRENT_SIZE,
+                                "executor fallback info size");
+        if (descriptor->failed_executor == nullptr || descriptor->failure_detail == nullptr) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                           "failed_executor and failure_detail are required");
+        }
+        if (descriptor->failure > CTEX_EXECUTION_FAILURE_CANCELLED ||
+            descriptor->disposition > CTEX_EXECUTOR_RECOVERY_REQUIRED) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_INVALID_ENUM_VALUE,
+                           "executor fallback enum is invalid");
+        }
+        require_executor_boolean(descriptor->recovery_restored, "recovery_restored");
+        try {
+            const auto report = ctex::exec::make_fallback_report(
+                descriptor->failed_executor,
+                static_cast<ctex::exec::ExecutionFailureCode>(descriptor->failure),
+                descriptor->failure_detail,
+                static_cast<ctex::exec::FallbackDisposition>(descriptor->disposition),
+                descriptor->fallback_executor == nullptr ? "" : descriptor->fallback_executor,
+                descriptor->recovery_restored != 0);
+            *out_info = {
+                .size = CTEX_EXECUTOR_FALLBACK_INFO_CURRENT_SIZE,
+                .disposition = static_cast<std::uint32_t>(report.disposition),
+                .recovery_restored = report.recovery_restored ? 1U : 0U,
+                .required_message_size = report.message.size() + 1,
+            };
+            validate_executor_string(message, message_size, report.message);
+            copy_executor_string(report.message, message);
+        } catch (const ctex::exec::ExecutorRegistryError& error) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_INVALID_EXECUTOR,
+                           error.what());
         }
     });
 }

@@ -37,7 +37,11 @@
     {"name": "device-gate", "kind": "non-runtime", "rationale": "Device performance policy is repository and CI evidence.", "evidence": ["task 17"]},
     {"name": "editable-authoring", "kind": "runtime", "requirements": []},
     {"name": "examples", "kind": "non-runtime", "rationale": "Examples consume the bindings and are not library operations.", "evidence": ["task 16"]},
-    {"name": "execution-backends", "kind": "runtime", "requirements": []},
+    {"name": "execution-backends", "kind": "runtime", "requirements": [
+      {"requirement": "Three execution routes", "symbols": ["ctex_executor_registry_create", "ctex_executor_registry_destroy", "ctex_executor_registry_get_count", "ctex_executor_registry_get_info"]},
+      {"requirement": "Executor selection and fallback", "symbols": ["ctex_executor_registry_select", "ctex_executor_registry_pin_default", "ctex_executor_registry_clear_default", "ctex_executor_make_fallback_report"]},
+      {"requirement": "Device capability reporting", "symbols": ["ctex_executor_registry_get_info"]}
+    ]},
     {"name": "host-transport", "kind": "runtime", "requirements": [
       {"requirement": "Revisions", "symbols": ["ctex_texture_set_query_channel_delta"]},
       {"requirement": "Per-tile revisions", "symbols": ["ctex_texture_set_query_channel_delta"]},

@@ -754,6 +754,13 @@ readback types as a committed channel. Successive in-flight revisions remain
 independently pinned and readable after the preview session is destroyed. The
 exact remaining C ABI gap is 121 runtime requirements.
 
+The executor-registry continuation exposes three execution-backend requirements.
+Hosts enumerate the always-available CPU reference, an optionally attached host
+route and the compiled owned-GPU route with their complete shader-emission
+features. Explicit, pinned, environment and automatic selection use stable
+identities, and CPU fallback reports require restored recovery state. The exact
+remaining C ABI gap is 118 runtime requirements.
+
 ## 1. Foundation
 
 - [x] 1.1 CMake project, C++20, warnings as errors, presets for headless, macOS, Linux, Windows, iOS, Android

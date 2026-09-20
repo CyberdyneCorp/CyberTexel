@@ -140,6 +140,25 @@ previews; an admitted token remains valid after its preview session is destroyed
 Committed and cancelled sessions are no longer in flight and refuse new preview
 snapshots. Host-device pending/completion remains outside this slice.
 
+## Execution routes
+
+`ctex_executor_registry_create` always registers the CPU reference and
+host-executed routes. Its required host descriptor reports capabilities and
+attachment without passing any device handle into the library; a compiled
+owned-GPU backend is also registered and
+reports `CTEX_EXECUTOR_DEVICE_UNAVAILABLE` when its device cannot be opened.
+Every route has a stable identifier plus its binding budget, maximum texture
+dimension, supported texture formats, filtering support and compute support.
+`ctex_executor_registry_get_info` returns those variable-size fields through
+atomic caller-owned buffers.
+
+Selection may be explicit or may apply, in order, a pinned registry default,
+the `CTEX_EXECUTOR` environment variable and automatic route ranking. An unknown
+environment value is reported while automatic selection remains in effect; an
+unknown explicit or pinned identity is refused. `ctex_executor_make_fallback_report`
+validates fallback decisions and refuses a CPU fallback unless recovery was
+restored and the fallback executor is named.
+
 ## Colour management
 
 `ctex_get_working_color_space` and `ctex_color_space_get_name` identify the
@@ -526,6 +545,8 @@ The contract is stated per entry-point family:
 | `ctex_texture_set_apply_smart_material`, `ctex_texture_set_apply_smart_mask`, `ctex_texture_set_get_preset_applications`, `ctex_texture_set_set_applied_entry_state`, `ctex_texture_set_undo_last_preset_application` | Distinct documents are independent; callers serialize these operations with every other operation on the same document |
 | `ctex_texture_set_query_channel_delta`, `ctex_texture_set_reset_channel_revision_history` | Distinct documents are independent; callers serialize these operations with every other operation on the same document. Query output contains metadata only and performs no pixel readback |
 | `ctex_transport_snapshot_pool_create`, `ctex_transport_snapshot_pool_destroy`, `ctex_transport_snapshot_pool_get_memory_report`, `ctex_texture_set_query_channel_snapshot`, `ctex_paint_preview_session_query_snapshot`, `ctex_transport_snapshot_destroy`, `ctex_transport_snapshot_get_tile_versions`, `ctex_transport_snapshot_negotiate_format`, `ctex_transport_snapshot_get_tile_memory_layout`, `ctex_transport_snapshot_read_tiles` | Distinct pools and snapshots are independent. Callers serialize query/report operations on one pool and all operations or destruction on one snapshot. A document or preview session is required only during its snapshot query and must be externally serialized for that call; an admitted snapshot owns its pinned versions and may outlive the source handle and pool |
+| `ctex_executor_registry_create`, `ctex_executor_registry_destroy`, `ctex_executor_registry_get_count`, `ctex_executor_registry_get_info`, `ctex_executor_registry_select`, `ctex_executor_registry_pin_default`, `ctex_executor_registry_clear_default` | Distinct registries are independent. Callers serialize selection/default changes and destruction of one registry; read-only count and descriptor queries may run concurrently when no operation mutates that registry |
+| `ctex_executor_make_fallback_report` | Stateless and safe to call concurrently; input strings are borrowed only for the call and the report buffer is caller-owned |
 | `ctex_paint_dilation_session_create`, `ctex_paint_dilation_session_destroy`, `ctex_paint_dilation_session_stage_tile`, `ctex_paint_dilation_session_get_preview`, `ctex_paint_dilation_session_finish` | Distinct sessions are independent and may be used concurrently; callers serialize staging, preview, finish and destruction of the same session |
 | `ctex_paint_surface_map_cache_create`, `ctex_paint_surface_map_cache_destroy`, `ctex_paint_surface_map_cache_clear`, `ctex_paint_surface_map_cache_get_statistics`, `ctex_paint_surface_map_cache_lookup` | Distinct caches are independent and may be used concurrently; callers serialize lookup, statistics, clearing and destruction of the same cache, and keep each mesh alive for its lookup call |
 | `ctex_paint_preview_session_create`, `ctex_paint_preview_session_destroy`, `ctex_paint_preview_session_write_pixel`, `ctex_paint_preview_session_get_info`, `ctex_paint_preview_session_get_pixels`, `ctex_paint_preview_session_get_changed_tiles`, `ctex_paint_preview_session_finalize`, `ctex_paint_preview_session_commit`, `ctex_paint_preview_session_cancel` | Distinct sessions on distinct documents are independent; callers serialize every operation on a session and every operation on its document, and keep the document alive through session destruction |

@@ -45,6 +45,10 @@ snapshot pools pin queried tile versions across later edits, report their memory
 pressure, negotiate host-selected formats, describe direct-upload layouts and
 read only named tiles into caller-owned buffers. In-flight paint previews use
 the same versioned snapshot path and remain pinned independently of their
-session. Exactly 121 runtime requirements remain unmapped.
+session. Executor registries now expose the CPU reference, an attached host route and the
+optional compiled owned-GPU route with complete device feature descriptors.
+Selection supports explicit, pinned and `CTEX_EXECUTOR` defaults, while fallback
+reports refuse CPU fallback until recovery is established. Exactly 118 runtime
+requirements remain unmapped.
 The gate is not part of the aggregate `just check` until that count reaches zero;
 its unit tests run in the normal tooling suite throughout the migration.
