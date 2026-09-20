@@ -20,3 +20,11 @@ identities in the diagnostic.
 The caller supplies the source snapshot explicitly. Clone never reads from its
 partially updated output, so crossing the stroke's own path cannot feed newly
 cloned pixels back into later samples.
+
+The public C boundary exposes the same mapping as `ctex_paint_apply_clone`.
+Its independently retained source descriptor names the texture set and source
+anchor; each paint call supplies the destination anchor, cached destination
+surface, canonical deposition and immutable source snapshot. Query calls report
+the exact sample-index and channel shapes, while filling calls publish them
+atomically. A cross-set refusal keeps both texture-set identities in the stable
+diagnostic.

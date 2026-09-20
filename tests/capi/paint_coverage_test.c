@@ -853,6 +853,90 @@ static int fill_exposes_all_scopes_and_shades_atomically(void) {
     return passed;
 }
 
+static int clone_maps_aligned_and_fixed_sources_and_refuses_cross_set(void) {
+    const ctex_paint_surface_texel texels[4] = {{{0, 0, 0}, {0, 0, 1}, {0, 0, 1}, {0.125, 0.5}, 0},
+                                                {{0, 0, 0}, {0, 0, 1}, {0, 0, 1}, {0.375, 0.5}, 1},
+                                                {{0, 0, 0}, {0, 0, 1}, {0, 0, 1}, {0.625, 0.5}, 2},
+                                                {{0, 0, 0}, {0, 0, 1}, {0, 0, 1}, {0.875, 0.5}, 3}};
+    const uint8_t coverage[4] = {1, 1, 1, 1};
+    const ctex_vec4f layer_pixels[4] = {{0, 0, 0, 1}, {0, 0, 0, 1}, {0, 0, 0, 1}, {0, 0, 0, 1}};
+    const ctex_vec4f source_pixels[4] = {
+        {0.1f, 0.1f, 0.1f, 1}, {0.2f, 0.2f, 0.2f, 1}, {0.3f, 0.3f, 0.3f, 1}, {0.4f, 0.4f, 0.4f, 1}};
+    const ctex_paint_tool_channel_descriptor layer = {
+        CTEX_PAINT_TOOL_CHANNEL_DESCRIPTOR_CURRENT_SIZE, "pbr.base_color", 3, layer_pixels, 4};
+    const ctex_paint_tool_channel_descriptor source_snapshot = {
+        CTEX_PAINT_TOOL_CHANNEL_DESCRIPTOR_CURRENT_SIZE, "pbr.base_color", 3, source_pixels, 4};
+    const ctex_paint_deposition_sample deposition[4] = {{.strength = 1, .write = 1},
+                                                        {.strength = 1, .write = 1},
+                                                        {.strength = 1, .write = 1},
+                                                        {.strength = 1, .write = 1}};
+    ctex_paint_clone_source_descriptor source = {
+        CTEX_PAINT_CLONE_SOURCE_DESCRIPTOR_CURRENT_SIZE, "set:body", {0.125, 0.5}};
+    ctex_paint_clone_descriptor descriptor = {.size = CTEX_PAINT_CLONE_DESCRIPTOR_CURRENT_SIZE,
+                                              .width = 4,
+                                              .height = 1,
+                                              .mode = CTEX_PAINT_CLONE_ALIGNED,
+                                              .destination_texture_set_id = "set:body",
+                                              .tile_origin = {0, 0},
+                                              .destination_anchor_uv = {0.375, 0.5},
+                                              .source = &source,
+                                              .destination_surface_texels = texels,
+                                              .destination_surface_texel_count = 4,
+                                              .destination_coverage = coverage,
+                                              .destination_coverage_count = 4,
+                                              .enabled_layer_snapshot = &layer,
+                                              .enabled_layer_channel_count = 1,
+                                              .source_snapshot = &source_snapshot,
+                                              .source_channel_count = 1,
+                                              .deposition = deposition,
+                                              .deposition_count = 4,
+                                              .blend_mode = "normal"};
+    ctex_paint_clone_info info = {.size = CTEX_PAINT_CLONE_INFO_CURRENT_SIZE};
+    size_t sample_indices[4] = {99, 99, 99, 99};
+    ctex_vec4f pixels[4] = {{-1, -1, -1, -1}, {-1, -1, -1, -1}, {-1, -1, -1, -1}, {-1, -1, -1, -1}};
+    const ctex_paint_tool_channel_output channel_output = {
+        CTEX_PAINT_TOOL_CHANNEL_OUTPUT_CURRENT_SIZE, pixels, 4};
+    ctex_paint_clone_outputs outputs = {CTEX_PAINT_CLONE_OUTPUTS_CURRENT_SIZE, sample_indices, 4,
+                                        &channel_output, 1};
+    int passed = expect(ctex_paint_apply_clone(&descriptor, &info, NULL) == CTEX_RESULT_SUCCESS) &&
+                 expect(info.required_source_sample_count == 4 && info.applied_channel_count == 1);
+    if (passed) {
+        passed =
+            expect(ctex_paint_apply_clone(&descriptor, &info, &outputs) == CTEX_RESULT_SUCCESS) &&
+            expect(sample_indices[0] == CTEX_PAINT_NO_CLONE_SAMPLE) &&
+            expect(sample_indices[1] == 0 && sample_indices[2] == 1 && sample_indices[3] == 2) &&
+            expect(near_float(pixels[0].x, 0.0f) && near_float(pixels[1].x, 0.1f) &&
+                   near_float(pixels[2].x, 0.2f) && near_float(pixels[3].x, 0.3f));
+    }
+    if (passed) {
+        descriptor.mode = CTEX_PAINT_CLONE_FIXED;
+        source.uv = (ctex_vec2d){0.625, 0.5};
+        passed =
+            expect(ctex_paint_apply_clone(&descriptor, &info, &outputs) == CTEX_RESULT_SUCCESS) &&
+            expect(sample_indices[0] == 2 && sample_indices[1] == 2 && sample_indices[2] == 2 &&
+                   sample_indices[3] == 2) &&
+            expect(near_float(pixels[0].x, 0.3f) && near_float(pixels[3].x, 0.3f));
+    }
+    if (passed) {
+        outputs.source_sample_capacity = 3;
+        sample_indices[0] = 77;
+        pixels[0].x = -2;
+        passed = expect(ctex_paint_apply_clone(&descriptor, &info, &outputs) ==
+                        CTEX_RESULT_BUFFER_TOO_SMALL) &&
+                 expect(sample_indices[0] == 77 && pixels[0].x == -2);
+    }
+    if (passed) {
+        outputs.source_sample_capacity = 4;
+        source.texture_set_id = "set:source";
+        passed = expect(ctex_paint_apply_clone(&descriptor, &info, &outputs) ==
+                        CTEX_RESULT_INVALID_ARGUMENT) &&
+                 expect(ctex_get_last_diagnostic_code() == CTEX_DIAGNOSTIC_INVALID_PAINT_TOOL) &&
+                 expect(strstr(ctex_get_last_diagnostic(), "set:source") != NULL) &&
+                 expect(strstr(ctex_get_last_diagnostic(), "set:body") != NULL);
+    }
+    return passed;
+}
+
 static int invalid_inputs_are_stable_diagnostics(void) {
     ctex_mesh* mesh = coverage_mesh();
     ctex_paint_tile_coverage_descriptor tile = {
@@ -907,6 +991,7 @@ int main(void) {
                    brush_applies_every_enabled_channel_atomically() &&
                    eraser_reduces_the_selected_target_atomically() &&
                    fill_exposes_all_scopes_and_shades_atomically() &&
+                   clone_maps_aligned_and_fixed_sources_and_refuses_cross_set() &&
                    invalid_inputs_are_stable_diagnostics()
                ? 0
                : 1;

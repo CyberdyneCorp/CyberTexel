@@ -25,6 +25,7 @@
 #include <ctex/io/texture_export.hpp>
 #include <ctex/paint/blending.hpp>
 #include <ctex/paint/brush.hpp>
+#include <ctex/paint/clone.hpp>
 #include <ctex/paint/coverage.hpp>
 #include <ctex/paint/deposition.hpp>
 #include <ctex/paint/fill.hpp>
@@ -3440,7 +3441,7 @@ ctex::paint::FillScope paint_fill_scope(std::uint32_t value) {
     }
 }
 
-void require_paint_fill_array(const void* values, std::size_t count, std::string_view name) {
+void require_paint_tool_array(const void* values, std::size_t count, std::string_view name) {
     if (values == nullptr && count != 0) {
         throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
                        std::string(name) + "=null with nonzero count");
@@ -3449,12 +3450,12 @@ void require_paint_fill_array(const void* values, std::size_t count, std::string
 
 ctex::paint::CachedSurfaceMaps paint_fill_surface(const ctex_paint_fill_descriptor& descriptor,
                                                   std::size_t pixel_count) {
-    require_paint_fill_array(descriptor.surface_texels, descriptor.surface_texel_count,
+    require_paint_tool_array(descriptor.surface_texels, descriptor.surface_texel_count,
                              "surface_texels");
-    require_paint_fill_array(descriptor.coverage, descriptor.coverage_count, "coverage");
-    require_paint_fill_array(descriptor.triangle_identity, descriptor.triangle_identity_count,
+    require_paint_tool_array(descriptor.coverage, descriptor.coverage_count, "coverage");
+    require_paint_tool_array(descriptor.triangle_identity, descriptor.triangle_identity_count,
                              "triangle_identity");
-    require_paint_fill_array(descriptor.uv_island_identity, descriptor.uv_island_identity_count,
+    require_paint_tool_array(descriptor.uv_island_identity, descriptor.uv_island_identity_count,
                              "uv_island_identity");
     if (descriptor.surface_texel_count != pixel_count || descriptor.coverage_count != pixel_count ||
         descriptor.triangle_identity_count != pixel_count ||
@@ -3491,13 +3492,13 @@ ctex::paint::CachedSurfaceMaps paint_fill_surface(const ctex_paint_fill_descript
 
 std::vector<ctex::paint::FillTriangleTopology> paint_fill_topology(
     const ctex_paint_fill_descriptor& descriptor) {
-    require_paint_fill_array(descriptor.triangle_topology, descriptor.triangle_topology_count,
+    require_paint_tool_array(descriptor.triangle_topology, descriptor.triangle_topology_count,
                              "triangle_topology");
     std::vector<ctex::paint::FillTriangleTopology> result;
     result.reserve(descriptor.triangle_topology_count);
     for (std::size_t index = 0; index < descriptor.triangle_topology_count; ++index) {
         const ctex_paint_fill_triangle_topology& triangle = descriptor.triangle_topology[index];
-        require_paint_fill_array(triangle.adjacent_triangles, triangle.adjacent_triangle_count,
+        require_paint_tool_array(triangle.adjacent_triangles, triangle.adjacent_triangle_count,
                                  "triangle_topology.adjacent_triangles");
         ctex::paint::FillTriangleTopology converted{
             .triangle_identity = triangle.triangle_identity,
@@ -3517,7 +3518,7 @@ std::vector<ctex::paint::FillTriangleTopology> paint_fill_topology(
 std::optional<ctex::paint::PaintMaskView> paint_fill_optional_view(const double* values,
                                                                    std::size_t count,
                                                                    std::string_view name) {
-    require_paint_fill_array(values, count, name);
+    require_paint_tool_array(values, count, name);
     if (values == nullptr) {
         return std::nullopt;
     }
@@ -3555,6 +3556,99 @@ void copy_paint_fill_outputs(const ctex_paint_fill_outputs* outputs,
               outputs->scope_values);
     std::copy(result.resolved_scope.selected_triangle_ids.begin(),
               result.resolved_scope.selected_triangle_ids.end(), outputs->selected_triangle_ids);
+    copy_paint_tool_outputs(result.channels, outputs->channels);
+}
+
+ctex::paint::CloneMode paint_clone_mode(std::uint32_t value) {
+    switch (value) {
+        case CTEX_PAINT_CLONE_ALIGNED:
+            return ctex::paint::CloneMode::aligned;
+        case CTEX_PAINT_CLONE_FIXED:
+            return ctex::paint::CloneMode::fixed;
+        default:
+            throw std::invalid_argument("paint clone mode is invalid");
+    }
+}
+
+ctex::paint::CachedSurfaceMaps paint_clone_surface(const ctex_paint_clone_descriptor& descriptor,
+                                                   std::size_t pixel_count) {
+    if (descriptor.destination_texture_set_id == nullptr) {
+        throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                       "destination_texture_set_id=null");
+    }
+    require_paint_tool_array(descriptor.destination_surface_texels,
+                             descriptor.destination_surface_texel_count,
+                             "destination_surface_texels");
+    require_paint_tool_array(descriptor.destination_coverage, descriptor.destination_coverage_count,
+                             "destination_coverage");
+    if (descriptor.destination_surface_texel_count != pixel_count ||
+        descriptor.destination_coverage_count != pixel_count) {
+        throw std::invalid_argument("paint clone surface counts do not match its dimensions");
+    }
+    ctex::paint::CachedSurfaceMaps result{
+        .texture_set_id = descriptor.destination_texture_set_id,
+        .uv_set = "capi.clone",
+        .mesh_revision = 0,
+        .surface = {.width = descriptor.width,
+                    .height = descriptor.height,
+                    .tile_origin = {descriptor.tile_origin.x, descriptor.tile_origin.y},
+                    .texels = {}},
+        .coverage = {descriptor.destination_coverage,
+                     descriptor.destination_coverage + pixel_count},
+        .triangle_identity = {},
+        .uv_island_identity = {},
+    };
+    result.surface.texels.reserve(pixel_count);
+    for (std::size_t index = 0; index < pixel_count; ++index) {
+        const ctex_paint_surface_texel& texel = descriptor.destination_surface_texels[index];
+        result.surface.texels.push_back({
+            .position = stroke_vec(texel.position),
+            .normal = stroke_vec(texel.normal),
+            .geometric_normal = stroke_vec(texel.geometric_normal),
+            .uv = {texel.uv.x, texel.uv.y},
+            .triangle = texel.triangle,
+        });
+    }
+    return result;
+}
+
+ctex::paint::CloneSourceState paint_clone_source(
+    const ctex_paint_clone_source_descriptor* descriptor) {
+    if (descriptor == nullptr) {
+        throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT, "source=null");
+    }
+    validate_structure_size(descriptor->size, CTEX_PAINT_CLONE_SOURCE_DESCRIPTOR_V1_SIZE,
+                            CTEX_PAINT_CLONE_SOURCE_DESCRIPTOR_CURRENT_SIZE, "source.size");
+    if (descriptor->texture_set_id == nullptr) {
+        throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                       "source.texture_set_id=null");
+    }
+    ctex::paint::CloneSourceState result;
+    result.set_source(descriptor->texture_set_id, {descriptor->uv.x, descriptor->uv.y});
+    return result;
+}
+
+void validate_paint_clone_outputs(const ctex_paint_clone_outputs* outputs,
+                                  const ctex::paint::CloneShadeResult& result,
+                                  std::size_t pixel_count) {
+    if (outputs == nullptr) {
+        return;
+    }
+    validate_structure_size(outputs->size, CTEX_PAINT_CLONE_OUTPUTS_V1_SIZE,
+                            CTEX_PAINT_CLONE_OUTPUTS_CURRENT_SIZE, "outputs.size");
+    validate_output_array(outputs->source_sample_indices, outputs->source_sample_capacity,
+                          pixel_count, "outputs.source_sample_indices");
+    validate_paint_tool_outputs(outputs->channels, outputs->channel_count, result.channels.size(),
+                                pixel_count);
+}
+
+void copy_paint_clone_outputs(const ctex_paint_clone_outputs* outputs,
+                              const ctex::paint::CloneShadeResult& result) {
+    if (outputs == nullptr) {
+        return;
+    }
+    std::copy(result.source_sample_indices.begin(), result.source_sample_indices.end(),
+              outputs->source_sample_indices);
     copy_paint_tool_outputs(result.channels, outputs->channels);
 }
 
@@ -7982,6 +8076,65 @@ extern "C" ctex_result ctex_paint_apply_fill(const ctex_paint_fill_descriptor* d
             };
             validate_paint_fill_outputs(outputs, result, pixel_count);
             copy_paint_fill_outputs(outputs, result);
+        } catch (const std::invalid_argument& error) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_INVALID_PAINT_TOOL,
+                           error.what());
+        }
+    });
+}
+
+extern "C" ctex_result ctex_paint_apply_clone(const ctex_paint_clone_descriptor* descriptor,
+                                              ctex_paint_clone_info* out_info,
+                                              const ctex_paint_clone_outputs* outputs) {
+    return call_boundary("ctex_paint_apply_clone", [&] {
+        if (descriptor == nullptr || out_info == nullptr) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                           descriptor == nullptr ? "descriptor=null" : "out_info=null");
+        }
+        validate_structure_size(descriptor->size, CTEX_PAINT_CLONE_DESCRIPTOR_V1_SIZE,
+                                CTEX_PAINT_CLONE_DESCRIPTOR_CURRENT_SIZE, "descriptor.size");
+        validate_structure_size(out_info->size, CTEX_PAINT_CLONE_INFO_V1_SIZE,
+                                CTEX_PAINT_CLONE_INFO_CURRENT_SIZE, "out_info.size");
+        const std::size_t pixel_count = bounded_paint_pixel_count(
+            descriptor->width, descriptor->height, CTEX_DIAGNOSTIC_INVALID_PAINT_TOOL);
+        try {
+            const ctex::paint::CachedSurfaceMaps surface =
+                paint_clone_surface(*descriptor, pixel_count);
+            const ctex::paint::CloneSourceState source = paint_clone_source(descriptor->source);
+            const auto layer = paint_tool_channels(descriptor->enabled_layer_snapshot,
+                                                   descriptor->enabled_layer_channel_count,
+                                                   pixel_count, "enabled_layer_snapshot");
+            const auto source_snapshot =
+                paint_tool_channels(descriptor->source_snapshot, descriptor->source_channel_count,
+                                    pixel_count, "source_snapshot");
+            const auto strength = paint_tool_strength(descriptor->deposition,
+                                                      descriptor->deposition_count, pixel_count);
+            if (descriptor->blend_mode == nullptr) {
+                throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                               "blend_mode=null");
+            }
+            const ctex::paint::CloneSettings settings{
+                .mode = paint_clone_mode(descriptor->mode),
+                .destination_anchor_uv = {descriptor->destination_anchor_uv.x,
+                                          descriptor->destination_anchor_uv.y},
+                .deposition_mode = ctex::paint::DepositionMode::non_building,
+                .blend_mode = descriptor->blend_mode,
+                .masks = {},
+            };
+            const ctex::paint::CloneShadeResult result = ctex::paint::shade_clone_channels(
+                surface, source, layer, source_snapshot, strength, settings);
+            *out_info = {
+                .size = CTEX_PAINT_CLONE_INFO_CURRENT_SIZE,
+                .mode = descriptor->mode,
+                .source_anchor_uv = {result.source_anchor_uv.x, result.source_anchor_uv.y},
+                .destination_anchor_uv = {result.destination_anchor_uv.x,
+                                          result.destination_anchor_uv.y},
+                .required_source_sample_count = result.source_sample_indices.size(),
+                .applied_channel_count = result.channels.size(),
+                .required_pixels_per_channel = pixel_count,
+            };
+            validate_paint_clone_outputs(outputs, result, pixel_count);
+            copy_paint_clone_outputs(outputs, result);
         } catch (const std::invalid_argument& error) {
             throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_INVALID_PAINT_TOOL,
                            error.what());

@@ -107,6 +107,7 @@ EXPORTS
     ctex_smart_material_set_parameter
     ctex_paint_blend_snapshot
     ctex_paint_apply_brush
+    ctex_paint_apply_clone
     ctex_paint_apply_eraser
     ctex_paint_apply_fill
     ctex_paint_combine_masks

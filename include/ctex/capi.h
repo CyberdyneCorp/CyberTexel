@@ -1025,6 +1025,72 @@ typedef struct ctex_paint_fill_outputs {
 #define CTEX_PAINT_FILL_OUTPUTS_V1_SIZE ((uint32_t)sizeof(ctex_paint_fill_outputs))
 #define CTEX_PAINT_FILL_OUTPUTS_CURRENT_SIZE ((uint32_t)sizeof(ctex_paint_fill_outputs))
 
+typedef enum ctex_paint_clone_mode {
+    CTEX_PAINT_CLONE_ALIGNED = 0,
+    CTEX_PAINT_CLONE_FIXED = 1
+} ctex_paint_clone_mode;
+
+typedef struct ctex_paint_clone_source_descriptor {
+    uint32_t size;
+    const char* texture_set_id;
+    ctex_vec2d uv;
+} ctex_paint_clone_source_descriptor;
+
+#define CTEX_PAINT_CLONE_SOURCE_DESCRIPTOR_V1_SIZE \
+    ((uint32_t)sizeof(ctex_paint_clone_source_descriptor))
+#define CTEX_PAINT_CLONE_SOURCE_DESCRIPTOR_CURRENT_SIZE \
+    ((uint32_t)sizeof(ctex_paint_clone_source_descriptor))
+
+typedef struct ctex_paint_clone_descriptor {
+    uint32_t size;
+    uint32_t width;
+    uint32_t height;
+    uint32_t mode;
+    const char* destination_texture_set_id;
+    ctex_vec2d tile_origin;
+    ctex_vec2d destination_anchor_uv;
+    const ctex_paint_clone_source_descriptor* source;
+    const ctex_paint_surface_texel* destination_surface_texels;
+    size_t destination_surface_texel_count;
+    const uint8_t* destination_coverage;
+    size_t destination_coverage_count;
+    const ctex_paint_tool_channel_descriptor* enabled_layer_snapshot;
+    size_t enabled_layer_channel_count;
+    const ctex_paint_tool_channel_descriptor* source_snapshot;
+    size_t source_channel_count;
+    const ctex_paint_deposition_sample* deposition;
+    size_t deposition_count;
+    const char* blend_mode;
+} ctex_paint_clone_descriptor;
+
+#define CTEX_PAINT_CLONE_DESCRIPTOR_V1_SIZE ((uint32_t)sizeof(ctex_paint_clone_descriptor))
+#define CTEX_PAINT_CLONE_DESCRIPTOR_CURRENT_SIZE ((uint32_t)sizeof(ctex_paint_clone_descriptor))
+
+typedef struct ctex_paint_clone_info {
+    uint32_t size;
+    uint32_t mode;
+    ctex_vec2d source_anchor_uv;
+    ctex_vec2d destination_anchor_uv;
+    size_t required_source_sample_count;
+    size_t applied_channel_count;
+    size_t required_pixels_per_channel;
+} ctex_paint_clone_info;
+
+#define CTEX_PAINT_CLONE_INFO_V1_SIZE ((uint32_t)sizeof(ctex_paint_clone_info))
+#define CTEX_PAINT_CLONE_INFO_CURRENT_SIZE ((uint32_t)sizeof(ctex_paint_clone_info))
+
+typedef struct ctex_paint_clone_outputs {
+    uint32_t size;
+    size_t* source_sample_indices;
+    size_t source_sample_capacity;
+    const ctex_paint_tool_channel_output* channels;
+    size_t channel_count;
+} ctex_paint_clone_outputs;
+
+#define CTEX_PAINT_CLONE_OUTPUTS_V1_SIZE ((uint32_t)sizeof(ctex_paint_clone_outputs))
+#define CTEX_PAINT_CLONE_OUTPUTS_CURRENT_SIZE ((uint32_t)sizeof(ctex_paint_clone_outputs))
+#define CTEX_PAINT_NO_CLONE_SAMPLE ((size_t)-1)
+
 typedef struct ctex_stroke_preset_info {
     uint32_t size;
     uint32_t schema_version;
@@ -3020,6 +3086,11 @@ CTEX_API ctex_result ctex_paint_apply_eraser(const ctex_paint_eraser_descriptor*
 CTEX_API ctex_result ctex_paint_apply_fill(const ctex_paint_fill_descriptor* descriptor,
                                            ctex_paint_fill_info* out_info,
                                            const ctex_paint_fill_outputs* outputs);
+
+/* Copies an immutable source snapshot through aligned or fixed UV mapping. */
+CTEX_API ctex_result ctex_paint_apply_clone(const ctex_paint_clone_descriptor* descriptor,
+                                            ctex_paint_clone_info* out_info,
+                                            const ctex_paint_clone_outputs* outputs);
 
 /*
  * Installs one process-wide sink. Pass NULL to uninstall it. The callback can

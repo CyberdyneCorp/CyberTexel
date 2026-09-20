@@ -68,7 +68,9 @@ filters with bounded caller-owned output and recorded filter metadata. Brush
 and Eraser now consume the same canonical deposition through atomic,
 caller-owned multi-channel outputs. Fill now resolves all six scopes from public
 surface-map data, intersects masks and rejection, and shades caller-owned
-channels atomically. Exactly 104 runtime requirements remain
+channels atomically. Clone now maps aligned and fixed immutable source snapshots,
+publishes resolved sample indices and refuses cross-set operations. Exactly 103
+runtime requirements remain
 unmapped.
 The gate is not part of the aggregate `just check` until that count reaches zero;
 its unit tests run in the normal tooling suite throughout the migration.

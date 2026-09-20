@@ -823,6 +823,12 @@ adjacency. Paint masks and rejection acceptance are intersected before the
 enabled channel set is published atomically. The exact remaining C ABI gap is
 104 runtime requirements.
 
+The Clone continuation exposes aligned and fixed UV mapping from a separately
+supplied source descriptor and immutable source snapshot. It publishes the
+resolved sample index beside atomic channel output, honours canonical deposited
+strength, and refuses cross-texture-set requests with both identities in the
+diagnostic. The exact remaining C ABI gap is 103 runtime requirements.
+
 ## 1. Foundation
 
 - [x] 1.1 CMake project, C++20, warnings as errors, presets for headless, macOS, Linux, Windows, iOS, Android

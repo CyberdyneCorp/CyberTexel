@@ -54,6 +54,23 @@ struct CloneResult {
     std::vector<std::string> applied_channel_ids;
 };
 
+struct CloneShadeResult {
+    std::uint32_t width{};
+    std::uint32_t height{};
+    CloneMode mode{CloneMode::aligned};
+    Vec2d source_anchor_uv;
+    Vec2d destination_anchor_uv;
+    std::vector<std::size_t> source_sample_indices;
+    std::vector<PaintToolChannelRaster> channels;
+    std::vector<std::string> applied_channel_ids;
+};
+
+[[nodiscard]] CloneShadeResult shade_clone_channels(
+    const CachedSurfaceMaps& destination_surface, const CloneSourceState& source_state,
+    std::span<const PaintToolChannelRaster> enabled_layer_snapshot,
+    std::span<const PaintToolChannelRaster> source_snapshot, std::span<const double> strength,
+    const CloneSettings& settings = {});
+
 [[nodiscard]] CloneResult apply_clone(
     const CachedSurfaceMaps& destination_surface, const ResolvedStroke& stroke,
     const RejectedCoverageRaster& rejected, const CloneSourceState& source_state,

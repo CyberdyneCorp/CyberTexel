@@ -11,8 +11,7 @@ namespace {
 
 bool finite(Vec2d value) { return std::isfinite(value.x) && std::isfinite(value.y); }
 
-std::size_t checked_texel_count(const CachedSurfaceMaps& maps,
-                                const RejectedCoverageRaster& rejected) {
+std::size_t checked_surface_texel_count(const CachedSurfaceMaps& maps) {
     const std::uint32_t width = maps.surface.width;
     const std::uint32_t height = maps.surface.height;
     if (width == 0 || height == 0 ||
@@ -21,15 +20,24 @@ std::size_t checked_texel_count(const CachedSurfaceMaps& maps,
     }
     const std::size_t count = static_cast<std::size_t>(width) * height;
     if (maps.texture_set_id.empty() || maps.surface.texels.size() != count ||
-        maps.coverage.size() != count || rejected.coverage.width != width ||
-        rejected.coverage.height != height) {
-        throw std::invalid_argument("clone surface and coverage dimensions are inconsistent");
+        maps.coverage.size() != count) {
+        throw std::invalid_argument("clone surface dimensions are inconsistent");
     }
     for (std::size_t texel = 0; texel < count; ++texel) {
         if (maps.coverage[texel] > 1 ||
             (maps.coverage[texel] != 0) != maps.surface.covered(texel)) {
             throw std::invalid_argument("clone surface coverage is invalid");
         }
+    }
+    return count;
+}
+
+std::size_t checked_texel_count(const CachedSurfaceMaps& maps,
+                                const RejectedCoverageRaster& rejected) {
+    const std::size_t count = checked_surface_texel_count(maps);
+    if (rejected.coverage.width != maps.surface.width ||
+        rejected.coverage.height != maps.surface.height) {
+        throw std::invalid_argument("clone surface and coverage dimensions are inconsistent");
     }
     return count;
 }
@@ -149,6 +157,44 @@ void CloneSourceState::set_source(std::string texture_set_id, Vec2d uv) {
 }
 
 void CloneSourceState::clear_source() noexcept { source_.reset(); }
+
+CloneShadeResult shade_clone_channels(
+    const CachedSurfaceMaps& destination_surface, const CloneSourceState& source_state,
+    std::span<const PaintToolChannelRaster> enabled_layer_snapshot,
+    std::span<const PaintToolChannelRaster> source_snapshot, std::span<const double> strength,
+    const CloneSettings& settings) {
+    const std::size_t texel_count = checked_surface_texel_count(destination_surface);
+    validate_mode(settings.mode);
+    if (!finite(settings.destination_anchor_uv) || strength.size() != texel_count ||
+        !std::all_of(strength.begin(), strength.end(), [](double value) {
+            return std::isfinite(value) && value >= 0.0 && value <= 1.0;
+        })) {
+        throw std::invalid_argument("clone destination anchor or strength is invalid");
+    }
+    const CloneSource& source = checked_source(source_state, destination_surface.texture_set_id);
+    validate_source_snapshot(source_snapshot, texel_count);
+    std::vector<std::size_t> sample_indices =
+        resolve_source_samples(destination_surface, source, settings);
+    std::vector<double> sampleable_strength(strength.begin(), strength.end());
+    for (std::size_t texel = 0; texel < texel_count; ++texel) {
+        if (sample_indices[texel] == no_clone_sample) {
+            sampleable_strength[texel] = 0.0;
+        }
+    }
+    const std::vector<PaintToolChannelRaster> sampled =
+        sample_channels(source_snapshot, sample_indices);
+    PaintToolShadeResult shaded = shade_paint_tool_channels(
+        destination_surface.surface.width, destination_surface.surface.height,
+        enabled_layer_snapshot, sampled, sampleable_strength, settings.blend_mode);
+    return {.width = destination_surface.surface.width,
+            .height = destination_surface.surface.height,
+            .mode = settings.mode,
+            .source_anchor_uv = source.uv,
+            .destination_anchor_uv = settings.destination_anchor_uv,
+            .source_sample_indices = std::move(sample_indices),
+            .channels = std::move(shaded.channels),
+            .applied_channel_ids = std::move(shaded.applied_channel_ids)};
+}
 
 CloneResult apply_clone(const CachedSurfaceMaps& destination_surface, const ResolvedStroke& stroke,
                         const RejectedCoverageRaster& rejected,
