@@ -39,7 +39,8 @@ resource resolution and self-contained packaging. Material and mask fragments
 can now be applied transactionally, inspected and edited as ordinary entries,
 then removed as one undo step. Named shelves enumerate all seven preset kinds
 with metadata and thumbnails, and stable identities resolve to standalone
-packages. Exactly 132 runtime
-requirements remain unmapped.
+packages. Channel revision cursors, per-tile versions, coalesced delta queries,
+stale-epoch resynchronization and indexed-query cost are now public. Exactly 127
+runtime requirements remain unmapped.
 The gate is not part of the aggregate `just check` until that count reaches zero;
 its unit tests run in the normal tooling suite throughout the migration.

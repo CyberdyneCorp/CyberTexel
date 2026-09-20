@@ -733,6 +733,13 @@ to a standalone package that includes its thumbnail. Future preset versions
 are refused by identity. The broader cross-kind migration requirement remains
 open. The exact remaining C ABI gap is 132 runtime requirements.
 
+The first host-transport slice exposes five requirements. Hosts can hold
+epoch-qualified channel cursors, query row-major coalesced tile versions, inspect
+the exact number of revision-index entries visited, detect stale epochs as a
+full-resynchronization request, and reset revision history without changing
+pixels. Sizing calls do not write tile output. The exact remaining C ABI gap is
+127 runtime requirements.
+
 ## 1. Foundation
 
 - [x] 1.1 CMake project, C++20, warnings as errors, presets for headless, macOS, Linux, Windows, iOS, Android

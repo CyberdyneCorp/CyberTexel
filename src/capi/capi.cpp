@@ -30,6 +30,7 @@
 #include <ctex/pick/region.hpp>
 #include <ctex/pick/spatial_index.hpp>
 #include <ctex/pick/uv_index.hpp>
+#include <ctex/xport/delta.hpp>
 #include <exception>
 #include <iterator>
 #include <limits>
@@ -4547,6 +4548,38 @@ void include_listing_thumbnail(ctex::io::ResolvedPreset& resolved) {
     }
 }
 
+ctex::doc::ChannelRevisionCursor transport_cursor(ctex_transport_revision_cursor cursor) {
+    return {.epoch = cursor.epoch, .revision = cursor.revision};
+}
+
+ctex_transport_revision_cursor transport_cursor(ctex::doc::ChannelRevisionCursor cursor) {
+    return {.epoch = cursor.epoch, .revision = cursor.revision};
+}
+
+ctex_transport_tile_version transport_tile_version(const ctex::xport::TileVersion& version) {
+    return {
+        .x = version.coordinate.x,
+        .y = version.coordinate.y,
+        .revision = version.revision,
+        .generation = version.generation,
+        .residency = version.residency == ctex::xport::TileResidency::cpu
+                         ? CTEX_TRANSPORT_TILE_CPU
+                         : CTEX_TRANSPORT_TILE_HOST_DEVICE,
+    };
+}
+
+const char* require_transport_text(const char* value, std::string_view field) {
+    if (value == nullptr) {
+        throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                       std::string(field) + "=null");
+    }
+    if (value[0] == '\0') {
+        throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_INVALID_HOST_TRANSPORT,
+                       std::string(field) + " is empty");
+    }
+    return value;
+}
+
 }  // namespace
 
 void* ctex_host_memory_resource::do_allocate(std::size_t bytes, std::size_t alignment) {
@@ -6947,6 +6980,63 @@ extern "C" ctex_result ctex_texture_set_get_memory_report(
             .mesh_map_pixel_bytes = report.mesh_map_pixel_bytes,
             .total_resident_bytes = report.total_resident_bytes,
         };
+    });
+}
+
+extern "C" ctex_result ctex_texture_set_query_channel_delta(
+    const ctex_document* document, const char* texture_set_id, const char* semantic_id,
+    ctex_transport_revision_cursor synchronized_cursor, ctex_transport_tile_version* changed_tiles,
+    std::size_t changed_tile_capacity, ctex_transport_delta_info* out_info) {
+    return call_boundary("ctex_texture_set_query_channel_delta", [&] {
+        if (document == nullptr || out_info == nullptr) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                           document == nullptr ? "document=null" : "out_info=null");
+        }
+        validate_structure_size(out_info->size, CTEX_TRANSPORT_DELTA_INFO_V1_SIZE,
+                                CTEX_TRANSPORT_DELTA_INFO_CURRENT_SIZE,
+                                "transport delta info size");
+        try {
+            const ctex::doc::TextureSet& texture_set =
+                require_texture_set(*document, texture_set_id);
+            const ctex::xport::ChannelDelta delta = ctex::xport::query_channel_delta_metadata(
+                texture_set.channels(),
+                require_transport_text(semantic_id, "channel semantic identifier"),
+                transport_cursor(synchronized_cursor));
+            *out_info = {
+                .size = CTEX_TRANSPORT_DELTA_INFO_CURRENT_SIZE,
+                .disposition = delta.disposition == ctex::xport::DeltaQueryDisposition::complete
+                                   ? CTEX_TRANSPORT_DELTA_COMPLETE
+                                   : CTEX_TRANSPORT_FULL_RESYNCHRONIZATION_REQUIRED,
+                .synchronized_cursor = transport_cursor(delta.synchronized_cursor),
+                .current_cursor = transport_cursor(delta.current_cursor),
+                .changed_tile_count = delta.changed_tiles.size(),
+                .indexed_tiles_visited = delta.indexed_tiles_visited,
+            };
+            validate_output_array(changed_tiles, changed_tile_capacity, delta.changed_tiles.size(),
+                                  "changed_tiles");
+            if (changed_tiles != nullptr) {
+                for (std::size_t index = 0; index < delta.changed_tiles.size(); ++index) {
+                    changed_tiles[index] = transport_tile_version(delta.changed_tiles[index]);
+                }
+            }
+        } catch (const ctex::xport::DeltaQueryError& error) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_INVALID_HOST_TRANSPORT,
+                           error.what());
+        }
+    });
+}
+
+extern "C" ctex_result ctex_texture_set_reset_channel_revision_history(
+    ctex_document* document, const char* texture_set_id, const char* semantic_id,
+    ctex_transport_revision_cursor* out_cursor) {
+    return call_boundary("ctex_texture_set_reset_channel_revision_history", [&] {
+        if (document == nullptr || out_cursor == nullptr) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                           document == nullptr ? "document=null" : "out_cursor=null");
+        }
+        ctex::doc::TextureSet& texture_set = require_texture_set(*document, texture_set_id);
+        *out_cursor = transport_cursor(texture_set.channels().reset_revision_history(
+            require_transport_text(semantic_id, "channel semantic identifier")));
     });
 }
 

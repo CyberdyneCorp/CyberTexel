@@ -38,7 +38,13 @@
     {"name": "editable-authoring", "kind": "runtime", "requirements": []},
     {"name": "examples", "kind": "non-runtime", "rationale": "Examples consume the bindings and are not library operations.", "evidence": ["task 16"]},
     {"name": "execution-backends", "kind": "runtime", "requirements": []},
-    {"name": "host-transport", "kind": "runtime", "requirements": []},
+    {"name": "host-transport", "kind": "runtime", "requirements": [
+      {"requirement": "Revisions", "symbols": ["ctex_texture_set_query_channel_delta"]},
+      {"requirement": "Per-tile revisions", "symbols": ["ctex_texture_set_query_channel_delta"]},
+      {"requirement": "Delta query", "symbols": ["ctex_texture_set_query_channel_delta"]},
+      {"requirement": "Revision overflow and reset", "symbols": ["ctex_texture_set_query_channel_delta", "ctex_texture_set_reset_channel_revision_history"]},
+      {"requirement": "Cost is proportional to the change", "symbols": ["ctex_texture_set_query_channel_delta"]}
+    ]},
     {"name": "image-io", "kind": "runtime", "requirements": [
       {"requirement": "Format detection is by content", "symbols": ["ctex_image_decode_memory"]},
       {"requirement": "Colour space on read", "symbols": ["ctex_image_decode_memory"]},

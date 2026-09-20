@@ -166,7 +166,9 @@ Material and mask fragments can now be instantiated transactionally, inspected
 and edited as ordinary entries with retained origin metadata, and removed as a
 single undo step. Named shelves enumerate every preset kind with metadata and
 thumbnails, while stable preset identities resolve to standalone packages.
-Exactly 132 runtime requirements still lack C ABI evidence;
+Host-transport revision cursors and per-tile versions are now queryable through
+coalesced indexed deltas, with explicit stale-epoch resynchronization and
+history reset. Exactly 127 runtime requirements still lack C ABI evidence;
 those gaps must be implemented before task 14.8 can close.
 
 ## Milestones

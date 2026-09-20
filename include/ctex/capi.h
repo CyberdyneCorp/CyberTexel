@@ -86,7 +86,8 @@ typedef enum ctex_diagnostic_code {
     CTEX_DIAGNOSTIC_INVALID_TEXTURE_EXPORT = 50,
     CTEX_DIAGNOSTIC_INVALID_PROJECT_CONTAINER = 51,
     CTEX_DIAGNOSTIC_INVALID_SMART_MATERIAL = 52,
-    CTEX_DIAGNOSTIC_INVALID_PRESET_LIBRARY = 53
+    CTEX_DIAGNOSTIC_INVALID_PRESET_LIBRARY = 53,
+    CTEX_DIAGNOSTIC_INVALID_HOST_TRANSPORT = 54
 } ctex_diagnostic_code;
 
 typedef enum ctex_log_severity {
@@ -1221,6 +1222,41 @@ typedef struct ctex_texture_set_memory_report {
 #define CTEX_TEXTURE_SET_MEMORY_REPORT_CURRENT_SIZE \
     ((uint32_t)sizeof(ctex_texture_set_memory_report))
 
+typedef struct ctex_transport_revision_cursor {
+    uint64_t epoch;
+    uint64_t revision;
+} ctex_transport_revision_cursor;
+
+typedef enum ctex_transport_delta_disposition {
+    CTEX_TRANSPORT_DELTA_COMPLETE = 0,
+    CTEX_TRANSPORT_FULL_RESYNCHRONIZATION_REQUIRED = 1
+} ctex_transport_delta_disposition;
+
+typedef enum ctex_transport_tile_residency {
+    CTEX_TRANSPORT_TILE_CPU = 0,
+    CTEX_TRANSPORT_TILE_HOST_DEVICE = 1
+} ctex_transport_tile_residency;
+
+typedef struct ctex_transport_tile_version {
+    uint32_t x;
+    uint32_t y;
+    uint64_t revision;
+    uint64_t generation;
+    uint32_t residency;
+} ctex_transport_tile_version;
+
+typedef struct ctex_transport_delta_info {
+    uint32_t size;
+    uint32_t disposition;
+    ctex_transport_revision_cursor synchronized_cursor;
+    ctex_transport_revision_cursor current_cursor;
+    size_t changed_tile_count;
+    size_t indexed_tiles_visited;
+} ctex_transport_delta_info;
+
+#define CTEX_TRANSPORT_DELTA_INFO_V1_SIZE ((uint32_t)sizeof(ctex_transport_delta_info))
+#define CTEX_TRANSPORT_DELTA_INFO_CURRENT_SIZE ((uint32_t)sizeof(ctex_transport_delta_info))
+
 typedef enum ctex_texture_export_texture_set_selection {
     CTEX_TEXTURE_EXPORT_TEXTURE_SET_ALL = 0,
     CTEX_TEXTURE_EXPORT_TEXTURE_SET_SELECTED = 1
@@ -2271,6 +2307,13 @@ CTEX_API ctex_result ctex_texture_set_get_channel_info(
 CTEX_API ctex_result ctex_texture_set_get_memory_report(const ctex_document* document,
                                                         const char* texture_set_id,
                                                         ctex_texture_set_memory_report* out_report);
+CTEX_API ctex_result ctex_texture_set_query_channel_delta(
+    const ctex_document* document, const char* texture_set_id, const char* semantic_id,
+    ctex_transport_revision_cursor synchronized_cursor, ctex_transport_tile_version* changed_tiles,
+    size_t changed_tile_capacity, ctex_transport_delta_info* out_info);
+CTEX_API ctex_result ctex_texture_set_reset_channel_revision_history(
+    ctex_document* document, const char* texture_set_id, const char* semantic_id,
+    ctex_transport_revision_cursor* out_cursor);
 CTEX_API ctex_result ctex_texture_set_apply_smart_material(ctex_document* document,
                                                            const char* texture_set_id,
                                                            const void* serialized,
