@@ -217,7 +217,7 @@ Recording a new step while redo steps are pending SHALL discard those redo steps
 - **THEN** redo SHALL report zero available steps and their tiles SHALL be released
 
 ### Requirement: Composite grouping
-A host SHALL be able to open a transaction so that many operations collapse into one undo step, and SHALL be able to cancel it, leaving the document byte-identical to its state at open.
+A host SHALL be able to open an isolated texture-set transaction over a declared pixel write set. Pixel writes and atomic layer operations SHALL mutate only staged state until commit. Commit SHALL publish all changed declared tiles and the layer stack as one undo step, or publish nothing if the live texture set or history changed after open. Cancellation or destruction without commit SHALL discard the staged state, leaving live pixels, layer structure, revisions and history byte-identical to their state at open.
 
 #### Scenario: A gesture is one step
 - **WHEN** a drag produces forty operations inside one transaction
@@ -226,6 +226,14 @@ A host SHALL be able to open a transaction so that many operations collapse into
 #### Scenario: Cancel is exact
 - **WHEN** a transaction is cancelled
 - **THEN** the document SHALL be byte-identical to its state when the transaction opened
+
+#### Scenario: Mixed transaction is one step
+- **WHEN** one transaction changes declared channel tiles and applies several layer operations
+- **THEN** the live texture set SHALL change only at commit and one undo SHALL restore both pixels and layer structure
+
+#### Scenario: Transaction becomes stale
+- **WHEN** the live texture set or its history changes after a transaction opens
+- **THEN** commit SHALL report stale state and SHALL publish none of the staged pixel or layer changes
 
 ### Requirement: Extensible channel descriptors
 A channel descriptor SHALL carry a stable semantic identifier, component count, scalar representation and bit depth, default value, colour/data classification, blending policy and export mapping. Per-set bit depth SHALL be a default overridable per channel. The built-in preset SHALL NOT restrict the document or ABI to nine channel slots. Unsupported channel semantics SHALL be preserved on load and reported as unevaluable rather than discarded or approximated.

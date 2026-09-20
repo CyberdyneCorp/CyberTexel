@@ -9,6 +9,7 @@
 #include <ctex/doc/layer_stack.hpp>
 #include <ctex/doc/smart_mask.hpp>
 #include <ctex/doc/tile_history.hpp>
+#include <ctex/doc/transaction.hpp>
 #include <map>
 #include <memory>
 #include <memory_resource>
@@ -152,8 +153,14 @@ public:
     [[nodiscard]] TileHistoryCommitResult commit_tile_history_step(TileHistoryCapture capture) {
         return tile_history_.commit_step(channels_, std::move(capture));
     }
-    [[nodiscard]] TileHistoryRestoreResult undo_tiles() { return tile_history_.undo(channels_); }
-    [[nodiscard]] TileHistoryRestoreResult redo_tiles() { return tile_history_.redo(channels_); }
+    [[nodiscard]] TextureSetTransaction begin_transaction(
+        std::string step_identifier, std::span<const TileHistoryTarget> targets = {});
+    [[nodiscard]] TileHistoryRestoreResult undo_tiles() {
+        return tile_history_.undo(channels_, layer_stack_);
+    }
+    [[nodiscard]] TileHistoryRestoreResult redo_tiles() {
+        return tile_history_.redo(channels_, layer_stack_);
+    }
     [[nodiscard]] TextureSetMemoryAccount create_memory_account(
         TextureSetMemoryCategory category) const;
     [[nodiscard]] TextureSetMemoryReport memory_report() const;
@@ -181,6 +188,7 @@ public:
         std::string_view entry_identifier) const;
 
 private:
+    friend class TextureSetTransaction;
     std::pmr::memory_resource* memory_resource_;
     std::pmr::string display_name_;
     PartitionSourceKind partition_kind_;

@@ -158,6 +158,7 @@ ctex_add_module(
         src/doc/mesh_replacement.cpp
         src/doc/preset_application.cpp
         src/doc/tile_history.cpp
+        src/doc/transaction.cpp
         src/doc/smart_mask.cpp
         src/doc/smart_material.cpp
         src/doc/smart_material_anchors.cpp
@@ -1036,6 +1037,11 @@ if(BUILD_TESTING)
     ctex_configure_cpp_target(ctex_tile_history_test)
     target_link_libraries(ctex_tile_history_test PRIVATE ctex_doc ctex_mesh ctex_graph ctex_image)
     add_test(NAME texture-document-tile-history COMMAND ctex_tile_history_test)
+
+    add_executable(ctex_transaction_test tests/doc/transaction_test.cpp)
+    ctex_configure_cpp_target(ctex_transaction_test)
+    target_link_libraries(ctex_transaction_test PRIVATE ctex_doc ctex_mesh ctex_graph ctex_image)
+    add_test(NAME texture-document-transactions COMMAND ctex_transaction_test)
 
     add_executable(ctex_mesh_test tests/mesh/mesh_test.cpp)
     ctex_configure_cpp_target(ctex_mesh_test)

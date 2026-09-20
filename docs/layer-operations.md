@@ -11,8 +11,9 @@ unchanged as well.
 The snapshot uses `LayerCompositeRequest`: dense normalized content, independent
 coverage, and identity-addressed mask rasters. This is the interchange boundary
 for CPU and host-resolved content. Pixel authors use the separate
-[tile-history contract](tile-history.md) around channel writes; task 3.10 will
-compose structural and pixel changes into larger transactions.
+[tile-history contract](tile-history.md) around channel writes. A
+[texture-set transaction](transactions.md) stages these operations with pixel
+writes and commits their reversible structural delta as the same undo step.
 
 ## Structural operations
 

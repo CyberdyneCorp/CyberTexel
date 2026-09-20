@@ -141,6 +141,40 @@ TextureChannels::TextureChannels(std::uint32_t width, std::uint32_t height,
     }
 }
 
+TextureChannels::TextureChannels(const TextureChannels& other)
+    : TextureChannels(other.width_, other.height_, other.default_bit_depth_, {},
+                      other.memory_resource_) {
+    for (const auto& [semantic_id, source] : other.channels_) {
+        register_descriptor(source.descriptor);
+        if (source.pixels) {
+            entry(semantic_id).pixels = std::allocate_shared<image::TiledImage>(
+                std::pmr::polymorphic_allocator<image::TiledImage>(memory_resource_),
+                *source.pixels);
+        }
+    }
+}
+
+TextureChannels& TextureChannels::operator=(const TextureChannels& other) {
+    if (this == &other) {
+        return *this;
+    }
+    TextureChannels replacement(other.width_, other.height_, other.default_bit_depth_, {},
+                                memory_resource_);
+    for (const auto& [semantic_id, source] : other.channels_) {
+        replacement.register_descriptor(source.descriptor);
+        if (source.pixels) {
+            replacement.entry(semantic_id).pixels = std::allocate_shared<image::TiledImage>(
+                std::pmr::polymorphic_allocator<image::TiledImage>(memory_resource_),
+                *source.pixels);
+        }
+    }
+    width_ = replacement.width_;
+    height_ = replacement.height_;
+    default_bit_depth_ = replacement.default_bit_depth_;
+    channels_.swap(replacement.channels_);
+    return *this;
+}
+
 void TextureChannels::register_descriptor(ChannelDescriptor value) {
     validate_descriptor(value);
     const std::pmr::string id(value.semantic_id, memory_resource_);

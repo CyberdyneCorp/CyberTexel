@@ -305,13 +305,19 @@ void LayerStack::append(LayerEntry entry) {
 void LayerStack::append(std::span<const LayerEntry> entries) {
     std::vector<LayerEntry> candidate = entries_;
     candidate.insert(candidate.end(), entries.begin(), entries.end());
-    validate(candidate);
-    entries_ = std::move(candidate);
+    assign(std::move(candidate));
 }
 
 void LayerStack::assign(std::vector<LayerEntry> entries) {
     validate(entries);
+    if (entries == entries_) {
+        return;
+    }
+    if (revision_ == std::numeric_limits<std::uint64_t>::max()) {
+        refuse(LayerStackRule::entry_content, "layer-stack revision space is exhausted");
+    }
     entries_ = std::move(entries);
+    ++revision_;
 }
 
 void LayerStack::replace(std::string_view identifier, LayerEntry replacement) {
@@ -320,8 +326,7 @@ void LayerStack::replace(std::string_view identifier, LayerEntry replacement) {
     }
     std::vector<LayerEntry> candidate = entries_;
     candidate[index_of(candidate, identifier)] = std::move(replacement);
-    validate(candidate);
-    entries_ = std::move(candidate);
+    assign(std::move(candidate));
 }
 
 void LayerStack::set_layout(std::string_view identifier, std::string parent_identifier,
@@ -428,8 +433,7 @@ void LayerStack::remove(std::span<const std::string> identifiers,
             retained.push_back(std::move(entry));
         }
     }
-    validate(retained);
-    entries_ = std::move(retained);
+    assign(std::move(retained));
 }
 
 void LayerStack::validate(std::span<const LayerEntry> entries) {

@@ -1109,6 +1109,15 @@ ceiling, and refuses a single step that cannot fit at all. A one-tile edit on a
 16384-square channel retains one physical 64-square tile, fixing 64×64 as the
 v1 default while preserving explicit custom tile sizes.
 
+Task 3.10 adds isolated texture-set transactions. Candidate channels own their
+image state while sharing immutable tile allocations until write, and checked
+writes cannot escape the declared tile set. Atomic layer operations run against
+the same candidate. Commit verifies live tile, layer and history revisions,
+then publishes all pixels and a compact reversible layer-command delta as one
+history step. Cancel, destruction and stale commit discard the candidate with
+no live pixel, structure, revision or history change. Mixed undo/redo validates
+every target before restoring anything.
+
 ## 1. Foundation
 
 - [x] 1.1 CMake project, C++20, warnings as errors, presets for headless, macOS, Linux, Windows, iOS, Android
@@ -1149,7 +1158,7 @@ v1 default while preserving explicit custom tile sizes.
 - [x] 3.7 Compositing on the CPU reference, with the determinism test
 - [x] 3.8 Layer operations: create, duplicate, delete, reorder, reparent, clear, invert, merge, flatten, convert, apply mask — each atomic
 - [x] 3.9 Tile-scoped history, ownership-exchange restore, declared budget and its refusals
-- [ ] 3.10 Transactions: grouping and byte-identical cancellation
+- [x] 3.10 Transactions: grouping and byte-identical cancellation
 - [ ] 3.11 `texture-document` scenarios as tests
 
 ## 4. Geometry input

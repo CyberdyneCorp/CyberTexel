@@ -4,7 +4,9 @@
 #include <cstddef>
 #include <cstdint>
 #include <ctex/doc/channels.hpp>
+#include <ctex/doc/layer_stack.hpp>
 #include <ctex/image/tiled_image.hpp>
+#include <optional>
 #include <span>
 #include <stdexcept>
 #include <string>
@@ -36,6 +38,7 @@ struct TileHistoryCommitResult {
     std::string step_identifier;
     std::size_t tile_count{};
     std::size_t retained_bytes{};
+    bool layer_stack_changed{};
 };
 
 struct TileHistoryRestoreResult {
@@ -43,6 +46,7 @@ struct TileHistoryRestoreResult {
     std::size_t tile_count{};
     std::size_t exchanged_storage_count{};
     std::size_t copied_pixel_bytes{};
+    bool layer_stack_exchanged{};
 };
 
 enum class TileHistoryErrorCode : std::uint8_t {
@@ -82,6 +86,8 @@ private:
         std::uint32_t height{};
         std::uint32_t tile_size{};
         image::PixelFormat format{};
+        image::RevisionEpoch revision_epoch{};
+        image::Revision revision{};
         image::Generation generation{};
         image::TileStorageSnapshot storage;
         std::size_t reserved_bytes{};
@@ -92,6 +98,8 @@ private:
     std::uint64_t history_sequence_{};
     std::size_t reserved_bytes_{};
     std::vector<Entry> entries_;
+    std::optional<LayerStack> layer_stack_;
+    std::optional<std::uint64_t> layer_stack_revision_;
 };
 
 class TileHistory {
@@ -104,16 +112,30 @@ public:
     [[nodiscard]] TileHistoryCapture begin_step(const TextureChannels& channels,
                                                 std::string step_identifier,
                                                 std::span<const TileHistoryTarget> targets) const;
+    [[nodiscard]] TileHistoryCapture begin_transaction(
+        const TextureChannels& channels, const LayerStack& layer_stack, std::string step_identifier,
+        std::span<const TileHistoryTarget> targets) const;
     [[nodiscard]] TileHistoryCommitResult commit_step(TextureChannels& channels,
                                                       TileHistoryCapture capture);
-    [[nodiscard]] TileHistoryRestoreResult undo(TextureChannels& channels);
-    [[nodiscard]] TileHistoryRestoreResult redo(TextureChannels& channels);
+    [[nodiscard]] TileHistoryCommitResult commit_transaction(TextureChannels& channels,
+                                                             LayerStack& layer_stack,
+                                                             const TextureChannels& staged_channels,
+                                                             LayerStack staged_layer_stack,
+                                                             TileHistoryCapture capture);
+    [[nodiscard]] TileHistoryRestoreResult undo(TextureChannels& channels, LayerStack& layer_stack);
+    [[nodiscard]] TileHistoryRestoreResult redo(TextureChannels& channels, LayerStack& layer_stack);
 
     [[nodiscard]] std::size_t undo_step_count() const noexcept { return undo_steps_.size(); }
     [[nodiscard]] std::size_t redo_step_count() const noexcept { return redo_steps_.size(); }
     [[nodiscard]] std::size_t retained_bytes() const noexcept { return undo_bytes_ + redo_bytes_; }
 
 private:
+    struct LayerStackCommand {
+        std::uint64_t expected_revision{};
+        std::vector<LayerEntry> replacement_entries;
+        std::vector<std::string> removed_identifiers;
+        std::optional<std::vector<std::string>> order;
+    };
     struct StepEntry {
         TileHistoryCapture::Entry captured;
         image::Generation expected_generation{};
@@ -122,13 +144,20 @@ private:
         std::string identifier;
         std::size_t retained_bytes{};
         std::vector<StepEntry> entries;
+        std::optional<LayerStackCommand> layer_command;
     };
 
     [[nodiscard]] TileHistoryRestoreResult restore(
-        TextureChannels& channels, std::vector<Step>& source, std::vector<Step>& destination,
-        std::size_t& source_bytes, std::size_t& destination_bytes, TileHistoryErrorCode empty_code);
+        TextureChannels& channels, LayerStack& layer_stack, std::vector<Step>& source,
+        std::vector<Step>& destination, std::size_t& source_bytes, std::size_t& destination_bytes,
+        TileHistoryErrorCode empty_code);
     static void validate_image(const image::TiledImage& image,
                                const TileHistoryCapture::Entry& captured);
+    static std::optional<LayerStackCommand> make_layer_command(const LayerStack& from,
+                                                               const LayerStack& to,
+                                                               std::uint64_t expected_revision);
+    static LayerStack apply_layer_command(const LayerStack& current,
+                                          const LayerStackCommand& command);
 
     std::size_t budget_bytes_{};
     std::size_t undo_bytes_{};

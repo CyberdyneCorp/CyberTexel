@@ -164,6 +164,9 @@ The current implementation provides:
   [tile-scoped history](docs/tile-history.md) declares channel/tile write sets,
   retains only changed tiles under a reported byte ceiling, and performs
   symmetric undo/redo by exchanging exact storage owners with zero pixel copies.
+  [Texture-set transactions](docs/transactions.md) isolate repeated pixel and
+  layer operations until commit, collapse them into one mixed undo step, and
+  make cancellation an exact discard with no live revision change.
 - Validated read-only [mesh ingest](docs/mesh-ingest.md), reusable flat CPU
   acceleration structures, overlap and coverage diagnostics, and two-phase mesh
   replacement that reports per-set UV changes before the host chooses to keep,
@@ -293,10 +296,10 @@ The current implementation provides:
   [project-I/O and texture-export](docs/io-scenarios.md), plus combined
   [stroke-model and paint-engine](docs/paint-scenarios.md) scenario suites.
 
-Document transactions and scenario closure, remaining project IO,
-host-transport binding/performance integrations, remaining language bindings,
-and export workflow stages remain roadmap work and are not presented as
-implemented APIs yet.
+Texture-document scenario closure, remaining project IO, host-transport
+binding/performance integrations, remaining language bindings, and export
+workflow stages remain roadmap work and are not presented as implemented APIs
+yet.
 
 ## Architecture
 

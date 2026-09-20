@@ -108,12 +108,38 @@ bool custom_channel_is_preserved_and_independent() {
                   "custom descriptor was not enumerable");
 }
 
+bool copied_channels_own_independent_image_state() {
+    TextureChannels original(64, 64, 8, ctex::doc::metallic_roughness_channels());
+    original.enable("pbr.base_color");
+    const std::array before{std::byte{1}, std::byte{2}, std::byte{3}};
+    const std::array after{std::byte{4}, std::byte{5}, std::byte{6}};
+    original.pixels("pbr.base_color").write_pixel(0, 0, before);
+    const void* shared_identity =
+        original.pixels("pbr.base_color").snapshot_tile_storage({0, 0}).identity();
+    TextureChannels copy = original;
+    const bool initially_shared =
+        copy.pixels("pbr.base_color").snapshot_tile_storage({0, 0}).identity() == shared_identity;
+    copy.pixels("pbr.base_color").write_pixel(0, 0, after);
+    return expect(initially_shared, "channel copy eagerly duplicated immutable tile storage") &&
+           expect(original.pixels("pbr.base_color").snapshot_tile_storage({0, 0}).identity() ==
+                          shared_identity &&
+                      std::equal(before.begin(), before.end(),
+                                 original.pixels("pbr.base_color").read_pixel(0, 0).begin()),
+                  "writing a channel copy changed the original image state") &&
+           expect(copy.pixels("pbr.base_color").snapshot_tile_storage({0, 0}).identity() !=
+                          shared_identity &&
+                      std::equal(after.begin(), after.end(),
+                                 copy.pixels("pbr.base_color").read_pixel(0, 0).begin()),
+                  "channel copy did not detach its tile through copy-on-write");
+}
+
 }  // namespace
 
 int main() {
     return built_in_preset_is_complete() && disabled_channels_allocate_no_storage() &&
                    enabling_uses_default_without_disturbing_existing_channels() &&
-                   custom_channel_is_preserved_and_independent()
+                   custom_channel_is_preserved_and_independent() &&
+                   copied_channels_own_independent_image_state()
                ? 0
                : 1;
 }

@@ -100,6 +100,7 @@ public:
     [[nodiscard]] std::span<const LayerEntry> entries() const noexcept { return entries_; }
     [[nodiscard]] std::size_t size() const noexcept { return entries_.size(); }
     [[nodiscard]] bool empty() const noexcept { return entries_.empty(); }
+    [[nodiscard]] std::uint64_t revision() const noexcept { return revision_; }
     [[nodiscard]] bool contains(std::string_view identifier) const noexcept;
     [[nodiscard]] const LayerEntry& entry(std::string_view identifier) const;
     [[nodiscard]] const LayerEntry& resolved_content(std::string_view identifier) const;
@@ -126,11 +127,14 @@ public:
     void remove(std::span<const std::string> identifiers,
                 ReferencedSourceDeletionPolicy policy = ReferencedSourceDeletionPolicy::refuse);
 
-    friend bool operator==(const LayerStack&, const LayerStack&) = default;
+    friend bool operator==(const LayerStack& left, const LayerStack& right) {
+        return left.entries_ == right.entries_;
+    }
 
 private:
     static void validate(std::span<const LayerEntry> entries);
     std::vector<LayerEntry> entries_;
+    std::uint64_t revision_{};
 };
 
 }  // namespace ctex::doc

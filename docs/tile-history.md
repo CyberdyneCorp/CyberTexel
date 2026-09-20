@@ -20,14 +20,21 @@ validates every channel layout and expected tile generation. An external write,
 revision-history reset, or layout replacement therefore produces a typed stale
 error without partially restoring the step.
 
+A [texture-set transaction](transactions.md) can add a reversible layer-stack
+command to the same step. Layer commands retain only changed entries, removed
+identities, and a full identity order when ordering changed. Layer revisions
+detect edits made outside history before any tile or structure is restored.
+
 `tile_history_budget_report()` exposes:
 
 - configured, retained, and currently available bytes;
 - undo and redo step counts; and
 - the number of additional steps that fit at a caller-supplied proposed size.
 
-Accounting charges one complete physical tile for each retained changed target.
-It does not scale with the canvas: on the default layout, a one-tile edit of a
-16384×16384 channel retains one 64×64 tile. An empty undo and an empty redo have
-distinct typed errors so a host can expose their availability without parsing a
-message.
+Pixel accounting charges one complete physical tile for each retained changed
+target; compact structural command records do not masquerade as pixel
+snapshots. Pixel storage does not scale with the canvas: on the default layout,
+a one-tile edit of a 16384×16384 channel retains one 64×64 tile. Complete shared
+allocation accounting remains roadmap task 19.1. An empty undo and an empty
+redo have distinct typed errors so a host can expose their availability without
+parsing a message.

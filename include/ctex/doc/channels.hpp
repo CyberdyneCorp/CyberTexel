@@ -42,6 +42,8 @@ public:
     TextureChannels(std::uint32_t width, std::uint32_t height, std::uint8_t default_bit_depth,
                     std::span<const ChannelDescriptor> descriptors = {},
                     std::pmr::memory_resource* memory_resource = std::pmr::get_default_resource());
+    TextureChannels(const TextureChannels& other);
+    TextureChannels& operator=(const TextureChannels& other);
 
     void register_descriptor(ChannelDescriptor descriptor);
     [[nodiscard]] const ChannelDescriptor& descriptor(std::string_view semantic_id) const;

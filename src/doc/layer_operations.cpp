@@ -621,9 +621,7 @@ LayerOperationResult apply_layer_operation(TextureSet& texture_set, LayerOperati
             fail(LayerOperationErrorCode::appearance_mismatch,
                  "layer operation candidate does not preserve the composited appearance");
         }
-        LayerStack committed;
-        committed.assign(std::move(candidate.entries));
-        texture_set.layer_stack() = std::move(committed);
+        texture_set.layer_stack().assign(std::move(candidate.entries));
         return {.resolved_content = std::move(candidate.snapshot),
                 .affected_identifiers = std::move(candidate.affected)};
     } catch (const LayerOperationError&) {
