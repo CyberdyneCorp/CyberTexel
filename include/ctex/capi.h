@@ -148,6 +148,7 @@ typedef struct ctex_host_completion_result ctex_host_completion_result;
 typedef struct ctex_host_recovery_report ctex_host_recovery_report;
 typedef struct ctex_material_graph_workspace ctex_material_graph_workspace;
 typedef struct ctex_material_graph_node_registry ctex_material_graph_node_registry;
+typedef struct ctex_shader_emission_cache ctex_shader_emission_cache;
 
 #define CTEX_MAX_MESH_VERTEX_COUNT ((size_t)100000000)
 #define CTEX_MAX_MESH_TRIANGLE_COUNT ((size_t)100000000)
@@ -3600,6 +3601,58 @@ typedef struct ctex_shader_material_info {
 #define CTEX_SHADER_MATERIAL_INFO_V1_SIZE ((uint32_t)sizeof(ctex_shader_material_info))
 #define CTEX_SHADER_MATERIAL_INFO_CURRENT_SIZE ((uint32_t)sizeof(ctex_shader_material_info))
 
+typedef struct ctex_shader_layer_descriptor {
+    uint32_t size;
+    const char* identifier;
+    ctex_shader_texture_descriptor texture;
+} ctex_shader_layer_descriptor;
+
+#define CTEX_SHADER_LAYER_DESCRIPTOR_V1_SIZE ((uint32_t)sizeof(ctex_shader_layer_descriptor))
+#define CTEX_SHADER_LAYER_DESCRIPTOR_CURRENT_SIZE ((uint32_t)sizeof(ctex_shader_layer_descriptor))
+
+typedef struct ctex_shader_layer_stack_request {
+    uint32_t size;
+    const char* stable_identity;
+    uint32_t target; /* ctex_material_graph_emission_target */
+    ctex_shader_device_features_descriptor features;
+    const ctex_shader_layer_descriptor* layers;
+    size_t layer_count;
+    ctex_shader_texture_descriptor output;
+    uint32_t requested_filter; /* ctex_shader_filter_mode */
+} ctex_shader_layer_stack_request;
+
+#define CTEX_SHADER_LAYER_STACK_REQUEST_V1_SIZE ((uint32_t)sizeof(ctex_shader_layer_stack_request))
+#define CTEX_SHADER_LAYER_STACK_REQUEST_CURRENT_SIZE \
+    ((uint32_t)sizeof(ctex_shader_layer_stack_request))
+
+typedef struct ctex_shader_layer_stack_info {
+    uint32_t size;
+    uint32_t target;
+    size_t layer_count;
+    size_t pass_count;
+    size_t artifact_blob_size;
+    size_t artifact_report_size;
+    size_t pass_plan_size;
+    size_t workaround_report_size;
+    size_t workaround_count;
+    uint32_t compute_used;
+    uint32_t cache_hit;
+} ctex_shader_layer_stack_info;
+
+#define CTEX_SHADER_LAYER_STACK_INFO_V1_SIZE ((uint32_t)sizeof(ctex_shader_layer_stack_info))
+#define CTEX_SHADER_LAYER_STACK_INFO_CURRENT_SIZE ((uint32_t)sizeof(ctex_shader_layer_stack_info))
+
+typedef struct ctex_shader_emission_cache_info {
+    uint32_t size;
+    size_t entry_count;
+    size_t hit_count;
+    size_t miss_count;
+} ctex_shader_emission_cache_info;
+
+#define CTEX_SHADER_EMISSION_CACHE_INFO_V1_SIZE ((uint32_t)sizeof(ctex_shader_emission_cache_info))
+#define CTEX_SHADER_EMISSION_CACHE_INFO_CURRENT_SIZE \
+    ((uint32_t)sizeof(ctex_shader_emission_cache_info))
+
 typedef struct ctex_material_graph_property_descriptor {
     uint32_t size;
     const char* identifier;
@@ -4187,6 +4240,35 @@ CTEX_API ctex_result ctex_shader_emit_material(
     size_t graph_serialized_size, const ctex_shader_material_request* request,
     ctex_shader_material_info* out_info, void* vertex_artifact, size_t vertex_artifact_size,
     void* fragment_artifact, size_t fragment_artifact_size, char* pass_plan_output,
+    size_t pass_plan_output_size, char* workaround_report_output,
+    size_t workaround_report_output_size);
+
+/* Creates a thread-safe cache for material and layer-stack emission results. */
+CTEX_API ctex_result ctex_shader_emission_cache_create(ctex_shader_emission_cache** out_cache);
+CTEX_API void ctex_shader_emission_cache_destroy(ctex_shader_emission_cache* cache);
+CTEX_API ctex_result ctex_shader_emission_cache_get_info(const ctex_shader_emission_cache* cache,
+                                                         ctex_shader_emission_cache_info* out_info);
+CTEX_API ctex_result ctex_shader_emission_cache_clear(ctex_shader_emission_cache* cache);
+
+/* The cached material route has the same outputs as ctex_shader_emit_material. */
+CTEX_API ctex_result ctex_shader_emit_material_cached(
+    ctex_shader_emission_cache* cache, const ctex_material_graph_node_registry* registry,
+    const void* graph_serialized, size_t graph_serialized_size,
+    const ctex_shader_material_request* request, ctex_shader_material_info* out_info,
+    void* vertex_artifact, size_t vertex_artifact_size, void* fragment_artifact,
+    size_t fragment_artifact_size, char* pass_plan_output, size_t pass_plan_output_size,
+    char* workaround_report_output, size_t workaround_report_output_size, uint32_t* out_cache_hit);
+
+/*
+ * Emits a bottom-to-top premultiplied layer stack. The packed artifact report
+ * maps each pass identifier to its vertex and fragment byte ranges and states
+ * whether those ranges contain NUL-terminated text or raw SPIR-V. A null cache
+ * performs uncached emission. All four outputs publish atomically.
+ */
+CTEX_API ctex_result ctex_shader_emit_layer_stack(
+    ctex_shader_emission_cache* cache, const ctex_shader_layer_stack_request* request,
+    ctex_shader_layer_stack_info* out_info, void* artifact_blob, size_t artifact_blob_size,
+    char* artifact_report_output, size_t artifact_report_output_size, char* pass_plan_output,
     size_t pass_plan_output_size, char* workaround_report_output,
     size_t workaround_report_output_size);
 

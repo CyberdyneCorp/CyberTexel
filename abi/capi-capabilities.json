@@ -174,7 +174,9 @@
       {"requirement": "Target languages", "symbols": ["ctex_shader_emit_material"]},
       {"requirement": "Pass plan", "symbols": ["ctex_shader_emit_material"]},
       {"requirement": "Stable binding layout", "symbols": ["ctex_shader_emit_material"]},
+      {"requirement": "Layer stack emission", "symbols": ["ctex_shader_emit_layer_stack"]},
       {"requirement": "Feature-gated emission", "symbols": ["ctex_shader_emit_material"]},
+      {"requirement": "Emission cache", "symbols": ["ctex_shader_emission_cache_create", "ctex_shader_emission_cache_destroy", "ctex_shader_emission_cache_get_info", "ctex_shader_emission_cache_clear", "ctex_shader_emit_material_cached", "ctex_shader_emit_layer_stack"]},
       {"requirement": "Thread safety", "symbols": ["ctex_shader_emit_material"]},
       {"requirement": "Deterministic output", "symbols": ["ctex_shader_emit_material"]},
       {"requirement": "Resource lifetimes and synchronization in pass plans", "symbols": ["ctex_shader_emit_material"]}

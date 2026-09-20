@@ -130,6 +130,12 @@ EXPORTS
     ctex_material_graph_validate_registered
     ctex_material_graph_node_registry_verify_contract
     ctex_shader_emit_material
+    ctex_shader_emission_cache_create
+    ctex_shader_emission_cache_destroy
+    ctex_shader_emission_cache_get_info
+    ctex_shader_emission_cache_clear
+    ctex_shader_emit_material_cached
+    ctex_shader_emit_layer_stack
     ctex_preset_library_enumerate
     ctex_preset_library_resolve
     ctex_smart_material_add_anchor_reference

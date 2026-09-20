@@ -220,7 +220,10 @@ All material-graph requirements are now mapped through C. Material shader
 emission now crosses the boundary for all four targets with declared feature
 sets, deterministic artifacts, stable bindings and complete logical-resource
 pass plans. Concurrent calls over distinct graphs and targets match their serial
-results. Exactly 67 runtime requirements still lack C ABI evidence; those
+results. Layer stacks now cross the boundary as one-pass or deterministic split
+compositing with packed per-pass artifacts and carried intermediates. A shared,
+observable cache serves byte-identical material and layer-stack results keyed by
+content, target and device features. Exactly 65 runtime requirements still lack C ABI evidence; those
 gaps must be implemented before task 14.8 can close.
 
 ## Milestones

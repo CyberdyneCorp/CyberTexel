@@ -938,6 +938,16 @@ stability and atomic sizing refusal. A four-thread boundary fixture compares
 distinct graph/target emissions with their serial baselines. The exact remaining
 C ABI gap is 67 runtime requirements.
 
+The layer-stack and cache continuation exposes bottom-to-top compositing as one
+pass when the binding budget permits and deterministic carried-intermediate
+passes when it does not. Every target returns a packed, inventoried set of stage
+artifacts beside the complete pass plan and capability workarounds. One
+allocator-owned, thread-safe cache serves material and layer-stack emission,
+reports hits, misses and entries, and supports an explicit reset. Strict-C tests
+cover fitting and split stacks, SPIR-V bytes, float-filter fallback, cache key
+separation, byte-identical hits and atomic output refusal. The exact remaining C
+ABI gap is 65 runtime requirements.
+
 ## 1. Foundation
 
 - [x] 1.1 CMake project, C++20, warnings as errors, presets for headless, macOS, Linux, Windows, iOS, Android

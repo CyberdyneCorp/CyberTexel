@@ -414,6 +414,12 @@ if(BUILD_TESTING)
         ctex_configure_c_target(ctex_capi_shader_emission_test)
         target_link_libraries(ctex_capi_shader_emission_test PRIVATE cybertexel_c)
         add_test(NAME c-abi-shader-emission COMMAND ctex_capi_shader_emission_test)
+        add_executable(ctex_capi_shader_layer_stack_test
+                       tests/capi/shader_layer_stack_test.c)
+        ctex_configure_c_target(ctex_capi_shader_layer_stack_test)
+        target_link_libraries(ctex_capi_shader_layer_stack_test PRIVATE cybertexel_c)
+        add_test(NAME c-abi-shader-layer-stack
+                 COMMAND ctex_capi_shader_layer_stack_test)
         add_executable(ctex_capi_shader_emission_concurrency_test
                        tests/capi/shader_emission_concurrency_test.cpp)
         ctex_configure_cpp_target(ctex_capi_shader_emission_concurrency_test)

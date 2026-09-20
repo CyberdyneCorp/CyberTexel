@@ -111,6 +111,10 @@ HLSL artifacts beside a deterministic JSON pass plan. The request carries the
 device feature set and logical resources, while the plan publishes stable
 bindings, generations, subresource access and submission lifetimes without
 device handles. Concurrent calls over different graphs and targets match their
-serial results. Exactly 67 runtime requirements remain unmapped overall.
+serial results. Layer stacks now expose one-pass and binding-budget-split
+compositing, packed per-pass artifacts and explicit carried intermediates.
+Material and layer-stack results can share an observable cache keyed by content,
+target and device features. Exactly 65 runtime requirements remain unmapped
+overall.
 The gate is not part of the aggregate `just check` until that count reaches zero;
 its unit tests run in the normal tooling suite throughout the migration.
