@@ -39,6 +39,7 @@
 #include <ctex/paint/stroke.hpp>
 #include <ctex/paint/stroke_preset.hpp>
 #include <ctex/paint/surface_cache.hpp>
+#include <ctex/paint/text.hpp>
 #include <ctex/paint/work.hpp>
 #include <ctex/pick/batch.hpp>
 #include <ctex/pick/region.hpp>
@@ -3914,6 +3915,181 @@ void copy_paint_projection_outputs(const ctex_paint_projection_outputs* outputs,
     }
     std::copy(result.strength.begin(), result.strength.end(), outputs->strength);
     copy_paint_tool_outputs(result.channels, outputs->channels);
+}
+
+ctex::paint::CachedSurfaceMaps paint_text_surface(const ctex_paint_text_descriptor& descriptor,
+                                                  std::size_t pixel_count) {
+    require_paint_tool_array(descriptor.surface_texels, descriptor.surface_texel_count,
+                             "surface_texels");
+    require_paint_tool_array(descriptor.coverage, descriptor.coverage_count, "coverage");
+    if (descriptor.surface_texel_count != pixel_count || descriptor.coverage_count != pixel_count) {
+        throw std::invalid_argument("text surface counts do not match its dimensions");
+    }
+    ctex::paint::CachedSurfaceMaps result{
+        .texture_set_id = "capi.text",
+        .uv_set = "capi.text",
+        .mesh_revision = 0,
+        .surface = {.width = descriptor.width,
+                    .height = descriptor.height,
+                    .tile_origin = {},
+                    .texels = {}},
+        .coverage = {descriptor.coverage, descriptor.coverage + pixel_count},
+        .triangle_identity = {},
+        .uv_island_identity = {},
+    };
+    result.surface.texels.reserve(pixel_count);
+    for (std::size_t index = 0; index < pixel_count; ++index) {
+        const ctex_paint_surface_texel& source = descriptor.surface_texels[index];
+        result.surface.texels.push_back({.position = stroke_vec(source.position),
+                                         .normal = stroke_vec(source.normal),
+                                         .geometric_normal = stroke_vec(source.geometric_normal),
+                                         .uv = {source.uv.x, source.uv.y},
+                                         .triangle = source.triangle});
+    }
+    return result;
+}
+
+ctex::paint::TextAlignment paint_text_alignment(std::uint32_t value) {
+    switch (value) {
+        case CTEX_PAINT_TEXT_ALIGN_LEFT:
+            return ctex::paint::TextAlignment::left;
+        case CTEX_PAINT_TEXT_ALIGN_CENTRE:
+            return ctex::paint::TextAlignment::centre;
+        case CTEX_PAINT_TEXT_ALIGN_RIGHT:
+            return ctex::paint::TextAlignment::right;
+        default:
+            throw std::invalid_argument("paint text alignment is invalid");
+    }
+}
+
+ctex::paint::SuppliedFont paint_text_font(const ctex_paint_font_descriptor* descriptor) {
+    if (descriptor == nullptr) {
+        throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT, "font=null");
+    }
+    validate_structure_size(descriptor->size, CTEX_PAINT_FONT_DESCRIPTOR_V1_SIZE,
+                            CTEX_PAINT_FONT_DESCRIPTOR_CURRENT_SIZE, "font.size");
+    if (descriptor->identity == nullptr) {
+        throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                       "font.identity=null");
+    }
+    require_paint_tool_array(descriptor->glyphs, descriptor->glyph_count, "font.glyphs");
+    if (descriptor->glyph_count > CTEX_MAX_PAINT_TILE_TEXEL_COUNT) {
+        throw_boundary(CTEX_RESULT_OVER_BUDGET, CTEX_DIAGNOSTIC_PAINT_LIMIT_EXCEEDED,
+                       "font glyph count exceeds the paint limit");
+    }
+    ctex::paint::SuppliedFont result{.identity = descriptor->identity,
+                                     .pixels_per_em = descriptor->pixels_per_em,
+                                     .ascent = descriptor->ascent,
+                                     .descent = descriptor->descent,
+                                     .line_gap = descriptor->line_gap,
+                                     .glyphs = {}};
+    result.glyphs.reserve(descriptor->glyph_count);
+    for (std::size_t index = 0; index < descriptor->glyph_count; ++index) {
+        const ctex_paint_font_glyph_descriptor& source = descriptor->glyphs[index];
+        validate_structure_size(source.size, CTEX_PAINT_FONT_GLYPH_DESCRIPTOR_V1_SIZE,
+                                CTEX_PAINT_FONT_GLYPH_DESCRIPTOR_CURRENT_SIZE, "font.glyph.size");
+        const std::size_t area =
+            source.width == 0 && source.height == 0
+                ? 0
+                : bounded_paint_pixel_count(source.width, source.height,
+                                            CTEX_DIAGNOSTIC_INVALID_PAINT_TOOL);
+        require_paint_tool_array(source.coverage, source.coverage_count, "font.glyph.coverage");
+        if (source.coverage_count != area) {
+            throw std::invalid_argument("font glyph coverage count does not match its dimensions");
+        }
+        ctex::paint::SuppliedFontGlyph glyph{.codepoint = static_cast<char32_t>(source.codepoint),
+                                             .width = source.width,
+                                             .height = source.height,
+                                             .bearing_x = source.bearing_x,
+                                             .bearing_y = source.bearing_y,
+                                             .advance = source.advance,
+                                             .coverage = {}};
+        if (area != 0) {
+            glyph.coverage.assign(source.coverage, source.coverage + area);
+        }
+        result.glyphs.push_back(std::move(glyph));
+    }
+    return result;
+}
+
+std::vector<ctex::paint::TextMaterialValue> paint_text_material(
+    const ctex_paint_text_material_value* values, std::size_t count) {
+    require_paint_tool_array(values, count, "material");
+    std::vector<ctex::paint::TextMaterialValue> result;
+    result.reserve(count);
+    for (std::size_t index = 0; index < count; ++index) {
+        validate_structure_size(values[index].size, CTEX_PAINT_TEXT_MATERIAL_VALUE_V1_SIZE,
+                                CTEX_PAINT_TEXT_MATERIAL_VALUE_CURRENT_SIZE, "material.size");
+        if (values[index].semantic_id == nullptr) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                           "material.semantic_id=null");
+        }
+        if (values[index].component_count < 1 || values[index].component_count > 4) {
+            throw std::invalid_argument("text material component count is invalid");
+        }
+        result.push_back(
+            {.semantic_id = values[index].semantic_id,
+             .component_count = static_cast<std::uint8_t>(values[index].component_count),
+             .value = paint_colour(values[index].value)});
+    }
+    return result;
+}
+
+void validate_paint_text_outputs(const ctex_paint_text_outputs* outputs,
+                                 const ctex::paint::TextDecalResult& result,
+                                 std::size_t pixel_count) {
+    if (outputs == nullptr) {
+        return;
+    }
+    validate_structure_size(outputs->size, CTEX_PAINT_TEXT_OUTPUTS_V1_SIZE,
+                            CTEX_PAINT_TEXT_OUTPUTS_CURRENT_SIZE, "outputs.size");
+    validate_output_array(outputs->codepoints, outputs->codepoint_capacity,
+                          result.text.codepoints.size(), "outputs.codepoints");
+    validate_output_array(outputs->raster_opacity, outputs->raster_opacity_capacity,
+                          result.text.opacity.size(), "outputs.raster_opacity");
+    validate_output_array(outputs->source_sample_indices, outputs->source_sample_capacity,
+                          pixel_count, "outputs.source_sample_indices");
+    validate_output_array(outputs->strength, outputs->strength_capacity, pixel_count,
+                          "outputs.strength");
+    validate_paint_tool_outputs(outputs->channels, outputs->channel_count,
+                                result.decal.channels.size(), pixel_count);
+}
+
+void copy_paint_text_outputs(const ctex_paint_text_outputs* outputs,
+                             const ctex::paint::TextDecalResult& result) {
+    if (outputs == nullptr) {
+        return;
+    }
+    std::transform(result.text.codepoints.begin(), result.text.codepoints.end(),
+                   outputs->codepoints,
+                   [](char32_t value) { return static_cast<std::uint32_t>(value); });
+    std::copy(result.text.opacity.begin(), result.text.opacity.end(), outputs->raster_opacity);
+    std::copy(result.decal.source_sample_indices.begin(), result.decal.source_sample_indices.end(),
+              outputs->source_sample_indices);
+    std::copy(result.decal.strength.begin(), result.decal.strength.end(), outputs->strength);
+    copy_paint_tool_outputs(result.decal.channels, outputs->channels);
+}
+
+std::size_t validate_paint_text_call(const ctex_paint_text_descriptor* descriptor,
+                                     const ctex_paint_text_info* out_info) {
+    if (descriptor == nullptr || out_info == nullptr) {
+        throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                       descriptor == nullptr ? "descriptor=null" : "out_info=null");
+    }
+    validate_structure_size(descriptor->size, CTEX_PAINT_TEXT_DESCRIPTOR_V1_SIZE,
+                            CTEX_PAINT_TEXT_DESCRIPTOR_CURRENT_SIZE, "descriptor.size");
+    validate_structure_size(out_info->size, CTEX_PAINT_TEXT_INFO_V1_SIZE,
+                            CTEX_PAINT_TEXT_INFO_CURRENT_SIZE, "out_info.size");
+    if (descriptor->utf8 == nullptr || descriptor->blend_mode == nullptr) {
+        throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                       descriptor->utf8 == nullptr ? "utf8=null" : "blend_mode=null");
+    }
+    if (descriptor->utf8_size > CTEX_MAX_PAINT_TILE_TEXEL_COUNT) {
+        throw_boundary(CTEX_RESULT_OVER_BUDGET, CTEX_DIAGNOSTIC_PAINT_LIMIT_EXCEEDED,
+                       "UTF-8 text size exceeds the paint limit");
+    }
+    return bounded_paint_pixel_count(descriptor->width, descriptor->height,
+                                     CTEX_DIAGNOSTIC_INVALID_PAINT_TOOL);
 }
 
 void validate_paint_tool_outputs(const ctex_paint_tool_channel_output* outputs,
@@ -8725,6 +8901,95 @@ extern "C" ctex_result ctex_paint_apply_projection(
             };
             validate_paint_projection_outputs(outputs, result, pixel_count);
             copy_paint_projection_outputs(outputs, result);
+        } catch (const std::invalid_argument& error) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_INVALID_PAINT_TOOL,
+                           error.what());
+        }
+    });
+}
+
+extern "C" ctex_result ctex_paint_apply_text(const ctex_paint_text_descriptor* descriptor,
+                                             ctex_paint_text_info* out_info,
+                                             const ctex_paint_text_outputs* outputs) {
+    return call_boundary("ctex_paint_apply_text", [&] {
+        const std::size_t pixel_count = validate_paint_text_call(descriptor, out_info);
+        try {
+            const ctex::paint::CachedSurfaceMaps surface =
+                paint_text_surface(*descriptor, pixel_count);
+            const auto layer = paint_tool_channels(descriptor->enabled_layer_snapshot,
+                                                   descriptor->enabled_layer_channel_count,
+                                                   pixel_count, "enabled_layer_snapshot");
+            const auto material =
+                paint_text_material(descriptor->material, descriptor->material_channel_count);
+            const ctex::paint::SuppliedFont font = paint_text_font(descriptor->font);
+            const PaintMaskStorage masks = paint_mask_storage(descriptor->masks);
+            const ctex::paint::TextDecalSettings settings{
+                .layout = {.tracking_em = descriptor->tracking_em,
+                           .alignment = paint_text_alignment(descriptor->alignment)},
+                .size = descriptor->text_size,
+                .placement = paint_decal_placement(descriptor->placement),
+                .decal = {.blend_mode = descriptor->blend_mode,
+                          .masks = masks.inputs(),
+                          .rejection_acceptance = paint_fill_optional_view(
+                              descriptor->rejection_acceptance,
+                              descriptor->rejection_acceptance_count, "rejection_acceptance")},
+            };
+            const ctex::paint::TextDecalResult result = ctex::paint::apply_text_decal(
+                surface, layer, material, font,
+                std::string_view(descriptor->utf8, descriptor->utf8_size), settings);
+            const ctex::paint::DecalTransform& resolved = result.decal.frame.resolved_transform;
+            *out_info = {
+                .size = CTEX_PAINT_TEXT_INFO_CURRENT_SIZE,
+                .resolved_tracking_em = result.text.tracking_em,
+                .resolved_alignment = descriptor->alignment,
+                .resolved_text_size = result.size,
+                .tracking_clamped =
+                    result.parameter_report.clamp_for(ctex::paint::text_tracking_parameter.name)
+                        .has_value(),
+                .text_size_clamped =
+                    result.parameter_report.clamp_for(ctex::paint::text_size_parameter.name)
+                        .has_value(),
+                .raster_width = result.text.width,
+                .raster_height = result.text.height,
+                .line_count = result.text.line_count,
+                .width_em = result.text.width_em,
+                .height_em = result.text.height_em,
+                .resolved_placement =
+                    {.position = {result.decal.frame.origin.x, result.decal.frame.origin.y,
+                                  result.decal.frame.origin.z},
+                     .surface_normal = {result.decal.frame.normal.x, result.decal.frame.normal.y,
+                                        result.decal.frame.normal.z},
+                     .transform = {.rotation_radians = resolved.rotation_radians,
+                                   .uniform_scale = resolved.uniform_scale,
+                                   .axis_scale = {resolved.axis_scale.x, resolved.axis_scale.y}}},
+                .frame_tangent = {result.decal.frame.tangent.x, result.decal.frame.tangent.y,
+                                  result.decal.frame.tangent.z},
+                .frame_bitangent = {result.decal.frame.bitangent.x, result.decal.frame.bitangent.y,
+                                    result.decal.frame.bitangent.z},
+                .frame_scale = {result.decal.frame.scale.x, result.decal.frame.scale.y},
+                .rotation_clamped =
+                    result.parameter_report.clamp_for(ctex::paint::decal_rotation_parameter.name)
+                        .has_value(),
+                .uniform_scale_clamped =
+                    result.parameter_report
+                        .clamp_for(ctex::paint::decal_uniform_scale_parameter.name)
+                        .has_value(),
+                .axis_scale_x_clamped =
+                    result.parameter_report
+                        .clamp_for(ctex::paint::decal_axis_scale_x_parameter.name)
+                        .has_value(),
+                .axis_scale_y_clamped =
+                    result.parameter_report
+                        .clamp_for(ctex::paint::decal_axis_scale_y_parameter.name)
+                        .has_value(),
+                .editable_revision = result.decal.editable_revision,
+                .applied_channel_count = result.decal.channels.size(),
+                .required_codepoint_count = result.text.codepoints.size(),
+                .required_raster_opacity_count = result.text.opacity.size(),
+                .required_pixels_per_channel = pixel_count,
+            };
+            validate_paint_text_outputs(outputs, result, pixel_count);
+            copy_paint_text_outputs(outputs, result);
         } catch (const std::invalid_argument& error) {
             throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_INVALID_PAINT_TOOL,
                            error.what());

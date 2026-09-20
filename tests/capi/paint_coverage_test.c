@@ -1208,6 +1208,116 @@ static int projection_exposes_camera_planar_and_triplanar_mapping(void) {
     return passed;
 }
 
+static int text_rasterizes_supplied_utf8_font_and_applies_a_decal(void) {
+    const double cedilla_coverage[4] = {1, 1, 1, 1};
+    const double b_coverage[2] = {1, 1};
+    const ctex_paint_font_glyph_descriptor glyphs[2] = {
+        {.size = CTEX_PAINT_FONT_GLYPH_DESCRIPTOR_CURRENT_SIZE,
+         .codepoint = 0x00e7,
+         .width = 2,
+         .height = 2,
+         .bearing_y = 2,
+         .advance = 2,
+         .coverage = cedilla_coverage,
+         .coverage_count = 4},
+        {.size = CTEX_PAINT_FONT_GLYPH_DESCRIPTOR_CURRENT_SIZE,
+         .codepoint = 'B',
+         .width = 1,
+         .height = 2,
+         .bearing_y = 2,
+         .advance = 1,
+         .coverage = b_coverage,
+         .coverage_count = 2}};
+    const ctex_paint_font_descriptor font = {.size = CTEX_PAINT_FONT_DESCRIPTOR_CURRENT_SIZE,
+                                             .identity = "font:capi:v1",
+                                             .pixels_per_em = 2,
+                                             .ascent = 2,
+                                             .descent = 0,
+                                             .line_gap = 0,
+                                             .glyphs = glyphs,
+                                             .glyph_count = 2};
+    const ctex_paint_surface_texel surface = {{0, 0, 0}, {0, 0, 1}, {0, 0, 1}, {0.5, 0.5}, 0};
+    const uint8_t coverage = 1;
+    const ctex_vec4f layer_pixel = {0, 0, 0, 1};
+    const ctex_paint_tool_channel_descriptor layer = {
+        CTEX_PAINT_TOOL_CHANNEL_DESCRIPTOR_CURRENT_SIZE, "pbr.base_color", 3, &layer_pixel, 1};
+    const ctex_paint_text_material_value material = {
+        CTEX_PAINT_TEXT_MATERIAL_VALUE_CURRENT_SIZE, "pbr.base_color", 3, {1, 0, 0, 1}};
+    const char text[] = "\xc3\xa7\xc3\xa7\nB";
+    ctex_paint_text_descriptor descriptor = {.size = CTEX_PAINT_TEXT_DESCRIPTOR_CURRENT_SIZE,
+                                             .width = 1,
+                                             .height = 1,
+                                             .surface_texels = &surface,
+                                             .surface_texel_count = 1,
+                                             .coverage = &coverage,
+                                             .coverage_count = 1,
+                                             .font = &font,
+                                             .utf8 = text,
+                                             .utf8_size = sizeof(text) - 1,
+                                             .tracking_em = 20,
+                                             .alignment = CTEX_PAINT_TEXT_ALIGN_RIGHT,
+                                             .text_size = 2,
+                                             .placement = {{0, 0, 0}, {0, 0, 1}, {0, 1, {1, 1}}},
+                                             .material = &material,
+                                             .material_channel_count = 1,
+                                             .enabled_layer_snapshot = &layer,
+                                             .enabled_layer_channel_count = 1,
+                                             .blend_mode = "normal"};
+    ctex_paint_text_info info = {.size = CTEX_PAINT_TEXT_INFO_CURRENT_SIZE};
+    int passed = expect(ctex_paint_apply_text(&descriptor, &info, NULL) == CTEX_RESULT_SUCCESS) &&
+                 expect(info.tracking_clamped == 1 && near(info.resolved_tracking_em, 10) &&
+                        info.required_codepoint_count == 4);
+    descriptor.tracking_em = 0;
+    uint32_t codepoints[4] = {99, 99, 99, 99};
+    double raster_opacity[16] = {-1};
+    size_t source_sample = 99;
+    double strength = -1;
+    ctex_vec4f pixel = {-1, -1, -1, -1};
+    const ctex_paint_tool_channel_output channel = {CTEX_PAINT_TOOL_CHANNEL_OUTPUT_CURRENT_SIZE,
+                                                    &pixel, 1};
+    ctex_paint_text_outputs outputs = {.size = CTEX_PAINT_TEXT_OUTPUTS_CURRENT_SIZE,
+                                       .codepoints = codepoints,
+                                       .codepoint_capacity = 4,
+                                       .raster_opacity = raster_opacity,
+                                       .raster_opacity_capacity = 15,
+                                       .source_sample_indices = &source_sample,
+                                       .source_sample_capacity = 1,
+                                       .strength = &strength,
+                                       .strength_capacity = 1,
+                                       .channels = &channel,
+                                       .channel_count = 1};
+    if (passed) {
+        passed = expect(ctex_paint_apply_text(&descriptor, &info, &outputs) ==
+                        CTEX_RESULT_BUFFER_TOO_SMALL) &&
+                 expect(codepoints[0] == 99 && near(raster_opacity[0], -1) && source_sample == 99 &&
+                        near(strength, -1) && near_float(pixel.x, -1));
+    }
+    outputs.raster_opacity_capacity = 16;
+    if (passed) {
+        passed =
+            expect(ctex_paint_apply_text(&descriptor, &info, &outputs) == CTEX_RESULT_SUCCESS) &&
+            expect(info.raster_width == 4 && info.raster_height == 4 && info.line_count == 2 &&
+                   near(info.frame_scale.x, 4) && near(info.frame_scale.y, 4)) &&
+            expect(codepoints[0] == 0x00e7 && codepoints[1] == 0x00e7 && codepoints[2] == '\n' &&
+                   codepoints[3] == 'B') &&
+            expect(near(raster_opacity[8], 0) && near(raster_opacity[11], 1)) &&
+            expect(source_sample != CTEX_PAINT_NO_DECAL_SAMPLE && near(strength, 1) &&
+                   near_float(pixel.x, 1));
+    }
+    const char invalid_utf8[] = "\xc0\x80";
+    descriptor.utf8 = invalid_utf8;
+    descriptor.utf8_size = sizeof(invalid_utf8) - 1;
+    if (passed) {
+        const uint32_t preserved_codepoint = codepoints[0];
+        const float preserved_pixel = pixel.x;
+        passed =
+            expect(ctex_paint_apply_text(&descriptor, &info, &outputs) ==
+                   CTEX_RESULT_INVALID_ARGUMENT) &&
+            expect(codepoints[0] == preserved_codepoint && near_float(pixel.x, preserved_pixel));
+    }
+    return passed;
+}
+
 static int invalid_inputs_are_stable_diagnostics(void) {
     ctex_mesh* mesh = coverage_mesh();
     ctex_paint_tile_coverage_descriptor tile = {
@@ -1267,6 +1377,7 @@ int main(void) {
                    stencil_resolves_a_screen_anchored_invertible_mask() &&
                    decal_rasterizes_a_retained_editable_placement() &&
                    projection_exposes_camera_planar_and_triplanar_mapping() &&
+                   text_rasterizes_supplied_utf8_font_and_applies_a_decal() &&
                    invalid_inputs_are_stable_diagnostics()
                ? 0
                : 1;

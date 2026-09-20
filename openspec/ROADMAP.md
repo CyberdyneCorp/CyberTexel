@@ -192,9 +192,10 @@ stroke-start filtering through explicit surface-aware neighborhoods and mappings
 Stencil now resolves screen-anchored transformable masks for the canonical
 deposition pipeline. Decal now explicitly rasterizes retained placements and pinned materials through
 resolved surface frames. Projection now applies pinned materials through camera,
-planar and triplanar mappings with explicit weighted samples. Exactly 99 runtime
-requirements still lack C ABI evidence; those gaps must be implemented before
-task 14.8 can close.
+planar and triplanar mappings with explicit weighted samples. Text now exposes
+supplied fonts, length-delimited UTF-8, alignment, tracking and projected decal
+output. Exactly 98 runtime requirements still lack C ABI evidence; those gaps
+must be implemented before task 14.8 can close.
 
 ## Milestones
 

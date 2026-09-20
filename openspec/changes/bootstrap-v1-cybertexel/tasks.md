@@ -852,6 +852,12 @@ triplanar mapping. Resolved parameter clamps, source indices, weights, composed
 strength and every enabled channel publish atomically. The exact remaining C ABI
 gap is 99 runtime requirements.
 
+The Text continuation exposes supplied font metrics and normalized glyph
+coverage, length-delimited UTF-8, per-string size, tracking and alignment. It
+returns decoded codepoints and the aligned raster beside atomic decal samples,
+strength and enabled channels. The exact remaining C ABI gap is 98 runtime
+requirements.
+
 ## 1. Foundation
 
 - [x] 1.1 CMake project, C++20, warnings as errors, presets for headless, macOS, Linux, Windows, iOS, Android

@@ -1365,6 +1365,129 @@ typedef struct ctex_paint_projection_outputs {
 #define CTEX_PAINT_PROJECTION_OUTPUTS_CURRENT_SIZE ((uint32_t)sizeof(ctex_paint_projection_outputs))
 #define CTEX_PAINT_NO_PROJECTION_SAMPLE ((size_t)-1)
 
+typedef enum ctex_paint_text_alignment {
+    CTEX_PAINT_TEXT_ALIGN_LEFT = 0,
+    CTEX_PAINT_TEXT_ALIGN_CENTRE = 1,
+    CTEX_PAINT_TEXT_ALIGN_RIGHT = 2
+} ctex_paint_text_alignment;
+
+typedef struct ctex_paint_font_glyph_descriptor {
+    uint32_t size;
+    uint32_t codepoint;
+    uint32_t width;
+    uint32_t height;
+    double bearing_x;
+    double bearing_y;
+    double advance;
+    const double* coverage;
+    size_t coverage_count;
+} ctex_paint_font_glyph_descriptor;
+
+#define CTEX_PAINT_FONT_GLYPH_DESCRIPTOR_V1_SIZE \
+    ((uint32_t)sizeof(ctex_paint_font_glyph_descriptor))
+#define CTEX_PAINT_FONT_GLYPH_DESCRIPTOR_CURRENT_SIZE \
+    ((uint32_t)sizeof(ctex_paint_font_glyph_descriptor))
+
+typedef struct ctex_paint_font_descriptor {
+    uint32_t size;
+    const char* identity;
+    double pixels_per_em;
+    double ascent;
+    double descent;
+    double line_gap;
+    const ctex_paint_font_glyph_descriptor* glyphs;
+    size_t glyph_count;
+} ctex_paint_font_descriptor;
+
+#define CTEX_PAINT_FONT_DESCRIPTOR_V1_SIZE ((uint32_t)sizeof(ctex_paint_font_descriptor))
+#define CTEX_PAINT_FONT_DESCRIPTOR_CURRENT_SIZE ((uint32_t)sizeof(ctex_paint_font_descriptor))
+
+typedef struct ctex_paint_text_material_value {
+    uint32_t size;
+    const char* semantic_id;
+    uint32_t component_count;
+    ctex_vec4f value;
+} ctex_paint_text_material_value;
+
+#define CTEX_PAINT_TEXT_MATERIAL_VALUE_V1_SIZE ((uint32_t)sizeof(ctex_paint_text_material_value))
+#define CTEX_PAINT_TEXT_MATERIAL_VALUE_CURRENT_SIZE \
+    ((uint32_t)sizeof(ctex_paint_text_material_value))
+
+typedef struct ctex_paint_text_descriptor {
+    uint32_t size;
+    uint32_t width;
+    uint32_t height;
+    const ctex_paint_surface_texel* surface_texels;
+    size_t surface_texel_count;
+    const uint8_t* coverage;
+    size_t coverage_count;
+    const ctex_paint_font_descriptor* font;
+    const char* utf8;
+    size_t utf8_size;
+    double tracking_em;
+    uint32_t alignment;
+    double text_size;
+    ctex_paint_decal_placement placement;
+    const ctex_paint_text_material_value* material;
+    size_t material_channel_count;
+    const ctex_paint_tool_channel_descriptor* enabled_layer_snapshot;
+    size_t enabled_layer_channel_count;
+    const ctex_paint_mask_inputs_descriptor* masks;
+    const double* rejection_acceptance;
+    size_t rejection_acceptance_count;
+    const char* blend_mode;
+} ctex_paint_text_descriptor;
+
+#define CTEX_PAINT_TEXT_DESCRIPTOR_V1_SIZE ((uint32_t)sizeof(ctex_paint_text_descriptor))
+#define CTEX_PAINT_TEXT_DESCRIPTOR_CURRENT_SIZE ((uint32_t)sizeof(ctex_paint_text_descriptor))
+
+typedef struct ctex_paint_text_info {
+    uint32_t size;
+    double resolved_tracking_em;
+    uint32_t resolved_alignment;
+    double resolved_text_size;
+    uint32_t tracking_clamped;
+    uint32_t text_size_clamped;
+    uint32_t raster_width;
+    uint32_t raster_height;
+    size_t line_count;
+    double width_em;
+    double height_em;
+    ctex_paint_decal_placement resolved_placement;
+    ctex_vec3d frame_tangent;
+    ctex_vec3d frame_bitangent;
+    ctex_vec2d frame_scale;
+    uint32_t rotation_clamped;
+    uint32_t uniform_scale_clamped;
+    uint32_t axis_scale_x_clamped;
+    uint32_t axis_scale_y_clamped;
+    uint64_t editable_revision;
+    size_t applied_channel_count;
+    size_t required_codepoint_count;
+    size_t required_raster_opacity_count;
+    size_t required_pixels_per_channel;
+} ctex_paint_text_info;
+
+#define CTEX_PAINT_TEXT_INFO_V1_SIZE ((uint32_t)sizeof(ctex_paint_text_info))
+#define CTEX_PAINT_TEXT_INFO_CURRENT_SIZE ((uint32_t)sizeof(ctex_paint_text_info))
+
+typedef struct ctex_paint_text_outputs {
+    uint32_t size;
+    uint32_t* codepoints;
+    size_t codepoint_capacity;
+    double* raster_opacity;
+    size_t raster_opacity_capacity;
+    size_t* source_sample_indices;
+    size_t source_sample_capacity;
+    double* strength;
+    size_t strength_capacity;
+    const ctex_paint_tool_channel_output* channels;
+    size_t channel_count;
+} ctex_paint_text_outputs;
+
+#define CTEX_PAINT_TEXT_OUTPUTS_V1_SIZE ((uint32_t)sizeof(ctex_paint_text_outputs))
+#define CTEX_PAINT_TEXT_OUTPUTS_CURRENT_SIZE ((uint32_t)sizeof(ctex_paint_text_outputs))
+
 typedef struct ctex_stroke_preset_info {
     uint32_t size;
     uint32_t schema_version;
@@ -3392,6 +3515,11 @@ CTEX_API ctex_result ctex_paint_rasterize_decal(const ctex_paint_decal_descripto
 CTEX_API ctex_result ctex_paint_apply_projection(const ctex_paint_projection_descriptor* descriptor,
                                                  ctex_paint_projection_info* out_info,
                                                  const ctex_paint_projection_outputs* outputs);
+
+/* Rasterizes length-delimited UTF-8 from a supplied font and applies it as a decal. */
+CTEX_API ctex_result ctex_paint_apply_text(const ctex_paint_text_descriptor* descriptor,
+                                           ctex_paint_text_info* out_info,
+                                           const ctex_paint_text_outputs* outputs);
 
 /*
  * Installs one process-wide sink. Pass NULL to uninstall it. The callback can
