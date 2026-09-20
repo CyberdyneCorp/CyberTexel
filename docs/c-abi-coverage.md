@@ -32,7 +32,9 @@ of host buffers, expose named UV sets and revision changes, and enforce the
 declared 100,000,000-vertex and 100,000,000-triangle ceilings before reading
 array contents. Picking indexes preserve allocator provenance, rebuild after
 mesh replacement, report traversal cost, and expose ray, UV, snap, region and
-bounded cancellable batch queries without a GPU. Exactly 144 runtime
-requirements remain unmapped.
+bounded cancellable batch queries without a GPU. Smart-material validation now
+exposes canonical migration, mixed-content inventories, typed parameter
+fan-out, anchor editing, cycle refusal and dependency-ordered evaluation.
+Exactly 139 runtime requirements remain unmapped.
 The gate is not part of the aggregate `just check` until that count reaches zero;
 its unit tests run in the normal tooling suite throughout the migration.

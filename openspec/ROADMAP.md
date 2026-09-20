@@ -157,9 +157,11 @@ machine-readable inventory, opaque future-content preservation and atomic
 filesystem publication. Standalone asset export and installation select exact
 dependencies, optionally pack external resources, and resolve referenced
 resources through ordered caller search paths. All byte and report outputs
-retain the caller-owned two-call contract. Exactly 144 runtime requirements
-still lack C ABI evidence; those gaps must be implemented before task 14.8 can
-close.
+retain the caller-owned two-call contract. The smart-material authoring slice
+adds canonical validation and migration, mixed-content reporting, typed
+parameter fan-out, anchor editing with cycle refusal, and dependency-ordered
+evaluation planning. Exactly 139 runtime requirements still lack C ABI
+evidence; those gaps must be implemented before task 14.8 can close.
 
 ## Milestones
 

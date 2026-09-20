@@ -47,6 +47,11 @@ EXPORTS
     ctex_project_container_save_atomic
     ctex_project_asset_export
     ctex_project_asset_install
+    ctex_smart_material_add_anchor_reference
+    ctex_smart_material_inspect
+    ctex_smart_material_plan_anchor_evaluation
+    ctex_smart_material_set_anchor
+    ctex_smart_material_set_parameter
     ctex_paint_blend_snapshot
     ctex_paint_combine_masks
     ctex_paint_dilate_uv_seams

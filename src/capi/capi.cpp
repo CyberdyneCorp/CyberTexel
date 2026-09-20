@@ -6,6 +6,7 @@
 #include <cmath>
 #include <cstdio>
 #include <cstring>
+#include <ctex/doc/smart_material.hpp>
 #include <ctex/image/color_policy.hpp>
 #include <ctex/io/image_io.hpp>
 #include <ctex/io/project_container.hpp>
@@ -3972,6 +3973,275 @@ void write_project_container_outputs(const PreparedProjectContainer& prepared, v
     }
 }
 
+[[noreturn]] void throw_smart_material_error(const ctex::doc::SmartMaterialError& error) {
+    const ctex_result result =
+        error.code() == ctex::doc::SmartMaterialErrorCode::unsupported_version
+            ? CTEX_RESULT_UNSUPPORTED_OPERATION
+            : CTEX_RESULT_INVALID_ARGUMENT;
+    throw_boundary(result, CTEX_DIAGNOSTIC_INVALID_SMART_MATERIAL, error.what());
+}
+
+std::string_view smart_material_bytes(const void* serialized, std::size_t serialized_size) {
+    if (serialized == nullptr) {
+        throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                       "serialized=null");
+    }
+    return {static_cast<const char*>(serialized), serialized_size};
+}
+
+std::uint32_t smart_material_source_schema(std::string_view serialized) {
+    constexpr std::string_view prefix = "CTEX_SMART_MATERIAL\t";
+    if (!serialized.starts_with(prefix)) {
+        return 0;
+    }
+    std::uint64_t version = 0;
+    std::size_t index = prefix.size();
+    bool has_digit = false;
+    while (index < serialized.size() && serialized[index] >= '0' && serialized[index] <= '9') {
+        has_digit = true;
+        version = version * 10U + static_cast<unsigned char>(serialized[index] - '0');
+        if (version > std::numeric_limits<std::uint32_t>::max()) {
+            return 0;
+        }
+        ++index;
+    }
+    return has_digit && index < serialized.size() && serialized[index] == '\n'
+               ? static_cast<std::uint32_t>(version)
+               : 0;
+}
+
+std::string smart_material_report_json(const ctex::doc::SmartMaterialPreset& material) {
+    const ctex::doc::SmartMaterialContentReport content =
+        ctex::doc::report_smart_material_content(material);
+    std::string output =
+        "{\"schema_version\":" + std::to_string(material.schema_version) + ",\"identifier\":";
+    append_json_text(output, material.identifier);
+    output += ",\"display_name\":";
+    append_json_text(output, material.display_name);
+    output += ",\"entries\":[";
+    for (std::size_t index = 0; index < material.stack.size(); ++index) {
+        if (index != 0) {
+            output.push_back(',');
+        }
+        const ctex::doc::SmartMaterialEntry& entry = material.stack[index];
+        const ctex::doc::SmartMaterialContentReportEntry& report = content.entries[index];
+        output += "{\"id\":";
+        append_json_text(output, entry.identifier);
+        output += ",\"parent\":";
+        append_json_text(output, entry.parent_identifier);
+        output +=
+            ",\"kind\":" + std::to_string(static_cast<std::uint32_t>(entry.kind)) + ",\"content\":";
+        append_json_text(output, entry.content_kind == ctex::doc::SmartMaterialContentKind::derived
+                                     ? "derived"
+                                     : "model-specific");
+        output += ",\"pixel_payloads\":" + std::to_string(report.pixel_payload_count) +
+                  ",\"pixel_bytes\":" + std::to_string(report.stored_pixel_bytes) + "}";
+    }
+    output += "],\"parameters\":[";
+    for (std::size_t index = 0; index < material.exposed_parameters.size(); ++index) {
+        if (index != 0) {
+            output.push_back(',');
+        }
+        const ctex::doc::ExposedSmartMaterialParameter& parameter =
+            material.exposed_parameters[index];
+        output += "{\"id\":";
+        append_json_text(output, parameter.identifier);
+        output += ",\"display_name\":";
+        append_json_text(output, parameter.display_name);
+        output += ",\"group\":";
+        append_json_text(output, parameter.display_group);
+        output += ",\"type\":";
+        append_json_text(output, ctex::graph::socket_type_name(parameter.type));
+        output += ",\"binding_count\":" + std::to_string(parameter.bindings.size()) + "}";
+    }
+    output += "],\"anchors\":[";
+    for (std::size_t index = 0; index < material.anchor_entries.size(); ++index) {
+        if (index != 0) {
+            output.push_back(',');
+        }
+        append_json_text(output, material.anchor_entries[index]);
+    }
+    output += "],\"anchor_references\":[";
+    for (std::size_t index = 0; index < material.anchor_references.size(); ++index) {
+        if (index != 0) {
+            output.push_back(',');
+        }
+        const ctex::doc::SmartMaterialAnchorReference& reference =
+            material.anchor_references[index];
+        output += "{\"anchor\":";
+        append_json_text(output, reference.anchor_entry_identifier);
+        output += ",\"consumer\":";
+        append_json_text(output, reference.consumer_entry_identifier);
+        output += ",\"node_id\":" + std::to_string(reference.consumer_node_id) + ",\"input\":";
+        append_json_text(output, reference.consumer_input_identifier);
+        output.push_back('}');
+    }
+    output += "],\"resources\":[";
+    for (std::size_t index = 0; index < material.resource_references.size(); ++index) {
+        if (index != 0) {
+            output.push_back(',');
+        }
+        const ctex::doc::SmartMaterialResourceReference& resource =
+            material.resource_references[index];
+        output += "{\"id\":";
+        append_json_text(output, resource.identifier);
+        output += ",\"kind\":";
+        append_json_text(output, resource.kind);
+        output.push_back('}');
+    }
+    output +=
+        "],\"content\":{\"derived_entries\":" + std::to_string(content.derived_entry_count) +
+        ",\"model_specific_entries\":" + std::to_string(content.model_specific_entry_count) +
+        ",\"model_specific_pixel_bytes\":" + std::to_string(content.model_specific_pixel_bytes) +
+        "}}";
+    return output;
+}
+
+struct PreparedSmartMaterial {
+    ctex::doc::SmartMaterialPreset material;
+    std::string canonical;
+    std::string report;
+    ctex_smart_material_info info{};
+};
+
+PreparedSmartMaterial prepare_smart_material(ctex::doc::SmartMaterialPreset material,
+                                             std::uint32_t source_schema_version) {
+    std::string canonical = ctex::doc::serialize_smart_material(material);
+    std::string report = smart_material_report_json(material);
+    const ctex::doc::SmartMaterialContentReport content =
+        ctex::doc::report_smart_material_content(material);
+    ctex_smart_material_info info{
+        .size = CTEX_SMART_MATERIAL_INFO_CURRENT_SIZE,
+        .source_schema_version = source_schema_version,
+        .canonical_schema_version = material.schema_version,
+        .entry_count = material.stack.size(),
+        .derived_entry_count = content.derived_entry_count,
+        .model_specific_entry_count = content.model_specific_entry_count,
+        .model_specific_pixel_bytes = content.model_specific_pixel_bytes,
+        .exposed_parameter_count = material.exposed_parameters.size(),
+        .anchor_count = material.anchor_entries.size(),
+        .anchor_reference_count = material.anchor_references.size(),
+        .resource_reference_count = material.resource_references.size(),
+        .canonical_size = canonical.size(),
+        .report_size = report.size() + 1,
+    };
+    return {.material = std::move(material),
+            .canonical = std::move(canonical),
+            .report = std::move(report),
+            .info = info};
+}
+
+PreparedSmartMaterial prepare_smart_material(const void* serialized, std::size_t serialized_size) {
+    const std::string_view source = smart_material_bytes(serialized, serialized_size);
+    try {
+        return prepare_smart_material(ctex::doc::deserialize_smart_material(source),
+                                      smart_material_source_schema(source));
+    } catch (const ctex::doc::SmartMaterialError& error) {
+        throw_smart_material_error(error);
+    }
+}
+
+void validate_smart_material_outputs(const PreparedSmartMaterial& prepared, void* canonical_output,
+                                     std::size_t canonical_output_size, char* report_output,
+                                     std::size_t report_output_size) {
+    validate_string_buffer(static_cast<char*>(canonical_output), canonical_output_size,
+                           prepared.canonical.size());
+    validate_string_buffer(report_output, report_output_size, prepared.info.report_size);
+}
+
+void write_smart_material_outputs(const PreparedSmartMaterial& prepared, void* canonical_output,
+                                  char* report_output) {
+    if (canonical_output != nullptr) {
+        std::memcpy(canonical_output, prepared.canonical.data(), prepared.canonical.size());
+    }
+    if (report_output != nullptr) {
+        std::memcpy(report_output, prepared.report.c_str(), prepared.info.report_size);
+    }
+}
+
+ctex::graph::SocketValue smart_material_value(
+    const ctex_smart_material_value_descriptor* descriptor) {
+    if (descriptor == nullptr) {
+        throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT, "value=null");
+    }
+    validate_structure_size(descriptor->size, CTEX_SMART_MATERIAL_VALUE_DESCRIPTOR_V1_SIZE,
+                            CTEX_SMART_MATERIAL_VALUE_DESCRIPTOR_CURRENT_SIZE,
+                            "smart material value size");
+    switch (descriptor->type) {
+        case CTEX_SMART_MATERIAL_VALUE_SCALAR:
+            return descriptor->scalar;
+        case CTEX_SMART_MATERIAL_VALUE_VECTOR:
+            return ctex::graph::VectorValue{descriptor->vector.x, descriptor->vector.y,
+                                            descriptor->vector.z};
+        case CTEX_SMART_MATERIAL_VALUE_COLOUR:
+            return ctex::graph::ColourValue{descriptor->colour.x, descriptor->colour.y,
+                                            descriptor->colour.z, descriptor->colour.w};
+        case CTEX_SMART_MATERIAL_VALUE_STRING:
+            if (descriptor->text != nullptr) {
+                return std::string(descriptor->text);
+            }
+            break;
+        case CTEX_SMART_MATERIAL_VALUE_IMAGE:
+            if (descriptor->text != nullptr) {
+                return ctex::graph::ImageValue{descriptor->text};
+            }
+            break;
+        case CTEX_SMART_MATERIAL_VALUE_BOOLEAN:
+            if (descriptor->boolean <= 1U) {
+                return descriptor->boolean != 0U;
+            }
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_INVALID_SMART_MATERIAL,
+                           "smart material boolean value must be zero or one");
+        default:
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_INVALID_ENUM_VALUE,
+                           "smart material value type is invalid");
+    }
+    throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                   "smart material text value is null");
+}
+
+void return_smart_material(PreparedSmartMaterial prepared, ctex_smart_material_info* out_info,
+                           void* canonical_output, std::size_t canonical_output_size,
+                           char* report_output, std::size_t report_output_size) {
+    *out_info = prepared.info;
+    validate_smart_material_outputs(prepared, canonical_output, canonical_output_size,
+                                    report_output, report_output_size);
+    write_smart_material_outputs(prepared, canonical_output, report_output);
+}
+
+std::vector<std::string_view> smart_material_changed_anchors(const char* const* identifiers,
+                                                             std::size_t count) {
+    if (identifiers == nullptr && count != 0) {
+        throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                       "changed anchors=null");
+    }
+    std::vector<std::string_view> result;
+    result.reserve(count);
+    for (std::size_t index = 0; index < count; ++index) {
+        if (identifiers[index] == nullptr) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                           "changed anchor identifier is null");
+        }
+        result.emplace_back(identifiers[index]);
+    }
+    return result;
+}
+
+std::string smart_material_anchor_plan_json(const ctex::doc::SmartMaterialPreset& material,
+                                            std::span<const std::string_view> changed_anchors) {
+    const ctex::doc::SmartMaterialAnchorEvaluationPlan plan =
+        ctex::doc::plan_smart_material_anchor_evaluation(material, changed_anchors);
+    std::string json = "[";
+    for (std::size_t index = 0; index < plan.entry_identifiers.size(); ++index) {
+        if (index != 0) {
+            json.push_back(',');
+        }
+        append_json_text(json, plan.entry_identifiers[index]);
+    }
+    json.push_back(']');
+    return json;
+}
+
 }  // namespace
 
 void* ctex_host_memory_resource::do_allocate(std::size_t bytes, std::size_t alignment) {
@@ -4640,6 +4910,134 @@ extern "C" ctex_result ctex_project_asset_install(
             write_project_container_outputs(prepared, library_output, report_output);
         } catch (const ctex::io::ProjectContainerError& error) {
             throw_project_container_error(error);
+        }
+    });
+}
+
+extern "C" ctex_result ctex_smart_material_inspect(
+    const void* serialized, std::size_t serialized_size, ctex_smart_material_info* out_info,
+    void* canonical_output, std::size_t canonical_output_size, char* report_output,
+    std::size_t report_output_size) {
+    return call_boundary("ctex_smart_material_inspect", [&] {
+        if (out_info == nullptr) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                           "out_info=null");
+        }
+        validate_structure_size(out_info->size, CTEX_SMART_MATERIAL_INFO_V1_SIZE,
+                                CTEX_SMART_MATERIAL_INFO_CURRENT_SIZE, "smart material info size");
+        return_smart_material(prepare_smart_material(serialized, serialized_size), out_info,
+                              canonical_output, canonical_output_size, report_output,
+                              report_output_size);
+    });
+}
+
+extern "C" ctex_result ctex_smart_material_set_parameter(
+    const void* serialized, std::size_t serialized_size, const char* parameter_identifier,
+    const ctex_smart_material_value_descriptor* value, ctex_smart_material_info* out_info,
+    void* canonical_output, std::size_t canonical_output_size, char* report_output,
+    std::size_t report_output_size) {
+    return call_boundary("ctex_smart_material_set_parameter", [&] {
+        if (parameter_identifier == nullptr || out_info == nullptr) {
+            throw_boundary(
+                CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                parameter_identifier == nullptr ? "parameter_identifier=null" : "out_info=null");
+        }
+        validate_structure_size(out_info->size, CTEX_SMART_MATERIAL_INFO_V1_SIZE,
+                                CTEX_SMART_MATERIAL_INFO_CURRENT_SIZE, "smart material info size");
+        PreparedSmartMaterial source = prepare_smart_material(serialized, serialized_size);
+        try {
+            static_cast<void>(ctex::doc::set_smart_material_parameter_value(
+                source.material, parameter_identifier, smart_material_value(value)));
+            return_smart_material(prepare_smart_material(std::move(source.material),
+                                                         source.info.source_schema_version),
+                                  out_info, canonical_output, canonical_output_size, report_output,
+                                  report_output_size);
+        } catch (const ctex::doc::SmartMaterialError& error) {
+            throw_smart_material_error(error);
+        }
+    });
+}
+
+extern "C" ctex_result ctex_smart_material_set_anchor(
+    const void* serialized, std::size_t serialized_size, const char* entry_identifier,
+    std::uint32_t marked, ctex_smart_material_info* out_info, void* canonical_output,
+    std::size_t canonical_output_size, char* report_output, std::size_t report_output_size) {
+    return call_boundary("ctex_smart_material_set_anchor", [&] {
+        if (entry_identifier == nullptr || out_info == nullptr) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                           entry_identifier == nullptr ? "entry_identifier=null" : "out_info=null");
+        }
+        if (marked > 1U) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_INVALID_SMART_MATERIAL,
+                           "marked must be zero or one");
+        }
+        validate_structure_size(out_info->size, CTEX_SMART_MATERIAL_INFO_V1_SIZE,
+                                CTEX_SMART_MATERIAL_INFO_CURRENT_SIZE, "smart material info size");
+        PreparedSmartMaterial source = prepare_smart_material(serialized, serialized_size);
+        try {
+            ctex::doc::set_smart_material_anchor(source.material, entry_identifier, marked != 0U);
+            return_smart_material(prepare_smart_material(std::move(source.material),
+                                                         source.info.source_schema_version),
+                                  out_info, canonical_output, canonical_output_size, report_output,
+                                  report_output_size);
+        } catch (const ctex::doc::SmartMaterialError& error) {
+            throw_smart_material_error(error);
+        }
+    });
+}
+
+extern "C" ctex_result ctex_smart_material_add_anchor_reference(
+    const void* serialized, std::size_t serialized_size, const char* anchor_entry_identifier,
+    const char* consumer_entry_identifier, std::uint64_t consumer_node_id,
+    const char* consumer_input_identifier, ctex_smart_material_info* out_info,
+    void* canonical_output, std::size_t canonical_output_size, char* report_output,
+    std::size_t report_output_size) {
+    return call_boundary("ctex_smart_material_add_anchor_reference", [&] {
+        if (anchor_entry_identifier == nullptr || consumer_entry_identifier == nullptr ||
+            consumer_input_identifier == nullptr || out_info == nullptr) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                           "smart material anchor reference contains a null field");
+        }
+        validate_structure_size(out_info->size, CTEX_SMART_MATERIAL_INFO_V1_SIZE,
+                                CTEX_SMART_MATERIAL_INFO_CURRENT_SIZE, "smart material info size");
+        PreparedSmartMaterial source = prepare_smart_material(serialized, serialized_size);
+        try {
+            ctex::doc::add_smart_material_anchor_reference(
+                source.material, {.anchor_entry_identifier = anchor_entry_identifier,
+                                  .consumer_entry_identifier = consumer_entry_identifier,
+                                  .consumer_node_id = consumer_node_id,
+                                  .consumer_input_identifier = consumer_input_identifier});
+            return_smart_material(prepare_smart_material(std::move(source.material),
+                                                         source.info.source_schema_version),
+                                  out_info, canonical_output, canonical_output_size, report_output,
+                                  report_output_size);
+        } catch (const ctex::doc::SmartMaterialError& error) {
+            throw_smart_material_error(error);
+        }
+    });
+}
+
+extern "C" ctex_result ctex_smart_material_plan_anchor_evaluation(
+    const void* serialized, std::size_t serialized_size,
+    const char* const* changed_anchor_identifiers, std::size_t changed_anchor_count, char* output,
+    std::size_t output_size, std::size_t* out_required_size) {
+    return call_boundary("ctex_smart_material_plan_anchor_evaluation", [&] {
+        if (out_required_size == nullptr) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                           "out_required_size=null");
+        }
+        PreparedSmartMaterial source = prepare_smart_material(serialized, serialized_size);
+        try {
+            const std::string json = smart_material_anchor_plan_json(
+                source.material,
+                smart_material_changed_anchors(changed_anchor_identifiers, changed_anchor_count));
+            *out_required_size = json.size() + 1;
+            validate_string_buffer(output, output_size, *out_required_size);
+            if (output != nullptr) {
+                std::memcpy(output, json.c_str(), *out_required_size);
+            }
+        } catch (const ctex::doc::SmartMaterialError& error) {
+            throw_smart_material_error(error);
         }
     });
 }

@@ -705,6 +705,14 @@ install packages into encoded libraries while resolving referenced resources
 through ordered search paths. Conflict rejection and byte/report delivery are
 atomic. The exact remaining C ABI gap is 144 runtime requirements.
 
+The next smart-material authoring slice exposes five requirements through five
+stateless C operations. Hosts can validate and migrate canonical presets,
+inspect derived and model-specific content, update all bindings of a typed
+exposed parameter, mark anchors, add references with ordering and cycle
+validation, and plan dependency-ordered reevaluation. Caller-owned canonical
+bytes and JSON reports remain atomic. The exact remaining C ABI gap is 139
+runtime requirements.
+
 ## 1. Foundation
 
 - [x] 1.1 CMake project, C++20, warnings as errors, presets for headless, macOS, Linux, Windows, iOS, Android

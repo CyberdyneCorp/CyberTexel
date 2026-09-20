@@ -110,7 +110,13 @@
     ]},
     {"name": "resource-residency", "kind": "runtime", "requirements": []},
     {"name": "shader-emission", "kind": "runtime", "requirements": []},
-    {"name": "smart-materials", "kind": "runtime", "requirements": []},
+    {"name": "smart-materials", "kind": "runtime", "requirements": [
+      {"requirement": "Smart materials carry no baked pixels for derived content", "symbols": ["ctex_smart_material_inspect"]},
+      {"requirement": "Exposed parameters", "symbols": ["ctex_smart_material_set_parameter"]},
+      {"requirement": "Anchor points", "symbols": ["ctex_smart_material_set_anchor", "ctex_smart_material_add_anchor_reference"]},
+      {"requirement": "Anchor cycles are refused", "symbols": ["ctex_smart_material_add_anchor_reference"]},
+      {"requirement": "Evaluation order", "symbols": ["ctex_smart_material_plan_anchor_evaluation"]}
+    ]},
     {"name": "stroke-model", "kind": "runtime", "requirements": [
       {"requirement": "A stroke resolves to ordered stamps", "symbols": ["ctex_stroke_settings_init", "ctex_stroke_resolve"]},
       {"requirement": "Spacing", "symbols": ["ctex_stroke_settings_init", "ctex_stroke_resolve"]},

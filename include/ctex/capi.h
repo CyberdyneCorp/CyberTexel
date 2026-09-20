@@ -84,7 +84,8 @@ typedef enum ctex_diagnostic_code {
     CTEX_DIAGNOSTIC_INVALID_PAINT_PREVIEW = 48,
     CTEX_DIAGNOSTIC_INVALID_PICK_QUERY = 49,
     CTEX_DIAGNOSTIC_INVALID_TEXTURE_EXPORT = 50,
-    CTEX_DIAGNOSTIC_INVALID_PROJECT_CONTAINER = 51
+    CTEX_DIAGNOSTIC_INVALID_PROJECT_CONTAINER = 51,
+    CTEX_DIAGNOSTIC_INVALID_SMART_MATERIAL = 52
 } ctex_diagnostic_code;
 
 typedef enum ctex_log_severity {
@@ -1588,6 +1589,49 @@ typedef struct ctex_project_asset_search_paths_descriptor {
 #define CTEX_PROJECT_ASSET_SEARCH_PATHS_DESCRIPTOR_CURRENT_SIZE \
     ((uint32_t)sizeof(ctex_project_asset_search_paths_descriptor))
 
+typedef enum ctex_smart_material_value_type {
+    CTEX_SMART_MATERIAL_VALUE_SCALAR = 0,
+    CTEX_SMART_MATERIAL_VALUE_VECTOR = 1,
+    CTEX_SMART_MATERIAL_VALUE_COLOUR = 2,
+    CTEX_SMART_MATERIAL_VALUE_STRING = 3,
+    CTEX_SMART_MATERIAL_VALUE_IMAGE = 4,
+    CTEX_SMART_MATERIAL_VALUE_BOOLEAN = 5
+} ctex_smart_material_value_type;
+
+typedef struct ctex_smart_material_value_descriptor {
+    uint32_t size;
+    uint32_t type;
+    double scalar;
+    ctex_vec3f vector;
+    ctex_vec4f colour;
+    const char* text;
+    uint32_t boolean;
+} ctex_smart_material_value_descriptor;
+
+#define CTEX_SMART_MATERIAL_VALUE_DESCRIPTOR_V1_SIZE \
+    ((uint32_t)sizeof(ctex_smart_material_value_descriptor))
+#define CTEX_SMART_MATERIAL_VALUE_DESCRIPTOR_CURRENT_SIZE \
+    ((uint32_t)sizeof(ctex_smart_material_value_descriptor))
+
+typedef struct ctex_smart_material_info {
+    uint32_t size;
+    uint32_t source_schema_version;
+    uint32_t canonical_schema_version;
+    size_t entry_count;
+    size_t derived_entry_count;
+    size_t model_specific_entry_count;
+    size_t model_specific_pixel_bytes;
+    size_t exposed_parameter_count;
+    size_t anchor_count;
+    size_t anchor_reference_count;
+    size_t resource_reference_count;
+    size_t canonical_size;
+    size_t report_size;
+} ctex_smart_material_info;
+
+#define CTEX_SMART_MATERIAL_INFO_V1_SIZE ((uint32_t)sizeof(ctex_smart_material_info))
+#define CTEX_SMART_MATERIAL_INFO_CURRENT_SIZE ((uint32_t)sizeof(ctex_smart_material_info))
+
 typedef enum ctex_color_space {
     CTEX_COLOR_SPACE_LINEAR_REC709 = 0,
     CTEX_COLOR_SPACE_SRGB_REC709 = 1
@@ -1780,6 +1824,44 @@ CTEX_API ctex_result ctex_project_asset_install(
     const ctex_project_asset_search_paths_descriptor* search_paths,
     ctex_project_container_info* out_info, void* library_output, size_t library_output_size,
     char* report_output, size_t report_output_size);
+
+/*
+ * Validates and migrates a canonical smart-material serialization. The output
+ * and JSON inventory follow an atomic two-call sizing contract.
+ */
+CTEX_API ctex_result ctex_smart_material_inspect(const void* serialized, size_t serialized_size,
+                                                 ctex_smart_material_info* out_info,
+                                                 void* canonical_output,
+                                                 size_t canonical_output_size, char* report_output,
+                                                 size_t report_output_size);
+
+/* Updates every graph binding driven by one typed exposed parameter. */
+CTEX_API ctex_result ctex_smart_material_set_parameter(
+    const void* serialized, size_t serialized_size, const char* parameter_identifier,
+    const ctex_smart_material_value_descriptor* value, ctex_smart_material_info* out_info,
+    void* canonical_output, size_t canonical_output_size, char* report_output,
+    size_t report_output_size);
+
+/* Marks or unmarks one stack entry as an anchor. */
+CTEX_API ctex_result ctex_smart_material_set_anchor(const void* serialized, size_t serialized_size,
+                                                    const char* entry_identifier, uint32_t marked,
+                                                    ctex_smart_material_info* out_info,
+                                                    void* canonical_output,
+                                                    size_t canonical_output_size,
+                                                    char* report_output, size_t report_output_size);
+
+/* Adds one validated anchor dependency; ordering and cycles are refused atomically. */
+CTEX_API ctex_result ctex_smart_material_add_anchor_reference(
+    const void* serialized, size_t serialized_size, const char* anchor_entry_identifier,
+    const char* consumer_entry_identifier, uint64_t consumer_node_id,
+    const char* consumer_input_identifier, ctex_smart_material_info* out_info,
+    void* canonical_output, size_t canonical_output_size, char* report_output,
+    size_t report_output_size);
+
+/* Returns a NUL-terminated JSON array in deterministic stack evaluation order. */
+CTEX_API ctex_result ctex_smart_material_plan_anchor_evaluation(
+    const void* serialized, size_t serialized_size, const char* const* changed_anchor_identifiers,
+    size_t changed_anchor_count, char* output, size_t output_size, size_t* out_required_size);
 
 /*
  * Initializes the current stroke settings descriptor to the canonical defaults.
