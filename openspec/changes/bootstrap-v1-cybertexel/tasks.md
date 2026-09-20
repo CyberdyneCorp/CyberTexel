@@ -911,6 +911,15 @@ values. Direct and transitive recursion are refused before mutation with the
 complete group cycle in the diagnostic. The exact remaining C ABI gap is 78
 runtime requirements.
 
+The host-node continuation exposes isolated C registries that copy versioned
+socket and property declarations, CPU and emission callbacks, determinism,
+resource dependencies, supported targets and parity fixtures. Contract checks
+execute both callback paths and report pinned-input replay eligibility.
+Registered nodes participate in documents, reusable groups and validation;
+unknown types remain canonical and are named as non-emittable. Emission-only
+registrations are refused before insertion. The exact remaining C ABI gap is 76
+runtime requirements.
+
 ## 1. Foundation
 
 - [x] 1.1 CMake project, C++20, warnings as errors, presets for headless, macOS, Linux, Windows, iOS, Android

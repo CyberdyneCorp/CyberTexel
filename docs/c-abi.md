@@ -716,6 +716,25 @@ dependency path before mutation. Direct and transitive recursion return
 local diagnostic, leaving the containing graph unchanged. Material and group
 graphs remain inspectable through the caller-owned graph two-call contract.
 
+Host node types live in an isolated `ctex_material_graph_node_registry`. A
+versioned registration copies ordered socket and property declarations, CPU and
+emission callbacks, callback user data, determinism, resource dependencies,
+supported WGSL/MSL/SPIR-V/HLSL targets and typed parity fixtures. Registration
+is atomic and refuses a missing CPU or emission implementation before the type
+becomes visible. Registered nodes can be inserted into caller-owned documents
+or workspace material/group graphs. Registry-aware validation checks the saved
+interface and selected target; an unregistered serialized node remains opaque
+and canonical but makes the graph non-emittable with its type and version named.
+`ctex_material_graph_node_registry_verify_contract` executes every fixture
+through both callbacks and separately reports whether deterministic replay is
+eligible with the caller's pinned dependencies. Callback request storage is
+borrowed only for the call. CPU output descriptors are pre-sized to the declared
+output count. Text/image values, emission expressions and resource strings
+returned by a callback remain host-owned, must stay valid until the enclosing
+API call returns, and are copied immediately after the callback returns. The
+host keeps callback user data alive until no operation can use the registration
+and the registry is destroyed.
+
 ## ABI version and compatibility
 
 `ctex_get_abi_version` is safe before any handle exists and returns the major,
@@ -779,6 +798,8 @@ The contract is stated per entry-point family:
 | `ctex_document_destroy` | The caller ensures no other call is using that handle; distinct handles may be destroyed concurrently |
 | `ctex_material_graph_workspace_create` | Process-safe; each successful call creates an independent workspace and captures the active allocator |
 | `ctex_material_graph_workspace_destroy`, `ctex_material_graph_workspace_get_info`, `ctex_material_graph_workspace_add_material`, `ctex_material_graph_workspace_create_group`, `ctex_material_graph_workspace_instantiate_group`, `ctex_material_graph_workspace_update_group_interface`, `ctex_material_graph_workspace_get_graph`, `ctex_material_graph_workspace_add_builtin_node`, `ctex_material_graph_workspace_set_input_value`, `ctex_material_graph_workspace_set_property_value`, `ctex_material_graph_workspace_add_link` | Calls on distinct workspaces are independent. Every operation on one workspace, including reads and destruction, requires external serialization |
+| `ctex_material_graph_node_registry_create` | Process-safe; each successful call creates an independent registry and captures the active allocator |
+| `ctex_material_graph_node_registry_destroy`, `ctex_material_graph_node_registry_get_info`, `ctex_material_graph_node_registry_register`, `ctex_material_graph_add_registered_node`, `ctex_material_graph_workspace_add_registered_node`, `ctex_material_graph_validate_registered`, `ctex_material_graph_node_registry_verify_contract` | Calls on distinct registries are independent. Registration and destruction require exclusive access; read-only operations may run concurrently when no registration is active. A workspace insertion also requires exclusive access to that workspace. Host callbacks obey the concurrency chosen by the caller and their borrowed request/result storage is valid only for the callback |
 | `ctex_document_create_texture_set`, `ctex_document_create_texture_sets_from_mesh`, `ctex_document_get_texture_set_ids`, `ctex_texture_set_*` | Calls on distinct document handles are safe concurrently; every call on the same document handle must be externally synchronized, including read-only calls. Mesh-derived creation also requires no concurrent use of that mesh handle |
 | `ctex_mesh_create` | Process-safe; each successful call creates independent owned state and captures the active allocator |
 | `ctex_mesh_destroy`, `ctex_mesh_replace`, `ctex_mesh_get_info`, `ctex_mesh_get_uv_set_names` | Calls on distinct mesh handles are safe concurrently; every call on the same mesh handle must be externally synchronized, including read-only calls |

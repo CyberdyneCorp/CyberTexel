@@ -98,7 +98,11 @@ cycle refusal and resource-aware validation independently of emission. Opaque
 graph workspaces now own reusable groups with editable boundary subgraphs,
 propagate interface changes across material and nested-group instances while
 preserving compatible stored values, and refuse direct or transitive recursion
-before mutation with the complete cycle diagnostic. Exactly 78 runtime
-requirements remain unmapped.
+before mutation with the complete cycle diagnostic. Isolated host-node
+registries now copy the complete CPU/emission reference contract, execute its
+parity fixtures, report replay eligibility, add registered nodes to documents
+and groups, and preserve unknown serialized nodes while naming their missing
+type during registry-aware validation. Exactly 76 runtime requirements remain
+unmapped.
 The gate is not part of the aggregate `just check` until that count reaches zero;
 its unit tests run in the normal tooling suite throughout the migration.

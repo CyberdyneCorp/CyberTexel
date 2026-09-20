@@ -117,6 +117,14 @@ EXPORTS
     ctex_material_graph_workspace_set_input_value
     ctex_material_graph_workspace_set_property_value
     ctex_material_graph_workspace_add_link
+    ctex_material_graph_node_registry_create
+    ctex_material_graph_node_registry_destroy
+    ctex_material_graph_node_registry_get_info
+    ctex_material_graph_node_registry_register
+    ctex_material_graph_add_registered_node
+    ctex_material_graph_workspace_add_registered_node
+    ctex_material_graph_validate_registered
+    ctex_material_graph_node_registry_verify_contract
     ctex_preset_library_enumerate
     ctex_preset_library_resolve
     ctex_smart_material_add_anchor_reference

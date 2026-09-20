@@ -310,6 +310,14 @@ struct ctex_material_graph_workspace {
     ctex::graph::GraphWorkspace value;
 };
 
+struct ctex_material_graph_node_registry {
+    explicit ctex_material_graph_node_registry(ctex_allocator_state allocator_value)
+        : allocator(allocator_value) {}
+
+    ctex_allocator_state allocator;
+    ctex::graph::NodeTypeRegistry value;
+};
+
 namespace {
 
 struct DiagnosticState {
@@ -533,6 +541,19 @@ ctex_material_graph_workspace* create_material_graph_workspace(
     } catch (...) {
         deallocate_storage(allocator, storage, sizeof(ctex_material_graph_workspace),
                            alignof(ctex_material_graph_workspace));
+        throw;
+    }
+}
+
+ctex_material_graph_node_registry* create_material_graph_node_registry(
+    const ctex_allocator_state& allocator) {
+    void* storage = allocate_storage(allocator, sizeof(ctex_material_graph_node_registry),
+                                     alignof(ctex_material_graph_node_registry));
+    try {
+        return ::new (storage) ctex_material_graph_node_registry(allocator);
+    } catch (...) {
+        deallocate_storage(allocator, storage, sizeof(ctex_material_graph_node_registry),
+                           alignof(ctex_material_graph_node_registry));
         throw;
     }
 }
@@ -6851,6 +6872,353 @@ std::string material_graph_validation_json(const ctex::graph::GraphValidationRep
     return output;
 }
 
+ctex::graph::EmissionTarget material_graph_emission_target(std::uint32_t target) {
+    switch (target) {
+        case CTEX_MATERIAL_GRAPH_TARGET_WGSL:
+            return ctex::graph::EmissionTarget::wgsl;
+        case CTEX_MATERIAL_GRAPH_TARGET_MSL:
+            return ctex::graph::EmissionTarget::msl;
+        case CTEX_MATERIAL_GRAPH_TARGET_SPIRV:
+            return ctex::graph::EmissionTarget::spirv;
+        case CTEX_MATERIAL_GRAPH_TARGET_HLSL:
+            return ctex::graph::EmissionTarget::hlsl;
+        default:
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_INVALID_ENUM_VALUE,
+                           "material graph emission target=" + std::to_string(target));
+    }
+}
+
+ctex_smart_material_value_descriptor material_graph_callback_value(
+    const ctex::graph::SocketValue& value) {
+    ctex_smart_material_value_descriptor result{};
+    result.size = CTEX_SMART_MATERIAL_VALUE_DESCRIPTOR_CURRENT_SIZE;
+    if (const auto* scalar = std::get_if<double>(&value)) {
+        result.type = CTEX_SMART_MATERIAL_VALUE_SCALAR;
+        result.scalar = *scalar;
+    } else if (const auto* vector = std::get_if<ctex::graph::VectorValue>(&value)) {
+        result.type = CTEX_SMART_MATERIAL_VALUE_VECTOR;
+        result.vector = {vector->x, vector->y, vector->z};
+    } else if (const auto* colour = std::get_if<ctex::graph::ColourValue>(&value)) {
+        result.type = CTEX_SMART_MATERIAL_VALUE_COLOUR;
+        result.colour = {colour->r, colour->g, colour->b, colour->a};
+    } else if (const auto* text = std::get_if<std::string>(&value)) {
+        result.type = CTEX_SMART_MATERIAL_VALUE_STRING;
+        result.text = text->c_str();
+    } else if (const auto* image = std::get_if<ctex::graph::ImageValue>(&value)) {
+        result.type = CTEX_SMART_MATERIAL_VALUE_IMAGE;
+        result.text = image->resource_id.c_str();
+    } else if (const auto* boolean = std::get_if<bool>(&value)) {
+        result.type = CTEX_SMART_MATERIAL_VALUE_BOOLEAN;
+        result.boolean = *boolean ? 1U : 0U;
+    } else {
+        throw ctex::graph::NodeInvocationError("host node callback received an empty value");
+    }
+    return result;
+}
+
+std::vector<ctex_material_graph_host_property_value> material_graph_callback_properties(
+    const ctex::graph::GraphNode& node) {
+    std::vector<ctex_material_graph_host_property_value> result;
+    result.reserve(node.properties.size());
+    for (const ctex::graph::NodeProperty& property : node.properties) {
+        result.push_back({.identifier = property.key.c_str(),
+                          .value = material_graph_callback_value(property.value)});
+    }
+    return result;
+}
+
+template <typename Callback>
+ctex_result invoke_material_graph_host_callback(Callback&& callback) {
+    const DiagnosticState saved = last_diagnostic;
+    try {
+        const ctex_result result = callback();
+        last_diagnostic = saved;
+        return result;
+    } catch (...) {
+        last_diagnostic = saved;
+        throw;
+    }
+}
+
+std::vector<ctex::graph::SocketValue> material_graph_fixture_values(
+    const ctex_smart_material_value_descriptor* values, std::size_t count, std::string_view name) {
+    if (values == nullptr && count != 0) {
+        throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                       std::string(name) + "=null");
+    }
+    std::vector<ctex::graph::SocketValue> result;
+    result.reserve(count);
+    for (std::size_t index = 0; index < count; ++index) {
+        result.push_back(material_graph_value(&values[index]));
+    }
+    return result;
+}
+
+std::vector<ctex::graph::NodePropertyDeclaration> material_graph_host_properties(
+    const ctex_material_graph_property_descriptor* properties, std::size_t count) {
+    if (properties == nullptr && count != 0) {
+        throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                       "material graph host properties=null");
+    }
+    std::vector<ctex::graph::NodePropertyDeclaration> result;
+    result.reserve(count);
+    for (std::size_t index = 0; index < count; ++index) {
+        const ctex_material_graph_property_descriptor& property = properties[index];
+        validate_structure_size(property.size, CTEX_MATERIAL_GRAPH_PROPERTY_DESCRIPTOR_V1_SIZE,
+                                CTEX_MATERIAL_GRAPH_PROPERTY_DESCRIPTOR_CURRENT_SIZE,
+                                "material graph property descriptor size");
+        if (property.identifier == nullptr || property.display_name == nullptr ||
+            property.default_value == nullptr ||
+            (property.allowed_values == nullptr && property.allowed_value_count != 0)) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                           "host property declaration contains a null field");
+        }
+        std::vector<std::string> allowed;
+        allowed.reserve(property.allowed_value_count);
+        for (std::size_t choice = 0; choice < property.allowed_value_count; ++choice) {
+            if (property.allowed_values[choice] == nullptr) {
+                throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                               "host property allowed value is null");
+            }
+            allowed.emplace_back(property.allowed_values[choice]);
+        }
+        result.push_back({.identifier = property.identifier,
+                          .display_name = property.display_name,
+                          .default_value = material_graph_value(property.default_value),
+                          .allowed_values = std::move(allowed)});
+    }
+    return result;
+}
+
+std::vector<ctex::graph::NodeResourceDependency> material_graph_host_dependencies(
+    const char* const* dependencies, std::size_t count) {
+    if (dependencies == nullptr && count != 0) {
+        throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                       "resource_dependencies=null");
+    }
+    std::vector<ctex::graph::NodeResourceDependency> result;
+    result.reserve(count);
+    for (std::size_t index = 0; index < count; ++index) {
+        if (dependencies[index] == nullptr) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                           "resource dependency is null");
+        }
+        result.push_back({dependencies[index]});
+    }
+    return result;
+}
+
+std::vector<ctex::graph::EmissionTarget> material_graph_host_targets(const std::uint32_t* targets,
+                                                                     std::size_t count) {
+    if (targets == nullptr && count != 0) {
+        throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                       "supported_targets=null");
+    }
+    std::vector<ctex::graph::EmissionTarget> result;
+    result.reserve(count);
+    for (std::size_t index = 0; index < count; ++index) {
+        result.push_back(material_graph_emission_target(targets[index]));
+    }
+    return result;
+}
+
+std::vector<ctex::graph::NodeParityFixture> material_graph_host_fixtures(
+    const ctex_material_graph_parity_fixture_descriptor* fixtures, std::size_t count) {
+    if (fixtures == nullptr && count != 0) {
+        throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                       "parity_fixtures=null");
+    }
+    std::vector<ctex::graph::NodeParityFixture> result;
+    result.reserve(count);
+    for (std::size_t index = 0; index < count; ++index) {
+        const ctex_material_graph_parity_fixture_descriptor& fixture = fixtures[index];
+        validate_structure_size(fixture.size, CTEX_MATERIAL_GRAPH_PARITY_FIXTURE_DESCRIPTOR_V1_SIZE,
+                                CTEX_MATERIAL_GRAPH_PARITY_FIXTURE_DESCRIPTOR_CURRENT_SIZE,
+                                "material graph parity fixture size");
+        if (fixture.identifier == nullptr) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                           "parity fixture identifier=null");
+        }
+        result.push_back({.identifier = fixture.identifier,
+                          .inputs = material_graph_fixture_values(
+                              fixture.inputs, fixture.input_count, "parity fixture inputs"),
+                          .expected_outputs = material_graph_fixture_values(
+                              fixture.expected_outputs, fixture.expected_output_count,
+                              "parity fixture expected_outputs"),
+                          .tolerance = fixture.tolerance});
+    }
+    return result;
+}
+
+std::vector<ctex::graph::SocketValue> invoke_material_graph_cpu_callback(
+    ctex_material_graph_cpu_evaluate_callback callback, void* user_data, std::size_t output_count,
+    const ctex::graph::NodeEvaluationRequest& request) {
+    const auto properties = material_graph_callback_properties(request.node);
+    std::vector<ctex_smart_material_value_descriptor> inputs;
+    inputs.reserve(request.inputs.size());
+    for (const ctex::graph::SocketValue& value : request.inputs) {
+        inputs.push_back(material_graph_callback_value(value));
+    }
+    std::vector<ctex_smart_material_value_descriptor> outputs(output_count);
+    for (ctex_smart_material_value_descriptor& output : outputs) {
+        output.size = CTEX_SMART_MATERIAL_VALUE_DESCRIPTOR_CURRENT_SIZE;
+    }
+    const ctex_material_graph_host_evaluation_request callback_request = {
+        .size = CTEX_MATERIAL_GRAPH_HOST_EVALUATION_REQUEST_CURRENT_SIZE,
+        .node_id = request.node.id,
+        .type_id = request.node.type_id.c_str(),
+        .type_version = request.node.type_version,
+        .properties = properties.data(),
+        .property_count = properties.size(),
+        .inputs = inputs.data(),
+        .input_count = inputs.size(),
+    };
+    const ctex_result callback_result = invoke_material_graph_host_callback(
+        [&] { return callback(&callback_request, outputs.data(), outputs.size(), user_data); });
+    if (callback_result != CTEX_RESULT_SUCCESS) {
+        throw ctex::graph::NodeInvocationError("CPU callback returned result " +
+                                               std::to_string(callback_result));
+    }
+    std::vector<ctex::graph::SocketValue> result;
+    result.reserve(outputs.size());
+    for (const ctex_smart_material_value_descriptor& output : outputs) {
+        result.push_back(material_graph_value(&output));
+    }
+    return result;
+}
+
+ctex::graph::NodeEmissionResult invoke_material_graph_emit_callback(
+    ctex_material_graph_emit_callback callback, void* user_data,
+    const ctex::graph::NodeEmissionRequest& request) {
+    const auto properties = material_graph_callback_properties(request.node);
+    std::vector<const char*> input_expressions;
+    input_expressions.reserve(request.input_expressions.size());
+    for (const std::string& expression : request.input_expressions) {
+        input_expressions.push_back(expression.c_str());
+    }
+    const ctex_material_graph_host_emission_request callback_request = {
+        .size = CTEX_MATERIAL_GRAPH_HOST_EMISSION_REQUEST_CURRENT_SIZE,
+        .node_id = request.node.id,
+        .type_id = request.node.type_id.c_str(),
+        .type_version = request.node.type_version,
+        .target = static_cast<std::uint32_t>(request.target),
+        .properties = properties.data(),
+        .property_count = properties.size(),
+        .input_expressions = input_expressions.data(),
+        .input_expression_count = input_expressions.size(),
+    };
+    ctex_material_graph_host_emission_result callback_output{};
+    callback_output.size = CTEX_MATERIAL_GRAPH_HOST_EMISSION_RESULT_CURRENT_SIZE;
+    const ctex_result callback_result = invoke_material_graph_host_callback(
+        [&] { return callback(&callback_request, &callback_output, user_data); });
+    if (callback_result != CTEX_RESULT_SUCCESS) {
+        throw ctex::graph::NodeInvocationError("emission callback returned result " +
+                                               std::to_string(callback_result));
+    }
+    validate_structure_size(callback_output.size, CTEX_MATERIAL_GRAPH_HOST_EMISSION_RESULT_V1_SIZE,
+                            CTEX_MATERIAL_GRAPH_HOST_EMISSION_RESULT_CURRENT_SIZE,
+                            "host emission result size");
+    if ((callback_output.output_expressions == nullptr &&
+         callback_output.output_expression_count != 0) ||
+        (callback_output.resource_identifiers == nullptr &&
+         callback_output.resource_identifier_count != 0)) {
+        throw ctex::graph::NodeInvocationError("emission callback returned a null string array");
+    }
+    ctex::graph::NodeEmissionResult result;
+    result.output_expressions.reserve(callback_output.output_expression_count);
+    result.resource_identifiers.reserve(callback_output.resource_identifier_count);
+    for (std::size_t index = 0; index < callback_output.output_expression_count; ++index) {
+        if (callback_output.output_expressions[index] == nullptr) {
+            throw ctex::graph::NodeInvocationError("emission callback returned a null expression");
+        }
+        result.output_expressions.emplace_back(callback_output.output_expressions[index]);
+    }
+    for (std::size_t index = 0; index < callback_output.resource_identifier_count; ++index) {
+        if (callback_output.resource_identifiers[index] == nullptr) {
+            throw ctex::graph::NodeInvocationError("emission callback returned a null resource");
+        }
+        result.resource_identifiers.emplace_back(callback_output.resource_identifiers[index]);
+    }
+    return result;
+}
+
+ctex::graph::HostNodeTypeRegistration material_graph_host_registration(
+    const ctex_material_graph_host_node_registration_descriptor& descriptor) {
+    if (descriptor.type_id == nullptr || descriptor.display_name == nullptr) {
+        throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                       "host node type_id and display_name are required");
+    }
+    if (descriptor.deterministic > 1U) {
+        throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_INVALID_DESCRIPTOR_VALUE,
+                       "host node deterministic must be zero or one");
+    }
+    ctex::graph::HostNodeTypeRegistration result{
+        .declaration = {.type_id = descriptor.type_id,
+                        .version = descriptor.type_version,
+                        .display_name = descriptor.display_name,
+                        .category = ctex::graph::NodeCategory::host,
+                        .inputs = material_graph_group_sockets(descriptor.inputs,
+                                                               descriptor.input_count, true),
+                        .outputs = material_graph_group_sockets(descriptor.outputs,
+                                                                descriptor.output_count, false),
+                        .properties = material_graph_host_properties(descriptor.properties,
+                                                                     descriptor.property_count)},
+        .cpu_evaluate = {},
+        .emit = {},
+        .deterministic = descriptor.deterministic != 0,
+        .resource_dependencies = material_graph_host_dependencies(
+            descriptor.resource_dependencies, descriptor.resource_dependency_count),
+        .supported_targets = material_graph_host_targets(descriptor.supported_targets,
+                                                         descriptor.supported_target_count),
+        .parity_fixtures = material_graph_host_fixtures(descriptor.parity_fixtures,
+                                                        descriptor.parity_fixture_count),
+    };
+    if (descriptor.cpu_evaluate != nullptr) {
+        result.cpu_evaluate = [callback = descriptor.cpu_evaluate, user_data = descriptor.user_data,
+                               output_count = descriptor.output_count](
+                                  const ctex::graph::NodeEvaluationRequest& request) {
+            return invoke_material_graph_cpu_callback(callback, user_data, output_count, request);
+        };
+    }
+    if (descriptor.emit != nullptr) {
+        result.emit = [callback = descriptor.emit, user_data = descriptor.user_data](
+                          const ctex::graph::NodeEmissionRequest& request) {
+            return invoke_material_graph_emit_callback(callback, user_data, request);
+        };
+    }
+    return result;
+}
+
+std::string material_graph_host_contract_json(const ctex::graph::NodeParityReport& parity,
+                                              const ctex::graph::NodeReplayEligibility& replay) {
+    std::string output = "{\"parity_passed\":";
+    output += parity.passed() ? "true" : "false";
+    output += ",\"parity_failures\":[";
+    for (std::size_t index = 0; index < parity.failures.size(); ++index) {
+        if (index != 0) {
+            output.push_back(',');
+        }
+        output += "{\"fixture\":";
+        append_json_text(output, parity.failures[index].fixture_identifier);
+        output += ",\"detail\":";
+        append_json_text(output, parity.failures[index].detail);
+        output.push_back('}');
+    }
+    output += "],\"replay_eligible\":";
+    output += replay.eligible ? "true" : "false";
+    output += ",\"unpinned_dependencies\":[";
+    for (std::size_t index = 0; index < replay.unpinned_dependencies.size(); ++index) {
+        if (index != 0) {
+            output.push_back(',');
+        }
+        append_json_text(output, replay.unpinned_dependencies[index]);
+    }
+    output += "],\"reason\":";
+    append_json_text(output, replay.reason);
+    output += "}";
+    return output;
+}
+
 void include_listing_thumbnail(ctex::io::ResolvedPreset& resolved) {
     const auto found =
         std::find_if(resolved.package.tiled_images.begin(), resolved.package.tiled_images.end(),
@@ -8977,6 +9345,171 @@ extern "C" ctex_result ctex_material_graph_workspace_add_link(
         return_material_graph_link(prepared, result, *out_info, nullptr, 0, replaced_source_socket,
                                    replaced_source_socket_size);
         workspace->value = std::move(staged);
+    });
+}
+
+extern "C" ctex_result ctex_material_graph_node_registry_create(
+    ctex_material_graph_node_registry** out_registry) {
+    return call_material_graph_boundary("ctex_material_graph_node_registry_create", [&] {
+        if (out_registry == nullptr) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                           "out_registry=null");
+        }
+        *out_registry = nullptr;
+        *out_registry = create_material_graph_node_registry(current_allocator());
+    });
+}
+
+extern "C" void ctex_material_graph_node_registry_destroy(
+    ctex_material_graph_node_registry* registry) {
+    if (registry == nullptr) {
+        return;
+    }
+    const ctex_allocator_state allocator = registry->allocator;
+    registry->~ctex_material_graph_node_registry();
+    deallocate_storage(allocator, registry, sizeof(ctex_material_graph_node_registry),
+                       alignof(ctex_material_graph_node_registry));
+}
+
+extern "C" ctex_result ctex_material_graph_node_registry_get_info(
+    const ctex_material_graph_node_registry* registry,
+    ctex_material_graph_node_registry_info* out_info) {
+    return call_material_graph_boundary("ctex_material_graph_node_registry_get_info", [&] {
+        if (registry == nullptr || out_info == nullptr) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                           registry == nullptr ? "registry=null" : "out_info=null");
+        }
+        validate_structure_size(out_info->size, CTEX_MATERIAL_GRAPH_NODE_REGISTRY_INFO_V1_SIZE,
+                                CTEX_MATERIAL_GRAPH_NODE_REGISTRY_INFO_CURRENT_SIZE,
+                                "material graph node registry info size");
+        *out_info = {.size = CTEX_MATERIAL_GRAPH_NODE_REGISTRY_INFO_CURRENT_SIZE,
+                     .registration_count = registry->value.registrations().size()};
+    });
+}
+
+extern "C" ctex_result ctex_material_graph_node_registry_register(
+    ctex_material_graph_node_registry* registry,
+    const ctex_material_graph_host_node_registration_descriptor* descriptor) {
+    return call_material_graph_boundary("ctex_material_graph_node_registry_register", [&] {
+        if (registry == nullptr || descriptor == nullptr) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                           registry == nullptr ? "registry=null" : "descriptor=null");
+        }
+        validate_structure_size(descriptor->size,
+                                CTEX_MATERIAL_GRAPH_HOST_NODE_REGISTRATION_DESCRIPTOR_V1_SIZE,
+                                CTEX_MATERIAL_GRAPH_HOST_NODE_REGISTRATION_DESCRIPTOR_CURRENT_SIZE,
+                                "material graph host node registration size");
+        ctex::graph::NodeTypeRegistry staged = registry->value;
+        staged.register_type(material_graph_host_registration(*descriptor));
+        registry->value = std::move(staged);
+    });
+}
+
+extern "C" ctex_result ctex_material_graph_add_registered_node(
+    const ctex_material_graph_node_registry* registry, const void* serialized,
+    std::size_t serialized_size, const char* type_id, std::uint32_t type_version,
+    ctex_vec2f position, ctex_material_graph_info* out_info, std::uint64_t* out_node_id,
+    void* canonical_output, std::size_t canonical_output_size) {
+    return call_material_graph_boundary("ctex_material_graph_add_registered_node", [&] {
+        if (registry == nullptr || type_id == nullptr || out_info == nullptr ||
+            out_node_id == nullptr) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                           "registry, type_id, out_info and out_node_id are required");
+        }
+        validate_structure_size(out_info->size, CTEX_MATERIAL_GRAPH_INFO_V1_SIZE,
+                                CTEX_MATERIAL_GRAPH_INFO_CURRENT_SIZE, "material graph info size");
+        PreparedMaterialGraph source = prepare_material_graph(serialized, serialized_size);
+        const ctex::graph::NodeId node_id = source.graph.add_node(
+            registry->value.make_node(type_id, type_version, {position.x, position.y}));
+        const PreparedMaterialGraph prepared = prepare_material_graph(std::move(source.graph));
+        return_material_graph(prepared, *out_info, canonical_output, canonical_output_size);
+        *out_node_id = node_id;
+    });
+}
+
+extern "C" ctex_result ctex_material_graph_workspace_add_registered_node(
+    ctex_material_graph_workspace* workspace, const ctex_material_graph_node_registry* registry,
+    std::uint32_t owner_kind, const char* owner_identifier, const char* type_id,
+    std::uint32_t type_version, ctex_vec2f position, std::uint64_t* out_node_id) {
+    return call_material_graph_boundary("ctex_material_graph_workspace_add_registered_node", [&] {
+        if (workspace == nullptr || registry == nullptr || owner_identifier == nullptr ||
+            type_id == nullptr || out_node_id == nullptr) {
+            throw_boundary(
+                CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                "workspace, registry, owner_identifier, type_id and out_node_id are required");
+        }
+        ctex::graph::GraphWorkspace staged = workspace->value;
+        const ctex::graph::NodeId node_id =
+            material_graph_workspace_graph(staged, owner_kind, owner_identifier)
+                .add_node(
+                    registry->value.make_node(type_id, type_version, {position.x, position.y}));
+        workspace->value = std::move(staged);
+        *out_node_id = node_id;
+    });
+}
+
+extern "C" ctex_result ctex_material_graph_validate_registered(
+    const ctex_material_graph_node_registry* registry, const void* serialized,
+    std::size_t serialized_size, std::uint32_t target,
+    const ctex_material_graph_validation_resources_descriptor* resources,
+    ctex_material_graph_validation_info* out_info, char* report_output,
+    std::size_t report_output_size) {
+    return call_material_graph_boundary("ctex_material_graph_validate_registered", [&] {
+        if (registry == nullptr || out_info == nullptr) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                           registry == nullptr ? "registry=null" : "out_info=null");
+        }
+        validate_structure_size(out_info->size, CTEX_MATERIAL_GRAPH_VALIDATION_INFO_V1_SIZE,
+                                CTEX_MATERIAL_GRAPH_VALIDATION_INFO_CURRENT_SIZE,
+                                "material graph validation info size");
+        const PreparedMaterialGraph prepared = prepare_material_graph(serialized, serialized_size);
+        const ctex::graph::GraphValidationReport validation = ctex::graph::validate_graph(
+            prepared.graph, registry->value, material_graph_emission_target(target),
+            material_graph_validation_resources(resources));
+        const std::string report = material_graph_validation_json(validation);
+        *out_info = {.size = CTEX_MATERIAL_GRAPH_VALIDATION_INFO_CURRENT_SIZE,
+                     .valid = validation.valid() ? 1U : 0U,
+                     .error_count = validation.error_count(),
+                     .warning_count = validation.warning_count(),
+                     .diagnostic_count = validation.diagnostics.size(),
+                     .report_size = report.size() + 1};
+        validate_string_buffer(report_output, report_output_size, out_info->report_size);
+        if (report_output != nullptr) {
+            std::memcpy(report_output, report.c_str(), out_info->report_size);
+        }
+    });
+}
+
+extern "C" ctex_result ctex_material_graph_node_registry_verify_contract(
+    const ctex_material_graph_node_registry* registry, const char* type_id,
+    std::uint32_t type_version, const char* const* pinned_dependencies,
+    std::size_t pinned_dependency_count, ctex_material_graph_host_contract_info* out_info,
+    char* report_output, std::size_t report_output_size) {
+    return call_material_graph_boundary("ctex_material_graph_node_registry_verify_contract", [&] {
+        if (registry == nullptr || type_id == nullptr || out_info == nullptr) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                           "registry, type_id and out_info are required");
+        }
+        validate_structure_size(out_info->size, CTEX_MATERIAL_GRAPH_HOST_CONTRACT_INFO_V1_SIZE,
+                                CTEX_MATERIAL_GRAPH_HOST_CONTRACT_INFO_CURRENT_SIZE,
+                                "material graph host contract info size");
+        const std::vector<std::string> pinned = material_graph_resource_names(
+            pinned_dependencies, pinned_dependency_count, "pinned_dependencies");
+        const ctex::graph::NodeParityReport parity =
+            registry->value.verify_parity_fixtures(type_id, type_version);
+        const ctex::graph::NodeReplayEligibility replay =
+            registry->value.replay_eligibility(type_id, type_version, pinned);
+        const std::string report = material_graph_host_contract_json(parity, replay);
+        *out_info = {.size = CTEX_MATERIAL_GRAPH_HOST_CONTRACT_INFO_CURRENT_SIZE,
+                     .parity_passed = parity.passed() ? 1U : 0U,
+                     .parity_failure_count = parity.failures.size(),
+                     .replay_eligible = replay.eligible ? 1U : 0U,
+                     .unpinned_dependency_count = replay.unpinned_dependencies.size(),
+                     .report_size = report.size() + 1};
+        validate_string_buffer(report_output, report_output_size, out_info->report_size);
+        if (report_output != nullptr) {
+            std::memcpy(report_output, report.c_str(), out_info->report_size);
+        }
     });
 }
 

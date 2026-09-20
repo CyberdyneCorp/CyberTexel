@@ -146,6 +146,7 @@ typedef struct ctex_host_execution_session ctex_host_execution_session;
 typedef struct ctex_host_completion_result ctex_host_completion_result;
 typedef struct ctex_host_recovery_report ctex_host_recovery_report;
 typedef struct ctex_material_graph_workspace ctex_material_graph_workspace;
+typedef struct ctex_material_graph_node_registry ctex_material_graph_node_registry;
 
 #define CTEX_MAX_MESH_VERTEX_COUNT ((size_t)100000000)
 #define CTEX_MAX_MESH_TRIANGLE_COUNT ((size_t)100000000)
@@ -3483,6 +3484,155 @@ typedef struct ctex_material_graph_group_update_info {
 #define CTEX_MATERIAL_GRAPH_GROUP_UPDATE_INFO_CURRENT_SIZE \
     ((uint32_t)sizeof(ctex_material_graph_group_update_info))
 
+typedef enum ctex_material_graph_emission_target {
+    CTEX_MATERIAL_GRAPH_TARGET_WGSL = 0,
+    CTEX_MATERIAL_GRAPH_TARGET_MSL = 1,
+    CTEX_MATERIAL_GRAPH_TARGET_SPIRV = 2,
+    CTEX_MATERIAL_GRAPH_TARGET_HLSL = 3
+} ctex_material_graph_emission_target;
+
+typedef struct ctex_material_graph_property_descriptor {
+    uint32_t size;
+    const char* identifier;
+    const char* display_name;
+    const ctex_smart_material_value_descriptor* default_value;
+    const char* const* allowed_values;
+    size_t allowed_value_count;
+} ctex_material_graph_property_descriptor;
+
+#define CTEX_MATERIAL_GRAPH_PROPERTY_DESCRIPTOR_V1_SIZE \
+    ((uint32_t)sizeof(ctex_material_graph_property_descriptor))
+#define CTEX_MATERIAL_GRAPH_PROPERTY_DESCRIPTOR_CURRENT_SIZE \
+    ((uint32_t)sizeof(ctex_material_graph_property_descriptor))
+
+typedef struct ctex_material_graph_parity_fixture_descriptor {
+    uint32_t size;
+    const char* identifier;
+    const ctex_smart_material_value_descriptor* inputs;
+    size_t input_count;
+    const ctex_smart_material_value_descriptor* expected_outputs;
+    size_t expected_output_count;
+    double tolerance;
+} ctex_material_graph_parity_fixture_descriptor;
+
+#define CTEX_MATERIAL_GRAPH_PARITY_FIXTURE_DESCRIPTOR_V1_SIZE \
+    ((uint32_t)sizeof(ctex_material_graph_parity_fixture_descriptor))
+#define CTEX_MATERIAL_GRAPH_PARITY_FIXTURE_DESCRIPTOR_CURRENT_SIZE \
+    ((uint32_t)sizeof(ctex_material_graph_parity_fixture_descriptor))
+
+typedef struct ctex_material_graph_host_property_value {
+    const char* identifier;
+    ctex_smart_material_value_descriptor value;
+} ctex_material_graph_host_property_value;
+
+typedef struct ctex_material_graph_host_evaluation_request {
+    uint32_t size;
+    uint64_t node_id;
+    const char* type_id;
+    uint32_t type_version;
+    const ctex_material_graph_host_property_value* properties;
+    size_t property_count;
+    const ctex_smart_material_value_descriptor* inputs;
+    size_t input_count;
+} ctex_material_graph_host_evaluation_request;
+
+#define CTEX_MATERIAL_GRAPH_HOST_EVALUATION_REQUEST_V1_SIZE \
+    ((uint32_t)sizeof(ctex_material_graph_host_evaluation_request))
+#define CTEX_MATERIAL_GRAPH_HOST_EVALUATION_REQUEST_CURRENT_SIZE \
+    ((uint32_t)sizeof(ctex_material_graph_host_evaluation_request))
+
+typedef ctex_result (*ctex_material_graph_cpu_evaluate_callback)(
+    const ctex_material_graph_host_evaluation_request* request,
+    ctex_smart_material_value_descriptor* outputs, size_t output_count, void* user_data);
+
+typedef struct ctex_material_graph_host_emission_request {
+    uint32_t size;
+    uint64_t node_id;
+    const char* type_id;
+    uint32_t type_version;
+    uint32_t target;
+    const ctex_material_graph_host_property_value* properties;
+    size_t property_count;
+    const char* const* input_expressions;
+    size_t input_expression_count;
+} ctex_material_graph_host_emission_request;
+
+#define CTEX_MATERIAL_GRAPH_HOST_EMISSION_REQUEST_V1_SIZE \
+    ((uint32_t)sizeof(ctex_material_graph_host_emission_request))
+#define CTEX_MATERIAL_GRAPH_HOST_EMISSION_REQUEST_CURRENT_SIZE \
+    ((uint32_t)sizeof(ctex_material_graph_host_emission_request))
+
+typedef struct ctex_material_graph_host_emission_result {
+    uint32_t size;
+    const char* const* output_expressions;
+    size_t output_expression_count;
+    const char* const* resource_identifiers;
+    size_t resource_identifier_count;
+} ctex_material_graph_host_emission_result;
+
+#define CTEX_MATERIAL_GRAPH_HOST_EMISSION_RESULT_V1_SIZE \
+    ((uint32_t)sizeof(ctex_material_graph_host_emission_result))
+#define CTEX_MATERIAL_GRAPH_HOST_EMISSION_RESULT_CURRENT_SIZE \
+    ((uint32_t)sizeof(ctex_material_graph_host_emission_result))
+
+typedef ctex_result (*ctex_material_graph_emit_callback)(
+    const ctex_material_graph_host_emission_request* request,
+    ctex_material_graph_host_emission_result* out_result, void* user_data);
+
+/* Callback-returned string storage must remain valid until the enclosing API call returns. */
+
+typedef struct ctex_material_graph_host_node_registration_descriptor {
+    uint32_t size;
+    const char* type_id;
+    uint32_t type_version;
+    const char* display_name;
+    const ctex_material_graph_socket_descriptor* inputs;
+    size_t input_count;
+    const ctex_material_graph_socket_descriptor* outputs;
+    size_t output_count;
+    const ctex_material_graph_property_descriptor* properties;
+    size_t property_count;
+    ctex_material_graph_cpu_evaluate_callback cpu_evaluate;
+    ctex_material_graph_emit_callback emit;
+    void* user_data;
+    uint32_t deterministic;
+    const char* const* resource_dependencies;
+    size_t resource_dependency_count;
+    const uint32_t* supported_targets;
+    size_t supported_target_count;
+    const ctex_material_graph_parity_fixture_descriptor* parity_fixtures;
+    size_t parity_fixture_count;
+} ctex_material_graph_host_node_registration_descriptor;
+
+#define CTEX_MATERIAL_GRAPH_HOST_NODE_REGISTRATION_DESCRIPTOR_V1_SIZE \
+    ((uint32_t)sizeof(ctex_material_graph_host_node_registration_descriptor))
+#define CTEX_MATERIAL_GRAPH_HOST_NODE_REGISTRATION_DESCRIPTOR_CURRENT_SIZE \
+    ((uint32_t)sizeof(ctex_material_graph_host_node_registration_descriptor))
+
+typedef struct ctex_material_graph_node_registry_info {
+    uint32_t size;
+    size_t registration_count;
+} ctex_material_graph_node_registry_info;
+
+#define CTEX_MATERIAL_GRAPH_NODE_REGISTRY_INFO_V1_SIZE \
+    ((uint32_t)sizeof(ctex_material_graph_node_registry_info))
+#define CTEX_MATERIAL_GRAPH_NODE_REGISTRY_INFO_CURRENT_SIZE \
+    ((uint32_t)sizeof(ctex_material_graph_node_registry_info))
+
+typedef struct ctex_material_graph_host_contract_info {
+    uint32_t size;
+    uint32_t parity_passed;
+    size_t parity_failure_count;
+    uint32_t replay_eligible;
+    size_t unpinned_dependency_count;
+    size_t report_size;
+} ctex_material_graph_host_contract_info;
+
+#define CTEX_MATERIAL_GRAPH_HOST_CONTRACT_INFO_V1_SIZE \
+    ((uint32_t)sizeof(ctex_material_graph_host_contract_info))
+#define CTEX_MATERIAL_GRAPH_HOST_CONTRACT_INFO_CURRENT_SIZE \
+    ((uint32_t)sizeof(ctex_material_graph_host_contract_info))
+
 typedef struct ctex_smart_material_info {
     uint32_t size;
     uint32_t source_schema_version;
@@ -3850,6 +4000,47 @@ CTEX_API ctex_result ctex_material_graph_workspace_add_link(
     ctex_material_graph_workspace* workspace, uint32_t owner_kind, const char* owner_identifier,
     const ctex_material_graph_link_descriptor* link, ctex_material_graph_link_info* out_info,
     char* replaced_source_socket, size_t replaced_source_socket_size);
+
+/* Creates an isolated registry for host-provided material node declarations. */
+CTEX_API ctex_result
+ctex_material_graph_node_registry_create(ctex_material_graph_node_registry** out_registry);
+CTEX_API void ctex_material_graph_node_registry_destroy(
+    ctex_material_graph_node_registry* registry);
+CTEX_API ctex_result
+ctex_material_graph_node_registry_get_info(const ctex_material_graph_node_registry* registry,
+                                           ctex_material_graph_node_registry_info* out_info);
+
+/* Copies and validates a complete host-node reference contract before use. */
+CTEX_API ctex_result ctex_material_graph_node_registry_register(
+    ctex_material_graph_node_registry* registry,
+    const ctex_material_graph_host_node_registration_descriptor* descriptor);
+
+/* Adds one registered host node to a caller-owned canonical graph document. */
+CTEX_API ctex_result ctex_material_graph_add_registered_node(
+    const ctex_material_graph_node_registry* registry, const void* serialized,
+    size_t serialized_size, const char* type_id, uint32_t type_version, ctex_vec2f position,
+    ctex_material_graph_info* out_info, uint64_t* out_node_id, void* canonical_output,
+    size_t canonical_output_size);
+
+/* Adds one registered host node to a material or reusable group subgraph. */
+CTEX_API ctex_result ctex_material_graph_workspace_add_registered_node(
+    ctex_material_graph_workspace* workspace, const ctex_material_graph_node_registry* registry,
+    uint32_t owner_kind, const char* owner_identifier, const char* type_id, uint32_t type_version,
+    ctex_vec2f position, uint64_t* out_node_id);
+
+/* Performs registry-aware validation and names opaque or stale node types. */
+CTEX_API ctex_result ctex_material_graph_validate_registered(
+    const ctex_material_graph_node_registry* registry, const void* serialized,
+    size_t serialized_size, uint32_t target,
+    const ctex_material_graph_validation_resources_descriptor* resources,
+    ctex_material_graph_validation_info* out_info, char* report_output, size_t report_output_size);
+
+/* Runs every CPU/emission parity fixture and reports replay eligibility. */
+CTEX_API ctex_result ctex_material_graph_node_registry_verify_contract(
+    const ctex_material_graph_node_registry* registry, const char* type_id, uint32_t type_version,
+    const char* const* pinned_dependencies, size_t pinned_dependency_count,
+    ctex_material_graph_host_contract_info* out_info, char* report_output,
+    size_t report_output_size);
 
 /*
  * Validates and migrates a canonical smart-material serialization. The output

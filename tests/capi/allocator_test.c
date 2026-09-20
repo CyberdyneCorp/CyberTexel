@@ -67,6 +67,7 @@ int main(void) {
     ctex_paint_dilation_session* dilation_session = NULL;
     ctex_paint_preview_session* preview_session = NULL;
     ctex_material_graph_workspace* graph_workspace = NULL;
+    ctex_material_graph_node_registry* graph_registry = NULL;
     const double dilation_pixels[3] = {-1.0, 2.0, -1.0};
     const uint8_t dilation_coverage[3] = {0, 1, 0};
     const ctex_paint_dilation_tile_descriptor dilation_tile = {
@@ -128,6 +129,11 @@ int main(void) {
         graph_workspace == NULL || capture.allocation_count <= document_allocation_count) {
         return 2;
     }
+    document_allocation_count = capture.allocation_count;
+    if (ctex_material_graph_node_registry_create(&graph_registry) != CTEX_RESULT_SUCCESS ||
+        graph_registry == NULL || capture.allocation_count <= document_allocation_count) {
+        return 2;
+    }
     successful_allocation_count = capture.allocation_count;
 
     if (ctex_set_allocator(NULL) != CTEX_RESULT_SUCCESS) {
@@ -155,6 +161,7 @@ int main(void) {
     ctex_cube_lut_destroy(lut);
     ctex_paint_dilation_session_destroy(dilation_session);
     ctex_material_graph_workspace_destroy(graph_workspace);
+    ctex_material_graph_node_registry_destroy(graph_registry);
     if (capture.deallocation_count != successful_allocation_count) {
         return 5;
     }

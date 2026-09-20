@@ -209,9 +209,13 @@ nine-channel output, typed node edits, complete comparison, link coercion and
 replacement, atomic cycle refusal and pre-emission validation. Reusable group
 workspaces now expose editable material and group subgraphs, interface
 propagation with compatible stored-value preservation, and pre-mutation direct
-or transitive recursion refusal with complete cycle diagnostics. Exactly 78
-runtime requirements still lack C ABI evidence; those gaps must be implemented
-before task 14.8 can close.
+or transitive recursion refusal with complete cycle diagnostics. Host node
+registries now expose versioned declarations, CPU and emission callbacks,
+determinism, dependencies, supported targets and executable parity fixtures.
+Registered nodes participate in documents, groups and validation; unknown nodes
+round-trip opaquely and are named as non-emittable. Exactly 76 runtime
+requirements still lack C ABI evidence; those gaps must be implemented before
+task 14.8 can close.
 
 ## Milestones
 

@@ -88,7 +88,9 @@
       {"requirement": "Socket types and coercion", "symbols": ["ctex_material_graph_get_builtin_catalogue", "ctex_material_graph_add_link"]},
       {"requirement": "One link per input", "symbols": ["ctex_material_graph_add_link"]},
       {"requirement": "Cycle detection is explicit", "symbols": ["ctex_material_graph_add_link"]},
-      {"requirement": "Validation before emission", "symbols": ["ctex_material_graph_validate"]}
+      {"requirement": "Validation before emission", "symbols": ["ctex_material_graph_validate"]},
+      {"requirement": "Extensibility for host node types", "symbols": ["ctex_material_graph_node_registry_create", "ctex_material_graph_node_registry_destroy", "ctex_material_graph_node_registry_get_info", "ctex_material_graph_node_registry_register", "ctex_material_graph_add_registered_node", "ctex_material_graph_workspace_add_registered_node", "ctex_material_graph_validate_registered"]},
+      {"requirement": "Custom nodes satisfy the reference contract", "symbols": ["ctex_material_graph_node_registry_register", "ctex_material_graph_node_registry_verify_contract"]}
     ]},
     {"name": "mesh-and-texture-sets", "kind": "runtime", "requirements": [
       {"requirement": "Mesh ingest is read-only", "symbols": ["ctex_mesh_create", "ctex_mesh_destroy"]},
