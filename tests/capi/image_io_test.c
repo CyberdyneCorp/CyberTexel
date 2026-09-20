@@ -104,6 +104,44 @@ static int channel_expansion_preserves_depth_and_reports_rule(void) {
            expect(memcmp(output, expected, sizeof(expected)) == 0);
 }
 
+static int image_resampling_selects_and_reports_filter(void) {
+    const uint16_t source[] = {0, 1000, 2000, 3000};
+    uint16_t output = 0;
+    ctex_image_resample_descriptor descriptor = {
+        .size = CTEX_IMAGE_RESAMPLE_DESCRIPTOR_CURRENT_SIZE,
+        .source_width = 2,
+        .source_height = 2,
+        .channel_count = 1,
+        .scalar_representation = CTEX_SCALAR_REPRESENTATION_UNSIGNED_NORMALIZED,
+        .bit_depth = 16,
+        .source_row_stride_bytes = 0,
+        .output_width = 1,
+        .output_height = 1,
+        .filter = CTEX_IMAGE_RESAMPLE_FILTER_DEFAULT,
+        .maximum_output_bytes = 0,
+    };
+    ctex_image_resample_info info = {.size = CTEX_IMAGE_RESAMPLE_INFO_CURRENT_SIZE};
+    if (!expect(ctex_image_resample(source, sizeof(source), &descriptor, &info, &output,
+                                    sizeof(output)) == CTEX_RESULT_SUCCESS) ||
+        !expect(output == 1500 && info.width == 1 && info.height == 1 && info.channel_count == 1 &&
+                info.bit_depth == 16 && info.filter == CTEX_IMAGE_RESAMPLE_FILTER_BILINEAR &&
+                info.required_pixel_buffer_size == sizeof(output))) {
+        return 0;
+    }
+    descriptor.filter = CTEX_IMAGE_RESAMPLE_FILTER_NEAREST;
+    output = 0;
+    if (!expect(ctex_image_resample(source, sizeof(source), &descriptor, &info, &output,
+                                    sizeof(output)) == CTEX_RESULT_SUCCESS) ||
+        !expect(output == 3000 && info.filter == CTEX_IMAGE_RESAMPLE_FILTER_NEAREST)) {
+        return 0;
+    }
+    descriptor.filter = CTEX_IMAGE_RESAMPLE_FILTER_BILINEAR;
+    descriptor.maximum_output_bytes = 1;
+    return expect(ctex_image_resample(source, sizeof(source), &descriptor, &info, NULL, 0) ==
+                  CTEX_RESULT_OVER_BUDGET) &&
+           expect(ctex_get_last_diagnostic_code() == CTEX_DIAGNOSTIC_IMAGE_LIMIT_EXCEEDED);
+}
+
 static int sixteen_bit_png_round_trip_is_lossless(void) {
     ctex_decoded_image_info info = {.size = CTEX_DECODED_IMAGE_INFO_CURRENT_SIZE};
     ctex_image_encode_descriptor descriptor = {
@@ -374,6 +412,7 @@ static int openexr_round_trip_preserves_hdr_values(void) {
 int main(void) {
     return decode_reports_content_and_caller_buffers() && decode_preserves_sixteen_bit_samples() &&
                    channel_expansion_preserves_depth_and_reports_rule() &&
+                   image_resampling_selects_and_reports_filter() &&
                    sixteen_bit_png_round_trip_is_lossless() &&
                    decode_honours_color_and_resource_limits() &&
                    decode_refuses_unsupported_and_truncated_content() &&

@@ -15,6 +15,7 @@
 #include <ctex/exec/vulkan_executor.hpp>
 #include <ctex/image/channel_expansion.hpp>
 #include <ctex/image/color_policy.hpp>
+#include <ctex/image/resampling.hpp>
 #include <ctex/io/image_io.hpp>
 #include <ctex/io/preset_library.hpp>
 #include <ctex/io/project_container.hpp>
@@ -1170,6 +1171,23 @@ ctex::image::PixelFormat encoded_input_format(const ctex_image_encode_descriptor
 
 std::uint32_t channel_expansion_rule(ctex::image::ChannelExpansionRule rule) noexcept {
     return static_cast<std::uint32_t>(rule);
+}
+
+ctex::image::ImageResampleFilter image_resample_filter(std::uint32_t value) {
+    switch (value) {
+        case CTEX_IMAGE_RESAMPLE_FILTER_DEFAULT:
+        case CTEX_IMAGE_RESAMPLE_FILTER_BILINEAR:
+            return ctex::image::ImageResampleFilter::bilinear;
+        case CTEX_IMAGE_RESAMPLE_FILTER_NEAREST:
+            return ctex::image::ImageResampleFilter::nearest;
+    }
+    throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_INVALID_ENUM_VALUE,
+                   "image resample filter=" + std::to_string(value));
+}
+
+std::uint32_t image_resample_filter(ctex::image::ImageResampleFilter value) noexcept {
+    return value == ctex::image::ImageResampleFilter::nearest ? CTEX_IMAGE_RESAMPLE_FILTER_NEAREST
+                                                              : CTEX_IMAGE_RESAMPLE_FILTER_BILINEAR;
 }
 
 ctex::io::ExportImageFormat encoded_output_format(std::uint32_t value) {
@@ -6121,6 +6139,70 @@ extern "C" ctex_result ctex_image_expand_channels(
                                expanded.pixels.size());
         if (output_pixels != nullptr) {
             std::memcpy(output_pixels, expanded.pixels.data(), expanded.pixels.size());
+        }
+    });
+}
+
+extern "C" ctex_result ctex_image_resample(const void* source_pixels,
+                                           std::size_t source_pixel_buffer_size,
+                                           const ctex_image_resample_descriptor* descriptor,
+                                           ctex_image_resample_info* out_info, void* output_pixels,
+                                           std::size_t output_pixel_buffer_size) {
+    return call_boundary("ctex_image_resample", [&] {
+        if (descriptor == nullptr || out_info == nullptr ||
+            (source_pixels == nullptr && source_pixel_buffer_size != 0)) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                           "image resample argument is null");
+        }
+        validate_structure_size(descriptor->size, CTEX_IMAGE_RESAMPLE_DESCRIPTOR_V1_SIZE,
+                                CTEX_IMAGE_RESAMPLE_DESCRIPTOR_CURRENT_SIZE, "descriptor.size");
+        validate_structure_size(out_info->size, CTEX_IMAGE_RESAMPLE_INFO_V1_SIZE,
+                                CTEX_IMAGE_RESAMPLE_INFO_CURRENT_SIZE, "out_info.size");
+        const auto source =
+            source_pixel_buffer_size == 0
+                ? std::span<const std::byte>{}
+                : std::span(static_cast<const std::byte*>(source_pixels), source_pixel_buffer_size);
+        ctex::image::ImageResampleResult resampled;
+        try {
+            resampled = ctex::image::resample_image({
+                .pixels = source,
+                .source_width = descriptor->source_width,
+                .source_height = descriptor->source_height,
+                .format =
+                    image_pixel_format(descriptor->channel_count, descriptor->scalar_representation,
+                                       descriptor->bit_depth),
+                .source_row_stride_bytes = descriptor->source_row_stride_bytes,
+                .output_width = descriptor->output_width,
+                .output_height = descriptor->output_height,
+                .filter = image_resample_filter(descriptor->filter),
+                .maximum_output_bytes = descriptor->maximum_output_bytes == 0
+                                            ? ctex::image::default_resample_byte_limit
+                                            : descriptor->maximum_output_bytes,
+            });
+        } catch (const std::overflow_error& error) {
+            throw_boundary(CTEX_RESULT_OVER_BUDGET, CTEX_DIAGNOSTIC_IMAGE_LIMIT_EXCEEDED,
+                           error.what());
+        } catch (const std::length_error& error) {
+            throw_boundary(CTEX_RESULT_OVER_BUDGET, CTEX_DIAGNOSTIC_IMAGE_LIMIT_EXCEEDED,
+                           error.what());
+        } catch (const std::invalid_argument& error) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_INVALID_IMAGE_DATA,
+                           error.what());
+        }
+        *out_info = {
+            .size = CTEX_IMAGE_RESAMPLE_INFO_CURRENT_SIZE,
+            .width = resampled.width,
+            .height = resampled.height,
+            .channel_count = resampled.format.channel_count,
+            .scalar_representation = descriptor->scalar_representation,
+            .bit_depth = descriptor->bit_depth,
+            .filter = image_resample_filter(resampled.filter),
+            .required_pixel_buffer_size = resampled.pixels.size(),
+        };
+        validate_string_buffer(static_cast<char*>(output_pixels), output_pixel_buffer_size,
+                               resampled.pixels.size());
+        if (output_pixels != nullptr) {
+            std::memcpy(output_pixels, resampled.pixels.data(), resampled.pixels.size());
         }
     });
 }

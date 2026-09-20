@@ -72,6 +72,7 @@
       {"requirement": "Encoded formats", "symbols": ["ctex_image_encode_memory"]},
       {"requirement": "Decoding from memory", "symbols": ["ctex_image_decode_memory"]},
       {"requirement": "Every image source is untrusted", "symbols": ["ctex_image_decode_memory"]},
+      {"requirement": "Resampling is documented", "symbols": ["ctex_image_resample"]},
       {"requirement": "Round-trip fidelity", "symbols": ["ctex_image_decode_memory", "ctex_image_encode_memory"]}
     ]},
     {"name": "language-bindings", "kind": "non-runtime", "rationale": "Bindings mirror the C ABI and are checked by their own parity gate.", "evidence": ["just gate-binding-parity"]},

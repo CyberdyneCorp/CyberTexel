@@ -804,6 +804,13 @@ preserves grayscale alpha in RGBA, adds opaque alpha to RGB, reports the chosen
 rule and refuses lossy or ambiguous mappings. The exact remaining C ABI gap is
 108 runtime requirements.
 
+The image-resampling continuation completes task 2.12 and exposes its
+requirement through the C boundary. Hosts select nearest-neighbour or the
+pixel-centred bilinear default, receive the resolved filter in result metadata,
+preserve unclamped float values, supply row-strided input and bound tightly
+packed output before allocation. The exact remaining C ABI gap is 107 runtime
+requirements.
+
 ## 1. Foundation
 
 - [x] 1.1 CMake project, C++20, warnings as errors, presets for headless, macOS, Linux, Windows, iOS, Android
@@ -830,7 +837,7 @@ rule and refuses lossy or ambiguous mappings. The exact remaining C ABI gap is
 - [ ] 2.9 Untrusted input bounds: dimension validation before allocation, configurable ceiling, named refusals
 - [ ] 2.10 Decoder fuzzing gate in CI
 - [ ] 2.11 Cancellation, progress and bounded working memory for large decodes
-- [ ] 2.12 Documented resampling filters with a stated default
+- [x] 2.12 Documented resampling filters with a stated default
 - [ ] 2.13 `image-io` scenarios as tests
 
 ## 3. Document

@@ -1194,6 +1194,44 @@ typedef struct ctex_image_channel_expansion_info {
 #define CTEX_IMAGE_CHANNEL_EXPANSION_INFO_CURRENT_SIZE \
     ((uint32_t)sizeof(ctex_image_channel_expansion_info))
 
+typedef enum ctex_image_resample_filter {
+    CTEX_IMAGE_RESAMPLE_FILTER_DEFAULT = 0,
+    CTEX_IMAGE_RESAMPLE_FILTER_NEAREST = 1,
+    CTEX_IMAGE_RESAMPLE_FILTER_BILINEAR = 2
+} ctex_image_resample_filter;
+
+typedef struct ctex_image_resample_descriptor {
+    uint32_t size;
+    uint32_t source_width;
+    uint32_t source_height;
+    uint32_t channel_count;
+    uint32_t scalar_representation;
+    uint32_t bit_depth;
+    size_t source_row_stride_bytes;
+    uint32_t output_width;
+    uint32_t output_height;
+    uint32_t filter;
+    size_t maximum_output_bytes;
+} ctex_image_resample_descriptor;
+
+#define CTEX_IMAGE_RESAMPLE_DESCRIPTOR_V1_SIZE ((uint32_t)sizeof(ctex_image_resample_descriptor))
+#define CTEX_IMAGE_RESAMPLE_DESCRIPTOR_CURRENT_SIZE \
+    ((uint32_t)sizeof(ctex_image_resample_descriptor))
+
+typedef struct ctex_image_resample_info {
+    uint32_t size;
+    uint32_t width;
+    uint32_t height;
+    uint32_t channel_count;
+    uint32_t scalar_representation;
+    uint32_t bit_depth;
+    uint32_t filter;
+    size_t required_pixel_buffer_size;
+} ctex_image_resample_info;
+
+#define CTEX_IMAGE_RESAMPLE_INFO_V1_SIZE ((uint32_t)sizeof(ctex_image_resample_info))
+#define CTEX_IMAGE_RESAMPLE_INFO_CURRENT_SIZE ((uint32_t)sizeof(ctex_image_resample_info))
+
 typedef struct ctex_image_encode_descriptor {
     uint32_t size;
     uint32_t width;
@@ -2489,6 +2527,15 @@ ctex_image_expand_channels(const void* source_pixels, size_t source_pixel_buffer
                            const ctex_image_channel_expansion_descriptor* descriptor,
                            ctex_image_channel_expansion_info* out_info, void* output_pixels,
                            size_t output_pixel_buffer_size);
+
+/*
+ * Resamples packed or row-strided pixels with nearest or pixel-centred
+ * bilinear filtering. DEFAULT selects bilinear. Output is tightly packed.
+ */
+CTEX_API ctex_result ctex_image_resample(const void* source_pixels, size_t source_pixel_buffer_size,
+                                         const ctex_image_resample_descriptor* descriptor,
+                                         ctex_image_resample_info* out_info, void* output_pixels,
+                                         size_t output_pixel_buffer_size);
 
 /*
  * Encodes borrowed, row-major interleaved pixels to PNG, JPEG, TGA, TIFF or

@@ -5,6 +5,7 @@
 #include <cstdint>
 #include <cstring>
 #include <ctex/image/channel_expansion.hpp>
+#include <ctex/image/resampling.hpp>
 #include <ctex/image/tiled_image.hpp>
 #include <exception>
 #include <iostream>
@@ -19,6 +20,7 @@ namespace {
 
 using ctex::image::ChannelExpansionRule;
 using ctex::image::ChannelType;
+using ctex::image::ImageResampleFilter;
 using ctex::image::PixelFormat;
 using ctex::image::TileCoordinate;
 using ctex::image::TiledImage;
@@ -196,6 +198,62 @@ bool test_channel_expansion_honours_row_stride() {
                   "channel expansion ignored the source row stride");
 }
 
+bool test_resampling_filters_are_explicit_and_recorded() {
+    const std::array source{std::byte{0}, std::byte{64}, std::byte{128}, std::byte{255}};
+    const auto bilinear = ctex::image::resample_image({
+        .pixels = source,
+        .source_width = 2,
+        .source_height = 2,
+        .format = PixelFormat{ChannelType::uint8_unorm, 1},
+        .output_width = 1,
+        .output_height = 1,
+    });
+    const auto nearest = ctex::image::resample_image({
+        .pixels = source,
+        .source_width = 2,
+        .source_height = 2,
+        .format = PixelFormat{ChannelType::uint8_unorm, 1},
+        .output_width = 1,
+        .output_height = 1,
+        .filter = ImageResampleFilter::nearest,
+    });
+    return expect(bilinear.filter == ImageResampleFilter::bilinear &&
+                      bilinear.pixels == std::vector<std::byte>{std::byte{112}},
+                  "default resampling was not pixel-centred bilinear") &&
+           expect(nearest.filter == ImageResampleFilter::nearest &&
+                      nearest.pixels == std::vector<std::byte>{std::byte{255}},
+                  "nearest resampling did not select the nearest source centre");
+}
+
+bool test_resampling_preserves_float_range_and_honours_stride() {
+    const std::array source{2.0F, 99.0F, 4.0F};
+    const auto resampled = ctex::image::resample_image({
+        .pixels = std::as_bytes(std::span(source)),
+        .source_width = 1,
+        .source_height = 2,
+        .format = PixelFormat{ChannelType::float32, 1},
+        .source_row_stride_bytes = sizeof(float) * 2,
+        .output_width = 1,
+        .output_height = 1,
+    });
+    float output = 0.0F;
+    std::memcpy(&output, resampled.pixels.data(), sizeof(output));
+    return expect(output == 3.0F, "float resampling clamped values or ignored row stride") &&
+           expect_throws<std::length_error>(
+               [&] {
+                   static_cast<void>(ctex::image::resample_image({
+                       .pixels = std::as_bytes(std::span(source)),
+                       .source_width = 1,
+                       .source_height = 1,
+                       .format = PixelFormat{ChannelType::float32, 1},
+                       .output_width = 2,
+                       .output_height = 2,
+                       .maximum_output_bytes = 15,
+                   }));
+               },
+               "resampling output limit was not enforced");
+}
+
 bool test_sparse_clear_and_dirty_tracking() {
     const std::array clear{std::byte{3}, std::byte{5}, std::byte{7}, std::byte{11}};
     TiledImage image(65, 70, PixelFormat{ChannelType::uint8_unorm, 4}, 64, clear);
@@ -296,6 +354,8 @@ int main() {
     return test_formats_preserve_bytes() && test_channel_expansion_preserves_components() &&
                    test_channel_expansion_refuses_lossy_or_short_inputs() &&
                    test_channel_expansion_honours_row_stride() &&
+                   test_resampling_filters_are_explicit_and_recorded() &&
+                   test_resampling_preserves_float_range_and_honours_stride() &&
                    test_sparse_clear_and_dirty_tracking() &&
                    test_pinned_tile_storage_is_copy_on_write() &&
                    test_persistent_storage_uses_supplied_resource() && test_validation()

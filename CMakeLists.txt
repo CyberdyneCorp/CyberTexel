@@ -97,6 +97,7 @@ ctex_add_module(
         src/image/color.cpp
         src/image/color_policy.cpp
         src/image/cube_lut.cpp
+        src/image/resampling.cpp
         src/image/seam_dilation.cpp
 )
 ctex_add_module(mesh)

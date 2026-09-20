@@ -62,7 +62,9 @@ and floating-point values. The complete fixture gate now accepts registry-backed
 executor render callbacks, compares every available route to the CPU reference,
 and exposes immutable JSON reports with per-case drift and explicit unmeasured
 devices. Image channel expansion now preserves 8-bit, 16-bit and floating-point
-components while applying the documented grayscale/RGB/alpha mappings. Exactly
-108 runtime requirements remain unmapped.
+components while applying the documented grayscale/RGB/alpha mappings. Import
+resampling now exposes selectable nearest and default pixel-centred bilinear
+filters with bounded caller-owned output and recorded filter metadata. Exactly
+107 runtime requirements remain unmapped.
 The gate is not part of the aggregate `just check` until that count reaches zero;
 its unit tests run in the normal tooling suite throughout the migration.

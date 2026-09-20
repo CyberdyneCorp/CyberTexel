@@ -7,7 +7,7 @@ decisions taken and questions still open.
 ## Status
 
 Implementation started. 24 capabilities, 332 requirements, 400 scenarios and
-222 tasks, 136 done. Foundation and the complete headless color-management
+222 tasks, 138 done. Foundation and the complete headless color-management
 scenario suite are green. Slice-A now has memory-buffer PNG input plus
 PNG/JPEG/TGA/TIFF/OpenEXR output, with 8/16-bit preservation and hostile-input
 ceilings; full decoder breadth remains scheduled for slice D. Extensible channel
@@ -182,7 +182,9 @@ comparison are also public. Registry-backed parity fixture runs now compare
 available routes to the CPU reference and report per-case drift or unavailable
 devices through immutable caller-readable results. Image decoding and explicit
 destination-channel expansion now preserve component precision across the C
-boundary. Exactly 108 runtime requirements still lack C ABI evidence;
+boundary. Bounded image resampling now exposes selectable nearest and default
+pixel-centred bilinear filters while recording the resolved choice. Exactly 107
+runtime requirements still lack C ABI evidence;
 those gaps must be implemented before task 14.8 can close.
 
 ## Milestones

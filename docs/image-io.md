@@ -21,6 +21,16 @@ two-channel-to-RGB conversion are refused rather than dropping information.
 These rules apply equally to 8-bit and 16-bit unsigned-normalized components and
 32-bit floating-point components.
 
+Import resizing offers nearest-neighbour and pixel-centred bilinear filters.
+Pixel-centred bilinear is the default: destination texel centres map into source
+texel space, edge coordinates clamp to the nearest source edge, integer results
+round to the nearest representable component, and floating-point values remain
+unclamped. Nearest-neighbour is available for identifiers, masks or deliberately
+hard-edged inputs. Every result records the resolved filter, including when the
+caller requests the default. Resampling accepts row-strided input, writes tightly
+packed output and refuses the operation before allocation when its declared or
+default 1 GiB output ceiling would be exceeded.
+
 Decode limits are checked from the PNG header before pixel allocation. The
 default ceiling is 16384×16384 and 1 GiB of decoded pixels; hosts can lower each
 limit. Truncated or malformed data produces a named error and no partial image.
