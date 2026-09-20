@@ -145,6 +145,7 @@ typedef struct ctex_transport_readback ctex_transport_readback;
 typedef struct ctex_mesh_map_set ctex_mesh_map_set;
 typedef struct ctex_mesh_map_bake_session ctex_mesh_map_bake_session;
 typedef struct ctex_mesh_map_bake_request_token ctex_mesh_map_bake_request_token;
+typedef struct ctex_project_autosave_session ctex_project_autosave_session;
 typedef struct ctex_executor_registry ctex_executor_registry;
 typedef struct ctex_cpu_execution_result ctex_cpu_execution_result;
 typedef struct ctex_parity_gate_result ctex_parity_gate_result;
@@ -3808,6 +3809,67 @@ typedef struct ctex_project_container_info {
 #define CTEX_PROJECT_CONTAINER_INFO_V1_SIZE ((uint32_t)sizeof(ctex_project_container_info))
 #define CTEX_PROJECT_CONTAINER_INFO_CURRENT_SIZE ((uint32_t)sizeof(ctex_project_container_info))
 
+typedef struct ctex_project_autosave_config_descriptor {
+    uint32_t size;
+    const char* recovery_directory;
+    const char* recovery_key;
+    uint64_t interval_milliseconds;
+} ctex_project_autosave_config_descriptor;
+
+#define CTEX_PROJECT_AUTOSAVE_CONFIG_DESCRIPTOR_V1_SIZE \
+    ((uint32_t)sizeof(ctex_project_autosave_config_descriptor))
+#define CTEX_PROJECT_AUTOSAVE_CONFIG_DESCRIPTOR_CURRENT_SIZE \
+    ((uint32_t)sizeof(ctex_project_autosave_config_descriptor))
+
+typedef enum ctex_project_autosave_submission_status {
+    CTEX_PROJECT_AUTOSAVE_QUEUED = 0,
+    CTEX_PROJECT_AUTOSAVE_STALE_REVISION = 1
+} ctex_project_autosave_submission_status;
+
+typedef struct ctex_project_autosave_info {
+    uint32_t size;
+    uint32_t has_last_saved_revision;
+    uint64_t last_saved_revision;
+    uint32_t has_pending_revision;
+    uint64_t pending_revision;
+    uint32_t has_saving_revision;
+    uint64_t saving_revision;
+    uint64_t successful_writes;
+    size_t required_recovery_path_size;
+    size_t required_last_error_size;
+} ctex_project_autosave_info;
+
+#define CTEX_PROJECT_AUTOSAVE_INFO_V1_SIZE ((uint32_t)sizeof(ctex_project_autosave_info))
+#define CTEX_PROJECT_AUTOSAVE_INFO_CURRENT_SIZE ((uint32_t)sizeof(ctex_project_autosave_info))
+
+typedef struct ctex_project_recovery_entry {
+    size_t recovery_key_offset;
+    size_t recovery_key_size;
+    size_t path_offset;
+    size_t path_size;
+    ctex_project_container_version schema;
+    uint64_t file_bytes;
+} ctex_project_recovery_entry;
+
+typedef struct ctex_project_recovery_rejection {
+    size_t path_offset;
+    size_t path_size;
+    size_t message_offset;
+    size_t message_size;
+} ctex_project_recovery_rejection;
+
+typedef struct ctex_project_recovery_enumeration_info {
+    uint32_t size;
+    size_t required_recoverable_count;
+    size_t required_rejected_count;
+    size_t required_string_size;
+} ctex_project_recovery_enumeration_info;
+
+#define CTEX_PROJECT_RECOVERY_ENUMERATION_INFO_V1_SIZE \
+    ((uint32_t)sizeof(ctex_project_recovery_enumeration_info))
+#define CTEX_PROJECT_RECOVERY_ENUMERATION_INFO_CURRENT_SIZE \
+    ((uint32_t)sizeof(ctex_project_recovery_enumeration_info))
+
 typedef struct ctex_project_asset_export_options_descriptor {
     uint32_t size;
     uint32_t self_contained;
@@ -4734,6 +4796,41 @@ CTEX_API ctex_result
 ctex_project_container_save_atomic(const void* encoded, size_t encoded_size,
                                    const ctex_project_container_read_limits_descriptor* limits,
                                    const char* path, ctex_project_container_info* out_info);
+
+/*
+ * Runs periodic project autosave on a worker thread. Submission validates and
+ * snapshots canonical project bytes before returning; only the newest queued
+ * revision is written. Destroy flushes no pending work, so call flush when the
+ * latest queued revision must be durable before shutdown.
+ */
+CTEX_API ctex_result
+ctex_project_autosave_session_create(const ctex_project_autosave_config_descriptor* config,
+                                     ctex_project_autosave_session** out_session);
+CTEX_API void ctex_project_autosave_session_destroy(ctex_project_autosave_session* session);
+CTEX_API ctex_result ctex_project_autosave_session_submit(
+    ctex_project_autosave_session* session, uint64_t revision, const void* encoded,
+    size_t encoded_size, const ctex_project_container_read_limits_descriptor* limits,
+    uint32_t* out_status);
+CTEX_API ctex_result ctex_project_autosave_session_wait(ctex_project_autosave_session* session,
+                                                        uint64_t timeout_milliseconds,
+                                                        uint32_t* out_idle);
+CTEX_API ctex_result ctex_project_autosave_session_flush(ctex_project_autosave_session* session);
+CTEX_API ctex_result ctex_project_autosave_session_get_info(
+    const ctex_project_autosave_session* session, ctex_project_autosave_info* out_info,
+    char* recovery_path, size_t recovery_path_size, char* last_error, size_t last_error_size);
+
+/* Enumerates atomically published recovery files and names malformed candidates. */
+CTEX_API ctex_result ctex_project_recovery_enumerate(
+    const char* recovery_directory, ctex_project_recovery_enumeration_info* out_info,
+    ctex_project_recovery_entry* recoverable, size_t recoverable_capacity,
+    ctex_project_recovery_rejection* rejected, size_t rejected_capacity, char* strings,
+    size_t string_capacity);
+
+/* Opens one recovery path under project-container limits using the normal two-call contract. */
+CTEX_API ctex_result ctex_project_recovery_read(
+    const char* path, const ctex_project_container_read_limits_descriptor* limits,
+    ctex_project_container_info* out_info, void* canonical_output, size_t canonical_output_size,
+    char* report_output, size_t report_output_size);
 
 /*
  * Extracts one asset and its exact resource/image dependencies from a project

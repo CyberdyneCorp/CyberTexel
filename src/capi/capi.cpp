@@ -24,6 +24,7 @@
 #include <ctex/image/resampling.hpp>
 #include <ctex/io/image_io.hpp>
 #include <ctex/io/preset_library.hpp>
+#include <ctex/io/project_autosave.hpp>
 #include <ctex/io/project_container.hpp>
 #include <ctex/io/smart_material_package.hpp>
 #include <ctex/io/standalone_asset.hpp>
@@ -64,6 +65,7 @@
 #include <ctex/xport/readback.hpp>
 #include <ctex/xport/snapshot.hpp>
 #include <exception>
+#include <fstream>
 #include <iterator>
 #include <limits>
 #include <mutex>
@@ -307,6 +309,15 @@ struct ctex_mesh_map_bake_request_token {
 
     ctex_allocator_state allocator;
     ctex::maps::BakeRevisionToken value;
+};
+
+struct ctex_project_autosave_session {
+    ctex_project_autosave_session(ctex_allocator_state allocator_value,
+                                  ctex::io::ProjectAutosaveConfig config)
+        : allocator(allocator_value), value(std::move(config)) {}
+
+    ctex_allocator_state allocator;
+    ctex::io::ProjectAutosaveSession value;
 };
 
 struct ctex_executor_registry {
@@ -841,6 +852,29 @@ void destroy_mesh_map_bake_token(ctex_mesh_map_bake_request_token* token) noexce
     token->~ctex_mesh_map_bake_request_token();
     deallocate_storage(allocator, token, sizeof(ctex_mesh_map_bake_request_token),
                        alignof(ctex_mesh_map_bake_request_token));
+}
+
+ctex_project_autosave_session* create_project_autosave_session(
+    const ctex_allocator_state& allocator, ctex::io::ProjectAutosaveConfig config) {
+    void* storage = allocate_storage(allocator, sizeof(ctex_project_autosave_session),
+                                     alignof(ctex_project_autosave_session));
+    try {
+        return ::new (storage) ctex_project_autosave_session(allocator, std::move(config));
+    } catch (...) {
+        deallocate_storage(allocator, storage, sizeof(ctex_project_autosave_session),
+                           alignof(ctex_project_autosave_session));
+        throw;
+    }
+}
+
+void destroy_project_autosave_session(ctex_project_autosave_session* session) noexcept {
+    if (session == nullptr) {
+        return;
+    }
+    const ctex_allocator_state allocator = session->allocator;
+    session->~ctex_project_autosave_session();
+    deallocate_storage(allocator, session, sizeof(ctex_project_autosave_session),
+                       alignof(ctex_project_autosave_session));
 }
 
 ctex_executor_registry* create_executor_registry(const ctex_allocator_state& allocator) {
@@ -6505,6 +6539,131 @@ void write_project_container_outputs(const PreparedProjectContainer& prepared, v
     }
 }
 
+ctex::io::ProjectAutosaveConfig project_autosave_config(
+    const ctex_project_autosave_config_descriptor& descriptor) {
+    validate_structure_size(descriptor.size, CTEX_PROJECT_AUTOSAVE_CONFIG_DESCRIPTOR_V1_SIZE,
+                            CTEX_PROJECT_AUTOSAVE_CONFIG_DESCRIPTOR_CURRENT_SIZE,
+                            "project autosave config size");
+    if (descriptor.recovery_directory == nullptr || descriptor.recovery_key == nullptr) {
+        throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                       "autosave recovery directory and key are required");
+    }
+    if (descriptor.interval_milliseconds == 0 ||
+        descriptor.interval_milliseconds >
+            static_cast<std::uint64_t>(std::numeric_limits<std::int64_t>::max())) {
+        throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_INVALID_PROJECT_CONTAINER,
+                       "autosave interval must be a positive signed 64-bit millisecond value");
+    }
+    return {
+        .recovery_directory = std::filesystem::path(descriptor.recovery_directory),
+        .recovery_key = descriptor.recovery_key,
+        .interval = std::chrono::milliseconds(descriptor.interval_milliseconds),
+    };
+}
+
+ctex::io::ProjectSaveSnapshot project_save_snapshot(std::uint64_t revision,
+                                                    ctex::io::ProjectContainer container) {
+    std::vector<ctex::image::TiledImage> images;
+    images.reserve(container.tiled_images.size());
+    for (const ctex::io::StoredTiledImage& stored : container.tiled_images) {
+        images.push_back(ctex::io::restore_tiled_image(stored));
+    }
+    std::vector<ctex::io::ProjectSnapshotImageSource> sources;
+    sources.reserve(images.size());
+    for (std::size_t index = 0; index < images.size(); ++index) {
+        sources.push_back(
+            {.resource_id = container.tiled_images[index].resource_id, .image = &images[index]});
+    }
+    ctex::io::ProjectSnapshotMetadata metadata{
+        .schema_version = container.schema_version,
+        .resources = std::move(container.resources),
+        .assets = std::move(container.assets),
+        .opaque_sections = std::move(container.opaque_sections),
+    };
+    return ctex::io::capture_project_snapshot(revision, std::move(metadata), sources);
+}
+
+void set_project_autosave_info(const ctex::io::ProjectAutosaveStatus& status,
+                               std::string_view recovery_path, ctex_project_autosave_info& info) {
+    info = {
+        .size = CTEX_PROJECT_AUTOSAVE_INFO_CURRENT_SIZE,
+        .has_last_saved_revision = status.last_saved_revision ? 1U : 0U,
+        .last_saved_revision = status.last_saved_revision.value_or(0),
+        .has_pending_revision = status.pending_revision ? 1U : 0U,
+        .pending_revision = status.pending_revision.value_or(0),
+        .has_saving_revision = status.saving_revision ? 1U : 0U,
+        .saving_revision = status.saving_revision.value_or(0),
+        .successful_writes = status.successful_writes,
+        .required_recovery_path_size = recovery_path.size() + 1,
+        .required_last_error_size = status.last_error.size() + 1,
+    };
+}
+
+struct CApiRecoveryEnumeration {
+    std::vector<ctex_project_recovery_entry> recoverable;
+    std::vector<ctex_project_recovery_rejection> rejected;
+    std::vector<std::string> strings;
+};
+
+CApiRecoveryEnumeration capi_recovery_enumeration(const ctex::io::RecoveryEnumeration& recovery) {
+    CApiRecoveryEnumeration output;
+    output.recoverable.reserve(recovery.recoverable.size());
+    output.rejected.reserve(recovery.rejected.size());
+    output.strings.reserve(recovery.recoverable.size() * 2 + recovery.rejected.size() * 2);
+    for (const ctex::io::RecoverableProject& entry : recovery.recoverable) {
+        const std::string path = entry.path.string();
+        const std::size_t key_offset = append_packed_string(output.strings, entry.recovery_key);
+        const std::size_t path_offset = append_packed_string(output.strings, path);
+        output.recoverable.push_back({
+            .recovery_key_offset = key_offset,
+            .recovery_key_size = entry.recovery_key.size() + 1,
+            .path_offset = path_offset,
+            .path_size = path.size() + 1,
+            .schema = {.size = CTEX_PROJECT_CONTAINER_VERSION_CURRENT_SIZE,
+                       .major = entry.schema_version.major,
+                       .minor = entry.schema_version.minor,
+                       .patch = entry.schema_version.patch},
+            .file_bytes = static_cast<std::uint64_t>(entry.file_bytes),
+        });
+    }
+    for (const ctex::io::RejectedRecoveryFile& entry : recovery.rejected) {
+        const std::string path = entry.path.string();
+        const std::size_t path_offset = append_packed_string(output.strings, path);
+        const std::size_t message_offset = append_packed_string(output.strings, entry.message);
+        output.rejected.push_back({.path_offset = path_offset,
+                                   .path_size = path.size() + 1,
+                                   .message_offset = message_offset,
+                                   .message_size = entry.message.size() + 1});
+    }
+    return output;
+}
+
+std::vector<std::byte> read_project_recovery_file(
+    const std::filesystem::path& path, const ctex::io::ProjectContainerReadLimits& limits) {
+    std::error_code error;
+    const std::uintmax_t file_bytes = std::filesystem::file_size(path, error);
+    if (error) {
+        throw ctex::io::ProjectContainerError(
+            ctex::io::ProjectContainerErrorCode::filesystem_failure,
+            "could not inspect recovery file: " + error.message());
+    }
+    if (file_bytes > limits.maximum_input_bytes ||
+        file_bytes > std::numeric_limits<std::size_t>::max() ||
+        file_bytes > static_cast<std::uintmax_t>(std::numeric_limits<std::streamsize>::max())) {
+        throw ctex::io::ProjectContainerError(ctex::io::ProjectContainerErrorCode::over_limit,
+                                              "recovery file exceeds the input byte limit");
+    }
+    std::vector<std::byte> bytes(static_cast<std::size_t>(file_bytes));
+    std::ifstream stream(path, std::ios::binary);
+    stream.read(reinterpret_cast<char*>(bytes.data()), static_cast<std::streamsize>(bytes.size()));
+    if (!stream) {
+        throw ctex::io::ProjectContainerError(
+            ctex::io::ProjectContainerErrorCode::filesystem_failure,
+            "could not read complete recovery file");
+    }
+    return bytes;
+}
+
 [[noreturn]] void throw_smart_material_error(const ctex::doc::SmartMaterialError& error) {
     const ctex_result result =
         error.code() == ctex::doc::SmartMaterialErrorCode::unsupported_version
@@ -10830,6 +10989,186 @@ extern "C" ctex_result ctex_project_container_save_atomic(
             throw_project_container_error(error);
         }
         *out_info = prepared.info;
+    });
+}
+
+extern "C" ctex_result ctex_project_autosave_session_create(
+    const ctex_project_autosave_config_descriptor* config,
+    ctex_project_autosave_session** out_session) {
+    return call_boundary("ctex_project_autosave_session_create", [&] {
+        if (config == nullptr || out_session == nullptr) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                           config == nullptr ? "config=null" : "out_session=null");
+        }
+        *out_session = nullptr;
+        try {
+            *out_session = create_project_autosave_session(current_allocator(),
+                                                           project_autosave_config(*config));
+        } catch (const ctex::io::ProjectContainerError& error) {
+            throw_project_container_error(error);
+        }
+    });
+}
+
+extern "C" void ctex_project_autosave_session_destroy(ctex_project_autosave_session* session) {
+    destroy_project_autosave_session(session);
+}
+
+extern "C" ctex_result ctex_project_autosave_session_submit(
+    ctex_project_autosave_session* session, std::uint64_t revision, const void* encoded,
+    std::size_t encoded_size, const ctex_project_container_read_limits_descriptor* limits,
+    std::uint32_t* out_status) {
+    return call_boundary("ctex_project_autosave_session_submit", [&] {
+        if (session == nullptr || out_status == nullptr) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                           session == nullptr ? "session=null" : "out_status=null");
+        }
+        if (revision == 0) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_INVALID_PROJECT_CONTAINER,
+                           "autosave revision must be non-zero");
+        }
+        PreparedProjectContainer prepared =
+            prepare_project_container(encoded, encoded_size, limits);
+        try {
+            const auto status = session->value.submit(
+                project_save_snapshot(revision, std::move(prepared.read.container)));
+            *out_status = static_cast<std::uint32_t>(status);
+        } catch (const ctex::io::ProjectContainerError& error) {
+            throw_project_container_error(error);
+        }
+    });
+}
+
+extern "C" ctex_result ctex_project_autosave_session_wait(ctex_project_autosave_session* session,
+                                                          std::uint64_t timeout_milliseconds,
+                                                          std::uint32_t* out_idle) {
+    return call_boundary("ctex_project_autosave_session_wait", [&] {
+        if (session == nullptr || out_idle == nullptr) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                           session == nullptr ? "session=null" : "out_idle=null");
+        }
+        if (timeout_milliseconds >
+            static_cast<std::uint64_t>(std::numeric_limits<std::int64_t>::max())) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_INVALID_PROJECT_CONTAINER,
+                           "autosave wait timeout exceeds signed 64-bit milliseconds");
+        }
+        *out_idle = session->value.wait_until_idle(std::chrono::milliseconds(timeout_milliseconds))
+                        ? 1U
+                        : 0U;
+    });
+}
+
+extern "C" ctex_result ctex_project_autosave_session_flush(ctex_project_autosave_session* session) {
+    return call_boundary("ctex_project_autosave_session_flush", [&] {
+        if (session == nullptr) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                           "session=null");
+        }
+        try {
+            session->value.flush();
+        } catch (const ctex::io::ProjectContainerError& error) {
+            throw_project_container_error(error);
+        }
+    });
+}
+
+extern "C" ctex_result ctex_project_autosave_session_get_info(
+    const ctex_project_autosave_session* session, ctex_project_autosave_info* out_info,
+    char* recovery_path, std::size_t recovery_path_size, char* last_error,
+    std::size_t last_error_size) {
+    return call_boundary("ctex_project_autosave_session_get_info", [&] {
+        if (session == nullptr || out_info == nullptr) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                           session == nullptr ? "session=null" : "out_info=null");
+        }
+        validate_structure_size(out_info->size, CTEX_PROJECT_AUTOSAVE_INFO_V1_SIZE,
+                                CTEX_PROJECT_AUTOSAVE_INFO_CURRENT_SIZE,
+                                "project autosave info size");
+        const ctex::io::ProjectAutosaveStatus status = session->value.status();
+        const std::string path = session->value.recovery_path().string();
+        set_project_autosave_info(status, path, *out_info);
+        validate_string_buffer(recovery_path, recovery_path_size,
+                               out_info->required_recovery_path_size);
+        validate_string_buffer(last_error, last_error_size, out_info->required_last_error_size);
+        if (recovery_path != nullptr) {
+            std::memcpy(recovery_path, path.c_str(), out_info->required_recovery_path_size);
+        }
+        if (last_error != nullptr) {
+            std::memcpy(last_error, status.last_error.c_str(), out_info->required_last_error_size);
+        }
+    });
+}
+
+extern "C" ctex_result ctex_project_recovery_enumerate(
+    const char* recovery_directory, ctex_project_recovery_enumeration_info* out_info,
+    ctex_project_recovery_entry* recoverable, std::size_t recoverable_capacity,
+    ctex_project_recovery_rejection* rejected, std::size_t rejected_capacity, char* strings,
+    std::size_t string_capacity) {
+    return call_boundary("ctex_project_recovery_enumerate", [&] {
+        if (recovery_directory == nullptr || out_info == nullptr) {
+            throw_boundary(
+                CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                recovery_directory == nullptr ? "recovery_directory=null" : "out_info=null");
+        }
+        validate_structure_size(out_info->size, CTEX_PROJECT_RECOVERY_ENUMERATION_INFO_V1_SIZE,
+                                CTEX_PROJECT_RECOVERY_ENUMERATION_INFO_CURRENT_SIZE,
+                                "project recovery enumeration info size");
+        try {
+            const auto recovery =
+                ctex::io::enumerate_recoverable_projects(std::filesystem::path(recovery_directory));
+            const CApiRecoveryEnumeration output = capi_recovery_enumeration(recovery);
+            const std::size_t required_strings = texture_set_id_buffer_size(output.strings);
+            *out_info = {
+                .size = CTEX_PROJECT_RECOVERY_ENUMERATION_INFO_CURRENT_SIZE,
+                .required_recoverable_count = output.recoverable.size(),
+                .required_rejected_count = output.rejected.size(),
+                .required_string_size = required_strings,
+            };
+            validate_output_array(recoverable, recoverable_capacity, output.recoverable.size(),
+                                  "recoverable project entries");
+            validate_output_array(rejected, rejected_capacity, output.rejected.size(),
+                                  "rejected recovery entries");
+            validate_string_buffer(strings, string_capacity, required_strings);
+            if (recoverable != nullptr) {
+                std::copy(output.recoverable.begin(), output.recoverable.end(), recoverable);
+            }
+            if (rejected != nullptr) {
+                std::copy(output.rejected.begin(), output.rejected.end(), rejected);
+            }
+            if (strings != nullptr) {
+                copy_packed_strings(output.strings, strings);
+            }
+        } catch (const ctex::io::ProjectContainerError& error) {
+            throw_project_container_error(error);
+        }
+    });
+}
+
+extern "C" ctex_result ctex_project_recovery_read(
+    const char* path, const ctex_project_container_read_limits_descriptor* limits,
+    ctex_project_container_info* out_info, void* canonical_output,
+    std::size_t canonical_output_size, char* report_output, std::size_t report_output_size) {
+    return call_boundary("ctex_project_recovery_read", [&] {
+        if (path == nullptr || out_info == nullptr) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                           path == nullptr ? "path=null" : "out_info=null");
+        }
+        validate_structure_size(out_info->size, CTEX_PROJECT_CONTAINER_INFO_V1_SIZE,
+                                CTEX_PROJECT_CONTAINER_INFO_CURRENT_SIZE,
+                                "project container info size");
+        try {
+            const auto read_limits = project_container_limits(limits);
+            const std::vector<std::byte> bytes =
+                read_project_recovery_file(std::filesystem::path(path), read_limits);
+            PreparedProjectContainer prepared =
+                prepare_project_container(bytes.data(), bytes.size(), limits);
+            *out_info = prepared.info;
+            validate_project_container_outputs(prepared, canonical_output, canonical_output_size,
+                                               report_output, report_output_size);
+            write_project_container_outputs(prepared, canonical_output, report_output);
+        } catch (const ctex::io::ProjectContainerError& error) {
+            throw_project_container_error(error);
+        }
     });
 }
 

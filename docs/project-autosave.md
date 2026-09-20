@@ -44,3 +44,18 @@ candidate files are returned separately in `rejected`; unrelated files and
 interrupted atomic-save temporary files are ignored. This lets a restarting
 host offer valid recovery candidates without treating a corrupt file as a
 project.
+
+## C boundary
+
+`ctex_project_autosave_session_create` configures the same worker and stable
+recovery path. `submit` accepts bounded encoded project-container bytes, restores
+their sparse tiled images long enough to capture pinned tile storage, and owns
+the resulting snapshot before returning. The caller may then release or mutate
+its source bytes. Validation and capture are synchronous; compression and file
+publication remain on the worker. Status, timed wait and explicit flush expose
+the complete lifecycle without polling the filesystem.
+
+`ctex_project_recovery_enumerate` uses caller-owned arrays plus packed strings
+for valid and rejected candidates. `ctex_project_recovery_read` reads a selected
+candidate under normal project-container limits and returns canonical bytes and
+the JSON inventory through the standard atomic two-call contract.

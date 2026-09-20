@@ -183,6 +183,7 @@
       {"requirement": "Pixel storage", "symbols": ["ctex_project_container_create_empty", "ctex_project_container_normalize"]},
       {"requirement": "Referenced versus packed resources", "symbols": ["ctex_project_container_normalize"]},
       {"requirement": "Save is atomic", "symbols": ["ctex_project_container_save_atomic"]},
+      {"requirement": "Autosave and recovery", "symbols": ["ctex_project_autosave_session_create", "ctex_project_autosave_session_destroy", "ctex_project_autosave_session_submit", "ctex_project_autosave_session_wait", "ctex_project_autosave_session_flush", "ctex_project_autosave_session_get_info", "ctex_project_recovery_enumerate", "ctex_project_recovery_read"]},
       {"requirement": "Untrusted input is bounded", "symbols": ["ctex_project_container_normalize", "ctex_project_container_save_atomic"]},
       {"requirement": "Deterministic writing", "symbols": ["ctex_project_container_create_empty", "ctex_project_container_normalize", "ctex_project_container_save_atomic"]},
       {"requirement": "Import of individual assets", "symbols": ["ctex_project_asset_install"]},

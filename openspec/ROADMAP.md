@@ -243,7 +243,10 @@ normal conventions, sampling, memory accounting and host-driven release. The
 same boundary now exposes deterministic generator inventory and evaluation,
 synchronous host bake-provider callbacks, and versioned asynchronous completion
 tokens with atomic settings/map undo. Mesh-maps is fully mapped. Exactly 41
-runtime requirements remain without C ABI evidence; those gaps must be
+runtime requirements remained without C ABI evidence at that point. Periodic
+autosave sessions now expose revision coalescing, worker status, explicit flush,
+recovery discovery and bounded recovery reads through C. Exactly 40 runtime
+requirements remain without C ABI evidence; those gaps must be
 implemented before task 14.8 can close.
 
 ## Milestones

@@ -135,6 +135,9 @@ resident map bytes. The same boundary now exposes the deterministic generator
 catalogue and evaluation results, synchronous host-owned bake-provider callbacks,
 and versioned asynchronous request tokens with stale-result rejection and
 settings/map undo. Mesh-maps is therefore fully mapped. Exactly 41 runtime
-requirements remain unmapped overall.
+requirements remained unmapped at that point. Periodic autosave sessions,
+revision coalescing, status, flush/wait, recovery discovery and bounded recovery
+reads now cross C as well. Exactly 40 runtime requirements remain unmapped
+overall.
 The gate is not part of the aggregate `just check` until that count reaches zero;
 its unit tests run in the normal tooling suite throughout the migration.

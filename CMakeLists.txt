@@ -382,6 +382,10 @@ if(BUILD_TESTING)
         ctex_configure_c_target(ctex_capi_project_container_test)
         target_link_libraries(ctex_capi_project_container_test PRIVATE cybertexel_c)
         add_test(NAME c-abi-project-container COMMAND ctex_capi_project_container_test)
+        add_executable(ctex_capi_project_autosave_test tests/capi/project_autosave_test.c)
+        ctex_configure_c_target(ctex_capi_project_autosave_test)
+        target_link_libraries(ctex_capi_project_autosave_test PRIVATE cybertexel_c)
+        add_test(NAME c-abi-project-autosave COMMAND ctex_capi_project_autosave_test)
         add_executable(ctex_capi_project_container_content_test
                        tests/capi/project_container_content_test.cpp)
         ctex_configure_cpp_target(ctex_capi_project_container_content_test)
@@ -1454,6 +1458,7 @@ if(BUILD_TESTING)
     set_tests_properties(
         project-container
         project-autosave
+        c-abi-project-autosave
         standalone-asset
         export-presets
         texture-export-formats

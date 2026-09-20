@@ -130,6 +130,14 @@ EXPORTS
     ctex_project_container_normalize
     ctex_project_container_probe_version
     ctex_project_container_save_atomic
+    ctex_project_autosave_session_create
+    ctex_project_autosave_session_destroy
+    ctex_project_autosave_session_submit
+    ctex_project_autosave_session_wait
+    ctex_project_autosave_session_flush
+    ctex_project_autosave_session_get_info
+    ctex_project_recovery_enumerate
+    ctex_project_recovery_read
     ctex_project_asset_export
     ctex_project_asset_install
     ctex_material_graph_get_builtin_catalogue

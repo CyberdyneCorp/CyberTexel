@@ -1011,6 +1011,16 @@ provider ownership, cancellation, token identity, stale-result refusal and undo.
 All mesh-map requirements now have public evidence and the exact remaining C ABI
 gap is 41 runtime requirements.
 
+The autosave continuation exposes allocator-owned periodic sessions over bounded
+canonical project bytes. Submission snapshots content before return, coalesces
+newer revisions and leaves compression and atomic publication on the worker;
+status, timed wait and flush expose its lifecycle. Recovery enumeration reports
+valid and malformed candidates separately, and selected files reopen under the
+normal project limits and two-call byte/report contract. A strict-C fixture
+covers deferred work, revision coalescing, stale refusal, flush, discovery,
+malformed candidates and canonical recovery. The exact remaining C ABI gap is
+40 runtime requirements.
+
 ## 1. Foundation
 
 - [x] 1.1 CMake project, C++20, warnings as errors, presets for headless, macOS, Linux, Windows, iOS, Android
