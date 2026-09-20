@@ -184,8 +184,9 @@ devices through immutable caller-readable results. Image decoding and explicit
 destination-channel expansion now preserve component precision across the C
 boundary. Bounded image resampling now exposes selectable nearest and default
 pixel-centred bilinear filters while recording the resolved choice. Brush and
-Eraser are now public through the canonical deposited-stroke pipeline. Exactly
-105 runtime requirements still lack C ABI evidence;
+Eraser are now public through the canonical deposited-stroke pipeline. Fill now
+resolves all six scopes from cached surface-map data and shades every enabled
+channel atomically. Exactly 104 runtime requirements still lack C ABI evidence;
 those gaps must be implemented before task 14.8 can close.
 
 ## Milestones

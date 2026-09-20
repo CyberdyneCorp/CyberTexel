@@ -734,6 +734,125 @@ static int eraser_reduces_the_selected_target_atomically(void) {
     return passed;
 }
 
+static int fill_exposes_all_scopes_and_shades_atomically(void) {
+    const ctex_paint_surface_texel texels[8] = {
+        {{0, 0, 0}, {0, 0, 1}, {0, 0, 1}, {0.1, 0.1}, 0},
+        {{0, 0, 0}, {0, 0, 1}, {0, 0, 1}, {0.2, 0.1}, 0},
+        {{0, 0, 0}, {0, 0, 1}, {0, 0.5, 0.8660254037844386}, {1.1, 0.1}, 1},
+        {{0, 0, 0}, {0, 0, 1}, {0, 0.5, 0.8660254037844386}, {1.2, 0.1}, 1},
+        {{0, 0, 0}, {0, 0, 1}, {0, 1, 0}, {0.3, 0.2}, 2},
+        {{0, 0, 0}, {0, 0, 1}, {0, 1, 0}, {0.4, 0.2}, 2},
+        {{0, 0, 0}, {0, 0, 1}, {1, 0, 0}, {1.3, 0.2}, 3},
+        {{0, 0, 0}, {0, 0, 1}, {1, 0, 0}, {1.4, 0.2}, 3}};
+    const uint8_t coverage[8] = {1, 1, 1, 1, 1, 1, 1, 1};
+    const uint32_t triangles[8] = {0, 0, 1, 1, 2, 2, 3, 3};
+    const uint32_t islands[8] = {10, 10, 10, 10, 20, 20, 30, 30};
+    const uint32_t adjacency0[1] = {1};
+    const uint32_t adjacency1[2] = {0, 2};
+    const uint32_t adjacency2[2] = {1, 3};
+    const uint32_t adjacency3[1] = {2};
+    const ctex_paint_fill_triangle_topology topology[4] = {
+        {0, {0, 0, 1}, adjacency0, 1},
+        {1, {0, 0.5, 0.8660254037844386}, adjacency1, 2},
+        {2, {0, 1, 0}, adjacency2, 2},
+        {3, {1, 0, 0}, adjacency3, 1}};
+    const double selection[8] = {0, 1, 0, 0.5, 0, 1, 0, 0};
+    const double screen_selection[8] = {1, 0, 1, 1, 1, 1, 1, 1};
+    const double rejection[8] = {1, 1, 0.5, 1, 1, 1, 1, 1};
+    const ctex_paint_mask_view screen_mask = {screen_selection, 8};
+    const ctex_paint_mask_inputs_descriptor masks = {
+        .size = CTEX_PAINT_MASK_INPUTS_DESCRIPTOR_CURRENT_SIZE, .screen_selection = &screen_mask};
+    const ctex_vec4f empty[8] = {{0, 0, 0, 1}, {0, 0, 0, 1}, {0, 0, 0, 1}, {0, 0, 0, 1},
+                                 {0, 0, 0, 1}, {0, 0, 0, 1}, {0, 0, 0, 1}, {0, 0, 0, 1}};
+    const ctex_vec4f paint[8] = {{1, 0, 0, 1}, {1, 0, 0, 1}, {1, 0, 0, 1}, {1, 0, 0, 1},
+                                 {1, 0, 0, 1}, {1, 0, 0, 1}, {1, 0, 0, 1}, {1, 0, 0, 1}};
+    const ctex_paint_tool_channel_descriptor layer = {
+        CTEX_PAINT_TOOL_CHANNEL_DESCRIPTOR_CURRENT_SIZE, "pbr.base_color", 3, empty, 8};
+    const ctex_paint_tool_channel_descriptor material = {
+        CTEX_PAINT_TOOL_CHANNEL_DESCRIPTOR_CURRENT_SIZE, "pbr.base_color", 3, paint, 8};
+    const double expected[6][8] = {{1, 1, 1, 1, 1, 1, 1, 1}, {1, 1, 0, 0, 0, 0, 0, 0},
+                                   {1, 1, 1, 1, 0, 0, 0, 0}, {1, 1, 1, 1, 0, 0, 0, 0},
+                                   {1, 1, 0, 0, 1, 1, 0, 0}, {0, 1, 0, 0.5, 0, 1, 0, 0}};
+    ctex_paint_fill_descriptor descriptor = {.size = CTEX_PAINT_FILL_DESCRIPTOR_CURRENT_SIZE,
+                                             .width = 4,
+                                             .height = 2,
+                                             .has_picked_texel = 1,
+                                             .picked_texel = 0,
+                                             .maximum_angle_degrees = 45,
+                                             .surface_texels = texels,
+                                             .surface_texel_count = 8,
+                                             .coverage = coverage,
+                                             .coverage_count = 8,
+                                             .triangle_identity = triangles,
+                                             .triangle_identity_count = 8,
+                                             .uv_island_identity = islands,
+                                             .uv_island_identity_count = 8,
+                                             .triangle_topology = topology,
+                                             .triangle_topology_count = 4,
+                                             .selection = selection,
+                                             .selection_count = 8,
+                                             .enabled_layer_snapshot = &layer,
+                                             .enabled_layer_channel_count = 1,
+                                             .material = &material,
+                                             .material_channel_count = 1,
+                                             .blend_mode = "normal"};
+    ctex_paint_fill_info info = {.size = CTEX_PAINT_FILL_INFO_CURRENT_SIZE};
+    double scope_values[8] = {0};
+    uint32_t selected_triangles[4] = {99, 99, 99, 99};
+    ctex_vec4f shaded[8] = {{0}};
+    const ctex_paint_tool_channel_output channel_output = {
+        CTEX_PAINT_TOOL_CHANNEL_OUTPUT_CURRENT_SIZE, shaded, 8};
+    ctex_paint_fill_outputs outputs = {CTEX_PAINT_FILL_OUTPUTS_CURRENT_SIZE,
+                                       scope_values,
+                                       8,
+                                       selected_triangles,
+                                       4,
+                                       &channel_output,
+                                       1};
+    int passed = 1;
+    uint32_t scope = 0;
+    for (scope = 0; passed && scope < 6; ++scope) {
+        size_t index = 0;
+        descriptor.scope = scope;
+        passed = expect(ctex_paint_apply_fill(&descriptor, &info, &outputs) == CTEX_RESULT_SUCCESS);
+        for (index = 0; passed && index < 8; ++index) {
+            passed = expect(near(scope_values[index], expected[scope][index])) &&
+                     expect(near_float(shaded[index].x, (float)expected[scope][index]));
+        }
+    }
+    if (passed) {
+        outputs.scope_value_capacity = 7;
+        scope_values[0] = -1;
+        shaded[0].x = -1;
+        passed = expect(ctex_paint_apply_fill(&descriptor, &info, &outputs) ==
+                        CTEX_RESULT_BUFFER_TOO_SMALL) &&
+                 expect(scope_values[0] == -1 && shaded[0].x == -1);
+    }
+    if (passed) {
+        outputs.scope_value_capacity = 8;
+        descriptor.scope = CTEX_PAINT_FILL_WHOLE_SET;
+        descriptor.masks = &masks;
+        descriptor.rejection_acceptance = rejection;
+        descriptor.rejection_acceptance_count = 8;
+        passed =
+            expect(ctex_paint_apply_fill(&descriptor, &info, &outputs) == CTEX_RESULT_SUCCESS) &&
+            expect(near_float(shaded[0].x, 1.0f)) && expect(near_float(shaded[1].x, 0.0f)) &&
+            expect(near_float(shaded[2].x, 0.5f));
+    }
+    if (passed) {
+        descriptor.masks = NULL;
+        descriptor.rejection_acceptance = NULL;
+        descriptor.rejection_acceptance_count = 0;
+        descriptor.scope = CTEX_PAINT_FILL_CONNECTED_BY_ANGLE;
+        descriptor.maximum_angle_degrees = 200;
+        passed = expect(ctex_paint_apply_fill(&descriptor, &info, NULL) == CTEX_RESULT_SUCCESS) &&
+                 expect(info.maximum_angle_clamped == 1) &&
+                 expect(near(info.resolved_maximum_angle_degrees, 180)) &&
+                 expect(info.selected_triangle_count == 4);
+    }
+    return passed;
+}
+
 static int invalid_inputs_are_stable_diagnostics(void) {
     ctex_mesh* mesh = coverage_mesh();
     ctex_paint_tile_coverage_descriptor tile = {
@@ -787,6 +906,7 @@ int main(void) {
                    snapshot_blending_uses_deposition_write_mask() &&
                    brush_applies_every_enabled_channel_atomically() &&
                    eraser_reduces_the_selected_target_atomically() &&
+                   fill_exposes_all_scopes_and_shades_atomically() &&
                    invalid_inputs_are_stable_diagnostics()
                ? 0
                : 1;

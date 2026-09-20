@@ -817,6 +817,12 @@ coverage, rejection, masking and alpha discard; Brush writes every enabled
 channel atomically in layer order and Eraser explicitly targets layer opacity
 or a mask. The exact remaining C ABI gap is 105 runtime requirements.
 
+The Fill continuation exposes all six scopes through cached surface-map arrays,
+including exact triangle and island identities plus explicit angle-bounded mesh
+adjacency. Paint masks and rejection acceptance are intersected before the
+enabled channel set is published atomically. The exact remaining C ABI gap is
+104 runtime requirements.
+
 ## 1. Foundation
 
 - [x] 1.1 CMake project, C++20, warnings as errors, presets for headless, macOS, Linux, Windows, iOS, Android

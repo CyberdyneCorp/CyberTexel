@@ -26,3 +26,8 @@ angle drives traversal and any clamp is returned in
 `apply_fill` additionally applies masks and rejection, then uses the common
 stroke-start shading path shared with Brush. Inputs and source rasters are never
 mutated.
+
+The public C boundary exposes the same operation as `ctex_paint_apply_fill`.
+Callers pass the arrays returned by the surface-map cache, explicit topology for
+connected fill, and channel snapshots. A sizing call reports scope, selected
+triangle and channel requirements; a filling call publishes all three atomically.

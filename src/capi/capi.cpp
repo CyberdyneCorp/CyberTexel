@@ -27,6 +27,7 @@
 #include <ctex/paint/brush.hpp>
 #include <ctex/paint/coverage.hpp>
 #include <ctex/paint/deposition.hpp>
+#include <ctex/paint/fill.hpp>
 #include <ctex/paint/masking.hpp>
 #include <ctex/paint/preview.hpp>
 #include <ctex/paint/seam_dilation.hpp>
@@ -3418,6 +3419,143 @@ ctex::paint::EraserTarget paint_eraser_target(std::uint32_t value) {
         default:
             throw std::invalid_argument("paint eraser target is invalid");
     }
+}
+
+ctex::paint::FillScope paint_fill_scope(std::uint32_t value) {
+    switch (value) {
+        case CTEX_PAINT_FILL_WHOLE_SET:
+            return ctex::paint::FillScope::whole_set;
+        case CTEX_PAINT_FILL_TRIANGLE:
+            return ctex::paint::FillScope::triangle;
+        case CTEX_PAINT_FILL_CONNECTED_BY_ANGLE:
+            return ctex::paint::FillScope::connected_by_angle;
+        case CTEX_PAINT_FILL_UV_ISLAND:
+            return ctex::paint::FillScope::uv_island;
+        case CTEX_PAINT_FILL_UV_TILE:
+            return ctex::paint::FillScope::uv_tile;
+        case CTEX_PAINT_FILL_SELECTION:
+            return ctex::paint::FillScope::selection;
+        default:
+            throw std::invalid_argument("paint fill scope is invalid");
+    }
+}
+
+void require_paint_fill_array(const void* values, std::size_t count, std::string_view name) {
+    if (values == nullptr && count != 0) {
+        throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                       std::string(name) + "=null with nonzero count");
+    }
+}
+
+ctex::paint::CachedSurfaceMaps paint_fill_surface(const ctex_paint_fill_descriptor& descriptor,
+                                                  std::size_t pixel_count) {
+    require_paint_fill_array(descriptor.surface_texels, descriptor.surface_texel_count,
+                             "surface_texels");
+    require_paint_fill_array(descriptor.coverage, descriptor.coverage_count, "coverage");
+    require_paint_fill_array(descriptor.triangle_identity, descriptor.triangle_identity_count,
+                             "triangle_identity");
+    require_paint_fill_array(descriptor.uv_island_identity, descriptor.uv_island_identity_count,
+                             "uv_island_identity");
+    if (descriptor.surface_texel_count != pixel_count || descriptor.coverage_count != pixel_count ||
+        descriptor.triangle_identity_count != pixel_count ||
+        descriptor.uv_island_identity_count != pixel_count) {
+        throw std::invalid_argument("paint fill surface-map counts do not match its dimensions");
+    }
+    ctex::paint::CachedSurfaceMaps result{
+        .texture_set_id = "capi.fill",
+        .uv_set = "capi.fill",
+        .mesh_revision = 0,
+        .surface = {.width = descriptor.width,
+                    .height = descriptor.height,
+                    .tile_origin = {},
+                    .texels = {}},
+        .coverage = {descriptor.coverage, descriptor.coverage + pixel_count},
+        .triangle_identity = {descriptor.triangle_identity,
+                              descriptor.triangle_identity + pixel_count},
+        .uv_island_identity = {descriptor.uv_island_identity,
+                               descriptor.uv_island_identity + pixel_count},
+    };
+    result.surface.texels.reserve(pixel_count);
+    for (std::size_t index = 0; index < pixel_count; ++index) {
+        const ctex_paint_surface_texel& texel = descriptor.surface_texels[index];
+        result.surface.texels.push_back({
+            .position = stroke_vec(texel.position),
+            .normal = stroke_vec(texel.normal),
+            .geometric_normal = stroke_vec(texel.geometric_normal),
+            .uv = {texel.uv.x, texel.uv.y},
+            .triangle = texel.triangle,
+        });
+    }
+    return result;
+}
+
+std::vector<ctex::paint::FillTriangleTopology> paint_fill_topology(
+    const ctex_paint_fill_descriptor& descriptor) {
+    require_paint_fill_array(descriptor.triangle_topology, descriptor.triangle_topology_count,
+                             "triangle_topology");
+    std::vector<ctex::paint::FillTriangleTopology> result;
+    result.reserve(descriptor.triangle_topology_count);
+    for (std::size_t index = 0; index < descriptor.triangle_topology_count; ++index) {
+        const ctex_paint_fill_triangle_topology& triangle = descriptor.triangle_topology[index];
+        require_paint_fill_array(triangle.adjacent_triangles, triangle.adjacent_triangle_count,
+                                 "triangle_topology.adjacent_triangles");
+        ctex::paint::FillTriangleTopology converted{
+            .triangle_identity = triangle.triangle_identity,
+            .geometric_normal = stroke_vec(triangle.geometric_normal),
+            .adjacent_triangles = {},
+        };
+        if (triangle.adjacent_triangle_count != 0) {
+            converted.adjacent_triangles.assign(
+                triangle.adjacent_triangles,
+                triangle.adjacent_triangles + triangle.adjacent_triangle_count);
+        }
+        result.push_back(std::move(converted));
+    }
+    return result;
+}
+
+std::optional<ctex::paint::PaintMaskView> paint_fill_optional_view(const double* values,
+                                                                   std::size_t count,
+                                                                   std::string_view name) {
+    require_paint_fill_array(values, count, name);
+    if (values == nullptr) {
+        return std::nullopt;
+    }
+    return ctex::paint::PaintMaskView{{values, count}};
+}
+
+void validate_paint_tool_outputs(const ctex_paint_tool_channel_output* outputs,
+                                 std::size_t output_count, std::size_t required_channels,
+                                 std::size_t required_pixels);
+void copy_paint_tool_outputs(std::span<const ctex::paint::PaintToolChannelRaster> channels,
+                             const ctex_paint_tool_channel_output* outputs);
+
+void validate_paint_fill_outputs(const ctex_paint_fill_outputs* outputs,
+                                 const ctex::paint::FillResult& result, std::size_t pixel_count) {
+    if (outputs == nullptr) {
+        return;
+    }
+    validate_structure_size(outputs->size, CTEX_PAINT_FILL_OUTPUTS_V1_SIZE,
+                            CTEX_PAINT_FILL_OUTPUTS_CURRENT_SIZE, "outputs.size");
+    validate_output_array(outputs->scope_values, outputs->scope_value_capacity, pixel_count,
+                          "outputs.scope_values");
+    validate_output_array(outputs->selected_triangle_ids, outputs->selected_triangle_capacity,
+                          result.resolved_scope.selected_triangle_ids.size(),
+                          "outputs.selected_triangle_ids");
+    validate_paint_tool_outputs(outputs->channels, outputs->channel_count, result.channels.size(),
+                                pixel_count);
+}
+
+void copy_paint_fill_outputs(const ctex_paint_fill_outputs* outputs,
+                             const ctex::paint::FillResult& result) {
+    if (outputs == nullptr) {
+        return;
+    }
+    std::copy(result.resolved_scope.values.begin(), result.resolved_scope.values.end(),
+              outputs->scope_values);
+    std::copy(result.resolved_scope.selected_triangle_ids.begin(),
+              result.resolved_scope.selected_triangle_ids.end(), outputs->selected_triangle_ids);
+    copy_paint_tool_outputs(result.channels, outputs->channels);
 }
 
 void validate_paint_tool_outputs(const ctex_paint_tool_channel_output* outputs,
@@ -7774,6 +7912,76 @@ extern "C" ctex_result ctex_paint_apply_eraser(const ctex_paint_eraser_descripto
             if (values != nullptr) {
                 std::copy(result.begin(), result.end(), values);
             }
+        } catch (const std::invalid_argument& error) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_INVALID_PAINT_TOOL,
+                           error.what());
+        }
+    });
+}
+
+extern "C" ctex_result ctex_paint_apply_fill(const ctex_paint_fill_descriptor* descriptor,
+                                             ctex_paint_fill_info* out_info,
+                                             const ctex_paint_fill_outputs* outputs) {
+    return call_boundary("ctex_paint_apply_fill", [&] {
+        if (descriptor == nullptr || out_info == nullptr) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                           descriptor == nullptr ? "descriptor=null" : "out_info=null");
+        }
+        validate_structure_size(descriptor->size, CTEX_PAINT_FILL_DESCRIPTOR_V1_SIZE,
+                                CTEX_PAINT_FILL_DESCRIPTOR_CURRENT_SIZE, "descriptor.size");
+        validate_structure_size(out_info->size, CTEX_PAINT_FILL_INFO_V1_SIZE,
+                                CTEX_PAINT_FILL_INFO_CURRENT_SIZE, "out_info.size");
+        const std::size_t pixel_count = bounded_paint_pixel_count(
+            descriptor->width, descriptor->height, CTEX_DIAGNOSTIC_INVALID_PAINT_TOOL);
+        try {
+            ctex::paint::CachedSurfaceMaps surface = paint_fill_surface(*descriptor, pixel_count);
+            std::vector<ctex::paint::FillTriangleTopology> topology =
+                paint_fill_topology(*descriptor);
+            const PaintMaskStorage masks = paint_mask_storage(descriptor->masks);
+            const auto layer = paint_tool_channels(descriptor->enabled_layer_snapshot,
+                                                   descriptor->enabled_layer_channel_count,
+                                                   pixel_count, "enabled_layer_snapshot");
+            const auto material = paint_tool_channels(
+                descriptor->material, descriptor->material_channel_count, pixel_count, "material");
+            if (descriptor->blend_mode == nullptr) {
+                throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                               "blend_mode=null");
+            }
+            const ctex::paint::FillSettings settings{
+                .scope =
+                    {
+                        .scope = paint_fill_scope(descriptor->scope),
+                        .picked_texel = paint_flag(descriptor->has_picked_texel, "has_picked_texel")
+                                            ? std::optional<std::size_t>(descriptor->picked_texel)
+                                            : std::nullopt,
+                        .maximum_angle_degrees = descriptor->maximum_angle_degrees,
+                        .triangle_topology = topology,
+                        .selection = paint_fill_optional_view(
+                            descriptor->selection, descriptor->selection_count, "selection"),
+                    },
+                .blend_mode = descriptor->blend_mode,
+                .masks = masks.inputs(),
+                .rejection_acceptance = paint_fill_optional_view(
+                    descriptor->rejection_acceptance, descriptor->rejection_acceptance_count,
+                    "rejection_acceptance"),
+            };
+            const ctex::paint::FillResult result =
+                ctex::paint::apply_fill(surface, layer, material, settings);
+            const auto angle_clamp = result.resolved_scope.parameter_report.clamp_for(
+                ctex::paint::connected_angle_parameter.name);
+            *out_info = {
+                .size = CTEX_PAINT_FILL_INFO_CURRENT_SIZE,
+                .scope = descriptor->scope,
+                .resolved_maximum_angle_degrees =
+                    angle_clamp ? angle_clamp->resolved : descriptor->maximum_angle_degrees,
+                .maximum_angle_clamped = angle_clamp.has_value() ? 1U : 0U,
+                .selected_texel_count = result.resolved_scope.selected_texel_count,
+                .selected_triangle_count = result.resolved_scope.selected_triangle_ids.size(),
+                .applied_channel_count = result.channels.size(),
+                .required_pixels_per_channel = pixel_count,
+            };
+            validate_paint_fill_outputs(outputs, result, pixel_count);
+            copy_paint_fill_outputs(outputs, result);
         } catch (const std::invalid_argument& error) {
             throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_INVALID_PAINT_TOOL,
                            error.what());

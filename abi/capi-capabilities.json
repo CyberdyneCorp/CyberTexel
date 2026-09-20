@@ -110,7 +110,8 @@
     ]},
     {"name": "paint-tools", "kind": "runtime", "requirements": [
       {"requirement": "Brush", "symbols": ["ctex_paint_apply_brush"]},
-      {"requirement": "Eraser", "symbols": ["ctex_paint_apply_eraser"]}
+      {"requirement": "Eraser", "symbols": ["ctex_paint_apply_eraser"]},
+      {"requirement": "Fill modes", "symbols": ["ctex_paint_apply_fill"]}
     ]},
     {"name": "picking", "kind": "runtime", "requirements": [
       {"requirement": "Ray construction", "symbols": ["ctex_pick_ray_from_screen"]},

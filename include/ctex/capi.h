@@ -949,6 +949,82 @@ typedef struct ctex_paint_eraser_info {
 #define CTEX_PAINT_ERASER_INFO_V1_SIZE ((uint32_t)sizeof(ctex_paint_eraser_info))
 #define CTEX_PAINT_ERASER_INFO_CURRENT_SIZE ((uint32_t)sizeof(ctex_paint_eraser_info))
 
+typedef enum ctex_paint_fill_scope {
+    CTEX_PAINT_FILL_WHOLE_SET = 0,
+    CTEX_PAINT_FILL_TRIANGLE = 1,
+    CTEX_PAINT_FILL_CONNECTED_BY_ANGLE = 2,
+    CTEX_PAINT_FILL_UV_ISLAND = 3,
+    CTEX_PAINT_FILL_UV_TILE = 4,
+    CTEX_PAINT_FILL_SELECTION = 5
+} ctex_paint_fill_scope;
+
+typedef struct ctex_paint_fill_triangle_topology {
+    uint32_t triangle_identity;
+    ctex_vec3d geometric_normal;
+    const uint32_t* adjacent_triangles;
+    size_t adjacent_triangle_count;
+} ctex_paint_fill_triangle_topology;
+
+typedef struct ctex_paint_fill_descriptor {
+    uint32_t size;
+    uint32_t width;
+    uint32_t height;
+    uint32_t scope;
+    uint32_t has_picked_texel;
+    size_t picked_texel;
+    double maximum_angle_degrees;
+    const ctex_paint_surface_texel* surface_texels;
+    size_t surface_texel_count;
+    const uint8_t* coverage;
+    size_t coverage_count;
+    const uint32_t* triangle_identity;
+    size_t triangle_identity_count;
+    const uint32_t* uv_island_identity;
+    size_t uv_island_identity_count;
+    const ctex_paint_fill_triangle_topology* triangle_topology;
+    size_t triangle_topology_count;
+    const double* selection;
+    size_t selection_count;
+    const ctex_paint_tool_channel_descriptor* enabled_layer_snapshot;
+    size_t enabled_layer_channel_count;
+    const ctex_paint_tool_channel_descriptor* material;
+    size_t material_channel_count;
+    const ctex_paint_mask_inputs_descriptor* masks;
+    const double* rejection_acceptance;
+    size_t rejection_acceptance_count;
+    const char* blend_mode;
+} ctex_paint_fill_descriptor;
+
+#define CTEX_PAINT_FILL_DESCRIPTOR_V1_SIZE ((uint32_t)sizeof(ctex_paint_fill_descriptor))
+#define CTEX_PAINT_FILL_DESCRIPTOR_CURRENT_SIZE ((uint32_t)sizeof(ctex_paint_fill_descriptor))
+
+typedef struct ctex_paint_fill_info {
+    uint32_t size;
+    uint32_t scope;
+    double resolved_maximum_angle_degrees;
+    uint32_t maximum_angle_clamped;
+    size_t selected_texel_count;
+    size_t selected_triangle_count;
+    size_t applied_channel_count;
+    size_t required_pixels_per_channel;
+} ctex_paint_fill_info;
+
+#define CTEX_PAINT_FILL_INFO_V1_SIZE ((uint32_t)sizeof(ctex_paint_fill_info))
+#define CTEX_PAINT_FILL_INFO_CURRENT_SIZE ((uint32_t)sizeof(ctex_paint_fill_info))
+
+typedef struct ctex_paint_fill_outputs {
+    uint32_t size;
+    double* scope_values;
+    size_t scope_value_capacity;
+    uint32_t* selected_triangle_ids;
+    size_t selected_triangle_capacity;
+    const ctex_paint_tool_channel_output* channels;
+    size_t channel_count;
+} ctex_paint_fill_outputs;
+
+#define CTEX_PAINT_FILL_OUTPUTS_V1_SIZE ((uint32_t)sizeof(ctex_paint_fill_outputs))
+#define CTEX_PAINT_FILL_OUTPUTS_CURRENT_SIZE ((uint32_t)sizeof(ctex_paint_fill_outputs))
+
 typedef struct ctex_stroke_preset_info {
     uint32_t size;
     uint32_t schema_version;
@@ -2939,6 +3015,11 @@ CTEX_API ctex_result ctex_paint_apply_brush(const ctex_paint_brush_descriptor* d
 CTEX_API ctex_result ctex_paint_apply_eraser(const ctex_paint_eraser_descriptor* descriptor,
                                              ctex_paint_eraser_info* out_info, double* values,
                                              size_t value_capacity);
+
+/* Resolves one of the six fill scopes and shades every enabled channel atomically. */
+CTEX_API ctex_result ctex_paint_apply_fill(const ctex_paint_fill_descriptor* descriptor,
+                                           ctex_paint_fill_info* out_info,
+                                           const ctex_paint_fill_outputs* outputs);
 
 /*
  * Installs one process-wide sink. Pass NULL to uninstall it. The callback can
