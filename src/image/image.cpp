@@ -169,6 +169,81 @@ TileStorageHandle TiledImage::pin_tile_storage(TileCoordinate tile) const {
     return tiles_[tile_index(tile)];
 }
 
+TileStorageSnapshot TiledImage::snapshot_tile_storage(TileCoordinate tile) const {
+    return TileStorageSnapshot(tiles_[tile_index(tile)]);
+}
+
+void TiledImage::prepare_tile_storage_exchanges(std::size_t maximum_new_allocations) {
+    if (maximum_new_allocations > allocated_tiles_.max_size() - allocated_tiles_.size()) {
+        throw std::length_error("prepared tile allocation count exceeds image capacity");
+    }
+    allocated_tiles_.reserve(allocated_tiles_.size() + maximum_new_allocations);
+}
+
+TileStorageSnapshot TiledImage::exchange_tile_storage(TileCoordinate coordinate,
+                                                      TileStorageSnapshot replacement) {
+    const std::size_t index = tile_index(coordinate);
+    if (!replacement.empty() && replacement.size() != tile_bytes_) {
+        throw std::invalid_argument("replacement tile storage size does not match the image");
+    }
+    auto& current = tiles_[index];
+    if (current == replacement.storage_) {
+        return TileStorageSnapshot(current);
+    }
+    if (tile_generations_[index] == std::numeric_limits<Generation>::max()) {
+        throw std::overflow_error("tile generation space is exhausted");
+    }
+    const bool revision_exhausted = revision_ == std::numeric_limits<Revision>::max();
+    if (revision_exhausted && revision_epoch_ == std::numeric_limits<RevisionEpoch>::max()) {
+        throw std::overflow_error("image revision epoch space is exhausted");
+    }
+    if (!replacement.empty() && !current) {
+        allocated_tiles_.reserve(allocated_tiles_.size() + 1);
+    }
+    if (revision_exhausted) {
+        std::pmr::map<Revision, TileCoordinate> next_index(memory_resource_);
+        next_index.emplace(1, coordinate);
+        begin_new_revision_epoch();
+        changed_tiles_by_revision_.swap(next_index);
+    } else {
+        const Revision next_revision = revision_ + 1;
+        const Revision previous_revision = tile_revisions_[index];
+        if (previous_revision != 0) {
+            auto node = changed_tiles_by_revision_.extract(previous_revision);
+            if (node.empty()) {
+                throw std::logic_error("tile change index is missing the current tile revision");
+            }
+            node.key() = next_revision;
+            node.mapped() = coordinate;
+            const auto inserted = changed_tiles_by_revision_.insert(std::move(node));
+            if (!inserted.inserted) {
+                throw std::logic_error("tile change index revision collision");
+            }
+        } else {
+            const auto [unused, inserted] =
+                changed_tiles_by_revision_.emplace(next_revision, coordinate);
+            static_cast<void>(unused);
+            if (!inserted) {
+                throw std::logic_error("tile change index revision collision");
+            }
+        }
+    }
+    TileStorageSnapshot previous(current);
+    const bool was_allocated = static_cast<bool>(current);
+    current = std::move(replacement.storage_);
+    const bool is_allocated = static_cast<bool>(current);
+    if (!was_allocated && is_allocated) {
+        allocated_tiles_.push_back(coordinate);
+    } else if (was_allocated && !is_allocated) {
+        std::erase(allocated_tiles_, coordinate);
+    }
+    ++revision_;
+    ++tile_generations_[index];
+    tile_revisions_[index] = revision_;
+    dirty_[index] = true;
+    return previous;
+}
+
 std::vector<TileCoordinate> TiledImage::allocated_tiles() const {
     std::vector<TileCoordinate> result(allocated_tiles_.begin(), allocated_tiles_.end());
     radix_sort_row_major(result);

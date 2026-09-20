@@ -8,6 +8,7 @@
 #include <memory>
 #include <memory_resource>
 #include <span>
+#include <utility>
 #include <vector>
 
 namespace ctex::image {
@@ -18,6 +19,23 @@ using RevisionEpoch = std::uint64_t;
 using Generation = std::uint64_t;
 using TileStorage = std::pmr::vector<std::byte>;
 using TileStorageHandle = std::shared_ptr<const TileStorage>;
+
+class TileStorageSnapshot {
+public:
+    TileStorageSnapshot() = default;
+    [[nodiscard]] bool empty() const noexcept { return storage_ == nullptr; }
+    [[nodiscard]] std::size_t size() const noexcept { return storage_ ? storage_->size() : 0; }
+    [[nodiscard]] const void* identity() const noexcept { return storage_.get(); }
+    [[nodiscard]] std::span<const std::byte> bytes() const noexcept {
+        return storage_ ? std::span<const std::byte>(*storage_) : std::span<const std::byte>{};
+    }
+
+private:
+    friend class TiledImage;
+    explicit TileStorageSnapshot(std::shared_ptr<TileStorage> storage)
+        : storage_(std::move(storage)) {}
+    std::shared_ptr<TileStorage> storage_;
+};
 
 struct RevisionCursor {
     RevisionEpoch epoch{};
@@ -75,6 +93,10 @@ public:
     [[nodiscard]] Generation tile_generation(TileCoordinate tile) const;
     [[nodiscard]] bool is_tile_allocated(TileCoordinate tile) const;
     [[nodiscard]] TileStorageHandle pin_tile_storage(TileCoordinate tile) const;
+    [[nodiscard]] TileStorageSnapshot snapshot_tile_storage(TileCoordinate tile) const;
+    void prepare_tile_storage_exchanges(std::size_t maximum_new_allocations);
+    [[nodiscard]] TileStorageSnapshot exchange_tile_storage(TileCoordinate tile,
+                                                            TileStorageSnapshot replacement);
     [[nodiscard]] std::vector<TileCoordinate> allocated_tiles() const;
     [[nodiscard]] TileChangeSet changed_tiles_after(Revision revision) const;
     [[nodiscard]] bool is_tile_dirty(TileCoordinate tile) const;

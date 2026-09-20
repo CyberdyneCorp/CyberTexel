@@ -160,7 +160,10 @@ The current implementation provides:
   [Atomic layer operations](docs/layer-operations.md) cover create, subtree
   duplicate/delete, reorder, reparent, clear, invert, merge down/group, flatten,
   paint/fill conversion and mask application; destructive bakes are recomposited
-  and refused if they do not preserve the documented appearance.
+  and refused if they do not preserve the documented appearance. Separate
+  [tile-scoped history](docs/tile-history.md) declares channel/tile write sets,
+  retains only changed tiles under a reported byte ceiling, and performs
+  symmetric undo/redo by exchanging exact storage owners with zero pixel copies.
 - Validated read-only [mesh ingest](docs/mesh-ingest.md), reusable flat CPU
   acceleration structures, overlap and coverage diagnostics, and two-phase mesh
   replacement that reports per-set UV changes before the host chooses to keep,
@@ -290,10 +293,10 @@ The current implementation provides:
   [project-I/O and texture-export](docs/io-scenarios.md), plus combined
   [stroke-model and paint-engine](docs/paint-scenarios.md) scenario suites.
 
-The remaining layer operations/compositing/history, project IO, host-transport
-binding/performance integrations, remaining language bindings, and export
-workflow stages remain roadmap work and are not presented as implemented APIs
-yet.
+Document transactions and scenario closure, remaining project IO,
+host-transport binding/performance integrations, remaining language bindings,
+and export workflow stages remain roadmap work and are not presented as
+implemented APIs yet.
 
 ## Architecture
 

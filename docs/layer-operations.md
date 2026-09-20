@@ -10,8 +10,9 @@ unchanged as well.
 
 The snapshot uses `LayerCompositeRequest`: dense normalized content, independent
 coverage, and identity-addressed mask rasters. This is the interchange boundary
-for CPU and host-resolved content. Tile-scoped ownership exchange and history are
-introduced by roadmap task 3.9 rather than hidden inside these operations.
+for CPU and host-resolved content. Pixel authors use the separate
+[tile-history contract](tile-history.md) around channel writes; task 3.10 will
+compose structural and pixel changes into larger transactions.
 
 ## Structural operations
 

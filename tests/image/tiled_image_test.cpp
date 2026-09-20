@@ -306,6 +306,31 @@ bool test_pinned_tile_storage_is_copy_on_write() {
                   "old pinned storage was double-counted as current image residency");
 }
 
+bool test_tile_storage_ownership_exchange_is_copy_free() {
+    TiledImage image(2, 1, PixelFormat{ChannelType::uint8_unorm, 3}, 2);
+    const std::array before{std::byte{1}, std::byte{2}, std::byte{3}};
+    const std::array after{std::byte{5}, std::byte{8}, std::byte{13}};
+    image.write_pixel(0, 0, before);
+    auto snapshot = image.snapshot_tile_storage({0, 0});
+    const void* before_identity = snapshot.identity();
+    image.write_pixel(0, 0, after);
+    const void* after_identity = image.snapshot_tile_storage({0, 0}).identity();
+    snapshot = image.exchange_tile_storage({0, 0}, std::move(snapshot));
+    const bool restored =
+        expect(image.snapshot_tile_storage({0, 0}).identity() == before_identity &&
+                   snapshot.identity() == after_identity &&
+                   std::equal(before.begin(), before.end(), image.read_pixel(0, 0).begin()),
+               "tile ownership exchange copied or restored the wrong storage");
+    snapshot = image.exchange_tile_storage({0, 0}, std::move(snapshot));
+    return restored &&
+           expect(image.snapshot_tile_storage({0, 0}).identity() == after_identity &&
+                      snapshot.identity() == before_identity &&
+                      std::equal(after.begin(), after.end(), image.read_pixel(0, 0).begin()),
+                  "second ownership exchange did not provide symmetric redo") &&
+           expect(image.tile_generation({0, 0}) == 4,
+                  "ownership exchanges did not publish tile generations");
+}
+
 bool test_persistent_storage_uses_supplied_resource() {
     CountingResource resource;
     {
@@ -358,6 +383,7 @@ int main() {
                    test_resampling_preserves_float_range_and_honours_stride() &&
                    test_sparse_clear_and_dirty_tracking() &&
                    test_pinned_tile_storage_is_copy_on_write() &&
+                   test_tile_storage_ownership_exchange_is_copy_free() &&
                    test_persistent_storage_uses_supplied_resource() && test_validation()
                ? 0
                : 1;

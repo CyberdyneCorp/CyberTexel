@@ -169,7 +169,7 @@ Channel storage SHALL be tiled, with a documented tile size, and the system SHAL
 - **THEN** the reported dirty tile set SHALL cover that area and SHALL NOT be the whole set
 
 ### Requirement: Undo history is tile-scoped
-An undoable pixel operation SHALL snapshot only the tiles it dirtied. Restoring SHALL exchange tile ownership rather than copying pixels back, so undo and redo cost the same.
+Before an undoable pixel operation, the host SHALL declare the unique channel and tile targets it can dirty. Commit SHALL retain only declared targets whose generation changed. Restoring SHALL exchange the exact retained and live storage owners rather than copying pixels back, so undo and redo cost the same. A target whose layout, revision history or generation changed outside the expected operation SHALL be refused as stale before any target is restored.
 
 #### Scenario: Undo then redo
 - **WHEN** a stroke is undone and then redone
@@ -179,8 +179,16 @@ An undoable pixel operation SHALL snapshot only the tiles it dirtied. Restoring 
 - **WHEN** a 16384 by 16384 texture set receives a small stroke
 - **THEN** the snapshot SHALL be proportional to the dirtied tiles, not to the canvas
 
+#### Scenario: Declared tile remains unchanged
+- **WHEN** an operation declares two target tiles but changes only one
+- **THEN** the committed step SHALL retain and charge only the changed tile
+
+#### Scenario: Stale tile is not overwritten
+- **WHEN** a committed target changes outside history before it is undone
+- **THEN** undo SHALL report stale state and SHALL NOT restore any target in the step
+
 ### Requirement: Declared history budget
-A host SHALL set a memory ceiling for history. The system SHALL report how many steps are currently retained and SHALL discard the oldest step rather than exceed the ceiling. It SHALL NOT silently reduce a configured step count.
+A host SHALL set a byte ceiling for history. Before editing, the system SHALL refuse a declared target set larger than the complete ceiling. The system SHALL report the ceiling, retained and available bytes, undo and redo counts, and how many additional steps fit for a proposed byte size. On commit it SHALL discard the oldest undo steps rather than exceed the ceiling. It SHALL NOT silently reduce a configured step count.
 
 #### Scenario: Ceiling reached
 - **WHEN** a new step would exceed the ceiling
@@ -189,6 +197,10 @@ A host SHALL set a memory ceiling for history. The system SHALL report how many 
 #### Scenario: A step cannot fit at all
 - **WHEN** a single operation's snapshot exceeds the whole ceiling
 - **THEN** the operation SHALL be refused with a diagnostic naming the requested size and the ceiling, and the document SHALL be unchanged
+
+#### Scenario: Empty history operation
+- **WHEN** undo or redo has no available step
+- **THEN** it SHALL return a distinct no-undo or no-redo error without changing the document
 
 ### Requirement: Non-pixel edits are cheap
 Renaming, reordering, reparenting, opacity, blend mode, channel enablement and graph edits SHALL be recorded as command records, not as pixel snapshots.

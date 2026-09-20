@@ -6,8 +6,8 @@ decisions taken and questions still open.
 
 ## Status
 
-Implementation started. 24 capabilities, 332 requirements, 404 scenarios and
-222 tasks, 146 done. Foundation and the complete headless color-management
+Implementation started. 24 capabilities, 332 requirements, 407 scenarios and
+222 tasks, 147 done. Foundation and the complete headless color-management
 scenario suite are green. Slice-A now has memory-buffer PNG input plus
 PNG/JPEG/TGA/TIFF/OpenEXR output, with 8/16-bit preservation and hostile-input
 ceilings; full decoder breadth remains scheduled for slice D. Extensible channel
@@ -19,6 +19,11 @@ top with isolated/Pass Through groups and byte-identical repeat output.
 Transactional layer operations now publish structural and resolved-content
 changes only after validation, byte-budget preflight and any required
 appearance-preservation comparison.
+Texture-set pixel history now declares channel/tile targets before editing,
+retains only changed physical tiles under a reported byte ceiling, evicts the
+oldest undo steps when required, and performs symmetric undo/redo by exchanging
+exact storage owners without pixel copies. Stale targets and steps larger than
+the complete ceiling are refused before any restore or edit, respectively.
 Read-only in-memory mesh ingest now
 validates attributes and total, non-overlapping face partitions, from which the
 document derives stable UV-bound texture sets with independent storage.
@@ -315,6 +320,12 @@ which it handles by silently clamping the configured step count. We snapshot the
 tiles a stroke touched and refuse to exceed a host-declared ceiling by name.
 Design decision 4.
 
+**2026-09-20 — The v1 default tile remains 64×64.** A one-tile history step on
+a 16384-square channel retains one physical tile and uses the same coordinate
+and revision unit already consumed by host delta publication. Custom sizes stay
+available, but storage, history and upload use one tile granularity. Tasks 1.5
+and 3.9.
+
 **2026-09-18 — Examples are the end-to-end test suite.** Python, asserting
 rather than printing, outputs committed and compared in CI. No separate tier of
 illustrative scripts. Design decision 9, capability `examples`.
@@ -365,36 +376,32 @@ Task 6.15 and capability `shader-emission`.
 These are unresolved and should be answered by the task that first depends on
 them rather than drifting.
 
-1. **Tile size.** Task 1.5 introduced a configurable 64×64 default without
-   freezing the transport layout. It trades undo granularity against per-tile
-   bookkeeping and host upload efficiency. Finalize it with the slice-A history
-   and upload measurement in task 3.9 before freezing storage and transport.
-2. **Parity tolerances.** `execution-backends` requires them stated per bit depth
+1. **Parity tolerances.** `execution-backends` requires them stated per bit depth
    and for filtered values. The numbers do not exist yet; slice-A task 7.5 sets them, and
    setting them too loose makes the gate decorative.
-3. **Reference devices.** `device-gate` requires at least one desktop and one
+2. **Reference devices.** `device-gate` requires at least one desktop and one
    tablet, named with full configuration. Which machines, and who owns them for
    CI, is not settled. Resolve in slice A through task 17.1 before recording any performance claim.
-4. **Additional Kong targets.** Tasks 6.8 and 6.11 moved the common compiler and
+3. **Additional Kong targets.** Tasks 6.8 and 6.11 moved the common compiler and
    all four target backends to context-owned state without a process-wide lock.
    Their artifact shapes are now explicit: split WGSL/HLSL text, unified MSL,
    and binary SPIR-V.
-5. **Instance deletion policy.** `texture-document` allows either refusing the
+4. **Instance deletion policy.** `texture-document` allows either refusing the
    deletion of a referenced entry or converting its instances to independent
    copies, and makes it the caller's choice. Whether hosts actually want the
    choice, or whether one behaviour should simply be the rule, is open. Task 3.4.
-6. **UV density normalization.** Absolute texels-per-unit or relative to the
+5. **UV density normalization.** Absolute texels-per-unit or relative to the
    set's mean — CyberRemesherAndUV issue #89 raises the same question on the bake
    side. The two repositories should answer it identically.
-7. **Recovery and backing storage.** Choose checkpoint cadence, compression,
+6. **Recovery and backing storage.** Choose checkpoint cadence, compression,
    backing-store quotas and the maximum recovery replay time in slice A. Measure
    them alongside painting latency; asynchronous work still consumes bandwidth.
-8. **Tangent basis and seam tolerance.** Pin the generation algorithm and version
+7. **Tangent basis and seam tolerance.** Pin the generation algorithm and version
    with the bake provider and fixture assets before accepting normal-map parity.
-9. **Initial mobile matrix.** Select the first physical tablet for slice A and
+8. **Initial mobile matrix.** Select the first physical tablet for slice A and
    the Android device/API coverage required before v1 release. An iPad result
    cannot stand in for Android runtime validation.
-10. **Material profiles.** The extensible channel contract is in v1. A complete
+9. **Material profiles.** The extensible channel contract is in v1. A complete
     OpenPBR profile is follow-up scope requiring explicit shading/export mappings
     and conformance tests; it is not claimed by adding a coat-weight descriptor.
 

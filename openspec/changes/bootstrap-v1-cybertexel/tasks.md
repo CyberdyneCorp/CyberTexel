@@ -63,8 +63,9 @@ twelve-module skeleton and an executable dependency/backend-isolation gate. Task
 constant and all binding manifests. Task 1.4 added the permissive-only dependency
 manifest, attribution checks and discovery of vendored/CMake dependencies. Tiled
 image storage (1.5) now preserves 8/16/32-bit channel bytes, allocates sparse
-tiles and tracks dirty tiles. The 64×64 default remains configurable pending the
-task 3.9 history/upload measurement. Colour transforms (1.6) are next.
+tiles and tracks dirty tiles. The 64×64 default remained configurable pending
+the history path; task 3.9 later fixed it as the v1 default while retaining
+explicit custom sizes. Colour transforms (1.6) are next.
 Task 1.6 defines linear Rec. 709 as the working space and verifies unclamped
 sRGB conversion against fixed reference values. Test/sanitizer/determinism
 scaffolding (1.7) now runs through CTest/Python and a dedicated ASan+UBSan
@@ -1098,6 +1099,16 @@ appearance by recompositing before publication. Typed failures separate invalid
 structure/content, byte ceilings and appearance mismatch, and every refusal
 leaves the stack unchanged.
 
+Task 3.9 adds texture-set tile history over channel storage. Hosts declare the
+unique channel/tile write set before editing; commit keeps only targets whose
+generation changed. Undo and redo exchange the exact retained and live storage
+owners without copying pixels, reject stale targets before restoring any tile,
+and expose typed empty-history failures. The byte budget is preflighted before
+editing, reports current and proposed capacity, evicts oldest undo steps at the
+ceiling, and refuses a single step that cannot fit at all. A one-tile edit on a
+16384-square channel retains one physical 64-square tile, fixing 64×64 as the
+v1 default while preserving explicit custom tile sizes.
+
 ## 1. Foundation
 
 - [x] 1.1 CMake project, C++20, warnings as errors, presets for headless, macOS, Linux, Windows, iOS, Android
@@ -1137,7 +1148,7 @@ leaves the stack unchanged.
 - [x] 3.6 Per-channel participation and effective opacity including group and mask chains
 - [x] 3.7 Compositing on the CPU reference, with the determinism test
 - [x] 3.8 Layer operations: create, duplicate, delete, reorder, reparent, clear, invert, merge, flatten, convert, apply mask — each atomic
-- [ ] 3.9 Tile-scoped history, ownership-exchange restore, declared budget and its refusals
+- [x] 3.9 Tile-scoped history, ownership-exchange restore, declared budget and its refusals
 - [ ] 3.10 Transactions: grouping and byte-identical cancellation
 - [ ] 3.11 `texture-document` scenarios as tests
 

@@ -8,11 +8,13 @@
 #include <ctex/doc/layer_operations.hpp>
 #include <ctex/doc/layer_stack.hpp>
 #include <ctex/doc/smart_mask.hpp>
+#include <ctex/doc/tile_history.hpp>
 #include <map>
 #include <memory>
 #include <memory_resource>
 #include <string>
 #include <string_view>
+#include <utility>
 #include <vector>
 
 namespace ctex::mesh {
@@ -136,6 +138,22 @@ public:
         std::span<const LayerMaskSample> mask_samples = {}) const;
     [[nodiscard]] LayerCompositeResult composite_cpu(const LayerCompositeRequest& request) const;
     [[nodiscard]] LayerOperationResult apply_layer_operation(LayerOperationRequest request);
+    void configure_tile_history_budget(std::size_t budget_bytes) {
+        tile_history_.configure_budget(budget_bytes);
+    }
+    [[nodiscard]] TileHistoryBudgetReport tile_history_budget_report(
+        std::size_t proposed_step_bytes = 0) const noexcept {
+        return tile_history_.budget_report(proposed_step_bytes);
+    }
+    [[nodiscard]] TileHistoryCapture begin_tile_history_step(
+        std::string step_identifier, std::span<const TileHistoryTarget> targets) const {
+        return tile_history_.begin_step(channels_, std::move(step_identifier), targets);
+    }
+    [[nodiscard]] TileHistoryCommitResult commit_tile_history_step(TileHistoryCapture capture) {
+        return tile_history_.commit_step(channels_, std::move(capture));
+    }
+    [[nodiscard]] TileHistoryRestoreResult undo_tiles() { return tile_history_.undo(channels_); }
+    [[nodiscard]] TileHistoryRestoreResult redo_tiles() { return tile_history_.redo(channels_); }
     [[nodiscard]] TextureSetMemoryAccount create_memory_account(
         TextureSetMemoryCategory category) const;
     [[nodiscard]] TextureSetMemoryReport memory_report() const;
@@ -174,6 +192,7 @@ private:
     std::pmr::string id_;
     TextureChannels channels_;
     LayerStack layer_stack_;
+    TileHistory tile_history_;
     std::shared_ptr<TextureSetMemoryState> memory_state_;
     std::pmr::vector<AppliedPresetApplication> preset_applications_;
 };

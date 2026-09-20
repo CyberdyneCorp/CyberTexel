@@ -4,8 +4,9 @@
 document compositing. The texture set remains authoritative for enabled channel
 descriptors, stack order, groups, instances, filters, blend modes, opacity and
 masks. A `LayerCompositeRequest` supplies dense normalized rasters for content
-that is authored or resolved elsewhere; this deliberately does not invent the
-tile ownership and undo model scheduled for task 3.9.
+that is authored or resolved elsewhere. Publication uses atomic layer
+operations, while channel pixel writes use the separate
+[tile-scoped history contract](tile-history.md).
 
 Each content raster is keyed by stable entry and channel identities. Paint,
 fill, editable decal/text/path, and filter entries accept content. Fill and
