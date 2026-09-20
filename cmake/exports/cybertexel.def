@@ -10,6 +10,7 @@ EXPORTS
     ctex_transport_snapshot_pool_destroy
     ctex_transport_snapshot_pool_get_memory_report
     ctex_texture_set_query_channel_snapshot
+    ctex_paint_preview_session_query_snapshot
     ctex_transport_snapshot_destroy
     ctex_transport_snapshot_get_tile_versions
     ctex_transport_snapshot_negotiate_format

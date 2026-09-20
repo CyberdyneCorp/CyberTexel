@@ -235,14 +235,17 @@ SnapshotQueryResult query_channel_delta(SnapshotPool& pool, const doc::TextureCh
                                         std::string_view semantic_id,
                                         doc::ChannelRevisionCursor synchronized_cursor) {
     const image::TiledImage& image = channels.pixels(semantic_id);
-    return pool.capture(image,
-                        query_channel_delta_metadata(channels, semantic_id, synchronized_cursor));
+    return query_channel_delta(pool, image, synchronized_cursor);
+}
+
+SnapshotQueryResult query_channel_delta(SnapshotPool& pool, const image::TiledImage& image,
+                                        doc::ChannelRevisionCursor synchronized_cursor) {
+    return pool.capture(image, query_channel_delta_metadata(image, synchronized_cursor));
 }
 
 SnapshotQueryResult query_channel_delta(SnapshotPool& pool, const PreviewResource& preview,
                                         doc::ChannelRevisionCursor synchronized_cursor) {
-    return pool.capture(preview.pixels(),
-                        query_channel_delta_metadata(preview, synchronized_cursor));
+    return query_channel_delta(pool, preview.pixels(), synchronized_cursor);
 }
 
 }  // namespace ctex::xport

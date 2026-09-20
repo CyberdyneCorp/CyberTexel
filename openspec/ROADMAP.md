@@ -170,8 +170,9 @@ Host-transport revision cursors and per-tile versions are now queryable through
 coalesced indexed deltas, with explicit stale-epoch resynchronization and
 history reset. Budgeted snapshot pools now pin exact delta versions, expose
 memory pressure, negotiate readback formats and publish stable direct-upload
-layouts before copying named CPU tiles into caller-owned buffers. Exactly 122
-runtime requirements still lack C ABI evidence;
+layouts before copying named CPU tiles into caller-owned buffers. In-flight
+paint previews now use that same versioned snapshot path. Exactly 121 runtime
+requirements still lack C ABI evidence;
 those gaps must be implemented before task 14.8 can close.
 
 ## Milestones

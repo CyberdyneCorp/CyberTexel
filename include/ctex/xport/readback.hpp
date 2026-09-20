@@ -40,6 +40,11 @@ struct TileMemoryLayout {
 [[nodiscard]] TileMemoryLayout tile_memory_layout(const doc::TextureChannels& channels,
                                                   std::string_view semantic_id,
                                                   image::TileCoordinate coordinate);
+[[nodiscard]] TileMemoryLayout tile_memory_layout(const image::TiledImage& image,
+                                                  image::TileCoordinate coordinate);
+[[nodiscard]] TileMemoryLayout tile_memory_layout(const image::TiledImage& image,
+                                                  image::TileCoordinate coordinate,
+                                                  const ReadbackFormatSelection& format);
 [[nodiscard]] TileMemoryLayout tile_memory_layout(const doc::TextureChannels& channels,
                                                   std::string_view semantic_id,
                                                   image::TileCoordinate coordinate,

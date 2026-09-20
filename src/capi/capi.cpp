@@ -4802,6 +4802,50 @@ const char* require_transport_text(const char* value, std::string_view field) {
     return value;
 }
 
+void query_transport_snapshot(ctex_transport_snapshot_pool& pool,
+                              const ctex::image::TiledImage& image,
+                              ctex_transport_revision_cursor synchronized_cursor,
+                              ctex_transport_snapshot** out_snapshot,
+                              ctex_transport_snapshot_query_info& out_info) {
+    auto query =
+        ctex::xport::query_channel_delta(pool.value, image, transport_cursor(synchronized_cursor));
+    if (!query.admitted()) {
+        out_info = {
+            .size = CTEX_TRANSPORT_SNAPSHOT_QUERY_INFO_CURRENT_SIZE,
+            .disposition = CTEX_TRANSPORT_DELTA_COMPLETE,
+            .synchronized_cursor = {},
+            .current_cursor = {},
+            .changed_tile_count = 0,
+            .indexed_tiles_visited = 0,
+            .retained_bytes = 0,
+            .additional_pinned_bytes = query.additional_pinned_bytes,
+        };
+        throw_boundary(CTEX_RESULT_OVER_BUDGET, CTEX_DIAGNOSTIC_INVALID_HOST_TRANSPORT,
+                       query.detail);
+    }
+    auto& synchronized = *query.synchronized;
+    std::vector<ctex::xport::TileMemoryLayout> layouts;
+    layouts.reserve(synchronized.delta.changed_tiles.size());
+    for (const auto& version : synchronized.delta.changed_tiles) {
+        layouts.push_back(ctex::xport::tile_memory_layout(image, version.coordinate));
+    }
+    out_info = {
+        .size = CTEX_TRANSPORT_SNAPSHOT_QUERY_INFO_CURRENT_SIZE,
+        .disposition =
+            synchronized.delta.disposition == ctex::xport::DeltaQueryDisposition::complete
+                ? CTEX_TRANSPORT_DELTA_COMPLETE
+                : CTEX_TRANSPORT_FULL_RESYNCHRONIZATION_REQUIRED,
+        .synchronized_cursor = transport_cursor(synchronized.delta.synchronized_cursor),
+        .current_cursor = transport_cursor(synchronized.delta.current_cursor),
+        .changed_tile_count = synchronized.delta.changed_tiles.size(),
+        .indexed_tiles_visited = synchronized.delta.indexed_tiles_visited,
+        .retained_bytes = synchronized.snapshot.retained_bytes(),
+        .additional_pinned_bytes = query.additional_pinned_bytes,
+    };
+    *out_snapshot =
+        create_transport_snapshot(pool.allocator, std::move(synchronized), std::move(layouts));
+}
+
 }  // namespace
 
 void* ctex_host_memory_resource::do_allocate(std::size_t bytes, std::size_t alignment) {
@@ -7323,45 +7367,38 @@ extern "C" ctex_result ctex_texture_set_query_channel_snapshot(
                 require_texture_set(*document, texture_set_id);
             const char* semantic =
                 require_transport_text(semantic_id, "channel semantic identifier");
-            auto query =
-                ctex::xport::query_channel_delta(pool->value, texture_set.channels(), semantic,
-                                                 transport_cursor(synchronized_cursor));
-            if (!query.admitted()) {
-                *out_info = {
-                    .size = CTEX_TRANSPORT_SNAPSHOT_QUERY_INFO_CURRENT_SIZE,
-                    .disposition = CTEX_TRANSPORT_DELTA_COMPLETE,
-                    .synchronized_cursor = {},
-                    .current_cursor = {},
-                    .changed_tile_count = 0,
-                    .indexed_tiles_visited = 0,
-                    .retained_bytes = 0,
-                    .additional_pinned_bytes = query.additional_pinned_bytes,
-                };
-                throw_boundary(CTEX_RESULT_OVER_BUDGET, CTEX_DIAGNOSTIC_INVALID_HOST_TRANSPORT,
-                               query.detail);
-            }
-            auto& synchronized = *query.synchronized;
-            std::vector<ctex::xport::TileMemoryLayout> layouts;
-            layouts.reserve(synchronized.delta.changed_tiles.size());
-            for (const auto& version : synchronized.delta.changed_tiles) {
-                layouts.push_back(ctex::xport::tile_memory_layout(texture_set.channels(), semantic,
-                                                                  version.coordinate));
-            }
-            *out_info = {
-                .size = CTEX_TRANSPORT_SNAPSHOT_QUERY_INFO_CURRENT_SIZE,
-                .disposition =
-                    synchronized.delta.disposition == ctex::xport::DeltaQueryDisposition::complete
-                        ? CTEX_TRANSPORT_DELTA_COMPLETE
-                        : CTEX_TRANSPORT_FULL_RESYNCHRONIZATION_REQUIRED,
-                .synchronized_cursor = transport_cursor(synchronized.delta.synchronized_cursor),
-                .current_cursor = transport_cursor(synchronized.delta.current_cursor),
-                .changed_tile_count = synchronized.delta.changed_tiles.size(),
-                .indexed_tiles_visited = synchronized.delta.indexed_tiles_visited,
-                .retained_bytes = synchronized.snapshot.retained_bytes(),
-                .additional_pinned_bytes = query.additional_pinned_bytes,
-            };
-            *out_snapshot = create_transport_snapshot(pool->allocator, std::move(synchronized),
-                                                      std::move(layouts));
+            query_transport_snapshot(*pool, texture_set.channels().pixels(semantic),
+                                     synchronized_cursor, out_snapshot, *out_info);
+        } catch (const ctex::xport::DeltaQueryError& error) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_INVALID_HOST_TRANSPORT,
+                           error.what());
+        }
+    });
+}
+
+extern "C" ctex_result ctex_paint_preview_session_query_snapshot(
+    ctex_transport_snapshot_pool* pool, const ctex_paint_preview_session* session,
+    ctex_transport_revision_cursor synchronized_cursor, ctex_transport_snapshot** out_snapshot,
+    ctex_transport_snapshot_query_info* out_info) {
+    return call_boundary("ctex_paint_preview_session_query_snapshot", [&] {
+        if (pool == nullptr || session == nullptr || out_snapshot == nullptr ||
+            out_info == nullptr) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                           "pool, session, out_snapshot, and out_info are required");
+        }
+        *out_snapshot = nullptr;
+        validate_structure_size(out_info->size, CTEX_TRANSPORT_SNAPSHOT_QUERY_INFO_V1_SIZE,
+                                CTEX_TRANSPORT_SNAPSHOT_QUERY_INFO_CURRENT_SIZE,
+                                "snapshot query info size");
+        const auto state = session->preview.state();
+        if (state == ctex::paint::PaintPreviewState::committed ||
+            state == ctex::paint::PaintPreviewState::cancelled) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_INVALID_PAINT_PREVIEW,
+                           "paint preview is no longer in flight");
+        }
+        try {
+            query_transport_snapshot(*pool, session->preview.preview_pixels(), synchronized_cursor,
+                                     out_snapshot, *out_info);
         } catch (const ctex::xport::DeltaQueryError& error) {
             throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_INVALID_HOST_TRANSPORT,
                            error.what());

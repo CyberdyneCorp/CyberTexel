@@ -748,6 +748,12 @@ stable native-endian direct-upload layouts, and read only named CPU tiles into
 caller-owned buffers with atomic publication. The exact remaining C ABI gap is
 122 runtime requirements.
 
+The preview continuation exposes one more host-transport requirement. A paint
+preview can be queried through the same pool, delta, snapshot, format, layout and
+readback types as a committed channel. Successive in-flight revisions remain
+independently pinned and readable after the preview session is destroyed. The
+exact remaining C ABI gap is 121 runtime requirements.
+
 ## 1. Foundation
 
 - [x] 1.1 CMake project, C++20, warnings as errors, presets for headless, macOS, Linux, Windows, iOS, Android

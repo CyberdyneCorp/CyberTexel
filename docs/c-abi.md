@@ -134,8 +134,11 @@ row-major, tightly packed, interleaved, native-endian and use a separate caller
 buffer per tile. `ctex_transport_snapshot_read_tiles` stages every requested CPU
 tile before publishing any output, so a bad version, format, layout or buffer
 leaves all destinations unchanged. Snapshot query itself performs no pixel
-transfer. Host-device pending/completion and preview snapshots remain outside
-this slice.
+transfer. `ctex_paint_preview_session_query_snapshot` applies the identical
+version, format, layout and readback contract to provisional or finalized paint
+previews; an admitted token remains valid after its preview session is destroyed.
+Committed and cancelled sessions are no longer in flight and refuse new preview
+snapshots. Host-device pending/completion remains outside this slice.
 
 ## Colour management
 
@@ -522,7 +525,7 @@ The contract is stated per entry-point family:
 | `ctex_preset_library_enumerate`, `ctex_preset_library_resolve` | Stateless and safe to call concurrently; descriptors and encoded shelf contents are borrowed only for the call and outputs are caller-owned |
 | `ctex_texture_set_apply_smart_material`, `ctex_texture_set_apply_smart_mask`, `ctex_texture_set_get_preset_applications`, `ctex_texture_set_set_applied_entry_state`, `ctex_texture_set_undo_last_preset_application` | Distinct documents are independent; callers serialize these operations with every other operation on the same document |
 | `ctex_texture_set_query_channel_delta`, `ctex_texture_set_reset_channel_revision_history` | Distinct documents are independent; callers serialize these operations with every other operation on the same document. Query output contains metadata only and performs no pixel readback |
-| `ctex_transport_snapshot_pool_create`, `ctex_transport_snapshot_pool_destroy`, `ctex_transport_snapshot_pool_get_memory_report`, `ctex_texture_set_query_channel_snapshot`, `ctex_transport_snapshot_destroy`, `ctex_transport_snapshot_get_tile_versions`, `ctex_transport_snapshot_negotiate_format`, `ctex_transport_snapshot_get_tile_memory_layout`, `ctex_transport_snapshot_read_tiles` | Distinct pools and snapshots are independent. Callers serialize query/report operations on one pool and all operations or destruction on one snapshot. A document is required only during snapshot query and must be externally serialized for that call; an admitted snapshot owns its pinned versions and may outlive the document and pool |
+| `ctex_transport_snapshot_pool_create`, `ctex_transport_snapshot_pool_destroy`, `ctex_transport_snapshot_pool_get_memory_report`, `ctex_texture_set_query_channel_snapshot`, `ctex_paint_preview_session_query_snapshot`, `ctex_transport_snapshot_destroy`, `ctex_transport_snapshot_get_tile_versions`, `ctex_transport_snapshot_negotiate_format`, `ctex_transport_snapshot_get_tile_memory_layout`, `ctex_transport_snapshot_read_tiles` | Distinct pools and snapshots are independent. Callers serialize query/report operations on one pool and all operations or destruction on one snapshot. A document or preview session is required only during its snapshot query and must be externally serialized for that call; an admitted snapshot owns its pinned versions and may outlive the source handle and pool |
 | `ctex_paint_dilation_session_create`, `ctex_paint_dilation_session_destroy`, `ctex_paint_dilation_session_stage_tile`, `ctex_paint_dilation_session_get_preview`, `ctex_paint_dilation_session_finish` | Distinct sessions are independent and may be used concurrently; callers serialize staging, preview, finish and destruction of the same session |
 | `ctex_paint_surface_map_cache_create`, `ctex_paint_surface_map_cache_destroy`, `ctex_paint_surface_map_cache_clear`, `ctex_paint_surface_map_cache_get_statistics`, `ctex_paint_surface_map_cache_lookup` | Distinct caches are independent and may be used concurrently; callers serialize lookup, statistics, clearing and destruction of the same cache, and keep each mesh alive for its lookup call |
 | `ctex_paint_preview_session_create`, `ctex_paint_preview_session_destroy`, `ctex_paint_preview_session_write_pixel`, `ctex_paint_preview_session_get_info`, `ctex_paint_preview_session_get_pixels`, `ctex_paint_preview_session_get_changed_tiles`, `ctex_paint_preview_session_finalize`, `ctex_paint_preview_session_commit`, `ctex_paint_preview_session_cancel` | Distinct sessions on distinct documents are independent; callers serialize every operation on a session and every operation on its document, and keep the document alive through session destruction |

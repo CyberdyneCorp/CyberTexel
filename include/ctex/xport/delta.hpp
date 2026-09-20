@@ -38,6 +38,8 @@ public:
     const doc::TextureChannels& channels, std::string_view semantic_id,
     doc::ChannelRevisionCursor synchronized_cursor);
 [[nodiscard]] ChannelDelta query_channel_delta_metadata(
+    const image::TiledImage& image, doc::ChannelRevisionCursor synchronized_cursor);
+[[nodiscard]] ChannelDelta query_channel_delta_metadata(
     const PreviewResource& preview, doc::ChannelRevisionCursor synchronized_cursor);
 
 }  // namespace ctex::xport

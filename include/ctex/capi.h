@@ -2437,6 +2437,10 @@ CTEX_API ctex_result ctex_texture_set_query_channel_snapshot(
     ctex_transport_snapshot_pool* pool, const ctex_document* document, const char* texture_set_id,
     const char* semantic_id, ctex_transport_revision_cursor synchronized_cursor,
     ctex_transport_snapshot** out_snapshot, ctex_transport_snapshot_query_info* out_info);
+CTEX_API ctex_result ctex_paint_preview_session_query_snapshot(
+    ctex_transport_snapshot_pool* pool, const ctex_paint_preview_session* session,
+    ctex_transport_revision_cursor synchronized_cursor, ctex_transport_snapshot** out_snapshot,
+    ctex_transport_snapshot_query_info* out_info);
 CTEX_API void ctex_transport_snapshot_destroy(ctex_transport_snapshot* snapshot);
 CTEX_API ctex_result ctex_transport_snapshot_get_tile_versions(
     const ctex_transport_snapshot* snapshot, ctex_transport_tile_version* versions,

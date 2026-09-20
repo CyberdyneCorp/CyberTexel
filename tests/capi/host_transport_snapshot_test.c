@@ -186,4 +186,118 @@ static int snapshot_readback_is_consistent_and_budgeted(void) {
     return passed;
 }
 
-int main(void) { return snapshot_readback_is_consistent_and_budgeted() ? 0 : 1; }
+static int preview_uses_the_same_snapshot_transport(void) {
+    ctex_document* document = NULL;
+    ctex_paint_preview_session* preview = NULL;
+    ctex_transport_snapshot_pool* pool = NULL;
+    ctex_transport_snapshot* first = NULL;
+    ctex_transport_snapshot* second = NULL;
+    char texture_set_id[128] = {0};
+    ctex_paint_preview_info preview_info = {.size = CTEX_PAINT_PREVIEW_INFO_CURRENT_SIZE};
+    ctex_transport_snapshot_query_info first_info = {
+        .size = CTEX_TRANSPORT_SNAPSHOT_QUERY_INFO_CURRENT_SIZE};
+    ctex_transport_snapshot_query_info second_info = {
+        .size = CTEX_TRANSPORT_SNAPSHOT_QUERY_INFO_CURRENT_SIZE};
+    const uint8_t revision_one[3] = {21, 34, 55};
+    const uint8_t revision_two[3] = {89, 144, 233};
+    int passed =
+        expect(create_fixture(&document, texture_set_id, sizeof(texture_set_id)),
+               "preview transport fixture creation failed") &&
+        expect(ctex_paint_preview_session_create(document, texture_set_id, "pbr.base_color",
+                                                 &preview) == CTEX_RESULT_SUCCESS,
+               "preview transport session creation failed") &&
+        expect(ctex_paint_preview_session_get_info(preview, &preview_info) == CTEX_RESULT_SUCCESS,
+               "preview transport initial cursor query failed") &&
+        expect(ctex_paint_preview_session_write_pixel(preview, 1, 2, revision_one, 3) ==
+                   CTEX_RESULT_SUCCESS,
+               "preview transport first edit failed") &&
+        expect(ctex_transport_snapshot_pool_create(2 * 64 * 64 * 3, &pool) == CTEX_RESULT_SUCCESS,
+               "preview transport pool creation failed");
+
+    const ctex_transport_revision_cursor initial = {
+        .epoch = preview_info.preview_epoch,
+        .revision = preview_info.preview_revision,
+    };
+    passed = expect(ctex_paint_preview_session_query_snapshot(pool, preview, initial, &first,
+                                                              &first_info) == CTEX_RESULT_SUCCESS &&
+                        first_info.changed_tile_count == 1,
+                    "first preview snapshot query failed") &&
+             expect(ctex_paint_preview_session_write_pixel(preview, 1, 2, revision_two, 3) ==
+                        CTEX_RESULT_SUCCESS,
+                    "preview transport second edit failed") &&
+             expect(ctex_paint_preview_session_query_snapshot(
+                        pool, preview, first_info.current_cursor, &second, &second_info) ==
+                            CTEX_RESULT_SUCCESS &&
+                        second_info.changed_tile_count == 1,
+                    "following preview snapshot omitted the later edit") &&
+             passed;
+
+    ctex_transport_tile_version first_version = {0};
+    ctex_transport_tile_version second_version = {0};
+    size_t version_count = 0;
+    passed = expect(ctex_transport_snapshot_get_tile_versions(
+                        first, &first_version, 1, &version_count) == CTEX_RESULT_SUCCESS &&
+                        version_count == 1,
+                    "first preview snapshot version query failed") &&
+             expect(ctex_transport_snapshot_get_tile_versions(
+                        second, &second_version, 1, &version_count) == CTEX_RESULT_SUCCESS &&
+                        version_count == 1,
+                    "second preview snapshot version query failed") &&
+             passed;
+
+    ctex_transport_tile_memory_layout first_layout = {
+        .size = CTEX_TRANSPORT_TILE_MEMORY_LAYOUT_CURRENT_SIZE};
+    ctex_transport_tile_memory_layout second_layout = {
+        .size = CTEX_TRANSPORT_TILE_MEMORY_LAYOUT_CURRENT_SIZE};
+    passed = expect(ctex_transport_snapshot_get_tile_memory_layout(
+                        first, first_version, NULL, &first_layout) == CTEX_RESULT_SUCCESS,
+                    "first preview snapshot layout query failed") &&
+             expect(ctex_transport_snapshot_get_tile_memory_layout(
+                        second, second_version, NULL, &second_layout) == CTEX_RESULT_SUCCESS,
+                    "second preview snapshot layout query failed") &&
+             passed;
+
+    ctex_paint_preview_session_destroy(preview);
+    preview = NULL;
+    uint8_t first_pixels[64 * 64 * 3] = {0};
+    uint8_t second_pixels[64 * 64 * 3] = {0};
+    const ctex_transport_tile_readback_destination first_destination = {
+        .size = CTEX_TRANSPORT_TILE_READBACK_DESTINATION_CURRENT_SIZE,
+        .version = first_version,
+        .layout = first_layout,
+        .output = first_pixels,
+        .output_size = sizeof(first_pixels),
+    };
+    const ctex_transport_tile_readback_destination second_destination = {
+        .size = CTEX_TRANSPORT_TILE_READBACK_DESTINATION_CURRENT_SIZE,
+        .version = second_version,
+        .layout = second_layout,
+        .output = second_pixels,
+        .output_size = sizeof(second_pixels),
+    };
+    const size_t pixel_offset = ((2 * 64) + 1) * 3;
+    passed = expect(ctex_transport_snapshot_read_tiles(first, NULL, &first_destination, 1) ==
+                        CTEX_RESULT_SUCCESS,
+                    "first preview snapshot readback failed after session destruction") &&
+             expect(ctex_transport_snapshot_read_tiles(second, NULL, &second_destination, 1) ==
+                        CTEX_RESULT_SUCCESS,
+                    "second preview snapshot readback failed after session destruction") &&
+             expect(memcmp(first_pixels + pixel_offset, revision_one, 3) == 0 &&
+                        memcmp(second_pixels + pixel_offset, revision_two, 3) == 0,
+                    "preview snapshots were torn or shared one mutable version") &&
+             passed;
+
+    ctex_transport_snapshot_destroy(second);
+    ctex_transport_snapshot_destroy(first);
+    ctex_transport_snapshot_pool_destroy(pool);
+    ctex_paint_preview_session_destroy(preview);
+    ctex_document_destroy(document);
+    return passed;
+}
+
+int main(void) {
+    return snapshot_readback_is_consistent_and_budgeted() &&
+                   preview_uses_the_same_snapshot_transport()
+               ? 0
+               : 1;
+}

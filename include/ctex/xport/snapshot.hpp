@@ -56,6 +56,8 @@ private:
     friend class SnapshotPool;
     friend SnapshotQueryResult query_channel_delta(SnapshotPool&, const doc::TextureChannels&,
                                                    std::string_view, doc::ChannelRevisionCursor);
+    friend SnapshotQueryResult query_channel_delta(SnapshotPool&, const image::TiledImage&,
+                                                   doc::ChannelRevisionCursor);
     friend SnapshotQueryResult query_channel_delta(SnapshotPool&, const PreviewResource&,
                                                    doc::ChannelRevisionCursor);
 };
@@ -78,6 +80,8 @@ private:
     friend struct SnapshotToken::Impl;
     friend SnapshotQueryResult query_channel_delta(SnapshotPool&, const doc::TextureChannels&,
                                                    std::string_view, doc::ChannelRevisionCursor);
+    friend SnapshotQueryResult query_channel_delta(SnapshotPool&, const image::TiledImage&,
+                                                   doc::ChannelRevisionCursor);
     friend SnapshotQueryResult query_channel_delta(SnapshotPool&, const PreviewResource&,
                                                    doc::ChannelRevisionCursor);
 };
@@ -102,6 +106,9 @@ struct SnapshotQueryResult {
 
 [[nodiscard]] SnapshotQueryResult query_channel_delta(
     SnapshotPool& pool, const doc::TextureChannels& channels, std::string_view semantic_id,
+    doc::ChannelRevisionCursor synchronized_cursor);
+[[nodiscard]] SnapshotQueryResult query_channel_delta(
+    SnapshotPool& pool, const image::TiledImage& image,
     doc::ChannelRevisionCursor synchronized_cursor);
 [[nodiscard]] SnapshotQueryResult query_channel_delta(
     SnapshotPool& pool, const PreviewResource& preview,

@@ -242,33 +242,38 @@ std::vector<std::byte> stage_pinned_tile(std::span<const std::byte> storage,
 TileMemoryLayout tile_memory_layout(const doc::TextureChannels& channels,
                                     std::string_view semantic_id,
                                     image::TileCoordinate coordinate) {
-    const image::TiledImage& image = channels.pixels(semantic_id);
-    const image::PixelFormat format = image.format();
-    return make_tile_memory_layout(image, coordinate, format);
+    return tile_memory_layout(channels.pixels(semantic_id), coordinate);
+}
+
+TileMemoryLayout tile_memory_layout(const image::TiledImage& image,
+                                    image::TileCoordinate coordinate) {
+    return make_tile_memory_layout(image, coordinate, image.format());
+}
+
+TileMemoryLayout tile_memory_layout(const image::TiledImage& image,
+                                    image::TileCoordinate coordinate,
+                                    const ReadbackFormatSelection& format) {
+    if (!format.is_valid() || format.source_format != image.format()) {
+        throw std::invalid_argument("readback format selection does not match the image");
+    }
+    return make_tile_memory_layout(image, coordinate, format.output_format);
 }
 
 TileMemoryLayout tile_memory_layout(const doc::TextureChannels& channels,
                                     std::string_view semantic_id, image::TileCoordinate coordinate,
                                     const ReadbackFormatSelection& format) {
-    const image::TiledImage& image = channels.pixels(semantic_id);
-    if (!format.is_valid() || format.source_format != image.format()) {
-        throw std::invalid_argument("readback format selection does not match the channel");
-    }
-    return make_tile_memory_layout(image, coordinate, format.output_format);
+    return tile_memory_layout(channels.pixels(semantic_id), coordinate, format);
 }
 
 TileMemoryLayout tile_memory_layout(const PreviewResource& preview,
                                     image::TileCoordinate coordinate) {
-    return make_tile_memory_layout(preview.pixels(), coordinate, preview.format());
+    return tile_memory_layout(preview.pixels(), coordinate);
 }
 
 TileMemoryLayout tile_memory_layout(const PreviewResource& preview,
                                     image::TileCoordinate coordinate,
                                     const ReadbackFormatSelection& format) {
-    if (!format.is_valid() || format.source_format != preview.format()) {
-        throw std::invalid_argument("readback format selection does not match the preview");
-    }
-    return make_tile_memory_layout(preview.pixels(), coordinate, format.output_format);
+    return tile_memory_layout(preview.pixels(), coordinate, format);
 }
 
 TileReadback::TileReadback(std::vector<TileReadbackDestination> destinations,
