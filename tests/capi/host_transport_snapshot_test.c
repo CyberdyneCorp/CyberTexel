@@ -295,9 +295,191 @@ static int preview_uses_the_same_snapshot_transport(void) {
     return passed;
 }
 
+static int asynchronous_readback_retains_snapshot_and_publishes_atomically(void) {
+    ctex_document* document = NULL;
+    ctex_transport_snapshot_pool* pool = NULL;
+    ctex_transport_snapshot* snapshot = NULL;
+    ctex_transport_readback* cpu = NULL;
+    ctex_transport_readback* host = NULL;
+    ctex_transport_readback* cancelled = NULL;
+    ctex_transport_readback* failed = NULL;
+    ctex_transport_readback* mismatched = NULL;
+    char texture_set_id[128] = {0};
+    const uint8_t pixel[3] = {7, 11, 13};
+    ctex_transport_delta_info initial = {.size = CTEX_TRANSPORT_DELTA_INFO_CURRENT_SIZE};
+    ctex_transport_snapshot_query_info query = {
+        .size = CTEX_TRANSPORT_SNAPSHOT_QUERY_INFO_CURRENT_SIZE};
+    ctex_transport_snapshot_memory_report memory = {
+        .size = CTEX_TRANSPORT_SNAPSHOT_MEMORY_REPORT_CURRENT_SIZE};
+    int passed =
+        expect(create_fixture(&document, texture_set_id, sizeof(texture_set_id)),
+               "async readback fixture creation failed") &&
+        expect(ctex_texture_set_query_channel_delta(document, texture_set_id, "pbr.base_color",
+                                                    (ctex_transport_revision_cursor){0, 0}, NULL, 0,
+                                                    &initial) == CTEX_RESULT_SUCCESS,
+               "async readback initial cursor query failed") &&
+        expect(commit_pixel(document, texture_set_id, 1, 2, pixel),
+               "async readback fixture edit failed") &&
+        expect(ctex_transport_snapshot_pool_create(64 * 64 * 3, &pool) == CTEX_RESULT_SUCCESS,
+               "async readback pool creation failed") &&
+        expect(ctex_texture_set_query_channel_snapshot(pool, document, texture_set_id,
+                                                       "pbr.base_color", initial.current_cursor,
+                                                       &snapshot, &query) == CTEX_RESULT_SUCCESS,
+               "async readback snapshot query failed");
+
+    ctex_transport_tile_version version = {0};
+    size_t version_count = 0;
+    ctex_transport_tile_memory_layout layout = {.size =
+                                                    CTEX_TRANSPORT_TILE_MEMORY_LAYOUT_CURRENT_SIZE};
+    passed = expect(ctex_transport_snapshot_get_tile_versions(
+                        snapshot, &version, 1, &version_count) == CTEX_RESULT_SUCCESS &&
+                        version_count == 1,
+                    "async readback tile version query failed") &&
+             expect(ctex_transport_snapshot_get_tile_memory_layout(snapshot, version, NULL,
+                                                                   &layout) == CTEX_RESULT_SUCCESS,
+                    "async readback layout query failed") &&
+             passed;
+
+    uint8_t cpu_output[64 * 64 * 3];
+    memset(cpu_output, 0xa5, sizeof(cpu_output));
+    const ctex_transport_tile_readback_destination cpu_destination = {
+        .size = CTEX_TRANSPORT_TILE_READBACK_DESTINATION_CURRENT_SIZE,
+        .version = version,
+        .layout = layout,
+        .output = cpu_output,
+        .output_size = sizeof(cpu_output),
+    };
+    ctex_transport_readback_info info = {.size = CTEX_TRANSPORT_READBACK_INFO_CURRENT_SIZE};
+    passed =
+        expect(ctex_transport_snapshot_begin_readback(snapshot, NULL, &cpu_destination, 1, &cpu) ==
+                   CTEX_RESULT_SUCCESS,
+               "CPU asynchronous readback did not start") &&
+        expect(ctex_transport_readback_get_info(cpu, &info, NULL, 0) == CTEX_RESULT_SUCCESS &&
+                   info.status == CTEX_TRANSPORT_READBACK_COMPLETE && info.output_readable == 1 &&
+                   info.tile_count == 1 && memcmp(cpu_output + (((2 * 64) + 1) * 3), pixel, 3) == 0,
+               "CPU asynchronous readback did not complete through the state model") &&
+        passed;
+
+    ctex_transport_tile_version host_version = version;
+    host_version.residency = CTEX_TRANSPORT_TILE_HOST_DEVICE;
+    uint8_t host_output[64 * 64 * 3];
+    uint8_t cancelled_output[64 * 64 * 3];
+    uint8_t failed_output[64 * 64 * 3];
+    uint8_t mismatched_output[64 * 64 * 3];
+    uint8_t completion_bytes[64 * 64 * 3];
+    memset(host_output, 0xb6, sizeof(host_output));
+    memset(cancelled_output, 0xc7, sizeof(cancelled_output));
+    memset(failed_output, 0xd8, sizeof(failed_output));
+    memset(mismatched_output, 0xe9, sizeof(mismatched_output));
+    memset(completion_bytes, 0x2a, sizeof(completion_bytes));
+    const ctex_transport_tile_readback_destination host_destination = {
+        .size = CTEX_TRANSPORT_TILE_READBACK_DESTINATION_CURRENT_SIZE,
+        .version = host_version,
+        .layout = layout,
+        .output = host_output,
+        .output_size = sizeof(host_output),
+    };
+    ctex_transport_tile_readback_destination cancelled_destination = host_destination;
+    cancelled_destination.output = cancelled_output;
+    ctex_transport_tile_readback_destination failed_destination = host_destination;
+    failed_destination.output = failed_output;
+    ctex_transport_tile_readback_destination mismatched_destination = host_destination;
+    mismatched_destination.output = mismatched_output;
+    passed =
+        expect(ctex_transport_snapshot_begin_host_readback(snapshot, NULL, &host_destination, 1,
+                                                           &host) == CTEX_RESULT_SUCCESS,
+               "host asynchronous readback did not start") &&
+        expect(ctex_transport_snapshot_begin_host_readback(snapshot, NULL, &cancelled_destination,
+                                                           1, &cancelled) == CTEX_RESULT_SUCCESS,
+               "cancellable asynchronous readback did not start") &&
+        expect(ctex_transport_snapshot_begin_host_readback(snapshot, NULL, &failed_destination, 1,
+                                                           &failed) == CTEX_RESULT_SUCCESS,
+               "fallible asynchronous readback did not start") &&
+        expect(ctex_transport_snapshot_begin_host_readback(snapshot, NULL, &mismatched_destination,
+                                                           1, &mismatched) == CTEX_RESULT_SUCCESS,
+               "mismatch asynchronous readback did not start") &&
+        passed;
+    info.size = CTEX_TRANSPORT_READBACK_INFO_CURRENT_SIZE;
+    passed = expect(ctex_transport_readback_get_info(host, &info, NULL, 0) == CTEX_RESULT_SUCCESS &&
+                        info.status == CTEX_TRANSPORT_READBACK_PENDING &&
+                        info.output_readable == 0 && host_output[0] == 0xb6,
+                    "pending host readback exposed its output") &&
+             passed;
+
+    ctex_transport_snapshot_destroy(snapshot);
+    snapshot = NULL;
+    passed = expect(ctex_transport_snapshot_pool_get_memory_report(pool, &memory) ==
+                            CTEX_RESULT_SUCCESS &&
+                        memory.active_snapshots == 1 && memory.pinned_bytes == 64 * 64 * 3,
+                    "active readbacks did not retain their pinned snapshot") &&
+             passed;
+
+    const ctex_transport_host_tile_completion completion = {
+        .size = CTEX_TRANSPORT_HOST_TILE_COMPLETION_CURRENT_SIZE,
+        .version = host_version,
+        .layout = layout,
+        .bytes = completion_bytes,
+        .byte_size = sizeof(completion_bytes),
+    };
+    ctex_transport_host_tile_completion wrong_completion = completion;
+    ++wrong_completion.version.generation;
+    passed =
+        expect(ctex_transport_readback_complete_host(host, &completion, 1) == CTEX_RESULT_SUCCESS &&
+                   memcmp(host_output, completion_bytes, sizeof(host_output)) == 0,
+               "host completion did not atomically publish its payload") &&
+        expect(ctex_transport_readback_cancel(cancelled) == CTEX_RESULT_SUCCESS &&
+                   ctex_transport_readback_complete_host(cancelled, &completion, 1) ==
+                       CTEX_RESULT_INVALID_ARGUMENT &&
+                   cancelled_output[0] == 0xc7,
+               "cancelled readback accepted a late completion") &&
+        expect(ctex_transport_readback_fail(failed, "device lost") == CTEX_RESULT_SUCCESS &&
+                   failed_output[0] == 0xd8,
+               "failed readback changed its output") &&
+        expect(ctex_transport_readback_complete_host(mismatched, &wrong_completion, 1) ==
+                       CTEX_RESULT_INVALID_ARGUMENT &&
+                   mismatched_output[0] == 0xe9,
+               "mismatched readback completion changed its output") &&
+        passed;
+    char detail[32] = {0};
+    info.size = CTEX_TRANSPORT_READBACK_INFO_CURRENT_SIZE;
+    passed = expect(ctex_transport_readback_get_info(failed, &info, detail, sizeof(detail)) ==
+                            CTEX_RESULT_SUCCESS &&
+                        info.status == CTEX_TRANSPORT_READBACK_FAILED &&
+                        info.output_readable == 0 && strcmp(detail, "device lost") == 0,
+                    "failed readback did not expose its terminal state") &&
+             passed;
+
+    ctex_transport_readback_destroy(failed);
+    ctex_transport_readback_destroy(mismatched);
+    ctex_transport_readback_destroy(cancelled);
+    ctex_transport_readback_destroy(host);
+    ctex_transport_readback_destroy(cpu);
+    failed = NULL;
+    mismatched = NULL;
+    cancelled = NULL;
+    host = NULL;
+    cpu = NULL;
+    passed = expect(ctex_transport_snapshot_pool_get_memory_report(pool, &memory) ==
+                            CTEX_RESULT_SUCCESS &&
+                        memory.active_snapshots == 0 && memory.pinned_bytes == 0,
+                    "terminal readback destruction did not release the snapshot") &&
+             passed;
+
+    ctex_transport_readback_destroy(failed);
+    ctex_transport_readback_destroy(mismatched);
+    ctex_transport_readback_destroy(cancelled);
+    ctex_transport_readback_destroy(host);
+    ctex_transport_readback_destroy(cpu);
+    ctex_transport_snapshot_destroy(snapshot);
+    ctex_transport_snapshot_pool_destroy(pool);
+    ctex_document_destroy(document);
+    return passed;
+}
+
 int main(void) {
     return snapshot_readback_is_consistent_and_budgeted() &&
-                   preview_uses_the_same_snapshot_transport()
+                   preview_uses_the_same_snapshot_transport() &&
+                   asynchronous_readback_retains_snapshot_and_publishes_atomically()
                ? 0
                : 1;
 }

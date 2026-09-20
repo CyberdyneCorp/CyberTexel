@@ -1404,6 +1404,7 @@ if(BUILD_TESTING)
         host-transport-snapshot
         host-transport-preview
         host-transport-identity
+        c-abi-host-transport-snapshot
     )
     set_tests_properties(
         ${CTEX_HOST_TRANSPORT_SCENARIO_TESTS} PROPERTIES LABELS host-transport-scenario

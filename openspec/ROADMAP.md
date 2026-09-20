@@ -233,9 +233,12 @@ revisions are also queryable. Shader emission is fully mapped. Independent CPU v
 UV-space rasterization now crosses C with bounded atomic output, making the
 reference implementation directly usable without host-rendered depth or UV
 buffers. Alongside the public parity gate and enforced backend layering,
-execution-backends is fully mapped. Exactly 57 runtime requirements remain
-without C ABI evidence; those gaps must be implemented before task 14.8 can
-close.
+execution-backends is fully mapped. Pinned committed and preview snapshots now
+start opaque asynchronous CPU or host-device readbacks through C. Pending host
+requests retain their snapshot, validate the whole completion batch before
+publishing caller buffers, and expose complete, cancelled and failed terminal
+states. Exactly 56 runtime requirements remain without C ABI evidence; those
+gaps must be implemented before task 14.8 can close.
 
 ## Milestones
 

@@ -252,8 +252,22 @@ struct ctex_transport_snapshot {
           layouts(std::move(layout_values)) {}
 
     ctex_allocator_state allocator;
+    std::atomic<std::size_t> references{1};
     ctex::xport::SnapshotDelta value;
     std::vector<ctex::xport::TileMemoryLayout> layouts;
+};
+
+struct ctex_transport_readback {
+    ctex_transport_readback(ctex_allocator_state allocator_value,
+                            ctex::xport::TileReadback readback_value,
+                            ctex_transport_snapshot* snapshot_value)
+        : allocator(allocator_value),
+          value(std::move(readback_value)),
+          retained_snapshot(snapshot_value) {}
+
+    ctex_allocator_state allocator;
+    ctex::xport::TileReadback value;
+    ctex_transport_snapshot* retained_snapshot;
 };
 
 struct ctex_executor_registry {
@@ -675,6 +689,49 @@ ctex_transport_snapshot* create_transport_snapshot(
                            alignof(ctex_transport_snapshot));
         throw;
     }
+}
+
+void retain_transport_snapshot(ctex_transport_snapshot* snapshot) noexcept {
+    snapshot->references.fetch_add(1, std::memory_order_relaxed);
+}
+
+void release_transport_snapshot(ctex_transport_snapshot* snapshot) noexcept {
+    if (snapshot == nullptr || snapshot->references.fetch_sub(1, std::memory_order_acq_rel) != 1) {
+        return;
+    }
+    const ctex_allocator_state allocator = snapshot->allocator;
+    snapshot->~ctex_transport_snapshot();
+    deallocate_storage(allocator, snapshot, sizeof(ctex_transport_snapshot),
+                       alignof(ctex_transport_snapshot));
+}
+
+ctex_transport_readback* create_transport_readback(const ctex_allocator_state& allocator,
+                                                   ctex::xport::TileReadback value,
+                                                   ctex_transport_snapshot* snapshot) {
+    void* storage = allocate_storage(allocator, sizeof(ctex_transport_readback),
+                                     alignof(ctex_transport_readback));
+    try {
+        auto* created =
+            ::new (storage) ctex_transport_readback(allocator, std::move(value), snapshot);
+        retain_transport_snapshot(snapshot);
+        return created;
+    } catch (...) {
+        deallocate_storage(allocator, storage, sizeof(ctex_transport_readback),
+                           alignof(ctex_transport_readback));
+        throw;
+    }
+}
+
+void destroy_transport_readback(ctex_transport_readback* readback) noexcept {
+    if (readback == nullptr) {
+        return;
+    }
+    const ctex_allocator_state allocator = readback->allocator;
+    ctex_transport_snapshot* snapshot = readback->retained_snapshot;
+    readback->~ctex_transport_readback();
+    deallocate_storage(allocator, readback, sizeof(ctex_transport_readback),
+                       alignof(ctex_transport_readback));
+    release_transport_snapshot(snapshot);
 }
 
 ctex_executor_registry* create_executor_registry(const ctex_allocator_state& allocator) {
@@ -7524,6 +7581,83 @@ std::vector<ctex::xport::TileReadbackDestination> transport_destinations(
     return converted;
 }
 
+ctex::xport::ReadbackFormatSelection transport_snapshot_format(
+    const ctex_transport_snapshot& snapshot, const ctex_transport_format_selection* format) {
+    const auto source = snapshot.value.snapshot.source_format();
+    const auto selected =
+        format == nullptr
+            ? ctex::xport::ReadbackFormatSelection{source, source,
+                                                   ctex::xport::ReadbackConversion::none}
+            : transport_format_selection(*format);
+    if (selected.source_format != source) {
+        throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_INVALID_HOST_TRANSPORT,
+                       "format selection does not match snapshot source format");
+    }
+    return selected;
+}
+
+void validate_host_readback_destinations(
+    const ctex_transport_snapshot& snapshot, const ctex::xport::ReadbackFormatSelection& format,
+    std::span<const ctex::xport::TileReadbackDestination> destinations) {
+    const auto pinned = snapshot.value.snapshot.versions();
+    for (const auto& destination : destinations) {
+        const auto version = std::find_if(pinned.begin(), pinned.end(), [&](const auto& candidate) {
+            return candidate.coordinate == destination.version.coordinate &&
+                   candidate.revision == destination.version.revision &&
+                   candidate.generation == destination.version.generation;
+        });
+        if (version == pinned.end()) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_INVALID_HOST_TRANSPORT,
+                           "host readback tile version is not pinned by the snapshot");
+        }
+        const auto expected = transport_snapshot_layout(snapshot, *version, format.output_format);
+        if (destination.layout != expected) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_INVALID_HOST_TRANSPORT,
+                           "host readback layout does not match the pinned snapshot tile");
+        }
+    }
+}
+
+std::vector<ctex::xport::HostTileCompletion> transport_host_completions(
+    const ctex_transport_host_tile_completion* completed_tiles, std::size_t count) {
+    if (completed_tiles == nullptr && count != 0) {
+        throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                       "completed_tiles=null with nonzero count");
+    }
+    std::vector<ctex::xport::HostTileCompletion> converted;
+    converted.reserve(count);
+    for (std::size_t index = 0; index < count; ++index) {
+        const auto& completion = completed_tiles[index];
+        validate_structure_size(completion.size, CTEX_TRANSPORT_HOST_TILE_COMPLETION_V1_SIZE,
+                                CTEX_TRANSPORT_HOST_TILE_COMPLETION_CURRENT_SIZE,
+                                "host tile completion size");
+        if (completion.bytes == nullptr && completion.byte_size != 0) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                           "host completion bytes=null with nonzero size");
+        }
+        converted.push_back({
+            .version = transport_tile_version(completion.version),
+            .layout = transport_tile_layout(completion.layout),
+            .bytes = {static_cast<const std::byte*>(completion.bytes), completion.byte_size},
+        });
+    }
+    return converted;
+}
+
+std::uint32_t transport_readback_status(ctex::xport::TileReadbackStatus status) {
+    switch (status) {
+        case ctex::xport::TileReadbackStatus::pending:
+            return CTEX_TRANSPORT_READBACK_PENDING;
+        case ctex::xport::TileReadbackStatus::complete:
+            return CTEX_TRANSPORT_READBACK_COMPLETE;
+        case ctex::xport::TileReadbackStatus::cancelled:
+            return CTEX_TRANSPORT_READBACK_CANCELLED;
+        case ctex::xport::TileReadbackStatus::failed:
+            return CTEX_TRANSPORT_READBACK_FAILED;
+    }
+    throw std::logic_error("unknown transport readback status");
+}
+
 const char* require_transport_text(const char* value, std::string_view field) {
     if (value == nullptr) {
         throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
@@ -13916,13 +14050,7 @@ extern "C" ctex_result ctex_paint_preview_session_query_snapshot(
 }
 
 extern "C" void ctex_transport_snapshot_destroy(ctex_transport_snapshot* snapshot) {
-    if (snapshot == nullptr) {
-        return;
-    }
-    const ctex_allocator_state allocator = snapshot->allocator;
-    snapshot->~ctex_transport_snapshot();
-    deallocate_storage(allocator, snapshot, sizeof(ctex_transport_snapshot),
-                       alignof(ctex_transport_snapshot));
+    release_transport_snapshot(snapshot);
 }
 
 extern "C" ctex_result ctex_transport_snapshot_get_tile_versions(
@@ -14022,6 +14150,129 @@ extern "C" ctex_result ctex_transport_snapshot_read_tiles(
         if (readback.status() != ctex::xport::TileReadbackStatus::complete) {
             throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_INVALID_HOST_TRANSPORT,
                            readback.detail());
+        }
+    });
+}
+
+extern "C" ctex_result ctex_transport_snapshot_begin_readback(
+    const ctex_transport_snapshot* snapshot, const ctex_transport_format_selection* format,
+    const ctex_transport_tile_readback_destination* destinations, std::size_t destination_count,
+    ctex_transport_readback** out_readback) {
+    return call_boundary("ctex_transport_snapshot_begin_readback", [&] {
+        if (snapshot == nullptr || out_readback == nullptr) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                           snapshot == nullptr ? "snapshot=null" : "out_readback=null");
+        }
+        *out_readback = nullptr;
+        const auto converted = transport_destinations(destinations, destination_count);
+        const auto selected = transport_snapshot_format(*snapshot, format);
+        auto readback =
+            ctex::xport::TileReadback::begin_cpu(snapshot->value.snapshot, selected, converted);
+        if (readback.status() == ctex::xport::TileReadbackStatus::failed) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_INVALID_HOST_TRANSPORT,
+                           readback.detail());
+        }
+        *out_readback = create_transport_readback(snapshot->allocator, std::move(readback),
+                                                  const_cast<ctex_transport_snapshot*>(snapshot));
+    });
+}
+
+extern "C" ctex_result ctex_transport_snapshot_begin_host_readback(
+    const ctex_transport_snapshot* snapshot, const ctex_transport_format_selection* format,
+    const ctex_transport_tile_readback_destination* destinations, std::size_t destination_count,
+    ctex_transport_readback** out_readback) {
+    return call_boundary("ctex_transport_snapshot_begin_host_readback", [&] {
+        if (snapshot == nullptr || out_readback == nullptr) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                           snapshot == nullptr ? "snapshot=null" : "out_readback=null");
+        }
+        *out_readback = nullptr;
+        const auto converted = transport_destinations(destinations, destination_count);
+        const auto selected = transport_snapshot_format(*snapshot, format);
+        validate_host_readback_destinations(*snapshot, selected, converted);
+        auto readback = ctex::xport::TileReadback::begin_host(selected, converted);
+        if (readback.status() == ctex::xport::TileReadbackStatus::failed) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_INVALID_HOST_TRANSPORT,
+                           readback.detail());
+        }
+        *out_readback = create_transport_readback(snapshot->allocator, std::move(readback),
+                                                  const_cast<ctex_transport_snapshot*>(snapshot));
+    });
+}
+
+extern "C" void ctex_transport_readback_destroy(ctex_transport_readback* readback) {
+    destroy_transport_readback(readback);
+}
+
+extern "C" ctex_result ctex_transport_readback_get_info(const ctex_transport_readback* readback,
+                                                        ctex_transport_readback_info* out_info,
+                                                        char* detail, std::size_t detail_size) {
+    return call_boundary("ctex_transport_readback_get_info", [&] {
+        if (readback == nullptr || out_info == nullptr) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                           readback == nullptr ? "readback=null" : "out_info=null");
+        }
+        validate_structure_size(out_info->size, CTEX_TRANSPORT_READBACK_INFO_V1_SIZE,
+                                CTEX_TRANSPORT_READBACK_INFO_CURRENT_SIZE,
+                                "transport readback info size");
+        const std::string& message = readback->value.detail();
+        const std::size_t required_detail_size = message.size() + 1;
+        validate_string_buffer(detail, detail_size, required_detail_size);
+        *out_info = {
+            .size = CTEX_TRANSPORT_READBACK_INFO_CURRENT_SIZE,
+            .status = transport_readback_status(readback->value.status()),
+            .output_readable = readback->value.output_readable() ? 1U : 0U,
+            .tile_count = readback->value.tile_count(),
+            .required_detail_size = required_detail_size,
+        };
+        if (detail != nullptr) {
+            std::memcpy(detail, message.c_str(), required_detail_size);
+        }
+    });
+}
+
+extern "C" ctex_result ctex_transport_readback_complete_host(
+    ctex_transport_readback* readback, const ctex_transport_host_tile_completion* completed_tiles,
+    std::size_t completed_tile_count) {
+    return call_boundary("ctex_transport_readback_complete_host", [&] {
+        if (readback == nullptr) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                           "readback=null");
+        }
+        const auto converted = transport_host_completions(completed_tiles, completed_tile_count);
+        if (!readback->value.complete_host(converted)) {
+            const std::string detail = readback->value.detail().empty()
+                                           ? "transport readback is not pending"
+                                           : readback->value.detail();
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_INVALID_HOST_TRANSPORT,
+                           detail);
+        }
+    });
+}
+
+extern "C" ctex_result ctex_transport_readback_cancel(ctex_transport_readback* readback) {
+    return call_boundary("ctex_transport_readback_cancel", [&] {
+        if (readback == nullptr) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                           "readback=null");
+        }
+        if (!readback->value.cancel()) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_INVALID_HOST_TRANSPORT,
+                           "transport readback is not pending");
+        }
+    });
+}
+
+extern "C" ctex_result ctex_transport_readback_fail(ctex_transport_readback* readback,
+                                                    const char* detail) {
+    return call_boundary("ctex_transport_readback_fail", [&] {
+        if (readback == nullptr || detail == nullptr) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                           readback == nullptr ? "readback=null" : "detail=null");
+        }
+        if (!readback->value.fail_host(detail)) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_INVALID_HOST_TRANSPORT,
+                           "transport readback is not pending");
         }
     });
 }

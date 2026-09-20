@@ -21,7 +21,7 @@ the later cross-capability task for integrations that do not exist yet.
 | Caching a compiled pipeline | `host-transport-identity` | A reconstructed or reordered plan resolves the same structured pipeline cache identity |
 | A Rust host synchronizes | Deferred to 14.13 | Safe Rust, Swift and Python reachability lands with the binding-parity gate |
 | Synchronization budget | `host-transport-delta`; numeric gate deferred to 17.6 | Work-count invariants are executable now; reference-device latency limits land with performance gates |
-| Saving during painting | `host-transport-snapshot`, `host-transport-readback`; save integration deferred to 12.3–12.4 | The transport returns pinned R while R+1 advances and releases on success, failure or destruction |
+| Saving during painting | `host-transport-snapshot`, `host-transport-readback`, `c-abi-host-transport-snapshot`; save integration deferred to 12.3–12.4 | The transport returns pinned R while R+1 advances; public asynchronous readbacks retain R and release it after success, cancellation, failure or destruction |
 | Slow reader retains old tiles | `host-transport-snapshot` | Unique pinned bytes remain reported, admission respects the ceiling, and release restores capacity |
 
 The labeled suite deliberately tests the host-neutral C++ contract. Binding

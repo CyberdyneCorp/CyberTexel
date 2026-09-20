@@ -298,7 +298,7 @@ identities (8.10) add a structured key for each named render or compute pass.
 The key combines resource kind, stable plan scope and pass identifier without
 delimiter ambiguity, remains stable across plan reconstruction and pass
 reordering, and lets a host cache compiled pipelines without pointer or ordinal
-keys. Task 8.11 labels the eight transport CTests as one runnable suite and maps
+keys. Task 8.11 labels the nine transport CTests as one runnable suite and maps
 all sixteen scenarios to current fixtures or their explicit later integration
 tasks. Rust binding parity, save integration and numeric reference-device
 budgets remain explicitly assigned to 14.13, 12.3–12.4 and 17.6 rather than
@@ -979,6 +979,15 @@ UV-to-camera projection, over-budget and malformed input refusal, and
 short-buffer atomicity. Together with the public parity gate and enforced
 backend layering, execution-backends is fully mapped and the exact remaining C
 ABI gap is 57 runtime requirements.
+
+The asynchronous-readback continuation exposes the host-transport state machine
+through allocator-owned C handles. CPU snapshot requests complete through the
+same observable path; host-device requests remain pending and accept only a
+complete matching tile batch. Pending, cancelled, explicitly failed and late or
+mismatched completions leave caller buffers unchanged. Every request retains its
+pinned committed or preview snapshot through public-handle destruction and
+releases it when the request is destroyed. The exact remaining C ABI gap is 56
+runtime requirements.
 
 ## 1. Foundation
 

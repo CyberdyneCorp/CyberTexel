@@ -65,6 +65,7 @@
       {"requirement": "Cost is proportional to the change", "symbols": ["ctex_texture_set_query_channel_delta"]},
       {"requirement": "Preview transport", "symbols": ["ctex_paint_preview_session_query_snapshot", "ctex_transport_snapshot_get_tile_versions", "ctex_transport_snapshot_get_tile_memory_layout", "ctex_transport_snapshot_read_tiles"]},
       {"requirement": "Host-owned resources are tracked by identity", "symbols": ["ctex_host_execution_session_get_committed_resource", "ctex_host_execution_session_resource_is_held", "ctex_host_completion_result_get_info", "ctex_host_recovery_report_get_info"]},
+      {"requirement": "Explicit asynchronous readback", "symbols": ["ctex_transport_snapshot_begin_readback", "ctex_transport_snapshot_begin_host_readback", "ctex_transport_readback_get_info", "ctex_transport_readback_complete_host", "ctex_transport_readback_cancel", "ctex_transport_readback_fail", "ctex_transport_readback_destroy"]},
       {"requirement": "Snapshot pressure is bounded", "symbols": ["ctex_transport_snapshot_pool_create", "ctex_transport_snapshot_pool_destroy", "ctex_transport_snapshot_pool_get_memory_report", "ctex_texture_set_query_channel_snapshot", "ctex_transport_snapshot_destroy"]}
     ]},
     {"name": "image-io", "kind": "runtime", "requirements": [

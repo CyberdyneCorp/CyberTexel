@@ -69,6 +69,16 @@ malformed host completions, cancellation, failure, and completion arriving
 after cancellation leave every output span unchanged. The caller must keep
 those spans alive until the operation reaches a terminal state.
 
+The public C boundary carries this state machine in an opaque
+`ctex_transport_readback`. Snapshot-based CPU requests can complete immediately;
+host-device requests validate that every requested logical version and layout
+belongs to the pinned committed or preview snapshot, then remain pending until
+the host submits the complete batch. The handle reports state, output
+readability, tile count and terminal detail. It also retains the snapshot token,
+so destroying the public snapshot handle cannot release revision R while a save
+or export readback is still pending. Destroying the readback releases that pin
+on every terminal path or abandoned request.
+
 ## Stable tile memory layout
 
 `tile_memory_layout` declares the exact payload before a caller allocates its

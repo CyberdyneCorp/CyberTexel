@@ -140,6 +140,7 @@ typedef struct ctex_pick_index ctex_pick_index;
 typedef struct ctex_uv_pick_index ctex_uv_pick_index;
 typedef struct ctex_transport_snapshot_pool ctex_transport_snapshot_pool;
 typedef struct ctex_transport_snapshot ctex_transport_snapshot;
+typedef struct ctex_transport_readback ctex_transport_readback;
 typedef struct ctex_executor_registry ctex_executor_registry;
 typedef struct ctex_cpu_execution_result ctex_cpu_execution_result;
 typedef struct ctex_parity_gate_result ctex_parity_gate_result;
@@ -2407,6 +2408,37 @@ typedef struct ctex_transport_tile_readback_destination {
     ((uint32_t)sizeof(ctex_transport_tile_readback_destination))
 #define CTEX_TRANSPORT_TILE_READBACK_DESTINATION_CURRENT_SIZE \
     ((uint32_t)sizeof(ctex_transport_tile_readback_destination))
+
+typedef enum ctex_transport_readback_status {
+    CTEX_TRANSPORT_READBACK_PENDING = 0,
+    CTEX_TRANSPORT_READBACK_COMPLETE = 1,
+    CTEX_TRANSPORT_READBACK_CANCELLED = 2,
+    CTEX_TRANSPORT_READBACK_FAILED = 3
+} ctex_transport_readback_status;
+
+typedef struct ctex_transport_host_tile_completion {
+    uint32_t size;
+    ctex_transport_tile_version version;
+    ctex_transport_tile_memory_layout layout;
+    const void* bytes;
+    size_t byte_size;
+} ctex_transport_host_tile_completion;
+
+#define CTEX_TRANSPORT_HOST_TILE_COMPLETION_V1_SIZE \
+    ((uint32_t)sizeof(ctex_transport_host_tile_completion))
+#define CTEX_TRANSPORT_HOST_TILE_COMPLETION_CURRENT_SIZE \
+    ((uint32_t)sizeof(ctex_transport_host_tile_completion))
+
+typedef struct ctex_transport_readback_info {
+    uint32_t size;
+    uint32_t status;
+    uint32_t output_readable;
+    size_t tile_count;
+    size_t required_detail_size;
+} ctex_transport_readback_info;
+
+#define CTEX_TRANSPORT_READBACK_INFO_V1_SIZE ((uint32_t)sizeof(ctex_transport_readback_info))
+#define CTEX_TRANSPORT_READBACK_INFO_CURRENT_SIZE ((uint32_t)sizeof(ctex_transport_readback_info))
 
 typedef enum ctex_executor_route {
     CTEX_EXECUTOR_ROUTE_HOST_EXECUTED = 0,
@@ -4970,6 +5002,32 @@ CTEX_API ctex_result ctex_transport_snapshot_get_tile_memory_layout(
 CTEX_API ctex_result ctex_transport_snapshot_read_tiles(
     const ctex_transport_snapshot* snapshot, const ctex_transport_format_selection* format,
     const ctex_transport_tile_readback_destination* destinations, size_t destination_count);
+
+/*
+ * Starts readback from an exact pinned snapshot. CPU-resident snapshots may
+ * complete before this call returns. The host variant remains pending until
+ * the host supplies one matching completion record per requested tile. Output
+ * buffers must outlive the readback and are readable only when reported so.
+ * A readback retains the snapshot token until the readback is destroyed.
+ */
+CTEX_API ctex_result ctex_transport_snapshot_begin_readback(
+    const ctex_transport_snapshot* snapshot, const ctex_transport_format_selection* format,
+    const ctex_transport_tile_readback_destination* destinations, size_t destination_count,
+    ctex_transport_readback** out_readback);
+CTEX_API ctex_result ctex_transport_snapshot_begin_host_readback(
+    const ctex_transport_snapshot* snapshot, const ctex_transport_format_selection* format,
+    const ctex_transport_tile_readback_destination* destinations, size_t destination_count,
+    ctex_transport_readback** out_readback);
+CTEX_API void ctex_transport_readback_destroy(ctex_transport_readback* readback);
+CTEX_API ctex_result ctex_transport_readback_get_info(const ctex_transport_readback* readback,
+                                                      ctex_transport_readback_info* out_info,
+                                                      char* detail, size_t detail_size);
+CTEX_API ctex_result ctex_transport_readback_complete_host(
+    ctex_transport_readback* readback, const ctex_transport_host_tile_completion* completed_tiles,
+    size_t completed_tile_count);
+CTEX_API ctex_result ctex_transport_readback_cancel(ctex_transport_readback* readback);
+CTEX_API ctex_result ctex_transport_readback_fail(ctex_transport_readback* readback,
+                                                  const char* detail);
 
 /*
  * Creates a registry containing the always-available CPU reference and

@@ -138,7 +138,19 @@ transfer. `ctex_paint_preview_session_query_snapshot` applies the identical
 version, format, layout and readback contract to provisional or finalized paint
 previews; an admitted token remains valid after its preview session is destroyed.
 Committed and cancelled sessions are no longer in flight and refuse new preview
-snapshots. Host-device pending/completion remains outside this slice.
+snapshots.
+
+`ctex_transport_snapshot_begin_readback` exposes CPU transfer through the same
+opaque four-state operation used by the host route; CPU snapshots may already
+be complete when the call returns. For a host-resident copy of a pinned logical
+version, `ctex_transport_snapshot_begin_host_readback` returns pending and
+accepts one exact version/layout/payload record per tile through
+`ctex_transport_readback_complete_host`. Completion validates the whole batch
+before publishing any caller-owned output. Cancellation, explicit failure,
+mismatched completion and late completion publish nothing. Each readback retains
+its snapshot pin until destruction, even if the public snapshot handle and its
+source preview or document are destroyed first. Revision and delta queries never
+start either transfer path.
 
 ## Execution routes
 
@@ -875,7 +887,7 @@ The contract is stated per entry-point family:
 | `ctex_preset_library_enumerate`, `ctex_preset_library_resolve` | Stateless and safe to call concurrently; descriptors and encoded shelf contents are borrowed only for the call and outputs are caller-owned |
 | `ctex_texture_set_apply_smart_material`, `ctex_texture_set_apply_smart_mask`, `ctex_texture_set_get_preset_applications`, `ctex_texture_set_set_applied_entry_state`, `ctex_texture_set_undo_last_preset_application` | Distinct documents are independent; callers serialize these operations with every other operation on the same document |
 | `ctex_texture_set_query_channel_delta`, `ctex_texture_set_reset_channel_revision_history` | Distinct documents are independent; callers serialize these operations with every other operation on the same document. Query output contains metadata only and performs no pixel readback |
-| `ctex_transport_snapshot_pool_create`, `ctex_transport_snapshot_pool_destroy`, `ctex_transport_snapshot_pool_get_memory_report`, `ctex_texture_set_query_channel_snapshot`, `ctex_paint_preview_session_query_snapshot`, `ctex_transport_snapshot_destroy`, `ctex_transport_snapshot_get_tile_versions`, `ctex_transport_snapshot_negotiate_format`, `ctex_transport_snapshot_get_tile_memory_layout`, `ctex_transport_snapshot_read_tiles` | Distinct pools and snapshots are independent. Callers serialize query/report operations on one pool and all operations or destruction on one snapshot. A document or preview session is required only during its snapshot query and must be externally serialized for that call; an admitted snapshot owns its pinned versions and may outlive the source handle and pool |
+| `ctex_transport_snapshot_pool_create`, `ctex_transport_snapshot_pool_destroy`, `ctex_transport_snapshot_pool_get_memory_report`, `ctex_texture_set_query_channel_snapshot`, `ctex_paint_preview_session_query_snapshot`, `ctex_transport_snapshot_destroy`, `ctex_transport_snapshot_get_tile_versions`, `ctex_transport_snapshot_negotiate_format`, `ctex_transport_snapshot_get_tile_memory_layout`, `ctex_transport_snapshot_read_tiles`, `ctex_transport_snapshot_begin_readback`, `ctex_transport_snapshot_begin_host_readback`, `ctex_transport_readback_destroy`, `ctex_transport_readback_get_info`, `ctex_transport_readback_complete_host`, `ctex_transport_readback_cancel`, `ctex_transport_readback_fail` | Distinct pools, snapshots and readbacks are independent. Callers serialize query/report operations on one pool, calls that use one public snapshot handle, and all operations or destruction on one readback. A document or preview session is required only during its snapshot query. An admitted snapshot owns its pinned versions and may outlive the source handle and pool; a readback retains that pin and may outlive destruction of the public snapshot handle |
 | `ctex_executor_registry_create`, `ctex_executor_registry_destroy`, `ctex_executor_registry_get_count`, `ctex_executor_registry_get_info`, `ctex_executor_registry_select`, `ctex_executor_registry_pin_default`, `ctex_executor_registry_clear_default` | Distinct registries are independent. Callers serialize selection/default changes and destruction of one registry; read-only count and descriptor queries may run concurrently when no operation mutates that registry |
 | `ctex_executor_make_fallback_report` | Stateless and safe to call concurrently; input strings are borrowed only for the call and the report buffer is caller-owned |
 | `ctex_cpu_execute_bounded`, `ctex_cpu_execution_result_destroy`, `ctex_cpu_execution_result_get_info` | Distinct executions and immutable result handles are independent. Work callbacks may run concurrently up to the declared worker bound; cancellation and progress callbacks are serialized; commit runs once on the calling thread. A result may be queried concurrently, but destruction requires that no query is active |

@@ -16,6 +16,13 @@ EXPORTS
     ctex_transport_snapshot_negotiate_format
     ctex_transport_snapshot_get_tile_memory_layout
     ctex_transport_snapshot_read_tiles
+    ctex_transport_snapshot_begin_readback
+    ctex_transport_snapshot_begin_host_readback
+    ctex_transport_readback_destroy
+    ctex_transport_readback_get_info
+    ctex_transport_readback_complete_host
+    ctex_transport_readback_cancel
+    ctex_transport_readback_fail
     ctex_executor_registry_create
     ctex_executor_registry_destroy
     ctex_executor_registry_get_count
