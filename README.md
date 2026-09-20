@@ -137,7 +137,8 @@ The current implementation provides:
   and preflight collision refusal. [Texture export execution](docs/texture-export.md)
   adds bilinear output sizing, shared extrapolating UV padding, dry-run and JSON
   manifests, cancellable progress, and self-describing in-memory encoded
-  buffers.
+  buffers. The complete pipeline is also available through the stable
+  [C ABI](docs/c-abi.md#texture-export) using caller-owned callback delivery.
 - Extensible semantic channels and a nine-channel metallic/roughness PBR preset,
   with independent precision and allocation-free disabled channels.
 - Texture-set documents derived from mesh partitions and named UVs, with stable

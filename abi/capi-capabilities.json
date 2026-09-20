@@ -123,6 +123,22 @@
       {"requirement": "Tiled storage", "symbols": ["ctex_paint_preview_session_write_pixel", "ctex_paint_preview_session_get_changed_tiles"]},
       {"requirement": "Extensible channel descriptors", "symbols": ["ctex_texture_set_register_channel", "ctex_texture_set_get_channel_info", "ctex_texture_set_set_channel_enabled"]}
     ]},
-    {"name": "texture-export", "kind": "runtime", "requirements": []}
+    {"name": "texture-export", "kind": "runtime", "requirements": [
+      {"requirement": "Export presets are data", "symbols": ["ctex_texture_export_run"]},
+      {"requirement": "Channel token vocabulary", "symbols": ["ctex_texture_export_run"]},
+      {"requirement": "Derived tokens", "symbols": ["ctex_texture_export_run"]},
+      {"requirement": "Built-in presets", "symbols": ["ctex_texture_export_get_built_in_preset_ids", "ctex_texture_export_run"]},
+      {"requirement": "Output formats and bit depths", "symbols": ["ctex_texture_export_run"]},
+      {"requirement": "Export scopes", "symbols": ["ctex_texture_export_run"]},
+      {"requirement": "Layer scope", "symbols": ["ctex_texture_export_run"]},
+      {"requirement": "Filename pattern", "symbols": ["ctex_texture_export_run"]},
+      {"requirement": "Export resolution", "symbols": ["ctex_texture_export_run"]},
+      {"requirement": "Padding", "symbols": ["ctex_texture_export_run"]},
+      {"requirement": "Dry run", "symbols": ["ctex_texture_export_run"]},
+      {"requirement": "Machine-readable report", "symbols": ["ctex_texture_export_run"]},
+      {"requirement": "Export is cancellable and reports progress", "symbols": ["ctex_texture_export_run"]},
+      {"requirement": "In-memory export", "symbols": ["ctex_texture_export_run"]},
+      {"requirement": "Registered channel export", "symbols": ["ctex_texture_export_run"]}
+    ]}
   ]
 }

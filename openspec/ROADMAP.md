@@ -147,7 +147,11 @@ family: allocator-owned acceleration structures that rebuild after mesh
 replacement, perspective and orthographic rays, full hit records, nearest and
 all-hit occlusion, backface policy, UV picking, surface snapping, four region
 queries, and bounded cancellable batches with progress and traversal cost. The
-gate correctly remains red with 168 runtime requirements still lacking C ABI
+texture-export slice now exposes data-driven and built-in presets, the complete
+token vocabulary, all spatial and layer scopes, filename and resolution
+planning, padding, dry runs, JSON reports, progress, cancellation, registered
+channels and caller-owned in-memory output delivery. The gate correctly remains
+red with 153 runtime requirements still lacking C ABI
 evidence; those gaps must be implemented before task 14.8 can close.
 
 ## Milestones

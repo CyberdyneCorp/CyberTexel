@@ -9,6 +9,7 @@
 #include <ctex/image/color_policy.hpp>
 #include <ctex/io/image_io.hpp>
 #include <ctex/io/texture_encode.hpp>
+#include <ctex/io/texture_export.hpp>
 #include <ctex/paint/blending.hpp>
 #include <ctex/paint/coverage.hpp>
 #include <ctex/paint/deposition.hpp>
@@ -3090,6 +3091,558 @@ PaintBlendInputs paint_blend_inputs(const ctex_paint_blend_descriptor& descripto
     return result;
 }
 
+const char* require_export_text(const char* value, std::string_view field) {
+    if (value == nullptr) {
+        throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                       std::string(field) + "=null");
+    }
+    if (value[0] == '\0') {
+        throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_INVALID_TEXTURE_EXPORT,
+                       std::string(field) + " is empty");
+    }
+    return value;
+}
+
+template <typename Value>
+void require_export_array(const Value* values, std::size_t count, std::string_view field) {
+    if (values == nullptr && count != 0) {
+        throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                       std::string(field) + "=null with nonzero count");
+    }
+}
+
+std::vector<std::string> export_string_array(const char* const* values, std::size_t count,
+                                             std::string_view field) {
+    require_export_array(values, count, field);
+    std::vector<std::string> result;
+    result.reserve(count);
+    for (std::size_t index = 0; index < count; ++index) {
+        result.emplace_back(require_export_text(values[index], field));
+    }
+    return result;
+}
+
+ctex::io::ExportLayerKind export_layer_kind(std::uint32_t value) {
+    switch (value) {
+        case CTEX_TEXTURE_EXPORT_LAYER_CONTENT:
+            return ctex::io::ExportLayerKind::content;
+        case CTEX_TEXTURE_EXPORT_LAYER_GROUP:
+            return ctex::io::ExportLayerKind::group;
+    }
+    throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_INVALID_ENUM_VALUE,
+                   "texture export layer kind=" + std::to_string(value));
+}
+
+ctex::io::ExportLayerSource export_layer_source(
+    const ctex_texture_export_layer_source_descriptor& descriptor) {
+    validate_structure_size(descriptor.size, CTEX_TEXTURE_EXPORT_LAYER_SOURCE_DESCRIPTOR_V1_SIZE,
+                            CTEX_TEXTURE_EXPORT_LAYER_SOURCE_DESCRIPTOR_CURRENT_SIZE,
+                            "export layer source size");
+    return {
+        .identifier = require_export_text(descriptor.identifier, "layer.identifier"),
+        .display_name = require_export_text(descriptor.display_name, "layer.display_name"),
+        .parent_identifier =
+            descriptor.parent_identifier == nullptr ? "" : descriptor.parent_identifier,
+        .kind = export_layer_kind(descriptor.kind),
+        .visible = descriptor.visible != 0,
+    };
+}
+
+ctex::io::ExportTextureSetSource export_texture_set_source(
+    const ctex_texture_export_texture_set_source_descriptor& descriptor) {
+    validate_structure_size(descriptor.size,
+                            CTEX_TEXTURE_EXPORT_TEXTURE_SET_SOURCE_DESCRIPTOR_V1_SIZE,
+                            CTEX_TEXTURE_EXPORT_TEXTURE_SET_SOURCE_DESCRIPTOR_CURRENT_SIZE,
+                            "export texture set source size");
+    require_export_array(descriptor.occupied_udim_tiles, descriptor.occupied_udim_tile_count,
+                         "occupied_udim_tiles");
+    require_export_array(descriptor.layers, descriptor.layer_count, "layers");
+    ctex::io::ExportTextureSetSource result{
+        .identifier = require_export_text(descriptor.identifier, "texture_set.identifier"),
+        .display_name = require_export_text(descriptor.display_name, "texture_set.display_name"),
+        .width = descriptor.width,
+        .height = descriptor.height,
+        .occupied_udim_tiles = {},
+        .layers = {},
+    };
+    if (descriptor.occupied_udim_tile_count != 0) {
+        result.occupied_udim_tiles.assign(
+            descriptor.occupied_udim_tiles,
+            descriptor.occupied_udim_tiles + descriptor.occupied_udim_tile_count);
+    }
+    result.layers.reserve(descriptor.layer_count);
+    for (std::size_t index = 0; index < descriptor.layer_count; ++index) {
+        result.layers.push_back(export_layer_source(descriptor.layers[index]));
+    }
+    return result;
+}
+
+ctex::io::ExportAtlasSource export_atlas_source(
+    const ctex_texture_export_atlas_source_descriptor& descriptor) {
+    validate_structure_size(descriptor.size, CTEX_TEXTURE_EXPORT_ATLAS_SOURCE_DESCRIPTOR_V1_SIZE,
+                            CTEX_TEXTURE_EXPORT_ATLAS_SOURCE_DESCRIPTOR_CURRENT_SIZE,
+                            "export atlas source size");
+    return {
+        .identifier = require_export_text(descriptor.identifier, "atlas.identifier"),
+        .display_name = require_export_text(descriptor.display_name, "atlas.display_name"),
+        .width = descriptor.width,
+        .height = descriptor.height,
+        .texture_set_identifiers = export_string_array(descriptor.texture_set_identifiers,
+                                                       descriptor.texture_set_identifier_count,
+                                                       "atlas.texture_set_identifiers"),
+    };
+}
+
+ctex::io::ExportSourceCatalogue export_catalogue(
+    const ctex_texture_export_catalogue_descriptor& descriptor) {
+    validate_structure_size(descriptor.size, CTEX_TEXTURE_EXPORT_CATALOGUE_DESCRIPTOR_V1_SIZE,
+                            CTEX_TEXTURE_EXPORT_CATALOGUE_DESCRIPTOR_CURRENT_SIZE,
+                            "export catalogue size");
+    require_export_array(descriptor.texture_sets, descriptor.texture_set_count,
+                         "catalogue.texture_sets");
+    require_export_array(descriptor.atlases, descriptor.atlas_count, "catalogue.atlases");
+    ctex::io::ExportSourceCatalogue result{
+        .project_name = require_export_text(descriptor.project_name, "catalogue.project_name"),
+        .texture_sets = {},
+        .atlases = {},
+    };
+    result.texture_sets.reserve(descriptor.texture_set_count);
+    for (std::size_t index = 0; index < descriptor.texture_set_count; ++index) {
+        result.texture_sets.push_back(export_texture_set_source(descriptor.texture_sets[index]));
+    }
+    result.atlases.reserve(descriptor.atlas_count);
+    for (std::size_t index = 0; index < descriptor.atlas_count; ++index) {
+        result.atlases.push_back(export_atlas_source(descriptor.atlases[index]));
+    }
+    return result;
+}
+
+ctex::io::ExportTextureSetSelection export_texture_set_selection(std::uint32_t value) {
+    switch (value) {
+        case CTEX_TEXTURE_EXPORT_TEXTURE_SET_ALL:
+            return ctex::io::ExportTextureSetSelection::all;
+        case CTEX_TEXTURE_EXPORT_TEXTURE_SET_SELECTED:
+            return ctex::io::ExportTextureSetSelection::selected;
+    }
+    throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_INVALID_ENUM_VALUE,
+                   "texture export set selection=" + std::to_string(value));
+}
+
+ctex::io::ExportSpatialScope export_spatial_scope(std::uint32_t value) {
+    switch (value) {
+        case CTEX_TEXTURE_EXPORT_SCOPE_TEXTURE_SET:
+            return ctex::io::ExportSpatialScope::texture_set;
+        case CTEX_TEXTURE_EXPORT_SCOPE_UDIM:
+            return ctex::io::ExportSpatialScope::udim_tile;
+        case CTEX_TEXTURE_EXPORT_SCOPE_ATLAS:
+            return ctex::io::ExportSpatialScope::atlas;
+    }
+    throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_INVALID_ENUM_VALUE,
+                   "texture export spatial scope=" + std::to_string(value));
+}
+
+ctex::io::ExportLayerScope export_layer_scope(std::uint32_t value) {
+    switch (value) {
+        case CTEX_TEXTURE_EXPORT_LAYER_FLATTEN_VISIBLE:
+            return ctex::io::ExportLayerScope::flatten_visible;
+        case CTEX_TEXTURE_EXPORT_LAYER_FLATTEN_SELECTED:
+            return ctex::io::ExportLayerScope::flatten_selected;
+        case CTEX_TEXTURE_EXPORT_LAYER_EACH_SELECTED:
+            return ctex::io::ExportLayerScope::each_selected;
+    }
+    throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_INVALID_ENUM_VALUE,
+                   "texture export layer scope=" + std::to_string(value));
+}
+
+ctex::io::ExportPlanRequest export_plan(const ctex_texture_export_plan_descriptor* descriptor) {
+    if (descriptor == nullptr) {
+        return {};
+    }
+    validate_structure_size(descriptor->size, CTEX_TEXTURE_EXPORT_PLAN_DESCRIPTOR_V1_SIZE,
+                            CTEX_TEXTURE_EXPORT_PLAN_DESCRIPTOR_CURRENT_SIZE, "export plan size");
+    require_export_array(descriptor->selected_layers, descriptor->selected_layer_count,
+                         "plan.selected_layers");
+    ctex::io::ExportPlanRequest result{
+        .texture_set_selection = export_texture_set_selection(descriptor->texture_set_selection),
+        .selected_texture_set_identifiers =
+            export_string_array(descriptor->selected_texture_set_identifiers,
+                                descriptor->selected_texture_set_identifier_count,
+                                "plan.selected_texture_set_identifiers"),
+        .spatial_scope = export_spatial_scope(descriptor->spatial_scope),
+        .layer_scope = export_layer_scope(descriptor->layer_scope),
+        .selected_layer_identifiers = {},
+        .output_resolution = std::nullopt,
+        .filename_pattern = descriptor->filename_pattern == nullptr
+                                ? std::string(ctex::io::default_export_filename_pattern)
+                                : descriptor->filename_pattern,
+    };
+    if (descriptor->output_width != 0 || descriptor->output_height != 0) {
+        result.output_resolution = {
+            .width = descriptor->output_width,
+            .height = descriptor->output_height,
+        };
+    }
+    for (std::size_t index = 0; index < descriptor->selected_layer_count; ++index) {
+        const ctex_texture_export_layer_selection_descriptor& selection =
+            descriptor->selected_layers[index];
+        validate_structure_size(selection.size,
+                                CTEX_TEXTURE_EXPORT_LAYER_SELECTION_DESCRIPTOR_V1_SIZE,
+                                CTEX_TEXTURE_EXPORT_LAYER_SELECTION_DESCRIPTOR_CURRENT_SIZE,
+                                "export layer selection size");
+        const char* texture_set = require_export_text(selection.texture_set_identifier,
+                                                      "selected_layers.texture_set_identifier");
+        const auto [entry, inserted] = result.selected_layer_identifiers.emplace(
+            texture_set,
+            export_string_array(selection.layer_identifiers, selection.layer_identifier_count,
+                                "selected_layers.layer_identifiers"));
+        if (!inserted) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_INVALID_TEXTURE_EXPORT,
+                           "duplicate selected-layer texture set: " + std::string(texture_set));
+        }
+        static_cast<void>(entry);
+    }
+    return result;
+}
+
+ctex::io::ExportPreset export_preset(const ctex_texture_export_preset_descriptor* descriptor) {
+    if (descriptor == nullptr) {
+        return ctex::io::default_export_preset();
+    }
+    validate_structure_size(descriptor->size, CTEX_TEXTURE_EXPORT_PRESET_DESCRIPTOR_V1_SIZE,
+                            CTEX_TEXTURE_EXPORT_PRESET_DESCRIPTOR_CURRENT_SIZE,
+                            "export preset size");
+    if (descriptor->texture_count == 0) {
+        if (descriptor->textures != nullptr) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_INVALID_TEXTURE_EXPORT,
+                           "built-in preset selection must not supply textures");
+        }
+        return ctex::io::built_in_export_preset(
+            require_export_text(descriptor->identifier, "preset.identifier"));
+    }
+    require_export_array(descriptor->textures, descriptor->texture_count, "preset.textures");
+    ctex::io::ExportPreset result{
+        .identifier = require_export_text(descriptor->identifier, "preset.identifier"),
+        .display_name = require_export_text(descriptor->display_name, "preset.display_name"),
+        .textures = {},
+    };
+    result.textures.reserve(descriptor->texture_count);
+    for (std::size_t index = 0; index < descriptor->texture_count; ++index) {
+        const ctex_texture_export_texture_descriptor& texture = descriptor->textures[index];
+        validate_structure_size(texture.size, CTEX_TEXTURE_EXPORT_TEXTURE_DESCRIPTOR_V1_SIZE,
+                                CTEX_TEXTURE_EXPORT_TEXTURE_DESCRIPTOR_CURRENT_SIZE,
+                                "export texture size");
+        std::array<ctex::io::ExportChannelToken, 4> channels;
+        for (std::size_t component = 0; component < channels.size(); ++component) {
+            channels[component] = ctex::io::parse_export_channel_token(
+                require_export_text(texture.channel_tokens[component], "texture.channel_token"));
+        }
+        result.textures.push_back({
+            .suffix = require_export_text(texture.suffix, "texture.suffix"),
+            .rgba = std::move(channels),
+            .color_space = color_space(texture.color_space),
+            .bit_depth = encoded_output_depth(texture.bit_depth),
+            .format = encoded_output_format(texture.format),
+        });
+    }
+    ctex::io::validate_export_preset(result);
+    return result;
+}
+
+ctex::io::ExportPreset checked_export_preset(
+    const ctex_texture_export_preset_descriptor* descriptor) {
+    try {
+        return export_preset(descriptor);
+    } catch (const ctex::io::ExportPresetError& error) {
+        throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_INVALID_TEXTURE_EXPORT,
+                       error.what());
+    }
+}
+
+ctex::io::TextureExportOptions export_options(
+    const ctex_texture_export_options_descriptor* descriptor) {
+    if (descriptor == nullptr) {
+        return {};
+    }
+    validate_structure_size(descriptor->size, CTEX_TEXTURE_EXPORT_OPTIONS_DESCRIPTOR_V1_SIZE,
+                            CTEX_TEXTURE_EXPORT_OPTIONS_DESCRIPTOR_CURRENT_SIZE,
+                            "export options size");
+    return {
+        .plan = export_plan(descriptor->plan),
+        .resample_filter = ctex::io::ExportResampleFilter::bilinear,
+        .padding_radius = descriptor->padding_radius,
+        .jpeg_quality = static_cast<int>(descriptor->jpeg_quality),
+        .dry_run = descriptor->dry_run != 0,
+    };
+}
+
+void validate_export_callback_result(ctex_result result, std::string_view callback) {
+    if (result == CTEX_RESULT_SUCCESS) {
+        return;
+    }
+    if (result < CTEX_RESULT_INVALID_ARGUMENT || result > CTEX_RESULT_BUFFER_TOO_SMALL) {
+        throw_boundary(CTEX_RESULT_INTERNAL_ERROR, CTEX_DIAGNOSTIC_INVALID_TEXTURE_EXPORT,
+                       std::string(callback) + " callback returned an invalid result code");
+    }
+    throw_boundary(result, CTEX_DIAGNOSTIC_INVALID_TEXTURE_EXPORT,
+                   std::string(callback) + " callback reported failure");
+}
+
+ctex::io::ExportSampleValue export_sample_value(const ctex_texture_export_named_value& value) {
+    validate_structure_size(value.size, CTEX_TEXTURE_EXPORT_NAMED_VALUE_V1_SIZE,
+                            CTEX_TEXTURE_EXPORT_NAMED_VALUE_CURRENT_SIZE,
+                            "export named value size");
+    ctex::io::ExportSampleValue result{
+        .component_count = static_cast<std::uint8_t>(value.component_count), .components = {}};
+    if (value.component_count == 0 || value.component_count > result.components.size()) {
+        throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_INVALID_TEXTURE_EXPORT,
+                       "export named value component count must be from 1 through 4");
+    }
+    std::copy_n(value.components, value.component_count, result.components.begin());
+    return result;
+}
+
+void add_export_sample_values(
+    std::map<std::string, ctex::io::ExportSampleValue, std::less<>>& destination,
+    const ctex_texture_export_named_value* values, std::size_t count, std::string_view field) {
+    require_export_array(values, count, field);
+    for (std::size_t index = 0; index < count; ++index) {
+        const char* identifier = require_export_text(values[index].identifier, field);
+        if (!destination.emplace(identifier, export_sample_value(values[index])).second) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_INVALID_TEXTURE_EXPORT,
+                           std::string(field) + " contains duplicate identifier: " + identifier);
+        }
+    }
+}
+
+ctex::io::ExportChannelSample export_sample(ctex_texture_export_sample_callback callback,
+                                            void* user_data, std::uint32_t x, std::uint32_t y) {
+    ctex_texture_export_sample sample{};
+    sample.size = CTEX_TEXTURE_EXPORT_SAMPLE_CURRENT_SIZE;
+    sample.opacity = 1.0;
+    sample.normal[2] = 1.0;
+    sample.occlusion = 1.0;
+    ctex_result callback_result = CTEX_RESULT_INTERNAL_ERROR;
+    try {
+        callback_result = callback(x, y, &sample, user_data);
+    } catch (...) {
+        throw_boundary(CTEX_RESULT_INTERNAL_ERROR, CTEX_DIAGNOSTIC_INVALID_TEXTURE_EXPORT,
+                       "sample callback threw an exception");
+    }
+    validate_export_callback_result(callback_result, "sample");
+    validate_structure_size(sample.size, CTEX_TEXTURE_EXPORT_SAMPLE_V1_SIZE,
+                            CTEX_TEXTURE_EXPORT_SAMPLE_CURRENT_SIZE, "export sample size");
+    ctex::io::ExportChannelSample result{
+        .base_color = {sample.base_color[0], sample.base_color[1], sample.base_color[2]},
+        .opacity = sample.opacity,
+        .roughness = sample.roughness,
+        .metallic = sample.metallic,
+        .normal = {sample.normal[0], sample.normal[1], sample.normal[2]},
+        .height = sample.height,
+        .occlusion = sample.occlusion,
+        .emission = {sample.emission[0], sample.emission[1], sample.emission[2]},
+        .subsurface = sample.subsurface,
+        .mesh_maps = {},
+        .registered_channels = {},
+    };
+    add_export_sample_values(result.mesh_maps, sample.mesh_maps, sample.mesh_map_count,
+                             "sample.mesh_maps");
+    add_export_sample_values(result.registered_channels, sample.registered_channels,
+                             sample.registered_channel_count, "sample.registered_channels");
+    return result;
+}
+
+std::uint32_t export_image_format(ctex::io::ExportImageFormat format) noexcept {
+    switch (format) {
+        case ctex::io::ExportImageFormat::png:
+            return CTEX_IMAGE_FILE_FORMAT_PNG;
+        case ctex::io::ExportImageFormat::jpeg:
+            return CTEX_IMAGE_FILE_FORMAT_JPEG;
+        case ctex::io::ExportImageFormat::tga:
+            return CTEX_IMAGE_FILE_FORMAT_TGA;
+        case ctex::io::ExportImageFormat::tiff:
+            return CTEX_IMAGE_FILE_FORMAT_TIFF;
+        case ctex::io::ExportImageFormat::openexr:
+            return CTEX_IMAGE_FILE_FORMAT_OPENEXR;
+    }
+    return CTEX_IMAGE_FILE_FORMAT_UNKNOWN;
+}
+
+struct ExportPlannedOutputView {
+    std::vector<const char*> texture_sets;
+    std::vector<std::vector<const char*>> layer_identifiers;
+    std::vector<ctex_texture_export_layer_selection_view> layer_selections;
+    ctex_texture_export_planned_output value{};
+};
+
+ExportPlannedOutputView export_planned_output_view(const ctex::io::PlannedTextureExport& output) {
+    ExportPlannedOutputView result;
+    result.texture_sets.reserve(output.texture_set_identifiers.size());
+    for (const std::string& identifier : output.texture_set_identifiers) {
+        result.texture_sets.push_back(identifier.c_str());
+    }
+    result.layer_identifiers.reserve(output.layer_identifiers.size());
+    result.layer_selections.reserve(output.layer_identifiers.size());
+    for (const auto& [texture_set, layers] : output.layer_identifiers) {
+        std::vector<const char*>& identifiers = result.layer_identifiers.emplace_back();
+        identifiers.reserve(layers.size());
+        for (const std::string& layer : layers) {
+            identifiers.push_back(layer.c_str());
+        }
+        result.layer_selections.push_back({
+            .size = CTEX_TEXTURE_EXPORT_LAYER_SELECTION_VIEW_CURRENT_SIZE,
+            .texture_set_identifier = texture_set.c_str(),
+            .layer_identifiers = identifiers.data(),
+            .layer_identifier_count = identifiers.size(),
+        });
+    }
+    result.value = {
+        .size = CTEX_TEXTURE_EXPORT_PLANNED_OUTPUT_CURRENT_SIZE,
+        .relative_path = output.relative_path.c_str(),
+        .texture_set_identifiers = result.texture_sets.data(),
+        .texture_set_identifier_count = result.texture_sets.size(),
+        .has_udim_tile = output.udim_tile.has_value() ? 1U : 0U,
+        .udim_tile = output.udim_tile.value_or(0),
+        .atlas_identifier =
+            output.atlas_identifier.has_value() ? output.atlas_identifier->c_str() : nullptr,
+        .layer_selections = result.layer_selections.data(),
+        .layer_selection_count = result.layer_selections.size(),
+        .preset_texture_index = output.preset_texture_index,
+        .width = output.width,
+        .height = output.height,
+        .format = export_image_format(output.format),
+        .bit_depth = static_cast<std::uint32_t>(output.bit_depth),
+        .color_space = static_cast<std::uint32_t>(output.color_space),
+    };
+    return result;
+}
+
+ctex::io::ExportPixelSource export_pixel_source(
+    const ctex::io::PlannedTextureExport& output,
+    const ctex_texture_export_callbacks_descriptor& callbacks) {
+    ExportPlannedOutputView view = export_planned_output_view(output);
+    ctex_texture_export_pixel_source_descriptor source{};
+    source.size = CTEX_TEXTURE_EXPORT_PIXEL_SOURCE_DESCRIPTOR_CURRENT_SIZE;
+    ctex_result callback_result = CTEX_RESULT_INTERNAL_ERROR;
+    try {
+        callback_result = callbacks.source(&view.value, &source, callbacks.user_data);
+    } catch (...) {
+        throw_boundary(CTEX_RESULT_INTERNAL_ERROR, CTEX_DIAGNOSTIC_INVALID_TEXTURE_EXPORT,
+                       "source callback threw an exception");
+    }
+    validate_export_callback_result(callback_result, "source");
+    validate_structure_size(source.size, CTEX_TEXTURE_EXPORT_PIXEL_SOURCE_DESCRIPTOR_V1_SIZE,
+                            CTEX_TEXTURE_EXPORT_PIXEL_SOURCE_DESCRIPTOR_CURRENT_SIZE,
+                            "export pixel source size");
+    if (source.sample == nullptr) {
+        throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                       "pixel source sample callback=null");
+    }
+    require_export_array(source.coverage, source.coverage_count, "pixel source coverage");
+    std::vector<std::uint8_t> coverage;
+    if (source.coverage_count != 0) {
+        coverage.assign(source.coverage, source.coverage + source.coverage_count);
+    }
+    return {
+        .width = source.width,
+        .height = source.height,
+        .sample = [callback = source.sample, user_data = source.sample_user_data](
+                      std::uint32_t x,
+                      std::uint32_t y) { return export_sample(callback, user_data, x, y); },
+        .coverage = std::move(coverage),
+    };
+}
+
+void deliver_export_outputs(const ctex::io::TextureExportResult& result,
+                            const ctex_texture_export_callbacks_descriptor& callbacks) {
+    for (const ctex::io::InMemoryTextureExport& buffer : result.buffers) {
+        const ctex_texture_export_encoded_output output{
+            .size = CTEX_TEXTURE_EXPORT_ENCODED_OUTPUT_CURRENT_SIZE,
+            .report_entry_index = buffer.report_entry_index,
+            .relative_path = buffer.relative_path.c_str(),
+            .width = buffer.width,
+            .height = buffer.height,
+            .format = export_image_format(buffer.format),
+            .bit_depth = static_cast<std::uint32_t>(buffer.bit_depth),
+            .color_space = static_cast<std::uint32_t>(buffer.color_space),
+            .bytes = buffer.bytes.data(),
+            .byte_count = buffer.bytes.size(),
+        };
+        ctex_result callback_result = CTEX_RESULT_INTERNAL_ERROR;
+        try {
+            callback_result = callbacks.output(&output, callbacks.user_data);
+        } catch (...) {
+            throw_boundary(CTEX_RESULT_INTERNAL_ERROR, CTEX_DIAGNOSTIC_INVALID_TEXTURE_EXPORT,
+                           "output callback threw an exception");
+        }
+        validate_export_callback_result(callback_result, "output");
+    }
+}
+
+ctex::io::TextureExportResult run_export_core(
+    const ctex::io::ExportSourceCatalogue& catalogue, const ctex::io::ExportPreset& preset,
+    const ctex::io::TextureExportOptions& options,
+    const ctex_texture_export_callbacks_descriptor& callbacks) {
+    try {
+        return ctex::io::export_textures_to_memory(
+            catalogue, preset, options,
+            options.dry_run
+                ? ctex::io::ExportPixelProvider{}
+                : [&callbacks](const ctex::io::PlannedTextureExport& output) {
+                      return export_pixel_source(output, callbacks);
+                  },
+            callbacks.progress == nullptr
+                ? ctex::io::TextureExportProgressCallback{}
+                : [&callbacks](const ctex::io::TextureExportProgress& progress) {
+                      try {
+                          callbacks.progress(progress.completed_outputs, progress.total_outputs,
+                                             progress.relative_path.c_str(), callbacks.user_data);
+                      } catch (...) {
+                      }
+                  },
+            callbacks.cancel == nullptr
+                ? ctex::io::TextureExportCancellation{}
+                : [&callbacks] {
+                      try {
+                          return callbacks.cancel(callbacks.user_data) != 0;
+                      } catch (...) {
+                          return true;
+                      }
+                  });
+    } catch (const ctex::io::ExportPlanError& error) {
+        throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_INVALID_TEXTURE_EXPORT,
+                       error.what());
+    } catch (const ctex::io::ExportPresetError& error) {
+        const ctex_result result = error.code() == ctex::io::ExportPresetErrorCode::missing_source
+                                       ? CTEX_RESULT_MISSING_RESOURCE
+                                       : CTEX_RESULT_INVALID_ARGUMENT;
+        throw_boundary(result, CTEX_DIAGNOSTIC_INVALID_TEXTURE_EXPORT, error.what());
+    } catch (const ctex::io::TextureExportError& error) {
+        const ctex_result result = error.code() == ctex::io::TextureExportErrorCode::over_limit
+                                       ? CTEX_RESULT_OVER_BUDGET
+                                       : CTEX_RESULT_INVALID_ARGUMENT;
+        throw_boundary(result, CTEX_DIAGNOSTIC_INVALID_TEXTURE_EXPORT, error.what());
+    } catch (const ctex::io::TextureEncodeError& error) {
+        throw_texture_encode_error(error);
+    }
+}
+
+void validate_export_callbacks(const ctex_texture_export_callbacks_descriptor* callbacks,
+                               bool dry_run) {
+    if (callbacks == nullptr) {
+        throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                       "callbacks=null");
+    }
+    validate_structure_size(callbacks->size, CTEX_TEXTURE_EXPORT_CALLBACKS_DESCRIPTOR_V1_SIZE,
+                            CTEX_TEXTURE_EXPORT_CALLBACKS_DESCRIPTOR_CURRENT_SIZE,
+                            "export callbacks size");
+    if (callbacks->report == nullptr || (!dry_run && callbacks->source == nullptr) ||
+        (!dry_run && callbacks->output == nullptr)) {
+        throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                       dry_run ? "report callback is required"
+                               : "source, output, and report callbacks are required");
+    }
+}
+
 }  // namespace
 
 void* ctex_host_memory_resource::do_allocate(std::size_t bytes, std::size_t alignment) {
@@ -3528,6 +4081,74 @@ extern "C" ctex_result ctex_image_encode_memory(const void* pixels, std::size_t 
                                encoded.size());
         if (encoded_buffer != nullptr) {
             std::memcpy(encoded_buffer, encoded.data(), encoded.size());
+        }
+    });
+}
+
+extern "C" ctex_result ctex_texture_export_get_built_in_preset_ids(char* buffer,
+                                                                   std::size_t buffer_size,
+                                                                   std::size_t* out_required_size,
+                                                                   std::size_t* out_count) {
+    return call_boundary("ctex_texture_export_get_built_in_preset_ids", [&] {
+        if (out_required_size == nullptr || out_count == nullptr) {
+            throw_boundary(
+                CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                out_required_size == nullptr ? "out_required_size=null" : "out_count=null");
+        }
+        std::vector<std::string> identifiers;
+        const std::span presets = ctex::io::built_in_export_presets();
+        identifiers.reserve(presets.size());
+        for (const ctex::io::ExportPreset& preset : presets) {
+            identifiers.push_back(preset.identifier);
+        }
+        *out_required_size = texture_set_id_buffer_size(identifiers);
+        *out_count = identifiers.size();
+        validate_string_buffer(buffer, buffer_size, *out_required_size);
+        if (buffer != nullptr) {
+            copy_packed_strings(identifiers, buffer);
+        }
+    });
+}
+
+extern "C" ctex_result ctex_texture_export_run(
+    const ctex_texture_export_catalogue_descriptor* catalogue,
+    const ctex_texture_export_preset_descriptor* preset,
+    const ctex_texture_export_options_descriptor* options,
+    const ctex_texture_export_callbacks_descriptor* callbacks, ctex_texture_export_info* out_info) {
+    return call_boundary("ctex_texture_export_run", [&] {
+        if (catalogue == nullptr || out_info == nullptr) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                           catalogue == nullptr ? "catalogue=null" : "out_info=null");
+        }
+        validate_structure_size(out_info->size, CTEX_TEXTURE_EXPORT_INFO_V1_SIZE,
+                                CTEX_TEXTURE_EXPORT_INFO_CURRENT_SIZE, "export info size");
+        const ctex::io::TextureExportOptions converted_options = export_options(options);
+        validate_export_callbacks(callbacks, converted_options.dry_run);
+        const ctex::io::TextureExportResult result =
+            run_export_core(export_catalogue(*catalogue), checked_export_preset(preset),
+                            converted_options, *callbacks);
+        if (!converted_options.dry_run) {
+            deliver_export_outputs(result, *callbacks);
+        }
+        const std::string report = ctex::io::texture_export_report_json(result.report);
+        ctex_result report_result = CTEX_RESULT_INTERNAL_ERROR;
+        try {
+            report_result = callbacks->report(report.data(), report.size(), callbacks->user_data);
+        } catch (...) {
+            throw_boundary(CTEX_RESULT_INTERNAL_ERROR, CTEX_DIAGNOSTIC_INVALID_TEXTURE_EXPORT,
+                           "report callback threw an exception");
+        }
+        validate_export_callback_result(report_result, "report");
+        *out_info = {
+            .size = CTEX_TEXTURE_EXPORT_INFO_CURRENT_SIZE,
+            .planned_output_count = result.report.outputs.size(),
+            .encoded_output_count = result.buffers.size(),
+            .dry_run = result.report.dry_run ? 1U : 0U,
+            .cancelled = result.report.cancelled ? 1U : 0U,
+        };
+        if (result.report.cancelled) {
+            throw_boundary(CTEX_RESULT_CANCELLED, CTEX_DIAGNOSTIC_INVALID_TEXTURE_EXPORT,
+                           "texture export was cancelled");
         }
     });
 }

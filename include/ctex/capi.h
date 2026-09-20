@@ -82,7 +82,8 @@ typedef enum ctex_diagnostic_code {
     CTEX_DIAGNOSTIC_INVALID_PAINT_FILTER = 46,
     CTEX_DIAGNOSTIC_INVALID_PAINT_SURFACE_CACHE = 47,
     CTEX_DIAGNOSTIC_INVALID_PAINT_PREVIEW = 48,
-    CTEX_DIAGNOSTIC_INVALID_PICK_QUERY = 49
+    CTEX_DIAGNOSTIC_INVALID_PICK_QUERY = 49,
+    CTEX_DIAGNOSTIC_INVALID_TEXTURE_EXPORT = 50
 } ctex_diagnostic_code;
 
 typedef enum ctex_log_severity {
@@ -1217,6 +1218,304 @@ typedef struct ctex_texture_set_memory_report {
 #define CTEX_TEXTURE_SET_MEMORY_REPORT_CURRENT_SIZE \
     ((uint32_t)sizeof(ctex_texture_set_memory_report))
 
+typedef enum ctex_texture_export_texture_set_selection {
+    CTEX_TEXTURE_EXPORT_TEXTURE_SET_ALL = 0,
+    CTEX_TEXTURE_EXPORT_TEXTURE_SET_SELECTED = 1
+} ctex_texture_export_texture_set_selection;
+
+typedef enum ctex_texture_export_spatial_scope {
+    CTEX_TEXTURE_EXPORT_SCOPE_TEXTURE_SET = 0,
+    CTEX_TEXTURE_EXPORT_SCOPE_UDIM = 1,
+    CTEX_TEXTURE_EXPORT_SCOPE_ATLAS = 2
+} ctex_texture_export_spatial_scope;
+
+typedef enum ctex_texture_export_layer_scope {
+    CTEX_TEXTURE_EXPORT_LAYER_FLATTEN_VISIBLE = 0,
+    CTEX_TEXTURE_EXPORT_LAYER_FLATTEN_SELECTED = 1,
+    CTEX_TEXTURE_EXPORT_LAYER_EACH_SELECTED = 2
+} ctex_texture_export_layer_scope;
+
+typedef enum ctex_texture_export_layer_kind {
+    CTEX_TEXTURE_EXPORT_LAYER_CONTENT = 0,
+    CTEX_TEXTURE_EXPORT_LAYER_GROUP = 1
+} ctex_texture_export_layer_kind;
+
+typedef struct ctex_texture_export_layer_source_descriptor {
+    uint32_t size;
+    const char* identifier;
+    const char* display_name;
+    const char* parent_identifier;
+    uint32_t kind;
+    uint32_t visible;
+} ctex_texture_export_layer_source_descriptor;
+
+#define CTEX_TEXTURE_EXPORT_LAYER_SOURCE_DESCRIPTOR_V1_SIZE \
+    ((uint32_t)sizeof(ctex_texture_export_layer_source_descriptor))
+#define CTEX_TEXTURE_EXPORT_LAYER_SOURCE_DESCRIPTOR_CURRENT_SIZE \
+    ((uint32_t)sizeof(ctex_texture_export_layer_source_descriptor))
+
+typedef struct ctex_texture_export_texture_set_source_descriptor {
+    uint32_t size;
+    const char* identifier;
+    const char* display_name;
+    uint32_t width;
+    uint32_t height;
+    const uint32_t* occupied_udim_tiles;
+    size_t occupied_udim_tile_count;
+    const ctex_texture_export_layer_source_descriptor* layers;
+    size_t layer_count;
+} ctex_texture_export_texture_set_source_descriptor;
+
+#define CTEX_TEXTURE_EXPORT_TEXTURE_SET_SOURCE_DESCRIPTOR_V1_SIZE \
+    ((uint32_t)sizeof(ctex_texture_export_texture_set_source_descriptor))
+#define CTEX_TEXTURE_EXPORT_TEXTURE_SET_SOURCE_DESCRIPTOR_CURRENT_SIZE \
+    ((uint32_t)sizeof(ctex_texture_export_texture_set_source_descriptor))
+
+typedef struct ctex_texture_export_atlas_source_descriptor {
+    uint32_t size;
+    const char* identifier;
+    const char* display_name;
+    uint32_t width;
+    uint32_t height;
+    const char* const* texture_set_identifiers;
+    size_t texture_set_identifier_count;
+} ctex_texture_export_atlas_source_descriptor;
+
+#define CTEX_TEXTURE_EXPORT_ATLAS_SOURCE_DESCRIPTOR_V1_SIZE \
+    ((uint32_t)sizeof(ctex_texture_export_atlas_source_descriptor))
+#define CTEX_TEXTURE_EXPORT_ATLAS_SOURCE_DESCRIPTOR_CURRENT_SIZE \
+    ((uint32_t)sizeof(ctex_texture_export_atlas_source_descriptor))
+
+typedef struct ctex_texture_export_catalogue_descriptor {
+    uint32_t size;
+    const char* project_name;
+    const ctex_texture_export_texture_set_source_descriptor* texture_sets;
+    size_t texture_set_count;
+    const ctex_texture_export_atlas_source_descriptor* atlases;
+    size_t atlas_count;
+} ctex_texture_export_catalogue_descriptor;
+
+#define CTEX_TEXTURE_EXPORT_CATALOGUE_DESCRIPTOR_V1_SIZE \
+    ((uint32_t)sizeof(ctex_texture_export_catalogue_descriptor))
+#define CTEX_TEXTURE_EXPORT_CATALOGUE_DESCRIPTOR_CURRENT_SIZE \
+    ((uint32_t)sizeof(ctex_texture_export_catalogue_descriptor))
+
+typedef struct ctex_texture_export_layer_selection_descriptor {
+    uint32_t size;
+    const char* texture_set_identifier;
+    const char* const* layer_identifiers;
+    size_t layer_identifier_count;
+} ctex_texture_export_layer_selection_descriptor;
+
+#define CTEX_TEXTURE_EXPORT_LAYER_SELECTION_DESCRIPTOR_V1_SIZE \
+    ((uint32_t)sizeof(ctex_texture_export_layer_selection_descriptor))
+#define CTEX_TEXTURE_EXPORT_LAYER_SELECTION_DESCRIPTOR_CURRENT_SIZE \
+    ((uint32_t)sizeof(ctex_texture_export_layer_selection_descriptor))
+
+typedef struct ctex_texture_export_plan_descriptor {
+    uint32_t size;
+    uint32_t texture_set_selection;
+    const char* const* selected_texture_set_identifiers;
+    size_t selected_texture_set_identifier_count;
+    uint32_t spatial_scope;
+    uint32_t layer_scope;
+    const ctex_texture_export_layer_selection_descriptor* selected_layers;
+    size_t selected_layer_count;
+    uint32_t output_width;
+    uint32_t output_height;
+    const char* filename_pattern;
+} ctex_texture_export_plan_descriptor;
+
+#define CTEX_TEXTURE_EXPORT_PLAN_DESCRIPTOR_V1_SIZE \
+    ((uint32_t)sizeof(ctex_texture_export_plan_descriptor))
+#define CTEX_TEXTURE_EXPORT_PLAN_DESCRIPTOR_CURRENT_SIZE \
+    ((uint32_t)sizeof(ctex_texture_export_plan_descriptor))
+
+typedef struct ctex_texture_export_texture_descriptor {
+    uint32_t size;
+    const char* suffix;
+    const char* channel_tokens[4];
+    uint32_t color_space;
+    uint32_t bit_depth;
+    uint32_t format;
+} ctex_texture_export_texture_descriptor;
+
+#define CTEX_TEXTURE_EXPORT_TEXTURE_DESCRIPTOR_V1_SIZE \
+    ((uint32_t)sizeof(ctex_texture_export_texture_descriptor))
+#define CTEX_TEXTURE_EXPORT_TEXTURE_DESCRIPTOR_CURRENT_SIZE \
+    ((uint32_t)sizeof(ctex_texture_export_texture_descriptor))
+
+/*
+ * A NULL preset selects the default built-in. A descriptor with no textures
+ * selects its built-in identifier. Otherwise it defines a custom preset.
+ */
+typedef struct ctex_texture_export_preset_descriptor {
+    uint32_t size;
+    const char* identifier;
+    const char* display_name;
+    const ctex_texture_export_texture_descriptor* textures;
+    size_t texture_count;
+} ctex_texture_export_preset_descriptor;
+
+#define CTEX_TEXTURE_EXPORT_PRESET_DESCRIPTOR_V1_SIZE \
+    ((uint32_t)sizeof(ctex_texture_export_preset_descriptor))
+#define CTEX_TEXTURE_EXPORT_PRESET_DESCRIPTOR_CURRENT_SIZE \
+    ((uint32_t)sizeof(ctex_texture_export_preset_descriptor))
+
+typedef struct ctex_texture_export_options_descriptor {
+    uint32_t size;
+    const ctex_texture_export_plan_descriptor* plan;
+    uint32_t padding_radius;
+    uint32_t jpeg_quality;
+    uint32_t dry_run;
+} ctex_texture_export_options_descriptor;
+
+#define CTEX_TEXTURE_EXPORT_OPTIONS_DESCRIPTOR_V1_SIZE \
+    ((uint32_t)sizeof(ctex_texture_export_options_descriptor))
+#define CTEX_TEXTURE_EXPORT_OPTIONS_DESCRIPTOR_CURRENT_SIZE \
+    ((uint32_t)sizeof(ctex_texture_export_options_descriptor))
+
+typedef struct ctex_texture_export_named_value {
+    uint32_t size;
+    const char* identifier;
+    uint32_t component_count;
+    double components[4];
+} ctex_texture_export_named_value;
+
+#define CTEX_TEXTURE_EXPORT_NAMED_VALUE_V1_SIZE ((uint32_t)sizeof(ctex_texture_export_named_value))
+#define CTEX_TEXTURE_EXPORT_NAMED_VALUE_CURRENT_SIZE \
+    ((uint32_t)sizeof(ctex_texture_export_named_value))
+
+typedef struct ctex_texture_export_sample {
+    uint32_t size;
+    double base_color[3];
+    double opacity;
+    double roughness;
+    double metallic;
+    double normal[3];
+    double height;
+    double occlusion;
+    double emission[3];
+    double subsurface;
+    const ctex_texture_export_named_value* mesh_maps;
+    size_t mesh_map_count;
+    const ctex_texture_export_named_value* registered_channels;
+    size_t registered_channel_count;
+} ctex_texture_export_sample;
+
+#define CTEX_TEXTURE_EXPORT_SAMPLE_V1_SIZE ((uint32_t)sizeof(ctex_texture_export_sample))
+#define CTEX_TEXTURE_EXPORT_SAMPLE_CURRENT_SIZE ((uint32_t)sizeof(ctex_texture_export_sample))
+
+typedef ctex_result (*ctex_texture_export_sample_callback)(uint32_t x, uint32_t y,
+                                                           ctex_texture_export_sample* out_sample,
+                                                           void* user_data);
+
+typedef struct ctex_texture_export_pixel_source_descriptor {
+    uint32_t size;
+    uint32_t width;
+    uint32_t height;
+    ctex_texture_export_sample_callback sample;
+    void* sample_user_data;
+    const uint8_t* coverage;
+    size_t coverage_count;
+} ctex_texture_export_pixel_source_descriptor;
+
+#define CTEX_TEXTURE_EXPORT_PIXEL_SOURCE_DESCRIPTOR_V1_SIZE \
+    ((uint32_t)sizeof(ctex_texture_export_pixel_source_descriptor))
+#define CTEX_TEXTURE_EXPORT_PIXEL_SOURCE_DESCRIPTOR_CURRENT_SIZE \
+    ((uint32_t)sizeof(ctex_texture_export_pixel_source_descriptor))
+
+typedef struct ctex_texture_export_layer_selection_view {
+    uint32_t size;
+    const char* texture_set_identifier;
+    const char* const* layer_identifiers;
+    size_t layer_identifier_count;
+} ctex_texture_export_layer_selection_view;
+
+#define CTEX_TEXTURE_EXPORT_LAYER_SELECTION_VIEW_V1_SIZE \
+    ((uint32_t)sizeof(ctex_texture_export_layer_selection_view))
+#define CTEX_TEXTURE_EXPORT_LAYER_SELECTION_VIEW_CURRENT_SIZE \
+    ((uint32_t)sizeof(ctex_texture_export_layer_selection_view))
+
+typedef struct ctex_texture_export_planned_output {
+    uint32_t size;
+    const char* relative_path;
+    const char* const* texture_set_identifiers;
+    size_t texture_set_identifier_count;
+    uint32_t has_udim_tile;
+    uint32_t udim_tile;
+    const char* atlas_identifier;
+    const ctex_texture_export_layer_selection_view* layer_selections;
+    size_t layer_selection_count;
+    size_t preset_texture_index;
+    uint32_t width;
+    uint32_t height;
+    uint32_t format;
+    uint32_t bit_depth;
+    uint32_t color_space;
+} ctex_texture_export_planned_output;
+
+#define CTEX_TEXTURE_EXPORT_PLANNED_OUTPUT_V1_SIZE \
+    ((uint32_t)sizeof(ctex_texture_export_planned_output))
+#define CTEX_TEXTURE_EXPORT_PLANNED_OUTPUT_CURRENT_SIZE \
+    ((uint32_t)sizeof(ctex_texture_export_planned_output))
+
+typedef struct ctex_texture_export_encoded_output {
+    uint32_t size;
+    size_t report_entry_index;
+    const char* relative_path;
+    uint32_t width;
+    uint32_t height;
+    uint32_t format;
+    uint32_t bit_depth;
+    uint32_t color_space;
+    const void* bytes;
+    size_t byte_count;
+} ctex_texture_export_encoded_output;
+
+#define CTEX_TEXTURE_EXPORT_ENCODED_OUTPUT_V1_SIZE \
+    ((uint32_t)sizeof(ctex_texture_export_encoded_output))
+#define CTEX_TEXTURE_EXPORT_ENCODED_OUTPUT_CURRENT_SIZE \
+    ((uint32_t)sizeof(ctex_texture_export_encoded_output))
+
+typedef ctex_result (*ctex_texture_export_source_callback)(
+    const ctex_texture_export_planned_output* output,
+    ctex_texture_export_pixel_source_descriptor* out_source, void* user_data);
+typedef ctex_result (*ctex_texture_export_output_callback)(
+    const ctex_texture_export_encoded_output* output, void* user_data);
+typedef ctex_result (*ctex_texture_export_report_callback)(const char* json, size_t json_size,
+                                                           void* user_data);
+typedef void (*ctex_texture_export_progress_callback)(size_t completed_outputs,
+                                                      size_t total_outputs,
+                                                      const char* relative_path, void* user_data);
+typedef uint32_t (*ctex_texture_export_cancel_callback)(void* user_data);
+
+typedef struct ctex_texture_export_callbacks_descriptor {
+    uint32_t size;
+    ctex_texture_export_source_callback source;
+    ctex_texture_export_output_callback output;
+    ctex_texture_export_report_callback report;
+    ctex_texture_export_progress_callback progress;
+    ctex_texture_export_cancel_callback cancel;
+    void* user_data;
+} ctex_texture_export_callbacks_descriptor;
+
+#define CTEX_TEXTURE_EXPORT_CALLBACKS_DESCRIPTOR_V1_SIZE \
+    ((uint32_t)sizeof(ctex_texture_export_callbacks_descriptor))
+#define CTEX_TEXTURE_EXPORT_CALLBACKS_DESCRIPTOR_CURRENT_SIZE \
+    ((uint32_t)sizeof(ctex_texture_export_callbacks_descriptor))
+
+typedef struct ctex_texture_export_info {
+    uint32_t size;
+    size_t planned_output_count;
+    size_t encoded_output_count;
+    uint32_t dry_run;
+    uint32_t cancelled;
+} ctex_texture_export_info;
+
+#define CTEX_TEXTURE_EXPORT_INFO_V1_SIZE ((uint32_t)sizeof(ctex_texture_export_info))
+#define CTEX_TEXTURE_EXPORT_INFO_CURRENT_SIZE ((uint32_t)sizeof(ctex_texture_export_info))
+
 typedef enum ctex_color_space {
     CTEX_COLOR_SPACE_LINEAR_REC709 = 0,
     CTEX_COLOR_SPACE_SRGB_REC709 = 1
@@ -1333,6 +1632,25 @@ CTEX_API ctex_result ctex_image_encode_memory(const void* pixels, size_t pixel_b
                                               const ctex_image_encode_descriptor* descriptor,
                                               void* encoded_buffer, size_t encoded_buffer_size,
                                               size_t* out_required_size);
+
+/* Returns packed NUL-terminated built-in preset identifiers. */
+CTEX_API ctex_result ctex_texture_export_get_built_in_preset_ids(char* buffer, size_t buffer_size,
+                                                                 size_t* out_required_size,
+                                                                 size_t* out_count);
+
+/*
+ * Plans and optionally encodes a complete texture export synchronously. All
+ * descriptors and callback views are borrowed for the duration of the call.
+ * Output and report bytes are valid only during their callback and must be
+ * copied by the host. Callbacks execute on the calling thread, carry user_data,
+ * and must not throw across the C boundary. A cancelled export delivers every
+ * fully encoded output and a report marked cancelled, then returns CANCELLED.
+ */
+CTEX_API ctex_result ctex_texture_export_run(
+    const ctex_texture_export_catalogue_descriptor* catalogue,
+    const ctex_texture_export_preset_descriptor* preset,
+    const ctex_texture_export_options_descriptor* options,
+    const ctex_texture_export_callbacks_descriptor* callbacks, ctex_texture_export_info* out_info);
 
 /*
  * Initializes the current stroke settings descriptor to the canonical defaults.

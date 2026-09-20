@@ -676,9 +676,19 @@ nearest or ordered all-hit records with a per-call backface policy, pick in UV
 space, snap world points, query screen rectangles/lassos and world spheres/boxes,
 and submit cancellable memory-bounded batches with progress and traversal-cost
 reporting. Caller-owned hit arrays and packed texture-set identifiers retain the
-boundary's exact sizing and atomic too-small behavior. The exact remaining C ABI
-gap is 168 runtime requirements, and the gate remains outside the green
+boundary's exact sizing and atomic too-small behavior. That slice reduced the C
+ABI gap to 168 runtime requirements; the gate remains outside the green
 aggregate until it reaches zero.
+
+The following slice exposes all fifteen texture-export requirements through two
+public C operations. Hosts can enumerate built-in presets or supply data-driven
+custom presets, plan every texture-set/UDIM/atlas and layer scope, use filename,
+resolution and padding controls, preflight a JSON dry-run, and synchronously
+receive progress, cancellation, the final report and self-describing encoded
+buffers through user-data callbacks. Pixel samples carry both named mesh maps
+and extensible registered channel components. Callback bytes remain borrowed so
+the host retains allocation and file-publication control. The exact remaining C
+ABI gap is 153 runtime requirements.
 
 ## 1. Foundation
 

@@ -175,6 +175,42 @@ floating-point input. PNG supports 8/16-bit output, JPEG and TGA support 8-bit,
 TIFF supports 8/16/32-bit, and OpenEXR supports 16/32-bit. Unsupported pairs are
 refused with a stable diagnostic that names both the format and bit depth.
 
+## Texture export
+
+`ctex_texture_export_run` exposes the complete texture-export pipeline without
+giving the library ownership of host files. Borrowed catalogue descriptors name
+texture sets, occupied UDIMs, atlases and layer hierarchies. The optional plan
+selects all or named texture sets, texture-set/UDIM/atlas spatial scope,
+visible/selected/per-selected-layer output, an optional resolution and a
+filename pattern. A null plan uses the documented core defaults.
+
+A null preset selects the default built-in. A preset descriptor with an
+identifier and zero textures selects another built-in; their stable identifiers
+are available through the packed caller-owned buffer returned by
+`ctex_texture_export_get_built_in_preset_ids`. A descriptor with textures is a
+fully data-driven custom preset. Its four channel-token strings can name built-in
+values, derived values, mesh maps, or arbitrary registered semantic components,
+so adding a channel does not add a fixed ABI field. Formats use the existing PNG,
+JPEG, TGA, TIFF and OpenEXR enumeration and validate the same 8/16/32-bit matrix
+as `ctex_image_encode_memory`.
+
+The call is synchronous. For each planned output the source callback receives a
+borrowed, self-describing view of its path, source sets, UDIM/atlas identity,
+selected layers, resolution and encoding. It returns dimensions, optional binary
+coverage and a sampler. Samples carry the standard PBR values plus open-ended
+named mesh-map and registered-channel arrays. Completed encoded files are passed
+to the output callback as self-describing borrowed byte spans; the host copies
+any bytes it wants to retain. The final report callback receives the canonical
+JSON manifest. Dry runs require only the report callback and invoke neither the
+source nor output callback.
+
+Progress is reported after each fully encoded output. Cancellation is checked
+throughout sampling, resampling, padding and encoding. Already completed buffers
+and a report marked `cancelled` are delivered, no partial buffer is exposed, and
+the call returns `CTEX_RESULT_CANCELLED`. Callback views and byte spans remain
+valid only for the callback. All callbacks run on the calling thread, carry the
+configured user-data pointer and must not throw across the C boundary.
+
 ## Stroke reconstruction
 
 `ctex_stroke_settings_init` produces the complete canonical default settings,
