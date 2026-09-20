@@ -6,6 +6,15 @@ EXPORTS
     ctex_document_get_texture_set_ids
     ctex_texture_set_query_channel_delta
     ctex_texture_set_reset_channel_revision_history
+    ctex_transport_snapshot_pool_create
+    ctex_transport_snapshot_pool_destroy
+    ctex_transport_snapshot_pool_get_memory_report
+    ctex_texture_set_query_channel_snapshot
+    ctex_transport_snapshot_destroy
+    ctex_transport_snapshot_get_tile_versions
+    ctex_transport_snapshot_negotiate_format
+    ctex_transport_snapshot_get_tile_memory_layout
+    ctex_transport_snapshot_read_tiles
     ctex_texture_set_apply_smart_material
     ctex_texture_set_apply_smart_mask
     ctex_texture_set_get_preset_applications

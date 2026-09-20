@@ -113,6 +113,30 @@ channel count and resident channel, mesh-map and total bytes. Enabled constant
 channels remain sparse and therefore report zero resident pixel bytes until a
 write materializes a tile.
 
+## Host transport
+
+`ctex_texture_set_query_channel_delta` reports epoch-qualified channel cursors
+and coalesced, row-major tile versions without reading pixels. A stale epoch
+returns `CTEX_TRANSPORT_FULL_RESYNCHRONIZATION_REQUIRED`; explicit history reset
+advances the epoch without changing channel contents.
+
+`ctex_transport_snapshot_pool_create` establishes the host's pinned-byte budget.
+`ctex_texture_set_query_channel_snapshot` atomically captures the delta and
+returns an independently releasable snapshot whose tile versions remain stable
+across later document edits. Admission returns `CTEX_RESULT_OVER_BUDGET` with
+the additional required byte count when it would cross the pool ceiling.
+Destroying a snapshot releases its pinned allocations; the pool memory report
+exposes budget, pinned bytes, active tokens and unique pinned allocations.
+
+The host enumerates versions from the snapshot, negotiates an exact or explicitly
+converted component format, then requests each tile's stable layout. Layouts are
+row-major, tightly packed, interleaved, native-endian and use a separate caller
+buffer per tile. `ctex_transport_snapshot_read_tiles` stages every requested CPU
+tile before publishing any output, so a bad version, format, layout or buffer
+leaves all destinations unchanged. Snapshot query itself performs no pixel
+transfer. Host-device pending/completion and preview snapshots remain outside
+this slice.
+
 ## Colour management
 
 `ctex_get_working_color_space` and `ctex_color_space_get_name` identify the
@@ -498,6 +522,7 @@ The contract is stated per entry-point family:
 | `ctex_preset_library_enumerate`, `ctex_preset_library_resolve` | Stateless and safe to call concurrently; descriptors and encoded shelf contents are borrowed only for the call and outputs are caller-owned |
 | `ctex_texture_set_apply_smart_material`, `ctex_texture_set_apply_smart_mask`, `ctex_texture_set_get_preset_applications`, `ctex_texture_set_set_applied_entry_state`, `ctex_texture_set_undo_last_preset_application` | Distinct documents are independent; callers serialize these operations with every other operation on the same document |
 | `ctex_texture_set_query_channel_delta`, `ctex_texture_set_reset_channel_revision_history` | Distinct documents are independent; callers serialize these operations with every other operation on the same document. Query output contains metadata only and performs no pixel readback |
+| `ctex_transport_snapshot_pool_create`, `ctex_transport_snapshot_pool_destroy`, `ctex_transport_snapshot_pool_get_memory_report`, `ctex_texture_set_query_channel_snapshot`, `ctex_transport_snapshot_destroy`, `ctex_transport_snapshot_get_tile_versions`, `ctex_transport_snapshot_negotiate_format`, `ctex_transport_snapshot_get_tile_memory_layout`, `ctex_transport_snapshot_read_tiles` | Distinct pools and snapshots are independent. Callers serialize query/report operations on one pool and all operations or destruction on one snapshot. A document is required only during snapshot query and must be externally serialized for that call; an admitted snapshot owns its pinned versions and may outlive the document and pool |
 | `ctex_paint_dilation_session_create`, `ctex_paint_dilation_session_destroy`, `ctex_paint_dilation_session_stage_tile`, `ctex_paint_dilation_session_get_preview`, `ctex_paint_dilation_session_finish` | Distinct sessions are independent and may be used concurrently; callers serialize staging, preview, finish and destruction of the same session |
 | `ctex_paint_surface_map_cache_create`, `ctex_paint_surface_map_cache_destroy`, `ctex_paint_surface_map_cache_clear`, `ctex_paint_surface_map_cache_get_statistics`, `ctex_paint_surface_map_cache_lookup` | Distinct caches are independent and may be used concurrently; callers serialize lookup, statistics, clearing and destruction of the same cache, and keep each mesh alive for its lookup call |
 | `ctex_paint_preview_session_create`, `ctex_paint_preview_session_destroy`, `ctex_paint_preview_session_write_pixel`, `ctex_paint_preview_session_get_info`, `ctex_paint_preview_session_get_pixels`, `ctex_paint_preview_session_get_changed_tiles`, `ctex_paint_preview_session_finalize`, `ctex_paint_preview_session_commit`, `ctex_paint_preview_session_cancel` | Distinct sessions on distinct documents are independent; callers serialize every operation on a session and every operation on its document, and keep the document alive through session destruction |

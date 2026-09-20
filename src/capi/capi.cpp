@@ -31,6 +31,9 @@
 #include <ctex/pick/spatial_index.hpp>
 #include <ctex/pick/uv_index.hpp>
 #include <ctex/xport/delta.hpp>
+#include <ctex/xport/format.hpp>
+#include <ctex/xport/readback.hpp>
+#include <ctex/xport/snapshot.hpp>
 #include <exception>
 #include <iterator>
 #include <limits>
@@ -204,6 +207,27 @@ struct ctex_uv_pick_index {
     ctex_host_memory_resource memory_resource;
     ctex_mesh* mesh;
     ctex::pick::UvSpatialIndex value;
+};
+
+struct ctex_transport_snapshot_pool {
+    ctex_transport_snapshot_pool(ctex_allocator_state allocator_value, std::size_t budget_bytes)
+        : allocator(allocator_value), value(budget_bytes) {}
+
+    ctex_allocator_state allocator;
+    ctex::xport::SnapshotPool value;
+};
+
+struct ctex_transport_snapshot {
+    ctex_transport_snapshot(ctex_allocator_state allocator_value,
+                            ctex::xport::SnapshotDelta snapshot_value,
+                            std::vector<ctex::xport::TileMemoryLayout> layout_values)
+        : allocator(allocator_value),
+          value(std::move(snapshot_value)),
+          layouts(std::move(layout_values)) {}
+
+    ctex_allocator_state allocator;
+    ctex::xport::SnapshotDelta value;
+    std::vector<ctex::xport::TileMemoryLayout> layouts;
 };
 
 namespace {
@@ -482,6 +506,34 @@ ctex_uv_pick_index* create_uv_pick_index(const ctex_allocator_state& allocator, 
     } catch (...) {
         deallocate_storage(allocator, storage, sizeof(ctex_uv_pick_index),
                            alignof(ctex_uv_pick_index));
+        throw;
+    }
+}
+
+ctex_transport_snapshot_pool* create_transport_snapshot_pool(const ctex_allocator_state& allocator,
+                                                             std::size_t budget_bytes) {
+    void* storage = allocate_storage(allocator, sizeof(ctex_transport_snapshot_pool),
+                                     alignof(ctex_transport_snapshot_pool));
+    try {
+        return ::new (storage) ctex_transport_snapshot_pool(allocator, budget_bytes);
+    } catch (...) {
+        deallocate_storage(allocator, storage, sizeof(ctex_transport_snapshot_pool),
+                           alignof(ctex_transport_snapshot_pool));
+        throw;
+    }
+}
+
+ctex_transport_snapshot* create_transport_snapshot(
+    const ctex_allocator_state& allocator, ctex::xport::SnapshotDelta value,
+    std::vector<ctex::xport::TileMemoryLayout> layouts) {
+    void* storage = allocate_storage(allocator, sizeof(ctex_transport_snapshot),
+                                     alignof(ctex_transport_snapshot));
+    try {
+        return ::new (storage)
+            ctex_transport_snapshot(allocator, std::move(value), std::move(layouts));
+    } catch (...) {
+        deallocate_storage(allocator, storage, sizeof(ctex_transport_snapshot),
+                           alignof(ctex_transport_snapshot));
         throw;
     }
 }
@@ -4568,6 +4620,176 @@ ctex_transport_tile_version transport_tile_version(const ctex::xport::TileVersio
     };
 }
 
+ctex::xport::TileVersion transport_tile_version(ctex_transport_tile_version version) {
+    if (version.residency > CTEX_TRANSPORT_TILE_HOST_DEVICE) {
+        throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_INVALID_ENUM_VALUE,
+                       "tile residency=" + std::to_string(version.residency));
+    }
+    return {
+        .coordinate = {version.x, version.y},
+        .revision = version.revision,
+        .generation = version.generation,
+        .residency = version.residency == CTEX_TRANSPORT_TILE_CPU
+                         ? ctex::xport::TileResidency::cpu
+                         : ctex::xport::TileResidency::host_device,
+    };
+}
+
+ctex::image::ChannelType transport_component_type(std::uint32_t value) {
+    if (value > CTEX_TRANSPORT_COMPONENT_FLOAT32) {
+        throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_INVALID_ENUM_VALUE,
+                       "transport component type=" + std::to_string(value));
+    }
+    return static_cast<ctex::image::ChannelType>(value);
+}
+
+ctex::image::PixelFormat transport_pixel_format(ctex_transport_pixel_format format) {
+    ctex::image::PixelFormat converted{
+        .channel_type = transport_component_type(format.component_type),
+        .channel_count = static_cast<std::uint8_t>(format.channel_count),
+    };
+    if (format.channel_count > std::numeric_limits<std::uint8_t>::max() || !converted.is_valid()) {
+        throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_INVALID_HOST_TRANSPORT,
+                       "transport pixel format is invalid");
+    }
+    return converted;
+}
+
+ctex_transport_pixel_format transport_pixel_format(ctex::image::PixelFormat format) {
+    return {
+        .component_type = static_cast<std::uint32_t>(format.channel_type),
+        .channel_count = format.channel_count,
+    };
+}
+
+ctex::xport::ReadbackFormatSelection transport_format_selection(
+    const ctex_transport_format_selection& selection) {
+    validate_structure_size(selection.size, CTEX_TRANSPORT_FORMAT_SELECTION_V1_SIZE,
+                            CTEX_TRANSPORT_FORMAT_SELECTION_CURRENT_SIZE,
+                            "transport format selection size");
+    if (selection.conversion > CTEX_TRANSPORT_CONVERSION_FLOAT32_TO_UINT16) {
+        throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_INVALID_ENUM_VALUE,
+                       "transport format conversion=" + std::to_string(selection.conversion));
+    }
+    ctex::xport::ReadbackFormatSelection converted{
+        .source_format = transport_pixel_format(selection.source_format),
+        .output_format = transport_pixel_format(selection.output_format),
+        .conversion = static_cast<ctex::xport::ReadbackConversion>(selection.conversion),
+    };
+    if (!converted.is_valid()) {
+        throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_INVALID_HOST_TRANSPORT,
+                       "transport format selection is invalid");
+    }
+    return converted;
+}
+
+ctex_transport_format_selection transport_format_selection(
+    const ctex::xport::ReadbackFormatSelection& selection) {
+    return {
+        .size = CTEX_TRANSPORT_FORMAT_SELECTION_CURRENT_SIZE,
+        .source_format = transport_pixel_format(selection.source_format),
+        .output_format = transport_pixel_format(selection.output_format),
+        .conversion = static_cast<std::uint32_t>(selection.conversion),
+    };
+}
+
+ctex::xport::TileMemoryLayout transport_tile_layout(
+    const ctex_transport_tile_memory_layout& layout) {
+    validate_structure_size(layout.size, CTEX_TRANSPORT_TILE_MEMORY_LAYOUT_V1_SIZE,
+                            CTEX_TRANSPORT_TILE_MEMORY_LAYOUT_CURRENT_SIZE,
+                            "transport tile layout size");
+    if (layout.channel_order > CTEX_TRANSPORT_CHANNEL_ORDER_RGBA ||
+        layout.component_byte_order != CTEX_TRANSPORT_COMPONENT_BYTE_ORDER_NATIVE ||
+        layout.tile_contiguity != CTEX_TRANSPORT_SEPARATE_TILE_BUFFERS) {
+        throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_INVALID_ENUM_VALUE,
+                       "transport tile layout enum is invalid");
+    }
+    const ctex::xport::TileMemoryLayout converted{
+        .width = layout.width,
+        .height = layout.height,
+        .row_pitch_bytes = layout.row_pitch_bytes,
+        .pixel_stride_bytes = layout.pixel_stride_bytes,
+        .channel_order = static_cast<ctex::xport::ChannelOrder>(layout.channel_order),
+        .component_type = transport_component_type(layout.component_type),
+        .component_byte_order = ctex::xport::ComponentByteOrder::native,
+        .tile_contiguity = ctex::xport::TileContiguity::separate_buffers,
+    };
+    if (layout.byte_size != converted.byte_size()) {
+        throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_INVALID_HOST_TRANSPORT,
+                       "transport tile layout byte size is inconsistent");
+    }
+    return converted;
+}
+
+ctex_transport_tile_memory_layout transport_tile_layout(
+    const ctex::xport::TileMemoryLayout& layout) {
+    return {
+        .size = CTEX_TRANSPORT_TILE_MEMORY_LAYOUT_CURRENT_SIZE,
+        .width = layout.width,
+        .height = layout.height,
+        .row_pitch_bytes = layout.row_pitch_bytes,
+        .pixel_stride_bytes = layout.pixel_stride_bytes,
+        .channel_order = static_cast<std::uint32_t>(layout.channel_order),
+        .component_type = static_cast<std::uint32_t>(layout.component_type),
+        .component_byte_order = CTEX_TRANSPORT_COMPONENT_BYTE_ORDER_NATIVE,
+        .tile_contiguity = CTEX_TRANSPORT_SEPARATE_TILE_BUFFERS,
+        .byte_size = layout.byte_size(),
+    };
+}
+
+ctex::xport::TileMemoryLayout transport_snapshot_layout(const ctex_transport_snapshot& snapshot,
+                                                        const ctex::xport::TileVersion& version,
+                                                        ctex::image::PixelFormat output_format) {
+    const auto versions = snapshot.value.snapshot.versions();
+    const auto found = std::find(versions.begin(), versions.end(), version);
+    if (found == versions.end()) {
+        throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_INVALID_HOST_TRANSPORT,
+                       "tile version is not pinned by the snapshot");
+    }
+    const std::size_t index = static_cast<std::size_t>(found - versions.begin());
+    const auto& native = snapshot.layouts[index];
+    const std::size_t pixel_stride = output_format.bytes_per_pixel();
+    if (native.width > std::numeric_limits<std::size_t>::max() / pixel_stride) {
+        throw std::overflow_error("transport tile row pitch overflows");
+    }
+    return {
+        .width = native.width,
+        .height = native.height,
+        .row_pitch_bytes = static_cast<std::size_t>(native.width) * pixel_stride,
+        .pixel_stride_bytes = pixel_stride,
+        .channel_order = native.channel_order,
+        .component_type = output_format.channel_type,
+        .component_byte_order = ctex::xport::ComponentByteOrder::native,
+        .tile_contiguity = ctex::xport::TileContiguity::separate_buffers,
+    };
+}
+
+std::vector<ctex::xport::TileReadbackDestination> transport_destinations(
+    const ctex_transport_tile_readback_destination* destinations, std::size_t count) {
+    if (destinations == nullptr && count != 0) {
+        throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                       "destinations=null with nonzero count");
+    }
+    std::vector<ctex::xport::TileReadbackDestination> converted;
+    converted.reserve(count);
+    for (std::size_t index = 0; index < count; ++index) {
+        const auto& destination = destinations[index];
+        validate_structure_size(destination.size, CTEX_TRANSPORT_TILE_READBACK_DESTINATION_V1_SIZE,
+                                CTEX_TRANSPORT_TILE_READBACK_DESTINATION_CURRENT_SIZE,
+                                "transport readback destination size");
+        if (destination.output == nullptr && destination.output_size != 0) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                           "readback output=null with nonzero size");
+        }
+        converted.push_back({
+            .version = transport_tile_version(destination.version),
+            .layout = transport_tile_layout(destination.layout),
+            .output = {static_cast<std::byte*>(destination.output), destination.output_size},
+        });
+    }
+    return converted;
+}
+
 const char* require_transport_text(const char* value, std::string_view field) {
     if (value == nullptr) {
         throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
@@ -7037,6 +7259,224 @@ extern "C" ctex_result ctex_texture_set_reset_channel_revision_history(
         ctex::doc::TextureSet& texture_set = require_texture_set(*document, texture_set_id);
         *out_cursor = transport_cursor(texture_set.channels().reset_revision_history(
             require_transport_text(semantic_id, "channel semantic identifier")));
+    });
+}
+
+extern "C" ctex_result ctex_transport_snapshot_pool_create(
+    std::size_t budget_bytes, ctex_transport_snapshot_pool** out_pool) {
+    return call_boundary("ctex_transport_snapshot_pool_create", [&] {
+        if (out_pool == nullptr) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                           "out_pool=null");
+        }
+        *out_pool = create_transport_snapshot_pool(current_allocator(), budget_bytes);
+    });
+}
+
+extern "C" void ctex_transport_snapshot_pool_destroy(ctex_transport_snapshot_pool* pool) {
+    if (pool == nullptr) {
+        return;
+    }
+    const ctex_allocator_state allocator = pool->allocator;
+    pool->~ctex_transport_snapshot_pool();
+    deallocate_storage(allocator, pool, sizeof(ctex_transport_snapshot_pool),
+                       alignof(ctex_transport_snapshot_pool));
+}
+
+extern "C" ctex_result ctex_transport_snapshot_pool_get_memory_report(
+    const ctex_transport_snapshot_pool* pool, ctex_transport_snapshot_memory_report* out_report) {
+    return call_boundary("ctex_transport_snapshot_pool_get_memory_report", [&] {
+        if (pool == nullptr || out_report == nullptr) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                           pool == nullptr ? "pool=null" : "out_report=null");
+        }
+        validate_structure_size(out_report->size, CTEX_TRANSPORT_SNAPSHOT_MEMORY_REPORT_V1_SIZE,
+                                CTEX_TRANSPORT_SNAPSHOT_MEMORY_REPORT_CURRENT_SIZE,
+                                "snapshot memory report size");
+        const auto report = pool->value.memory_report();
+        *out_report = {
+            .size = CTEX_TRANSPORT_SNAPSHOT_MEMORY_REPORT_CURRENT_SIZE,
+            .budget_bytes = report.budget_bytes,
+            .pinned_bytes = report.pinned_bytes,
+            .active_snapshots = report.active_snapshots,
+            .pinned_allocations = report.pinned_allocations,
+        };
+    });
+}
+
+extern "C" ctex_result ctex_texture_set_query_channel_snapshot(
+    ctex_transport_snapshot_pool* pool, const ctex_document* document, const char* texture_set_id,
+    const char* semantic_id, ctex_transport_revision_cursor synchronized_cursor,
+    ctex_transport_snapshot** out_snapshot, ctex_transport_snapshot_query_info* out_info) {
+    return call_boundary("ctex_texture_set_query_channel_snapshot", [&] {
+        if (pool == nullptr || document == nullptr || out_snapshot == nullptr ||
+            out_info == nullptr) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                           "pool, document, out_snapshot, and out_info are required");
+        }
+        *out_snapshot = nullptr;
+        validate_structure_size(out_info->size, CTEX_TRANSPORT_SNAPSHOT_QUERY_INFO_V1_SIZE,
+                                CTEX_TRANSPORT_SNAPSHOT_QUERY_INFO_CURRENT_SIZE,
+                                "snapshot query info size");
+        try {
+            const ctex::doc::TextureSet& texture_set =
+                require_texture_set(*document, texture_set_id);
+            const char* semantic =
+                require_transport_text(semantic_id, "channel semantic identifier");
+            auto query =
+                ctex::xport::query_channel_delta(pool->value, texture_set.channels(), semantic,
+                                                 transport_cursor(synchronized_cursor));
+            if (!query.admitted()) {
+                *out_info = {
+                    .size = CTEX_TRANSPORT_SNAPSHOT_QUERY_INFO_CURRENT_SIZE,
+                    .disposition = CTEX_TRANSPORT_DELTA_COMPLETE,
+                    .synchronized_cursor = {},
+                    .current_cursor = {},
+                    .changed_tile_count = 0,
+                    .indexed_tiles_visited = 0,
+                    .retained_bytes = 0,
+                    .additional_pinned_bytes = query.additional_pinned_bytes,
+                };
+                throw_boundary(CTEX_RESULT_OVER_BUDGET, CTEX_DIAGNOSTIC_INVALID_HOST_TRANSPORT,
+                               query.detail);
+            }
+            auto& synchronized = *query.synchronized;
+            std::vector<ctex::xport::TileMemoryLayout> layouts;
+            layouts.reserve(synchronized.delta.changed_tiles.size());
+            for (const auto& version : synchronized.delta.changed_tiles) {
+                layouts.push_back(ctex::xport::tile_memory_layout(texture_set.channels(), semantic,
+                                                                  version.coordinate));
+            }
+            *out_info = {
+                .size = CTEX_TRANSPORT_SNAPSHOT_QUERY_INFO_CURRENT_SIZE,
+                .disposition =
+                    synchronized.delta.disposition == ctex::xport::DeltaQueryDisposition::complete
+                        ? CTEX_TRANSPORT_DELTA_COMPLETE
+                        : CTEX_TRANSPORT_FULL_RESYNCHRONIZATION_REQUIRED,
+                .synchronized_cursor = transport_cursor(synchronized.delta.synchronized_cursor),
+                .current_cursor = transport_cursor(synchronized.delta.current_cursor),
+                .changed_tile_count = synchronized.delta.changed_tiles.size(),
+                .indexed_tiles_visited = synchronized.delta.indexed_tiles_visited,
+                .retained_bytes = synchronized.snapshot.retained_bytes(),
+                .additional_pinned_bytes = query.additional_pinned_bytes,
+            };
+            *out_snapshot = create_transport_snapshot(pool->allocator, std::move(synchronized),
+                                                      std::move(layouts));
+        } catch (const ctex::xport::DeltaQueryError& error) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_INVALID_HOST_TRANSPORT,
+                           error.what());
+        }
+    });
+}
+
+extern "C" void ctex_transport_snapshot_destroy(ctex_transport_snapshot* snapshot) {
+    if (snapshot == nullptr) {
+        return;
+    }
+    const ctex_allocator_state allocator = snapshot->allocator;
+    snapshot->~ctex_transport_snapshot();
+    deallocate_storage(allocator, snapshot, sizeof(ctex_transport_snapshot),
+                       alignof(ctex_transport_snapshot));
+}
+
+extern "C" ctex_result ctex_transport_snapshot_get_tile_versions(
+    const ctex_transport_snapshot* snapshot, ctex_transport_tile_version* versions,
+    std::size_t version_capacity, std::size_t* out_version_count) {
+    return call_boundary("ctex_transport_snapshot_get_tile_versions", [&] {
+        if (snapshot == nullptr || out_version_count == nullptr) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                           snapshot == nullptr ? "snapshot=null" : "out_version_count=null");
+        }
+        const auto pinned = snapshot->value.snapshot.versions();
+        *out_version_count = pinned.size();
+        validate_output_array(versions, version_capacity, pinned.size(), "versions");
+        if (versions != nullptr) {
+            std::transform(pinned.begin(), pinned.end(), versions,
+                           [](const auto& version) { return transport_tile_version(version); });
+        }
+    });
+}
+
+extern "C" ctex_result ctex_transport_snapshot_negotiate_format(
+    const ctex_transport_snapshot* snapshot, const ctex_transport_pixel_format* accepted_formats,
+    std::size_t accepted_format_count, std::uint32_t conversion_policy,
+    ctex_transport_format_selection* out_selection) {
+    return call_boundary("ctex_transport_snapshot_negotiate_format", [&] {
+        if (snapshot == nullptr || out_selection == nullptr ||
+            (accepted_formats == nullptr && accepted_format_count != 0)) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                           "snapshot, accepted_formats, and out_selection are required");
+        }
+        validate_structure_size(out_selection->size, CTEX_TRANSPORT_FORMAT_SELECTION_V1_SIZE,
+                                CTEX_TRANSPORT_FORMAT_SELECTION_CURRENT_SIZE,
+                                "transport format selection size");
+        if (conversion_policy > CTEX_TRANSPORT_ALLOW_FORMAT_CONVERSION) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_INVALID_ENUM_VALUE,
+                           "conversion policy=" + std::to_string(conversion_policy));
+        }
+        std::vector<ctex::image::PixelFormat> accepted;
+        accepted.reserve(accepted_format_count);
+        for (std::size_t index = 0; index < accepted_format_count; ++index) {
+            accepted.push_back(transport_pixel_format(accepted_formats[index]));
+        }
+        const auto negotiation = ctex::xport::negotiate_readback_format(
+            snapshot->value.snapshot.source_format(), accepted,
+            static_cast<ctex::xport::ReadbackConversionPolicy>(conversion_policy));
+        if (!negotiation.compatible()) {
+            throw_boundary(
+                negotiation.status == ctex::xport::FormatNegotiationStatus::invalid_request
+                    ? CTEX_RESULT_INVALID_ARGUMENT
+                    : CTEX_RESULT_UNSUPPORTED_OPERATION,
+                CTEX_DIAGNOSTIC_INVALID_HOST_TRANSPORT, negotiation.detail);
+        }
+        *out_selection = transport_format_selection(*negotiation.selection);
+    });
+}
+
+extern "C" ctex_result ctex_transport_snapshot_get_tile_memory_layout(
+    const ctex_transport_snapshot* snapshot, ctex_transport_tile_version version,
+    const ctex_transport_format_selection* format, ctex_transport_tile_memory_layout* out_layout) {
+    return call_boundary("ctex_transport_snapshot_get_tile_memory_layout", [&] {
+        if (snapshot == nullptr || out_layout == nullptr) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                           snapshot == nullptr ? "snapshot=null" : "out_layout=null");
+        }
+        validate_structure_size(out_layout->size, CTEX_TRANSPORT_TILE_MEMORY_LAYOUT_V1_SIZE,
+                                CTEX_TRANSPORT_TILE_MEMORY_LAYOUT_CURRENT_SIZE,
+                                "transport tile layout size");
+        const auto source = snapshot->value.snapshot.source_format();
+        const auto selected =
+            format == nullptr
+                ? ctex::xport::ReadbackFormatSelection{source, source,
+                                                       ctex::xport::ReadbackConversion::none}
+                : transport_format_selection(*format);
+        if (selected.source_format != source) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_INVALID_HOST_TRANSPORT,
+                           "format selection does not match snapshot source format");
+        }
+        *out_layout = transport_tile_layout(transport_snapshot_layout(
+            *snapshot, transport_tile_version(version), selected.output_format));
+    });
+}
+
+extern "C" ctex_result ctex_transport_snapshot_read_tiles(
+    const ctex_transport_snapshot* snapshot, const ctex_transport_format_selection* format,
+    const ctex_transport_tile_readback_destination* destinations, std::size_t destination_count) {
+    return call_boundary("ctex_transport_snapshot_read_tiles", [&] {
+        if (snapshot == nullptr) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                           "snapshot=null");
+        }
+        const auto converted = transport_destinations(destinations, destination_count);
+        const auto readback =
+            format == nullptr
+                ? ctex::xport::TileReadback::begin_cpu(snapshot->value.snapshot, converted)
+                : ctex::xport::TileReadback::begin_cpu(
+                      snapshot->value.snapshot, transport_format_selection(*format), converted);
+        if (readback.status() != ctex::xport::TileReadbackStatus::complete) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_INVALID_HOST_TRANSPORT,
+                           readback.detail());
+        }
     });
 }
 

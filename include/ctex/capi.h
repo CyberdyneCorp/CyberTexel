@@ -134,6 +134,8 @@ typedef struct ctex_paint_surface_map_cache ctex_paint_surface_map_cache;
 typedef struct ctex_paint_preview_session ctex_paint_preview_session;
 typedef struct ctex_pick_index ctex_pick_index;
 typedef struct ctex_uv_pick_index ctex_uv_pick_index;
+typedef struct ctex_transport_snapshot_pool ctex_transport_snapshot_pool;
+typedef struct ctex_transport_snapshot ctex_transport_snapshot;
 
 #define CTEX_MAX_MESH_VERTEX_COUNT ((size_t)100000000)
 #define CTEX_MAX_MESH_TRIANGLE_COUNT ((size_t)100000000)
@@ -1257,6 +1259,118 @@ typedef struct ctex_transport_delta_info {
 #define CTEX_TRANSPORT_DELTA_INFO_V1_SIZE ((uint32_t)sizeof(ctex_transport_delta_info))
 #define CTEX_TRANSPORT_DELTA_INFO_CURRENT_SIZE ((uint32_t)sizeof(ctex_transport_delta_info))
 
+typedef enum ctex_transport_component_type {
+    CTEX_TRANSPORT_COMPONENT_UINT8_UNORM = 0,
+    CTEX_TRANSPORT_COMPONENT_UINT16_UNORM = 1,
+    CTEX_TRANSPORT_COMPONENT_FLOAT32 = 2
+} ctex_transport_component_type;
+
+typedef struct ctex_transport_pixel_format {
+    uint32_t component_type;
+    uint32_t channel_count;
+} ctex_transport_pixel_format;
+
+typedef enum ctex_transport_conversion_policy {
+    CTEX_TRANSPORT_EXACT_FORMAT_ONLY = 0,
+    CTEX_TRANSPORT_ALLOW_FORMAT_CONVERSION = 1
+} ctex_transport_conversion_policy;
+
+typedef enum ctex_transport_format_conversion {
+    CTEX_TRANSPORT_CONVERSION_NONE = 0,
+    CTEX_TRANSPORT_CONVERSION_UINT8_TO_UINT16 = 1,
+    CTEX_TRANSPORT_CONVERSION_UINT8_TO_FLOAT32 = 2,
+    CTEX_TRANSPORT_CONVERSION_UINT16_TO_UINT8 = 3,
+    CTEX_TRANSPORT_CONVERSION_UINT16_TO_FLOAT32 = 4,
+    CTEX_TRANSPORT_CONVERSION_FLOAT32_TO_UINT8 = 5,
+    CTEX_TRANSPORT_CONVERSION_FLOAT32_TO_UINT16 = 6
+} ctex_transport_format_conversion;
+
+typedef struct ctex_transport_format_selection {
+    uint32_t size;
+    ctex_transport_pixel_format source_format;
+    ctex_transport_pixel_format output_format;
+    uint32_t conversion;
+} ctex_transport_format_selection;
+
+#define CTEX_TRANSPORT_FORMAT_SELECTION_V1_SIZE ((uint32_t)sizeof(ctex_transport_format_selection))
+#define CTEX_TRANSPORT_FORMAT_SELECTION_CURRENT_SIZE \
+    ((uint32_t)sizeof(ctex_transport_format_selection))
+
+typedef struct ctex_transport_snapshot_query_info {
+    uint32_t size;
+    uint32_t disposition;
+    ctex_transport_revision_cursor synchronized_cursor;
+    ctex_transport_revision_cursor current_cursor;
+    size_t changed_tile_count;
+    size_t indexed_tiles_visited;
+    size_t retained_bytes;
+    size_t additional_pinned_bytes;
+} ctex_transport_snapshot_query_info;
+
+#define CTEX_TRANSPORT_SNAPSHOT_QUERY_INFO_V1_SIZE \
+    ((uint32_t)sizeof(ctex_transport_snapshot_query_info))
+#define CTEX_TRANSPORT_SNAPSHOT_QUERY_INFO_CURRENT_SIZE \
+    ((uint32_t)sizeof(ctex_transport_snapshot_query_info))
+
+typedef struct ctex_transport_snapshot_memory_report {
+    uint32_t size;
+    size_t budget_bytes;
+    size_t pinned_bytes;
+    size_t active_snapshots;
+    size_t pinned_allocations;
+} ctex_transport_snapshot_memory_report;
+
+#define CTEX_TRANSPORT_SNAPSHOT_MEMORY_REPORT_V1_SIZE \
+    ((uint32_t)sizeof(ctex_transport_snapshot_memory_report))
+#define CTEX_TRANSPORT_SNAPSHOT_MEMORY_REPORT_CURRENT_SIZE \
+    ((uint32_t)sizeof(ctex_transport_snapshot_memory_report))
+
+typedef enum ctex_transport_channel_order {
+    CTEX_TRANSPORT_CHANNEL_ORDER_R = 0,
+    CTEX_TRANSPORT_CHANNEL_ORDER_RG = 1,
+    CTEX_TRANSPORT_CHANNEL_ORDER_RGB = 2,
+    CTEX_TRANSPORT_CHANNEL_ORDER_RGBA = 3
+} ctex_transport_channel_order;
+
+typedef enum ctex_transport_component_byte_order {
+    CTEX_TRANSPORT_COMPONENT_BYTE_ORDER_NATIVE = 0
+} ctex_transport_component_byte_order;
+
+typedef enum ctex_transport_tile_contiguity {
+    CTEX_TRANSPORT_SEPARATE_TILE_BUFFERS = 0
+} ctex_transport_tile_contiguity;
+
+typedef struct ctex_transport_tile_memory_layout {
+    uint32_t size;
+    uint32_t width;
+    uint32_t height;
+    size_t row_pitch_bytes;
+    size_t pixel_stride_bytes;
+    uint32_t channel_order;
+    uint32_t component_type;
+    uint32_t component_byte_order;
+    uint32_t tile_contiguity;
+    size_t byte_size;
+} ctex_transport_tile_memory_layout;
+
+#define CTEX_TRANSPORT_TILE_MEMORY_LAYOUT_V1_SIZE \
+    ((uint32_t)sizeof(ctex_transport_tile_memory_layout))
+#define CTEX_TRANSPORT_TILE_MEMORY_LAYOUT_CURRENT_SIZE \
+    ((uint32_t)sizeof(ctex_transport_tile_memory_layout))
+
+typedef struct ctex_transport_tile_readback_destination {
+    uint32_t size;
+    ctex_transport_tile_version version;
+    ctex_transport_tile_memory_layout layout;
+    void* output;
+    size_t output_size;
+} ctex_transport_tile_readback_destination;
+
+#define CTEX_TRANSPORT_TILE_READBACK_DESTINATION_V1_SIZE \
+    ((uint32_t)sizeof(ctex_transport_tile_readback_destination))
+#define CTEX_TRANSPORT_TILE_READBACK_DESTINATION_CURRENT_SIZE \
+    ((uint32_t)sizeof(ctex_transport_tile_readback_destination))
+
 typedef enum ctex_texture_export_texture_set_selection {
     CTEX_TEXTURE_EXPORT_TEXTURE_SET_ALL = 0,
     CTEX_TEXTURE_EXPORT_TEXTURE_SET_SELECTED = 1
@@ -2314,6 +2428,29 @@ CTEX_API ctex_result ctex_texture_set_query_channel_delta(
 CTEX_API ctex_result ctex_texture_set_reset_channel_revision_history(
     ctex_document* document, const char* texture_set_id, const char* semantic_id,
     ctex_transport_revision_cursor* out_cursor);
+CTEX_API ctex_result ctex_transport_snapshot_pool_create(size_t budget_bytes,
+                                                         ctex_transport_snapshot_pool** out_pool);
+CTEX_API void ctex_transport_snapshot_pool_destroy(ctex_transport_snapshot_pool* pool);
+CTEX_API ctex_result ctex_transport_snapshot_pool_get_memory_report(
+    const ctex_transport_snapshot_pool* pool, ctex_transport_snapshot_memory_report* out_report);
+CTEX_API ctex_result ctex_texture_set_query_channel_snapshot(
+    ctex_transport_snapshot_pool* pool, const ctex_document* document, const char* texture_set_id,
+    const char* semantic_id, ctex_transport_revision_cursor synchronized_cursor,
+    ctex_transport_snapshot** out_snapshot, ctex_transport_snapshot_query_info* out_info);
+CTEX_API void ctex_transport_snapshot_destroy(ctex_transport_snapshot* snapshot);
+CTEX_API ctex_result ctex_transport_snapshot_get_tile_versions(
+    const ctex_transport_snapshot* snapshot, ctex_transport_tile_version* versions,
+    size_t version_capacity, size_t* out_version_count);
+CTEX_API ctex_result ctex_transport_snapshot_negotiate_format(
+    const ctex_transport_snapshot* snapshot, const ctex_transport_pixel_format* accepted_formats,
+    size_t accepted_format_count, uint32_t conversion_policy,
+    ctex_transport_format_selection* out_selection);
+CTEX_API ctex_result ctex_transport_snapshot_get_tile_memory_layout(
+    const ctex_transport_snapshot* snapshot, ctex_transport_tile_version version,
+    const ctex_transport_format_selection* format, ctex_transport_tile_memory_layout* out_layout);
+CTEX_API ctex_result ctex_transport_snapshot_read_tiles(
+    const ctex_transport_snapshot* snapshot, const ctex_transport_format_selection* format,
+    const ctex_transport_tile_readback_destination* destinations, size_t destination_count);
 CTEX_API ctex_result ctex_texture_set_apply_smart_material(ctex_document* document,
                                                            const char* texture_set_id,
                                                            const void* serialized,

@@ -40,7 +40,10 @@ can now be applied transactionally, inspected and edited as ordinary entries,
 then removed as one undo step. Named shelves enumerate all seven preset kinds
 with metadata and thumbnails, and stable identities resolve to standalone
 packages. Channel revision cursors, per-tile versions, coalesced delta queries,
-stale-epoch resynchronization and indexed-query cost are now public. Exactly 127
-runtime requirements remain unmapped.
+stale-epoch resynchronization and indexed-query cost are now public. Budgeted
+snapshot pools pin queried tile versions across later edits, report their memory
+pressure, negotiate host-selected formats, describe direct-upload layouts and
+read only named tiles into caller-owned buffers. Exactly 122 runtime requirements
+remain unmapped.
 The gate is not part of the aggregate `just check` until that count reaches zero;
 its unit tests run in the normal tooling suite throughout the migration.

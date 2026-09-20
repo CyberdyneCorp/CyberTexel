@@ -395,6 +395,12 @@ if(BUILD_TESTING)
         ctex_configure_c_target(ctex_capi_host_transport_delta_test)
         target_link_libraries(ctex_capi_host_transport_delta_test PRIVATE cybertexel_c)
         add_test(NAME c-abi-host-transport-delta COMMAND ctex_capi_host_transport_delta_test)
+        add_executable(ctex_capi_host_transport_snapshot_test
+                       tests/capi/host_transport_snapshot_test.c)
+        ctex_configure_c_target(ctex_capi_host_transport_snapshot_test)
+        target_link_libraries(ctex_capi_host_transport_snapshot_test PRIVATE cybertexel_c)
+        add_test(NAME c-abi-host-transport-snapshot
+                 COMMAND ctex_capi_host_transport_snapshot_test)
         add_executable(ctex_capi_stroke_test tests/capi/stroke_test.c)
         ctex_configure_c_target(ctex_capi_stroke_test)
         target_link_libraries(ctex_capi_stroke_test PRIVATE cybertexel_c)

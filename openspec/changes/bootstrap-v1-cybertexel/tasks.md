@@ -740,6 +740,14 @@ full-resynchronization request, and reset revision history without changing
 pixels. Sizing calls do not write tile output. The exact remaining C ABI gap is
 127 runtime requirements.
 
+The snapshot/readback continuation exposes five more host-transport requirements.
+Budgeted pools admit independently releasable snapshot tokens that pin the exact
+delta versions across later edits, report pinned memory, and refuse pressure over
+the ceiling. Hosts negotiate exact or declared component conversion, obtain
+stable native-endian direct-upload layouts, and read only named CPU tiles into
+caller-owned buffers with atomic publication. The exact remaining C ABI gap is
+122 runtime requirements.
+
 ## 1. Foundation
 
 - [x] 1.1 CMake project, C++20, warnings as errors, presets for headless, macOS, Linux, Windows, iOS, Android
