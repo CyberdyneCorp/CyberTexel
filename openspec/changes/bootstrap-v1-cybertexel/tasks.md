@@ -835,6 +835,12 @@ operate only on immutable stroke-start channel snapshots, preserve tangent-frame
 filtering, report resolved parameter clamps and publish channels atomically. The
 exact remaining C ABI gap is 102 runtime requirements.
 
+The Stencil continuation exposes bounded screen-space opacity sampling,
+position, rotation, per-axis scale, inversion and clamp reporting. Its normalized
+caller-owned mask composes with the existing canonical deposition and Brush
+entry points so per-stamp build-up is preserved. The exact remaining C ABI gap
+is 101 runtime requirements.
+
 ## 1. Foundation
 
 - [x] 1.1 CMake project, C++20, warnings as errors, presets for headless, macOS, Linux, Windows, iOS, Android

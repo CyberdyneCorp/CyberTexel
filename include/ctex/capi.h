@@ -1178,6 +1178,42 @@ typedef struct ctex_paint_smear_info {
 #define CTEX_PAINT_SMEAR_INFO_V1_SIZE ((uint32_t)sizeof(ctex_paint_smear_info))
 #define CTEX_PAINT_SMEAR_INFO_CURRENT_SIZE ((uint32_t)sizeof(ctex_paint_smear_info))
 
+typedef struct ctex_paint_stencil_descriptor {
+    uint32_t size;
+    uint32_t width;
+    uint32_t height;
+    const ctex_vec2d* screen_positions;
+    size_t screen_position_count;
+    uint32_t image_width;
+    uint32_t image_height;
+    const double* image_opacity;
+    size_t image_opacity_count;
+    ctex_vec2d position;
+    double rotation_radians;
+    ctex_vec2d scale;
+    uint32_t inverted;
+} ctex_paint_stencil_descriptor;
+
+#define CTEX_PAINT_STENCIL_DESCRIPTOR_V1_SIZE ((uint32_t)sizeof(ctex_paint_stencil_descriptor))
+#define CTEX_PAINT_STENCIL_DESCRIPTOR_CURRENT_SIZE ((uint32_t)sizeof(ctex_paint_stencil_descriptor))
+
+typedef struct ctex_paint_stencil_info {
+    uint32_t size;
+    ctex_vec2d resolved_position;
+    double resolved_rotation_radians;
+    ctex_vec2d resolved_scale;
+    uint32_t inverted;
+    uint32_t position_x_clamped;
+    uint32_t position_y_clamped;
+    uint32_t rotation_clamped;
+    uint32_t scale_x_clamped;
+    uint32_t scale_y_clamped;
+    size_t required_mask_value_count;
+} ctex_paint_stencil_info;
+
+#define CTEX_PAINT_STENCIL_INFO_V1_SIZE ((uint32_t)sizeof(ctex_paint_stencil_info))
+#define CTEX_PAINT_STENCIL_INFO_CURRENT_SIZE ((uint32_t)sizeof(ctex_paint_stencil_info))
+
 typedef struct ctex_stroke_preset_info {
     uint32_t size;
     uint32_t schema_version;
@@ -3190,6 +3226,11 @@ CTEX_API ctex_result ctex_paint_apply_smear(const ctex_paint_smear_descriptor* d
                                             ctex_paint_smear_info* out_info,
                                             const ctex_paint_tool_channel_output* output_channels,
                                             size_t output_channel_count);
+
+/* Resolves a screen-anchored stencil for use as a canonical paint mask. */
+CTEX_API ctex_result ctex_paint_resolve_stencil_mask(
+    const ctex_paint_stencil_descriptor* descriptor, ctex_paint_stencil_info* out_info,
+    double* mask_values, size_t mask_value_capacity);
 
 /*
  * Installs one process-wide sink. Pass NULL to uninstall it. The callback can

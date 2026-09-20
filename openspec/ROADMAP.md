@@ -189,7 +189,8 @@ resolves all six scopes from cached surface-map data and shades every enabled
 channel atomically. Clone now exposes aligned and fixed immutable snapshot
 mapping with explicit cross-set refusal. Blur and Smear now expose immutable
 stroke-start filtering through explicit surface-aware neighborhoods and mappings.
-Exactly 102 runtime requirements still lack C ABI evidence;
+Stencil now resolves screen-anchored transformable masks for the canonical
+deposition pipeline. Exactly 101 runtime requirements still lack C ABI evidence;
 those gaps must be implemented before task 14.8 can close.
 
 ## Milestones

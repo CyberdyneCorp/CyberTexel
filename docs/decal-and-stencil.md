@@ -40,3 +40,9 @@ Positive scale axes default to 1 and are clamped to
 `[0.000001, 1,000,000]`. `StencilMaskResult` exposes the resolved transform and
 every clamp; `apply_stencil` carries that result unchanged. Non-finite
 transform values are refused.
+
+The public C boundary exposes stencil resolution as
+`ctex_paint_resolve_stencil_mask`. Its caller-owned normalized result plugs
+directly into `ctex_paint_evaluate_tile_deposition` as a screen-selection mask,
+then into `ctex_paint_apply_brush`. This composition preserves per-stamp
+build-up behavior while exposing resolved transforms, inversion and every clamp.

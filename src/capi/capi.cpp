@@ -28,6 +28,7 @@
 #include <ctex/paint/brush.hpp>
 #include <ctex/paint/clone.hpp>
 #include <ctex/paint/coverage.hpp>
+#include <ctex/paint/decal_stencil.hpp>
 #include <ctex/paint/deposition.hpp>
 #include <ctex/paint/fill.hpp>
 #include <ctex/paint/masking.hpp>
@@ -3719,6 +3720,22 @@ std::vector<ctex::paint::SmearMapping> paint_smear_mappings(
             .output_frame = stroke_frame(source.output_frame),
             .upstream_sample = capi_surface_filter_sample(source.upstream_sample),
         });
+    }
+    return result;
+}
+
+std::vector<ctex::paint::Vec2d> paint_stencil_screen_positions(
+    const ctex_paint_stencil_descriptor& descriptor, std::size_t pixel_count) {
+    require_paint_tool_array(descriptor.screen_positions, descriptor.screen_position_count,
+                             "screen_positions");
+    if (descriptor.screen_position_count != pixel_count) {
+        throw std::invalid_argument("stencil screen-position count does not match its dimensions");
+    }
+    std::vector<ctex::paint::Vec2d> result;
+    result.reserve(pixel_count);
+    for (std::size_t index = 0; index < pixel_count; ++index) {
+        result.push_back(
+            {descriptor.screen_positions[index].x, descriptor.screen_positions[index].y});
     }
     return result;
 }
@@ -8332,6 +8349,80 @@ extern "C" ctex_result ctex_paint_apply_smear(const ctex_paint_smear_descriptor*
             validate_paint_tool_outputs(output_channels, output_channel_count,
                                         result.channels.size(), pixel_count);
             copy_paint_tool_outputs(result.channels, output_channels);
+        } catch (const std::invalid_argument& error) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_INVALID_PAINT_TOOL,
+                           error.what());
+        }
+    });
+}
+
+extern "C" ctex_result ctex_paint_resolve_stencil_mask(
+    const ctex_paint_stencil_descriptor* descriptor, ctex_paint_stencil_info* out_info,
+    double* mask_values, std::size_t mask_value_capacity) {
+    return call_boundary("ctex_paint_resolve_stencil_mask", [&] {
+        if (descriptor == nullptr || out_info == nullptr) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                           descriptor == nullptr ? "descriptor=null" : "out_info=null");
+        }
+        validate_structure_size(descriptor->size, CTEX_PAINT_STENCIL_DESCRIPTOR_V1_SIZE,
+                                CTEX_PAINT_STENCIL_DESCRIPTOR_CURRENT_SIZE, "descriptor.size");
+        validate_structure_size(out_info->size, CTEX_PAINT_STENCIL_INFO_V1_SIZE,
+                                CTEX_PAINT_STENCIL_INFO_CURRENT_SIZE, "out_info.size");
+        const std::size_t pixel_count = bounded_paint_pixel_count(
+            descriptor->width, descriptor->height, CTEX_DIAGNOSTIC_INVALID_PAINT_TOOL);
+        const std::size_t image_pixel_count = bounded_paint_pixel_count(
+            descriptor->image_width, descriptor->image_height, CTEX_DIAGNOSTIC_INVALID_PAINT_TOOL);
+        try {
+            require_paint_tool_array(descriptor->image_opacity, descriptor->image_opacity_count,
+                                     "image_opacity");
+            if (descriptor->image_opacity_count != image_pixel_count) {
+                throw std::invalid_argument(
+                    "stencil image opacity count does not match its dimensions");
+            }
+            const auto positions = paint_stencil_screen_positions(*descriptor, pixel_count);
+            const ctex::paint::ToolOpacityImage image{
+                .width = descriptor->image_width,
+                .height = descriptor->image_height,
+                .opacity = {descriptor->image_opacity,
+                            descriptor->image_opacity + image_pixel_count},
+            };
+            const ctex::paint::StencilTransform transform{
+                .position = {descriptor->position.x, descriptor->position.y},
+                .rotation_radians = descriptor->rotation_radians,
+                .scale = {descriptor->scale.x, descriptor->scale.y},
+            };
+            const ctex::paint::StencilMaskResult result = ctex::paint::resolve_stencil_mask(
+                descriptor->width, descriptor->height, positions, image, transform,
+                paint_flag(descriptor->inverted, "inverted"));
+            *out_info = {
+                .size = CTEX_PAINT_STENCIL_INFO_CURRENT_SIZE,
+                .resolved_position = {result.resolved_transform.position.x,
+                                      result.resolved_transform.position.y},
+                .resolved_rotation_radians = result.resolved_transform.rotation_radians,
+                .resolved_scale = {result.resolved_transform.scale.x,
+                                   result.resolved_transform.scale.y},
+                .inverted = result.inverted ? 1U : 0U,
+                .position_x_clamped = result.parameter_report
+                                          .clamp_for(ctex::paint::stencil_position_x_parameter.name)
+                                          .has_value(),
+                .position_y_clamped = result.parameter_report
+                                          .clamp_for(ctex::paint::stencil_position_y_parameter.name)
+                                          .has_value(),
+                .rotation_clamped =
+                    result.parameter_report.clamp_for(ctex::paint::stencil_rotation_parameter.name)
+                        .has_value(),
+                .scale_x_clamped =
+                    result.parameter_report.clamp_for(ctex::paint::stencil_scale_x_parameter.name)
+                        .has_value(),
+                .scale_y_clamped =
+                    result.parameter_report.clamp_for(ctex::paint::stencil_scale_y_parameter.name)
+                        .has_value(),
+                .required_mask_value_count = pixel_count,
+            };
+            validate_output_array(mask_values, mask_value_capacity, pixel_count, "mask_values");
+            if (mask_values != nullptr) {
+                std::copy(result.values.begin(), result.values.end(), mask_values);
+            }
         } catch (const std::invalid_argument& error) {
             throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_INVALID_PAINT_TOOL,
                            error.what());

@@ -1026,6 +1026,47 @@ static int blur_and_smear_filter_the_immutable_snapshot(void) {
     return passed;
 }
 
+static int stencil_resolves_a_screen_anchored_invertible_mask(void) {
+    const ctex_vec2d positions[3] = {{-0.25, 0}, {0.25, 0}, {0.75, 0}};
+    const double opacity[2] = {0, 1};
+    ctex_paint_stencil_descriptor descriptor = {CTEX_PAINT_STENCIL_DESCRIPTOR_CURRENT_SIZE,
+                                                3,
+                                                1,
+                                                positions,
+                                                3,
+                                                2,
+                                                1,
+                                                opacity,
+                                                2,
+                                                {0, 0},
+                                                0,
+                                                {1, 1},
+                                                0};
+    ctex_paint_stencil_info info = {.size = CTEX_PAINT_STENCIL_INFO_CURRENT_SIZE};
+    double values[3] = {-1, -1, -1};
+    int passed = expect(ctex_paint_resolve_stencil_mask(&descriptor, &info, NULL, 0) ==
+                        CTEX_RESULT_SUCCESS) &&
+                 expect(info.required_mask_value_count == 3);
+    if (passed) {
+        passed = expect(ctex_paint_resolve_stencil_mask(&descriptor, &info, values, 3) ==
+                        CTEX_RESULT_SUCCESS) &&
+                 expect(near(values[0], 0) && near(values[1], 1) && near(values[2], 0));
+    }
+    if (passed) {
+        descriptor.inverted = 1;
+        passed = expect(ctex_paint_resolve_stencil_mask(&descriptor, &info, values, 3) ==
+                        CTEX_RESULT_SUCCESS) &&
+                 expect(near(values[0], 1) && near(values[1], 0) && near(values[2], 1));
+    }
+    if (passed) {
+        descriptor.scale.x = 0;
+        passed = expect(ctex_paint_resolve_stencil_mask(&descriptor, &info, NULL, 0) ==
+                        CTEX_RESULT_SUCCESS) &&
+                 expect(info.scale_x_clamped == 1 && info.resolved_scale.x > 0);
+    }
+    return passed;
+}
+
 static int invalid_inputs_are_stable_diagnostics(void) {
     ctex_mesh* mesh = coverage_mesh();
     ctex_paint_tile_coverage_descriptor tile = {
@@ -1082,6 +1123,7 @@ int main(void) {
                    fill_exposes_all_scopes_and_shades_atomically() &&
                    clone_maps_aligned_and_fixed_sources_and_refuses_cross_set() &&
                    blur_and_smear_filter_the_immutable_snapshot() &&
+                   stencil_resolves_a_screen_anchored_invertible_mask() &&
                    invalid_inputs_are_stable_diagnostics()
                ? 0
                : 1;

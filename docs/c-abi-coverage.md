@@ -71,8 +71,9 @@ surface-map data, intersects masks and rejection, and shades caller-owned
 channels atomically. Clone now maps aligned and fixed immutable source snapshots,
 publishes resolved sample indices and refuses cross-set operations. Blur and
 Smear now filter immutable stroke-start snapshots through explicit surface-aware
-neighborhoods and mappings. Exactly 102
-runtime requirements remain
+neighborhoods and mappings. Stencil now resolves bounded screen-anchored,
+transformable and invertible masks that compose with canonical deposition and
+Brush shading. Exactly 101 runtime requirements remain
 unmapped.
 The gate is not part of the aggregate `just check` until that count reaches zero;
 its unit tests run in the normal tooling suite throughout the migration.
