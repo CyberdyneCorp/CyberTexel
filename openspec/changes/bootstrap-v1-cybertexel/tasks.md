@@ -1038,6 +1038,16 @@ isolation, out-of-range faces, zero dimensions and ceiling refusal. Together
 with overlap diagnostics this completes task 4.5, and the exact remaining C ABI
 gap is 38 runtime requirements.
 
+Task 4.3 adds sparse UDIM storage inside a texture set. Checked conversion uses
+the standard `1001 + u + 10 * v` numbering with ten U columns. UV-addressed
+batch writes preflight every coordinate and pixel width, map samples to local
+texels on both sides of a tile boundary, and allocate a UDIM only when a write
+differs from the channel default. Tiles clone the texture set's extensible
+channel configuration on demand and synchronize later channel additions before
+writing. Hosts can declare the exact sorted logical occupancy found in mesh UVs
+without allocating default pixels; document memory reports separately count
+only physical authored storage.
+
 Task 4.7 adds a two-phase painted-document mesh replacement transaction. Stable
 partition kind/key and named-UV matching ignores display, partition, vertex,
 winding and face order while reporting missing identities and changed layouts
@@ -1173,7 +1183,7 @@ and export integration where those are part of a document scenario.
 
 - [x] 4.1 Mesh ingest interface, read-only guarantee, attribute description
 - [x] 4.2 Multiple UV sets; texture set binding to a named set
-- [ ] 4.3 UDIM tiles: on-demand allocation, addressing, cross-tile writes
+- [x] 4.3 UDIM tiles: on-demand allocation, addressing, cross-tile writes
 - [ ] 4.4 Atlases and their export-time regions
 - [x] 4.5 Overlap and coverage diagnostics
 - [x] 4.6 Mesh revision; every derived structure keyed by it

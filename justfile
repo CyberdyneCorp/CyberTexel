@@ -86,6 +86,9 @@ test-channels: build
 test-document: build
     ctest --test-dir build/headless --output-on-failure -R '^texture-document$'
 
+test-udim: build
+    ctest --test-dir build/headless --output-on-failure -R '^texture-set-udim$'
+
 test-texture-document-scenarios: build
     ctest --test-dir build/headless --output-on-failure -L '^texture-document-scenario$'
 

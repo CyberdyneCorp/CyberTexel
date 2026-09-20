@@ -33,6 +33,18 @@ image::ChannelType channel_type(ScalarRepresentation representation, std::uint8_
     }
 }
 
+std::uint8_t bit_depth(image::ChannelType type) {
+    switch (type) {
+        case image::ChannelType::uint8_unorm:
+            return 8;
+        case image::ChannelType::uint16_unorm:
+            return 16;
+        case image::ChannelType::float32:
+            return 32;
+    }
+    throw std::invalid_argument("channel storage type is invalid");
+}
+
 void validate_descriptor(const ChannelDescriptor& descriptor) {
     if (descriptor.semantic_id.empty()) {
         throw std::invalid_argument("channel semantic identifier must not be empty");
@@ -175,6 +187,28 @@ TextureChannels& TextureChannels::operator=(const TextureChannels& other) {
     return *this;
 }
 
+TextureChannels TextureChannels::clone_configuration() const {
+    TextureChannels result(width_, height_, default_bit_depth_, {}, memory_resource_);
+    result.synchronize_configuration(*this);
+    return result;
+}
+
+void TextureChannels::synchronize_configuration(const TextureChannels& source) {
+    if (width_ != source.width_ || height_ != source.height_) {
+        throw std::invalid_argument("channel configurations require matching dimensions");
+    }
+    for (const auto& [semantic_id, source_channel] : source.channels_) {
+        if (!contains_descriptor(semantic_id)) {
+            register_descriptor(source_channel.descriptor);
+        }
+        if (source_channel.pixels && !is_enabled(semantic_id)) {
+            enable(semantic_id, bit_depth(source_channel.pixels->format().channel_type));
+        } else if (!source_channel.pixels && is_enabled(semantic_id)) {
+            disable(semantic_id);
+        }
+    }
+}
+
 void TextureChannels::register_descriptor(ChannelDescriptor value) {
     validate_descriptor(value);
     const std::pmr::string id(value.semantic_id, memory_resource_);
@@ -196,6 +230,10 @@ void TextureChannels::register_descriptor(ChannelDescriptor value) {
         throw std::invalid_argument("channel semantic identifier is already registered: " +
                                     std::string(id.begin(), id.end()));
     }
+}
+
+bool TextureChannels::contains_descriptor(std::string_view semantic_id) const noexcept {
+    return channels_.contains(semantic_id);
 }
 
 const ChannelDescriptor& TextureChannels::descriptor(std::string_view semantic_id) const {

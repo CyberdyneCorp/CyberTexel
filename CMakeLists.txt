@@ -1057,6 +1057,11 @@ if(BUILD_TESTING)
     target_link_libraries(ctex_mesh_test PRIVATE ctex_doc ctex_mesh ctex_graph ctex_image)
     add_test(NAME mesh-ingest COMMAND ctex_mesh_test)
 
+    add_executable(ctex_udim_test tests/doc/udim_test.cpp)
+    ctex_configure_cpp_target(ctex_udim_test)
+    target_link_libraries(ctex_udim_test PRIVATE ctex_doc ctex_mesh ctex_graph ctex_image)
+    add_test(NAME texture-set-udim COMMAND ctex_udim_test)
+
     add_executable(ctex_mesh_uv_diagnostics_test tests/mesh/uv_diagnostics_test.cpp)
     ctex_configure_cpp_target(ctex_mesh_uv_diagnostics_test)
     target_link_libraries(ctex_mesh_uv_diagnostics_test PRIVATE ctex_mesh)
@@ -1545,6 +1550,7 @@ if(BUILD_TESTING)
     )
     set_tests_properties(
         mesh-ingest
+        texture-set-udim
         mesh-uv-diagnostics
         mesh-replacement-policy
         c-abi-mesh-ingest

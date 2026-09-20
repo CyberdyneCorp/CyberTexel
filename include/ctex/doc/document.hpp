@@ -120,7 +120,29 @@ struct TextureSetDescriptor {
     std::uint32_t width;
     std::uint32_t height;
     std::uint8_t default_bit_depth;
+    bool udim_tiling{false};
 };
+
+struct UdimCoordinate {
+    std::uint32_t u{};
+    std::uint32_t v{};
+    friend bool operator==(UdimCoordinate, UdimCoordinate) = default;
+};
+
+struct UdimPixelWrite {
+    double u{};
+    double v{};
+    std::span<const std::byte> pixel;
+};
+
+struct UdimWriteResult {
+    std::vector<std::uint32_t> changed_tiles;
+    std::vector<std::uint32_t> allocated_tiles;
+    std::size_t changed_pixel_count{};
+};
+
+[[nodiscard]] std::uint32_t udim_number(UdimCoordinate coordinate);
+[[nodiscard]] UdimCoordinate udim_coordinate(std::uint32_t number);
 
 class TextureSet {
 public:
@@ -130,8 +152,20 @@ public:
 
     [[nodiscard]] std::string id() const { return {id_.begin(), id_.end()}; }
     [[nodiscard]] TextureSetDescriptor descriptor() const;
+    [[nodiscard]] bool uses_udim_tiling() const noexcept { return udim_tiling_; }
     [[nodiscard]] TextureChannels& channels() noexcept { return channels_; }
     [[nodiscard]] const TextureChannels& channels() const noexcept { return channels_; }
+    [[nodiscard]] UdimWriteResult write_udim_pixels(std::string_view semantic_id,
+                                                    std::span<const UdimPixelWrite> writes);
+    [[nodiscard]] std::vector<std::uint32_t> ensure_udim_tiles(
+        std::span<const std::uint32_t> tile_numbers);
+    [[nodiscard]] std::vector<std::byte> read_udim_pixel(std::string_view semantic_id,
+                                                         std::uint32_t tile_number, std::uint32_t x,
+                                                         std::uint32_t y) const;
+    [[nodiscard]] std::vector<std::uint32_t> occupied_udim_tiles() const;
+    [[nodiscard]] const TextureChannels& udim_channels(std::uint32_t tile_number) const;
+    [[nodiscard]] bool can_clear_channels() const noexcept;
+    void clear_channels();
     [[nodiscard]] LayerStack& layer_stack() noexcept { return layer_stack_; }
     [[nodiscard]] const LayerStack& layer_stack() const noexcept { return layer_stack_; }
     [[nodiscard]] LayerChannelParticipation channel_participation(
@@ -197,8 +231,10 @@ private:
     std::uint32_t width_;
     std::uint32_t height_;
     std::uint8_t default_bit_depth_;
+    bool udim_tiling_;
     std::pmr::string id_;
     TextureChannels channels_;
+    std::pmr::map<std::uint32_t, TextureChannels> udim_tiles_;
     LayerStack layer_stack_;
     TileHistory tile_history_;
     std::shared_ptr<TextureSetMemoryState> memory_state_;

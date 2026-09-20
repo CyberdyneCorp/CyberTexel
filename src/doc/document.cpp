@@ -1,6 +1,9 @@
+#include <algorithm>
+#include <cmath>
 #include <ctex/doc/document.hpp>
 #include <ctex/mesh/mesh.hpp>
 #include <limits>
+#include <set>
 #include <stdexcept>
 #include <utility>
 
@@ -67,6 +70,36 @@ void validate_texture_set_descriptor(const TextureSetDescriptor& descriptor) {
     }
 }
 
+struct ResolvedUdimWrite {
+    std::uint32_t tile_number{};
+    std::uint32_t x{};
+    std::uint32_t y{};
+    std::span<const std::byte> pixel;
+};
+
+ResolvedUdimWrite resolve_udim_write(const TextureSetDescriptor& descriptor,
+                                     const UdimPixelWrite& write) {
+    if (!std::isfinite(write.u) || !std::isfinite(write.v) || write.u < 0.0 || write.v < 0.0) {
+        throw std::invalid_argument("UDIM UV coordinates must be finite and non-negative");
+    }
+    const double tile_u = std::floor(write.u);
+    const double tile_v = std::floor(write.v);
+    if (tile_u > 9.0 || tile_v > std::numeric_limits<std::uint32_t>::max()) {
+        throw std::out_of_range("UDIM UV coordinate is outside the supported tile range");
+    }
+    const UdimCoordinate coordinate{.u = static_cast<std::uint32_t>(tile_u),
+                                    .v = static_cast<std::uint32_t>(tile_v)};
+    const double local_u = write.u - tile_u;
+    const double local_v = write.v - tile_v;
+    const auto pixel_coordinate = [](double local, std::uint32_t extent) {
+        return std::min(static_cast<std::uint32_t>(local * extent), extent - 1);
+    };
+    return {.tile_number = udim_number(coordinate),
+            .x = pixel_coordinate(local_u, descriptor.width),
+            .y = pixel_coordinate(local_v, descriptor.height),
+            .pixel = write.pixel};
+}
+
 PartitionSourceKind document_partition_kind(mesh::PartitionKind kind) {
     switch (kind) {
         case mesh::PartitionKind::material:
@@ -82,6 +115,25 @@ PartitionSourceKind document_partition_kind(mesh::PartitionKind kind) {
 }
 
 }  // namespace
+
+std::uint32_t udim_number(UdimCoordinate coordinate) {
+    if (coordinate.u > 9) {
+        throw std::out_of_range("UDIM U coordinate must be between zero and nine");
+    }
+    constexpr std::uint32_t base = 1001;
+    if (coordinate.v > (std::numeric_limits<std::uint32_t>::max() - base - coordinate.u) / 10) {
+        throw std::overflow_error("UDIM number exceeds the supported integer range");
+    }
+    return base + coordinate.u + 10 * coordinate.v;
+}
+
+UdimCoordinate udim_coordinate(std::uint32_t number) {
+    if (number < 1001) {
+        throw std::out_of_range("UDIM number must be at least 1001");
+    }
+    const std::uint32_t offset = number - 1001;
+    return {.u = offset % 10, .v = offset / 10};
+}
 
 TextureSetMemoryAccount::TextureSetMemoryAccount(std::shared_ptr<TextureSetMemoryState> state,
                                                  TextureSetMemoryCategory category)
@@ -160,9 +212,11 @@ TextureSet::TextureSet(TextureSetDescriptor descriptor, std::pmr::memory_resourc
       width_(descriptor.width),
       height_(descriptor.height),
       default_bit_depth_(descriptor.default_bit_depth),
+      udim_tiling_(descriptor.udim_tiling),
       id_(texture_set_stable_id(descriptor), memory_resource_),
       channels_(width_, height_, default_bit_depth_, metallic_roughness_channels(),
                 memory_resource_),
+      udim_tiles_(memory_resource_),
       memory_state_(std::allocate_shared<TextureSetMemoryState>(
           std::pmr::polymorphic_allocator<TextureSetMemoryState>(memory_resource_))),
       preset_applications_(memory_resource_) {}
@@ -174,7 +228,140 @@ TextureSetDescriptor TextureSet::descriptor() const {
             .uv_set = {uv_set_.begin(), uv_set_.end()},
             .width = width_,
             .height = height_,
-            .default_bit_depth = default_bit_depth_};
+            .default_bit_depth = default_bit_depth_,
+            .udim_tiling = udim_tiling_};
+}
+
+UdimWriteResult TextureSet::write_udim_pixels(std::string_view semantic_id,
+                                              std::span<const UdimPixelWrite> writes) {
+    if (!udim_tiling_) {
+        throw std::logic_error("texture set does not use UDIM tiling");
+    }
+    const image::TiledImage& prototype = channels_.pixels(semantic_id);
+    const TextureSetDescriptor set_descriptor = descriptor();
+    std::vector<ResolvedUdimWrite> resolved;
+    resolved.reserve(writes.size());
+    for (const UdimPixelWrite& write : writes) {
+        if (write.pixel.size() != prototype.pixel_bytes()) {
+            throw std::invalid_argument("UDIM pixel size does not match the channel format");
+        }
+        resolved.push_back(resolve_udim_write(set_descriptor, write));
+    }
+
+    std::set<std::uint32_t> changed_tiles;
+    std::set<std::uint32_t> allocated_tiles;
+    std::size_t changed_pixel_count = 0;
+    for (const ResolvedUdimWrite& write : resolved) {
+        auto found = udim_tiles_.find(write.tile_number);
+        if (found == udim_tiles_.end()) {
+            TextureChannels candidate = channels_.clone_configuration();
+            image::TiledImage& image = candidate.pixels(semantic_id);
+            const image::Revision before = image.revision();
+            image.write_pixel(write.x, write.y, write.pixel);
+            if (image.revision() == before) {
+                continue;
+            }
+            found = udim_tiles_.emplace(write.tile_number, std::move(candidate)).first;
+            allocated_tiles.insert(write.tile_number);
+        } else {
+            found->second.synchronize_configuration(channels_);
+            image::TiledImage& image = found->second.pixels(semantic_id);
+            const image::Revision before = image.revision();
+            image.write_pixel(write.x, write.y, write.pixel);
+            if (image.revision() == before) {
+                continue;
+            }
+        }
+        changed_tiles.insert(write.tile_number);
+        ++changed_pixel_count;
+    }
+    return {.changed_tiles = {changed_tiles.begin(), changed_tiles.end()},
+            .allocated_tiles = {allocated_tiles.begin(), allocated_tiles.end()},
+            .changed_pixel_count = changed_pixel_count};
+}
+
+std::vector<std::uint32_t> TextureSet::ensure_udim_tiles(
+    std::span<const std::uint32_t> tile_numbers) {
+    if (!udim_tiling_) {
+        throw std::logic_error("texture set does not use UDIM tiling");
+    }
+    std::set<std::uint32_t> unique;
+    for (const std::uint32_t number : tile_numbers) {
+        static_cast<void>(udim_coordinate(number));
+        if (!unique.insert(number).second) {
+            throw std::invalid_argument("UDIM tile declaration contains a duplicate number");
+        }
+    }
+    std::vector<std::uint32_t> allocated;
+    allocated.reserve(unique.size());
+    for (const std::uint32_t number : unique) {
+        const auto [unused, inserted] =
+            udim_tiles_.try_emplace(number, channels_.clone_configuration());
+        static_cast<void>(unused);
+        if (inserted) {
+            allocated.push_back(number);
+        }
+    }
+    return allocated;
+}
+
+std::vector<std::byte> TextureSet::read_udim_pixel(std::string_view semantic_id,
+                                                   std::uint32_t tile_number, std::uint32_t x,
+                                                   std::uint32_t y) const {
+    if (!udim_tiling_) {
+        throw std::logic_error("texture set does not use UDIM tiling");
+    }
+    static_cast<void>(udim_coordinate(tile_number));
+    const image::TiledImage& prototype = channels_.pixels(semantic_id);
+    if (x >= width_ || y >= height_) {
+        throw std::out_of_range("UDIM pixel coordinate is outside the tile");
+    }
+    const auto found = udim_tiles_.find(tile_number);
+    const std::span<const std::byte> pixel =
+        found != udim_tiles_.end() && found->second.is_enabled(semantic_id)
+            ? found->second.pixels(semantic_id).read_pixel(x, y)
+            : prototype.clear_pixel();
+    return {pixel.begin(), pixel.end()};
+}
+
+std::vector<std::uint32_t> TextureSet::occupied_udim_tiles() const {
+    std::vector<std::uint32_t> result;
+    result.reserve(udim_tiles_.size());
+    for (const auto& [number, channels] : udim_tiles_) {
+        static_cast<void>(channels);
+        result.push_back(number);
+    }
+    return result;
+}
+
+const TextureChannels& TextureSet::udim_channels(std::uint32_t tile_number) const {
+    if (!udim_tiling_) {
+        throw std::logic_error("texture set does not use UDIM tiling");
+    }
+    static_cast<void>(udim_coordinate(tile_number));
+    const auto found = udim_tiles_.find(tile_number);
+    if (found == udim_tiles_.end()) {
+        throw std::out_of_range("UDIM tile has no allocated storage: " +
+                                std::to_string(tile_number));
+    }
+    return found->second;
+}
+
+bool TextureSet::can_clear_channels() const noexcept {
+    return channels_.can_clear_enabled() && std::ranges::all_of(udim_tiles_, [](const auto& item) {
+               return item.second.can_clear_enabled();
+           });
+}
+
+void TextureSet::clear_channels() {
+    if (!can_clear_channels()) {
+        throw std::overflow_error("texture-set channel revision epoch space is exhausted");
+    }
+    channels_.clear_enabled();
+    for (auto& [unused, channels] : udim_tiles_) {
+        static_cast<void>(unused);
+        channels.clear_enabled();
+    }
 }
 
 TextureSetMemoryAccount TextureSet::create_memory_account(TextureSetMemoryCategory category) const {
@@ -198,7 +385,12 @@ LayerOperationResult TextureSet::apply_layer_operation(LayerOperationRequest req
 }
 
 TextureSetMemoryReport TextureSet::memory_report() const {
-    const std::size_t channel_bytes = channels_.resident_pixel_bytes();
+    std::size_t channel_bytes = channels_.resident_pixel_bytes();
+    for (const auto& [unused, channels] : udim_tiles_) {
+        static_cast<void>(unused);
+        channel_bytes = checked_add(channel_bytes, channels.resident_pixel_bytes(),
+                                    "UDIM channel memory report overflow");
+    }
     const std::size_t map_bytes = memory_state_->mesh_map_pixel_bytes;
     return {.texture_set_id = id(),
             .channel_pixel_bytes = channel_bytes,

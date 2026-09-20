@@ -45,7 +45,10 @@ public:
     TextureChannels(const TextureChannels& other);
     TextureChannels& operator=(const TextureChannels& other);
 
+    [[nodiscard]] TextureChannels clone_configuration() const;
+    void synchronize_configuration(const TextureChannels& source);
     void register_descriptor(ChannelDescriptor descriptor);
+    [[nodiscard]] bool contains_descriptor(std::string_view semantic_id) const noexcept;
     [[nodiscard]] const ChannelDescriptor& descriptor(std::string_view semantic_id) const;
     [[nodiscard]] std::vector<std::string> semantic_ids() const;
 

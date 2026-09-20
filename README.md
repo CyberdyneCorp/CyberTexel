@@ -170,7 +170,9 @@ The current implementation provides:
 - Validated read-only [mesh ingest](docs/mesh-ingest.md), reusable flat CPU
   acceleration structures, overlap and coverage diagnostics, and two-phase mesh
   replacement that reports per-set UV changes before the host chooses to keep,
-  clear, or defer content for reprojection.
+  clear, or defer content for reprojection. Sparse [UDIM storage](docs/udim-tiles.md)
+  provides checked standard addressing, UV-addressed cross-border batch writes,
+  on-demand physical allocation, and occupied-tile memory reporting.
 - Revision-aware [mesh-map sets](docs/mesh-maps.md) with named missing-map and
   staleness reports, asynchronous stale-safe bake tokens with coordinated undo,
   a host-supplied bake-provider seam, and transactional

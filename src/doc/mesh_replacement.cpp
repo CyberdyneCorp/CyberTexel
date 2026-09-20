@@ -229,13 +229,13 @@ MeshReplacementApplyReport apply_mesh_replacement_policies(
         return report;
     }
     for (const std::string& identifier : clear_texture_sets) {
-        if (!document.texture_set(identifier).channels().can_clear_enabled()) {
+        if (!document.texture_set(identifier).can_clear_channels()) {
             throw std::overflow_error("texture-set channel revision space is exhausted: " +
                                       identifier);
         }
     }
     for (const std::string& identifier : clear_texture_sets) {
-        document.texture_set(identifier).channels().clear_enabled();
+        document.texture_set(identifier).clear_channels();
     }
     report.cleared_texture_sets = std::move(clear_texture_sets);
     return report;
