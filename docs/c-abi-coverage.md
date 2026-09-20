@@ -45,8 +45,9 @@ snapshot pools pin queried tile versions across later edits, report their memory
 pressure, negotiate host-selected formats, describe direct-upload layouts and
 read only named tiles into caller-owned buffers. In-flight paint previews use
 the same versioned snapshot path and remain pinned independently of their
-session. Executor registries now expose the CPU reference, an attached host route and the
-optional compiled owned-GPU route with complete device feature descriptors.
+session. Executor registries now expose the CPU reference, an attached host
+route and the optional compiled owned-GPU route with complete device feature
+descriptors.
 Selection supports explicit, pinned and `CTEX_EXECUTOR` defaults, while fallback
 reports refuse CPU fallback until recovery is established. Host-execution
 sessions now expose logical resource handoff, output validation, completion and
@@ -61,8 +62,12 @@ complete-array comparison are now public for direct and filtered 8-bit, 16-bit
 and floating-point values. The complete fixture gate now accepts registry-backed
 executor render callbacks, compares every available route to the CPU reference,
 and exposes immutable JSON reports with per-case drift and explicit unmeasured
-devices. Image channel expansion now preserves 8-bit, 16-bit and floating-point
-components while applying the documented grayscale/RGB/alpha mappings. Import
+devices. Independent CPU viewport and UV-space rasterization now crosses C with
+bounded atomic depth, coordinate, coverage and triangle output. Together with
+the public parity gate and enforced backend layering, execution-backends is
+fully mapped. Image channel expansion now preserves 8-bit, 16-bit and
+floating-point components while applying the documented grayscale/RGB/alpha
+mappings. Import
 resampling now exposes selectable nearest and default pixel-centred bilinear
 filters with bounded caller-owned output and recorded filter metadata. Brush
 and Eraser now consume the same canonical deposition through atomic,
@@ -120,7 +125,7 @@ has an unlit inspection route and missing environments use defined fallback
 lighting. Inspectable material emission now exposes stable reused variables,
 qualified group paths and node attribution for text and binary targets, while
 the pinned Kongruent backend identity and licence are queryable at runtime.
-Shader emission is therefore fully mapped. Exactly 60 runtime requirements
+Shader emission is therefore fully mapped. Exactly 57 runtime requirements
 remain unmapped overall.
 The gate is not part of the aggregate `just check` until that count reaches zero;
 its unit tests run in the normal tooling suite throughout the migration.

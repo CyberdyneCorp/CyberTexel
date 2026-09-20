@@ -970,6 +970,16 @@ fan-out reuse, group collisions, binary metadata, attribution and atomic sizing.
 Shader-emission is fully mapped and the exact remaining C ABI gap is 60 runtime
 requirements.
 
+The CPU-reference continuation exposes the independent clipped viewport and
+UV-space rasterizers through C. Callers receive camera depth,
+perspective-correct UV or projected screen positions, coverage and stable source
+triangle identity through an atomic caller-owned contract with an explicit
+pre-allocation pixel ceiling. The strict-C fixture covers exact raster values,
+UV-to-camera projection, over-budget and malformed input refusal, and
+short-buffer atomicity. Together with the public parity gate and enforced
+backend layering, execution-backends is fully mapped and the exact remaining C
+ABI gap is 57 runtime requirements.
+
 ## 1. Foundation
 
 - [x] 1.1 CMake project, C++20, warnings as errors, presets for headless, macOS, Linux, Windows, iOS, Android

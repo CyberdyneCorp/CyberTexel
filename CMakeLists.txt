@@ -466,6 +466,12 @@ if(BUILD_TESTING)
         ctex_configure_c_target(ctex_capi_cpu_execution_test)
         target_link_libraries(ctex_capi_cpu_execution_test PRIVATE cybertexel_c)
         add_test(NAME c-abi-cpu-execution COMMAND ctex_capi_cpu_execution_test)
+        add_executable(ctex_capi_cpu_reference_raster_test
+                       tests/capi/cpu_reference_raster_test.c)
+        ctex_configure_c_target(ctex_capi_cpu_reference_raster_test)
+        target_link_libraries(ctex_capi_cpu_reference_raster_test PRIVATE cybertexel_c)
+        add_test(NAME c-abi-cpu-reference-raster
+                 COMMAND ctex_capi_cpu_reference_raster_test)
         add_executable(ctex_capi_parity_test tests/capi/parity_test.c)
         ctex_configure_c_target(ctex_capi_parity_test)
         target_link_libraries(ctex_capi_parity_test PRIVATE cybertexel_c)
@@ -1374,6 +1380,7 @@ if(BUILD_TESTING)
         executor-registry
         executor-environment-pin
         executor-cpu-reference
+        c-abi-cpu-reference-raster
         executor-bounded-execution
         executor-vulkan
         executor-host-execution

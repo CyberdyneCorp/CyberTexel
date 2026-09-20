@@ -177,6 +177,18 @@ and callbacks must not throw across the boundary. The immutable execution-result
 handle preserves status, processed count, exact memory request, actual worker
 count and diagnostic message for two-call readback without rerunning the work.
 
+`ctex_cpu_reference_rasterize_viewport` exposes the reference executor's own
+camera rasterization. It clips triangles in homogeneous space, depth-tests
+pixel centres and returns depth, perspective-correct UV, byte coverage and
+source-triangle identity without consuming host-rendered buffers.
+`ctex_cpu_reference_rasterize_uv` independently rasterizes one UV tile and
+returns camera depth plus top-left-origin screen coordinates for every covered
+texel. Both routes require an explicit maximum output-pixel count, reject the
+request before raster allocation when it is exceeded, and publish their four
+caller-owned arrays atomically after a sizing call. These functions expose the
+reference inputs used by paint rejection and executor parity rather than a
+fallback copy of GPU output.
+
 `ctex_executor_parity_get_tolerance` publishes the numeric agreement contract:
 one normalized code value for direct 8-bit and 16-bit values, two code values
 after filtering, and explicit absolute-plus-relative bounds for floating-point
@@ -867,6 +879,7 @@ The contract is stated per entry-point family:
 | `ctex_executor_registry_create`, `ctex_executor_registry_destroy`, `ctex_executor_registry_get_count`, `ctex_executor_registry_get_info`, `ctex_executor_registry_select`, `ctex_executor_registry_pin_default`, `ctex_executor_registry_clear_default` | Distinct registries are independent. Callers serialize selection/default changes and destruction of one registry; read-only count and descriptor queries may run concurrently when no operation mutates that registry |
 | `ctex_executor_make_fallback_report` | Stateless and safe to call concurrently; input strings are borrowed only for the call and the report buffer is caller-owned |
 | `ctex_cpu_execute_bounded`, `ctex_cpu_execution_result_destroy`, `ctex_cpu_execution_result_get_info` | Distinct executions and immutable result handles are independent. Work callbacks may run concurrently up to the declared worker bound; cancellation and progress callbacks are serialized; commit runs once on the calling thread. A result may be queried concurrently, but destruction requires that no query is active |
+| `ctex_cpu_reference_rasterize_viewport`, `ctex_cpu_reference_rasterize_uv` | Stateless and safe to call concurrently; mesh and camera inputs are borrowed only for the call and all raster arrays are caller-owned |
 | `ctex_executor_parity_get_tolerance`, `ctex_executor_compare_parity` | Stateless and safe to call concurrently; comparison inputs are borrowed only for the call and output storage is caller-owned |
 | `ctex_executor_run_parity_gate`, `ctex_parity_gate_result_destroy`, `ctex_parity_gate_result_get_info` | Distinct runs and immutable result handles are independent. The registry, fixture descriptors and callback state must remain valid for the run; callbacks execute serially on the calling thread. A result may be queried concurrently, but destruction requires that no query is active |
 | `ctex_host_execution_session_*`, `ctex_host_completion_result_*`, `ctex_host_recovery_report_*` | Distinct sessions are independent. Callers serialize submission, completion, cancellation, recovery, queries and destruction on one session. Completion-result and recovery-report handles are immutable after creation; each may be queried concurrently, but destruction requires that no query is active |

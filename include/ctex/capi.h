@@ -2574,6 +2574,83 @@ typedef struct ctex_cpu_execution_info {
 #define CTEX_CPU_EXECUTION_INFO_V1_SIZE ((uint32_t)sizeof(ctex_cpu_execution_info))
 #define CTEX_CPU_EXECUTION_INFO_CURRENT_SIZE ((uint32_t)sizeof(ctex_cpu_execution_info))
 
+typedef struct ctex_cpu_raster_mesh_descriptor {
+    uint32_t size;
+    const ctex_vec3f* positions;
+    const ctex_vec2f* uv;
+    size_t vertex_count;
+    const uint32_t* triangle_indices;
+    size_t triangle_index_count;
+} ctex_cpu_raster_mesh_descriptor;
+
+#define CTEX_CPU_RASTER_MESH_DESCRIPTOR_V1_SIZE ((uint32_t)sizeof(ctex_cpu_raster_mesh_descriptor))
+#define CTEX_CPU_RASTER_MESH_DESCRIPTOR_CURRENT_SIZE \
+    ((uint32_t)sizeof(ctex_cpu_raster_mesh_descriptor))
+
+typedef struct ctex_cpu_raster_camera_descriptor {
+    uint32_t size;
+    /* Column-major; element at row r, column c is view_projection[c * 4 + r]. */
+    float view_projection[16];
+    uint32_t width;
+    uint32_t height;
+} ctex_cpu_raster_camera_descriptor;
+
+#define CTEX_CPU_RASTER_CAMERA_DESCRIPTOR_V1_SIZE \
+    ((uint32_t)sizeof(ctex_cpu_raster_camera_descriptor))
+#define CTEX_CPU_RASTER_CAMERA_DESCRIPTOR_CURRENT_SIZE \
+    ((uint32_t)sizeof(ctex_cpu_raster_camera_descriptor))
+
+typedef struct ctex_cpu_viewport_raster_descriptor {
+    uint32_t size;
+    const ctex_cpu_raster_mesh_descriptor* mesh;
+    const ctex_cpu_raster_camera_descriptor* camera;
+    size_t maximum_output_pixels;
+} ctex_cpu_viewport_raster_descriptor;
+
+#define CTEX_CPU_VIEWPORT_RASTER_DESCRIPTOR_V1_SIZE \
+    ((uint32_t)sizeof(ctex_cpu_viewport_raster_descriptor))
+#define CTEX_CPU_VIEWPORT_RASTER_DESCRIPTOR_CURRENT_SIZE \
+    ((uint32_t)sizeof(ctex_cpu_viewport_raster_descriptor))
+
+typedef struct ctex_cpu_uv_raster_descriptor {
+    uint32_t size;
+    const ctex_cpu_raster_mesh_descriptor* mesh;
+    const ctex_cpu_raster_camera_descriptor* camera;
+    uint32_t width;
+    uint32_t height;
+    ctex_vec2f tile_origin;
+    size_t maximum_output_pixels;
+} ctex_cpu_uv_raster_descriptor;
+
+#define CTEX_CPU_UV_RASTER_DESCRIPTOR_V1_SIZE ((uint32_t)sizeof(ctex_cpu_uv_raster_descriptor))
+#define CTEX_CPU_UV_RASTER_DESCRIPTOR_CURRENT_SIZE ((uint32_t)sizeof(ctex_cpu_uv_raster_descriptor))
+
+typedef struct ctex_cpu_raster_info {
+    uint32_t size;
+    uint32_t width;
+    uint32_t height;
+    size_t pixel_count;
+} ctex_cpu_raster_info;
+
+#define CTEX_CPU_RASTER_INFO_V1_SIZE ((uint32_t)sizeof(ctex_cpu_raster_info))
+#define CTEX_CPU_RASTER_INFO_CURRENT_SIZE ((uint32_t)sizeof(ctex_cpu_raster_info))
+
+typedef struct ctex_cpu_raster_outputs {
+    uint32_t size;
+    float* depth;
+    size_t depth_capacity;
+    /* Viewport raster: UV. UV-space raster: projected screen position. */
+    ctex_vec2f* coordinates;
+    size_t coordinate_capacity;
+    uint8_t* coverage;
+    size_t coverage_capacity;
+    uint32_t* triangle_identity;
+    size_t triangle_identity_capacity;
+} ctex_cpu_raster_outputs;
+
+#define CTEX_CPU_RASTER_OUTPUTS_V1_SIZE ((uint32_t)sizeof(ctex_cpu_raster_outputs))
+#define CTEX_CPU_RASTER_OUTPUTS_CURRENT_SIZE ((uint32_t)sizeof(ctex_cpu_raster_outputs))
+
 typedef enum ctex_parity_value_class {
     CTEX_PARITY_UNORM8 = 0,
     CTEX_PARITY_UNORM16 = 1,
@@ -4942,6 +5019,22 @@ CTEX_API void ctex_cpu_execution_result_destroy(ctex_cpu_execution_result* resul
 CTEX_API ctex_result ctex_cpu_execution_result_get_info(const ctex_cpu_execution_result* result,
                                                         ctex_cpu_execution_info* out_info,
                                                         char* message, size_t message_size);
+
+/*
+ * Independently rasterizes camera depth, perspective-correct UV, coverage and
+ * source-triangle identity on the always-available CPU reference route.
+ */
+CTEX_API ctex_result ctex_cpu_reference_rasterize_viewport(
+    const ctex_cpu_viewport_raster_descriptor* descriptor, ctex_cpu_raster_info* out_info,
+    const ctex_cpu_raster_outputs* outputs);
+
+/*
+ * Independently rasterizes a UV tile and projects covered texels back to
+ * camera depth and top-left-origin screen coordinates on the CPU reference.
+ */
+CTEX_API ctex_result ctex_cpu_reference_rasterize_uv(
+    const ctex_cpu_uv_raster_descriptor* descriptor, ctex_cpu_raster_info* out_info,
+    const ctex_cpu_raster_outputs* outputs);
 
 /* Numeric executor agreement contract for direct and filtered channel values. */
 CTEX_API ctex_result ctex_executor_parity_get_tolerance(uint32_t value_class, uint32_t filtered,

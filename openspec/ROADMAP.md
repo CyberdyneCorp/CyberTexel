@@ -228,11 +228,14 @@ environment texture contracts, uniform layouts, analytic lights and deterministi
 fallback lighting; every channel has an unlit inspection route. Inspectable
 material emission now exposes stable reused variable names and structured
 attribution through C, including qualified workspace group paths and binary
-companion metadata. The
-vendored Kongruent backend identity, licence and pinned revisions are also
-queryable. Shader emission is fully mapped, leaving exactly 60 runtime
-requirements without C ABI evidence; those gaps must be implemented before task
-14.8 can close.
+companion metadata. The vendored Kongruent backend identity, licence and pinned
+revisions are also queryable. Shader emission is fully mapped. Independent CPU viewport and
+UV-space rasterization now crosses C with bounded atomic output, making the
+reference implementation directly usable without host-rendered depth or UV
+buffers. Alongside the public parity gate and enforced backend layering,
+execution-backends is fully mapped. Exactly 57 runtime requirements remain
+without C ABI evidence; those gaps must be implemented before task 14.8 can
+close.
 
 ## Milestones
 

@@ -27,6 +27,8 @@ EXPORTS
     ctex_cpu_execute_bounded
     ctex_cpu_execution_result_destroy
     ctex_cpu_execution_result_get_info
+    ctex_cpu_reference_rasterize_viewport
+    ctex_cpu_reference_rasterize_uv
     ctex_executor_parity_get_tolerance
     ctex_executor_compare_parity
     ctex_executor_run_parity_gate

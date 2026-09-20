@@ -56,6 +56,12 @@ apply those tests itself; it never consumes a host-rendered depth or UV buffer.
 The executor parity fixture and numeric tolerances are enforced by tasks
 7.5–7.6.
 
+The public C boundary exposes both independent raster paths through
+`ctex_cpu_reference_rasterize_viewport` and
+`ctex_cpu_reference_rasterize_uv`. Their shared atomic output contract returns
+depth, coordinates, coverage and source-triangle identity, while the request's
+explicit pixel ceiling bounds allocation before rasterization.
+
 Input validation rejects zero dimensions, incomplete or out-of-range triangles,
 mismatched attributes, non-finite mesh/camera data, and non-finite transformed
 coordinates before exposing a result.

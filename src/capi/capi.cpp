@@ -8784,6 +8784,121 @@ std::uint32_t cpu_execution_status(ctex::exec::ExecutionStatus status) {
     throw std::logic_error("unknown CPU execution status");
 }
 
+struct CpuRasterMeshStorage {
+    std::vector<ctex::exec::CpuVec3f> positions;
+    std::vector<ctex::exec::CpuVec2f> uv;
+    std::span<const std::uint32_t> triangle_indices;
+
+    [[nodiscard]] ctex::exec::CpuRasterMeshView view() const noexcept {
+        return {positions, uv, triangle_indices};
+    }
+};
+
+CpuRasterMeshStorage cpu_raster_mesh(const ctex_cpu_raster_mesh_descriptor& descriptor) {
+    validate_structure_size(descriptor.size, CTEX_CPU_RASTER_MESH_DESCRIPTOR_V1_SIZE,
+                            CTEX_CPU_RASTER_MESH_DESCRIPTOR_CURRENT_SIZE,
+                            "CPU raster mesh descriptor size");
+    if ((descriptor.positions == nullptr || descriptor.uv == nullptr) &&
+        descriptor.vertex_count != 0) {
+        throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                       "CPU raster positions and UVs are required for non-empty vertices");
+    }
+    if (descriptor.triangle_indices == nullptr && descriptor.triangle_index_count != 0) {
+        throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                       "CPU raster triangle indices are required for non-empty triangles");
+    }
+    if (descriptor.vertex_count > CTEX_MAX_MESH_VERTEX_COUNT ||
+        descriptor.triangle_index_count / 3 > CTEX_MAX_MESH_TRIANGLE_COUNT) {
+        throw_boundary(CTEX_RESULT_OVER_BUDGET, CTEX_DIAGNOSTIC_INVALID_EXECUTOR,
+                       "CPU raster mesh exceeds the public mesh limits");
+    }
+    CpuRasterMeshStorage result;
+    result.positions.reserve(descriptor.vertex_count);
+    result.uv.reserve(descriptor.vertex_count);
+    for (std::size_t index = 0; index < descriptor.vertex_count; ++index) {
+        result.positions.push_back({descriptor.positions[index].x, descriptor.positions[index].y,
+                                    descriptor.positions[index].z});
+        result.uv.push_back({descriptor.uv[index].x, descriptor.uv[index].y});
+    }
+    result.triangle_indices = descriptor.triangle_index_count == 0
+                                  ? std::span<const std::uint32_t>{}
+                                  : std::span<const std::uint32_t>{descriptor.triangle_indices,
+                                                                   descriptor.triangle_index_count};
+    return result;
+}
+
+ctex::exec::CpuRasterCamera cpu_raster_camera(const ctex_cpu_raster_camera_descriptor& descriptor) {
+    validate_structure_size(descriptor.size, CTEX_CPU_RASTER_CAMERA_DESCRIPTOR_V1_SIZE,
+                            CTEX_CPU_RASTER_CAMERA_DESCRIPTOR_CURRENT_SIZE,
+                            "CPU raster camera descriptor size");
+    ctex::exec::CpuRasterCamera result{
+        .view_projection = {}, .width = descriptor.width, .height = descriptor.height};
+    std::copy(std::begin(descriptor.view_projection), std::end(descriptor.view_projection),
+              result.view_projection.values.begin());
+    return result;
+}
+
+std::size_t bounded_cpu_raster_pixel_count(std::uint32_t width, std::uint32_t height,
+                                           std::size_t maximum_output_pixels) {
+    if (width == 0 || height == 0 || maximum_output_pixels == 0) {
+        throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_INVALID_EXECUTOR,
+                       "CPU raster dimensions and maximum_output_pixels must be non-zero");
+    }
+    if (static_cast<std::size_t>(width) >
+        std::numeric_limits<std::size_t>::max() / static_cast<std::size_t>(height)) {
+        throw_boundary(CTEX_RESULT_OVER_BUDGET, CTEX_DIAGNOSTIC_INVALID_EXECUTOR,
+                       "CPU raster dimensions exceed addressable storage");
+    }
+    const std::size_t pixel_count = static_cast<std::size_t>(width) * height;
+    if (pixel_count > maximum_output_pixels) {
+        throw_boundary(CTEX_RESULT_OVER_BUDGET, CTEX_DIAGNOSTIC_INVALID_EXECUTOR,
+                       "CPU raster pixel_count=" + std::to_string(pixel_count) +
+                           " maximum_output_pixels=" + std::to_string(maximum_output_pixels));
+    }
+    return pixel_count;
+}
+
+void validate_cpu_raster_outputs(const ctex_cpu_raster_outputs* outputs, std::size_t pixel_count) {
+    if (outputs == nullptr) {
+        return;
+    }
+    validate_structure_size(outputs->size, CTEX_CPU_RASTER_OUTPUTS_V1_SIZE,
+                            CTEX_CPU_RASTER_OUTPUTS_CURRENT_SIZE, "CPU raster outputs size");
+    validate_output_array(outputs->depth, outputs->depth_capacity, pixel_count, "depth");
+    validate_output_array(outputs->coordinates, outputs->coordinate_capacity, pixel_count,
+                          "coordinates");
+    validate_output_array(outputs->coverage, outputs->coverage_capacity, pixel_count, "coverage");
+    validate_output_array(outputs->triangle_identity, outputs->triangle_identity_capacity,
+                          pixel_count, "triangle_identity");
+}
+
+template <typename Raster>
+void return_cpu_raster(const Raster& raster, std::span<const ctex::exec::CpuVec2f> coordinates,
+                       ctex_cpu_raster_info& out_info, const ctex_cpu_raster_outputs* outputs) {
+    const std::size_t pixel_count = raster.depth.size();
+    out_info = {.size = CTEX_CPU_RASTER_INFO_CURRENT_SIZE,
+                .width = raster.width,
+                .height = raster.height,
+                .pixel_count = pixel_count};
+    validate_cpu_raster_outputs(outputs, pixel_count);
+    if (outputs == nullptr) {
+        return;
+    }
+    if (outputs->depth != nullptr) {
+        std::copy(raster.depth.begin(), raster.depth.end(), outputs->depth);
+    }
+    if (outputs->coordinates != nullptr) {
+        std::transform(coordinates.begin(), coordinates.end(), outputs->coordinates,
+                       [](ctex::exec::CpuVec2f value) { return ctex_vec2f{value.x, value.y}; });
+    }
+    if (outputs->coverage != nullptr) {
+        std::copy(raster.coverage.begin(), raster.coverage.end(), outputs->coverage);
+    }
+    if (outputs->triangle_identity != nullptr) {
+        std::copy(raster.triangle.begin(), raster.triangle.end(), outputs->triangle_identity);
+    }
+}
+
 ctex::exec::ParityValueClass parity_value_class(std::uint32_t value) {
     if (value > CTEX_PARITY_FLOATING_POINT) {
         throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_INVALID_ENUM_VALUE,
@@ -14170,6 +14285,79 @@ extern "C" ctex_result ctex_cpu_execution_result_get_info(const ctex_cpu_executi
         };
         validate_executor_string(message, message_size, value.message);
         copy_executor_string(value.message, message);
+    });
+}
+
+extern "C" ctex_result ctex_cpu_reference_rasterize_viewport(
+    const ctex_cpu_viewport_raster_descriptor* descriptor, ctex_cpu_raster_info* out_info,
+    const ctex_cpu_raster_outputs* outputs) {
+    return call_boundary("ctex_cpu_reference_rasterize_viewport", [&] {
+        if (descriptor == nullptr || out_info == nullptr) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                           descriptor == nullptr ? "descriptor=null" : "out_info=null");
+        }
+        validate_structure_size(descriptor->size, CTEX_CPU_VIEWPORT_RASTER_DESCRIPTOR_V1_SIZE,
+                                CTEX_CPU_VIEWPORT_RASTER_DESCRIPTOR_CURRENT_SIZE,
+                                "CPU viewport raster descriptor size");
+        validate_structure_size(out_info->size, CTEX_CPU_RASTER_INFO_V1_SIZE,
+                                CTEX_CPU_RASTER_INFO_CURRENT_SIZE, "CPU raster info size");
+        if (descriptor->mesh == nullptr || descriptor->camera == nullptr) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                           "CPU raster mesh and camera are required");
+        }
+        try {
+            const ctex::exec::CpuRasterCamera camera = cpu_raster_camera(*descriptor->camera);
+            static_cast<void>(bounded_cpu_raster_pixel_count(camera.width, camera.height,
+                                                             descriptor->maximum_output_pixels));
+            const CpuRasterMeshStorage mesh = cpu_raster_mesh(*descriptor->mesh);
+            const ctex::exec::CpuViewportRaster raster =
+                ctex::exec::CpuReferenceExecutor{}.rasterize_viewport(mesh.view(), camera);
+            return_cpu_raster(raster, raster.uv, *out_info, outputs);
+        } catch (const std::invalid_argument& error) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_INVALID_EXECUTOR,
+                           error.what());
+        } catch (const std::out_of_range& error) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_INVALID_EXECUTOR,
+                           error.what());
+        }
+    });
+}
+
+extern "C" ctex_result ctex_cpu_reference_rasterize_uv(
+    const ctex_cpu_uv_raster_descriptor* descriptor, ctex_cpu_raster_info* out_info,
+    const ctex_cpu_raster_outputs* outputs) {
+    return call_boundary("ctex_cpu_reference_rasterize_uv", [&] {
+        if (descriptor == nullptr || out_info == nullptr) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                           descriptor == nullptr ? "descriptor=null" : "out_info=null");
+        }
+        validate_structure_size(descriptor->size, CTEX_CPU_UV_RASTER_DESCRIPTOR_V1_SIZE,
+                                CTEX_CPU_UV_RASTER_DESCRIPTOR_CURRENT_SIZE,
+                                "CPU UV raster descriptor size");
+        validate_structure_size(out_info->size, CTEX_CPU_RASTER_INFO_V1_SIZE,
+                                CTEX_CPU_RASTER_INFO_CURRENT_SIZE, "CPU raster info size");
+        if (descriptor->mesh == nullptr || descriptor->camera == nullptr) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                           "CPU raster mesh and camera are required");
+        }
+        try {
+            static_cast<void>(bounded_cpu_raster_pixel_count(descriptor->width, descriptor->height,
+                                                             descriptor->maximum_output_pixels));
+            const ctex::exec::CpuRasterCamera camera = cpu_raster_camera(*descriptor->camera);
+            const CpuRasterMeshStorage mesh = cpu_raster_mesh(*descriptor->mesh);
+            const ctex::exec::CpuUvRaster raster = ctex::exec::CpuReferenceExecutor{}.rasterize_uv(
+                mesh.view(), camera,
+                {.width = descriptor->width,
+                 .height = descriptor->height,
+                 .tile_origin = {descriptor->tile_origin.x, descriptor->tile_origin.y}});
+            return_cpu_raster(raster, raster.screen_position, *out_info, outputs);
+        } catch (const std::invalid_argument& error) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_INVALID_EXECUTOR,
+                           error.what());
+        } catch (const std::out_of_range& error) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_INVALID_EXECUTOR,
+                           error.what());
+        }
     });
 }
 

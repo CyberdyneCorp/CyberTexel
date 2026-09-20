@@ -9,7 +9,7 @@ executable coverage.
 | Host owns the device | `executor-host-execution` | Attachment changes availability while submissions contain logical resources and states, never an API handle |
 | Build with no GPU backend | `executor-vulkan`, `executor-cpu-reference` | Default build uses the no-dependency Vulkan stub and retains the always-available CPU route |
 | CI machine with no GPU | `execution-backends-scenario` suite | Complete implemented executor behavior runs without loading a graphics API |
-| Reference rasterization | `executor-cpu-reference` | CPU-owned clipped viewport depth/UV and UV-space projected buffers |
+| Reference rasterization | `executor-cpu-reference`, `c-abi-cpu-reference-raster` | CPU-owned clipped viewport depth/UV and UV-space projected buffers cross C with atomic bounded output |
 | Tolerance is a number | `executor-parity-tolerances` | Exact 8-bit, 16-bit, float and filtered bounds plus boundary comparisons |
 | A backend drifts | `executor-parity-gate` | Excess deviation fails with fixture, channel and measured values |
 | Unavailable device is reported, not skipped silently | `executor-parity-gate`, `executor-vulkan` | Unavailable routes are explicit and never counted as passing |
