@@ -181,6 +181,14 @@ TextureSetMemoryAccount TextureSet::create_memory_account(TextureSetMemoryCatego
     return TextureSetMemoryAccount(memory_state_, category);
 }
 
+LayerChannelParticipation TextureSet::channel_participation(
+    std::string_view entry_identifier, std::string_view semantic_id,
+    std::span<const LayerMaskSample> mask_samples) const {
+    static_cast<void>(channels_.descriptor(semantic_id));
+    return layer_stack_.channel_participation(entry_identifier, semantic_id,
+                                              channels_.is_enabled(semantic_id), mask_samples);
+}
+
 TextureSetMemoryReport TextureSet::memory_report() const {
     const std::size_t channel_bytes = channels_.resident_pixel_bytes();
     const std::size_t map_bytes = memory_state_->mesh_map_pixel_bytes;

@@ -1073,6 +1073,13 @@ Document entries reject unknown modes, restrict Pass Through to groups, and
 evaluate through the canonical CPU formula. Fixed reference values exercise
 every mode, while refusal tests prove the previous layer mode is unchanged.
 
+Task 3.6 resolves sparse per-layer channel enablement against registered
+texture-set storage and reports the exact participation decision. Effective
+opacity multiplies the layer and channel factors through every enabled ancestor
+group and every active direct or group mask. Applicable masks retain canonical
+stack order; incomplete, duplicate, unknown, non-finite and out-of-range texel
+samples are refused rather than silently omitting part of the chain.
+
 ## 1. Foundation
 
 - [x] 1.1 CMake project, C++20, warnings as errors, presets for headless, macOS, Linux, Windows, iOS, Android
@@ -1109,7 +1116,7 @@ every mode, while refusal tests prove the previous layer mode is unchanged.
 - [x] 3.3 Layer stack: entry kinds, nesting rules and their refusals, ordering
 - [x] 3.4 Instances: reference semantics, own modulation, paint refusal, deletion policy, cycle refusal
 - [x] 3.5 Blend modes, with the formula table and a test per mode
-- [ ] 3.6 Per-channel participation and effective opacity including group and mask chains
+- [x] 3.6 Per-channel participation and effective opacity including group and mask chains
 - [ ] 3.7 Compositing on the CPU reference, with the determinism test
 - [ ] 3.8 Layer operations: create, duplicate, delete, reorder, reparent, clear, invert, merge, flatten, convert, apply mask — each atomic
 - [ ] 3.9 Tile-scoped history, ownership-exchange restore, declared budget and its refusals

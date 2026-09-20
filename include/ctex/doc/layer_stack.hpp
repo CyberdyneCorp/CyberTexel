@@ -60,6 +60,8 @@ enum class LayerStackRule : std::uint8_t {
     live_instances,
     blend_mode,
     entry_content,
+    channel_participation,
+    mask_sample,
 };
 
 class LayerStackError final : public std::invalid_argument {
@@ -78,6 +80,19 @@ private:
 
 enum class ReferencedSourceDeletionPolicy : std::uint8_t { refuse, make_instances_independent };
 
+struct LayerMaskSample {
+    std::string_view mask_identifier;
+    double value{1.0};
+};
+
+struct LayerChannelParticipation {
+    bool participates{};
+    double effective_opacity{};
+    std::vector<std::string> mask_identifiers;
+    friend bool operator==(const LayerChannelParticipation&,
+                           const LayerChannelParticipation&) = default;
+};
+
 class LayerStack {
 public:
     static constexpr std::size_t maximum_group_depth = 32;
@@ -92,6 +107,10 @@ public:
     [[nodiscard]] graph::ColourValue evaluate_blend(std::string_view identifier,
                                                     graph::ColourValue base,
                                                     graph::ColourValue layer, double factor) const;
+    [[nodiscard]] std::vector<std::string> applicable_masks(std::string_view identifier) const;
+    [[nodiscard]] LayerChannelParticipation channel_participation(
+        std::string_view identifier, std::string_view semantic_id, bool texture_channel_enabled,
+        std::span<const LayerMaskSample> mask_samples = {}) const;
 
     void append(LayerEntry entry);
     void append(std::span<const LayerEntry> entries);

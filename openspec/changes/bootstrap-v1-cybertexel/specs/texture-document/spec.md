@@ -104,14 +104,14 @@ For the four HSV modes, RGB-to-HSV uses `V=max(R,G,B)`, `m=min(R,G,B)`, `d=V-m`,
 - **THEN** the call SHALL fail with a diagnostic and the layer's blend mode SHALL be unchanged
 
 ### Requirement: Per-channel participation
-Each layer SHALL carry an independent enable flag and an independent opacity per channel, and SHALL contribute a channel only when that channel is enabled on both the layer and the texture set.
+Each layer SHALL carry an independent enable flag and an independent opacity per channel, and SHALL contribute a channel only when that channel is enabled on both the layer and the texture set. A layer with no record for a channel SHALL treat that channel as disabled. Disabling the layer or any enclosing group SHALL disable its participation in every channel.
 
 #### Scenario: Roughness-only layer
 - **WHEN** a layer enables roughness alone
 - **THEN** compositing SHALL alter roughness and leave every other channel of the accumulated result unchanged
 
 ### Requirement: Effective opacity
-Effective opacity for an entry SHALL be its own opacity multiplied by the opacity of every enclosing group and by every mask that applies to it, evaluated per texel.
+Effective opacity for a participating channel SHALL be the entry opacity multiplied by that channel's opacity, the opacity of every enclosing group and every enabled mask that applies directly to the entry or to an enclosing group, evaluated per texel. Disabled masks SHALL be omitted from the chain. The mask factors supplied for a texel SHALL cover every active applicable mask exactly once, be finite and lie within `[0,1]`; incomplete, duplicate, unknown or invalid factors SHALL be refused rather than producing a partial result.
 
 #### Scenario: Nested opacity
 - **WHEN** a layer at opacity 0.5 sits in a group at opacity 0.5

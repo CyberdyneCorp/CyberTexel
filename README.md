@@ -151,6 +151,9 @@ The current implementation provides:
   direct painting, cycles and ambiguous source deletion are explicitly refused.
   The same stack validates all twenty formula-defined blend modes against the
   shared material-graph CPU reference, with Pass Through restricted to groups.
+  Per-channel participation now resolves against texture-set enablement and
+  computes effective opacity through nested groups and direct/group mask chains,
+  refusing incomplete or invalid per-texel mask inputs.
 - Validated read-only [mesh ingest](docs/mesh-ingest.md), reusable flat CPU
   acceleration structures, overlap and coverage diagnostics, and two-phase mesh
   replacement that reports per-set UV changes before the host chooses to keep,

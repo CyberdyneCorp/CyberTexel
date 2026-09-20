@@ -7,11 +7,14 @@ decisions taken and questions still open.
 ## Status
 
 Implementation started. 24 capabilities, 332 requirements, 400 scenarios and
-222 tasks, 138 done. Foundation and the complete headless color-management
+222 tasks, 144 done. Foundation and the complete headless color-management
 scenario suite are green. Slice-A now has memory-buffer PNG input plus
 PNG/JPEG/TGA/TIFF/OpenEXR output, with 8/16-bit preservation and hostile-input
 ceilings; full decoder breadth remains scheduled for slice D. Extensible channel
-descriptors and sparse per-channel enablement are also complete. Read-only in-memory mesh ingest now
+descriptors and sparse per-channel enablement are also complete. Document layers
+now resolve independent channel participation against texture-set storage and
+multiply effective opacity through nested groups and direct/group mask chains.
+Read-only in-memory mesh ingest now
 validates attributes and total, non-overlapping face partitions, from which the
 document derives stable UV-bound texture sets with independent storage.
 Picking now reuses a flat CPU BVH and rebuilds it when its mesh revision changes.

@@ -129,6 +129,9 @@ public:
     [[nodiscard]] const TextureChannels& channels() const noexcept { return channels_; }
     [[nodiscard]] LayerStack& layer_stack() noexcept { return layer_stack_; }
     [[nodiscard]] const LayerStack& layer_stack() const noexcept { return layer_stack_; }
+    [[nodiscard]] LayerChannelParticipation channel_participation(
+        std::string_view entry_identifier, std::string_view semantic_id,
+        std::span<const LayerMaskSample> mask_samples = {}) const;
     [[nodiscard]] TextureSetMemoryAccount create_memory_account(
         TextureSetMemoryCategory category) const;
     [[nodiscard]] TextureSetMemoryReport memory_report() const;

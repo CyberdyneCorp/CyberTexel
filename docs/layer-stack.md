@@ -59,4 +59,27 @@ accepted only on a group and means that its children composite directly into
 the enclosing accumulator. Setting it on a paint layer—or setting any unknown
 mode—reports `LayerStackRule::blend_mode` and preserves the previous mode.
 
+## Per-channel participation
+
+A content layer participates only when its texture-set channel has storage, the
+layer is enabled, and the layer has an enabled `ChannelModulation` record for
+that semantic identity. A missing record is disabled, so a roughness-only layer
+cannot accidentally alter base colour or any other accumulated channel. The
+texture-set query validates that the semantic identity is registered before it
+resolves participation.
+
+For a participating channel, effective opacity is the product of the layer's
+opacity, its independent channel opacity, and every enclosing group's opacity.
+A disabled group gates the complete descendant chain. `applicable_masks()`
+adds enabled masks attached directly to the layer and enabled masks attached to
+any enclosing group, preserving canonical stack order. The caller supplies the
+fully evaluated value of each such mask for the texel; all values are multiplied
+into effective opacity.
+
+Mask samples are identity-addressed and must cover the active chain exactly
+once. Missing, duplicate, unknown, non-finite, or out-of-range values report
+`LayerStackRule::mask_sample`; disabled masks are absent from the chain.
+`LayerChannelParticipation` reports both the final factor and the ordered masks
+that contributed to it.
+
 General layer operations, compositing and history are subsequent roadmap tasks.

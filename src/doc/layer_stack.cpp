@@ -29,6 +29,12 @@ bool is_attachment(LayerEntryKind kind) {
     return kind == LayerEntryKind::mask || kind == LayerEntryKind::filter;
 }
 
+bool is_channel_layer(LayerEntryKind kind) {
+    return kind == LayerEntryKind::paint_layer || kind == LayerEntryKind::fill_layer ||
+           kind == LayerEntryKind::instance || kind == LayerEntryKind::editable_decal ||
+           kind == LayerEntryKind::editable_text || kind == LayerEntryKind::surface_path;
+}
+
 std::size_t index_of(std::span<const LayerEntry> entries, std::string_view identifier) {
     const auto found = std::find_if(entries.begin(), entries.end(), [&](const LayerEntry& entry) {
         return entry.identifier == identifier;
@@ -117,6 +123,71 @@ std::string named_instances(std::span<const std::string> identifiers) {
     return result;
 }
 
+const LayerEntry::ChannelModulation* find_channel(const LayerEntry& entry,
+                                                  std::string_view semantic_id) {
+    const auto found = std::find_if(entry.channels.begin(), entry.channels.end(),
+                                    [&](const LayerEntry::ChannelModulation& channel) {
+                                        return channel.semantic_id == semantic_id;
+                                    });
+    return found == entry.channels.end() ? nullptr : &*found;
+}
+
+std::vector<std::size_t> target_chain(std::span<const LayerEntry> entries,
+                                      const EntryIndices& indices, std::size_t index) {
+    std::vector<std::size_t> result;
+    while (true) {
+        result.push_back(index);
+        if (entries[index].parent_identifier.empty()) {
+            break;
+        }
+        index = indices.at(entries[index].parent_identifier);
+    }
+    return result;
+}
+
+std::vector<std::string> active_masks(std::span<const LayerEntry> entries,
+                                      std::span<const std::size_t> target_indices) {
+    std::set<std::string_view, std::less<>> targets;
+    for (const std::size_t index : target_indices) {
+        targets.insert(entries[index].identifier);
+    }
+    std::vector<std::string> result;
+    for (const LayerEntry& entry : entries) {
+        if (entry.kind == LayerEntryKind::mask && entry.enabled &&
+            targets.contains(entry.target_identifier)) {
+            result.push_back(entry.identifier);
+        }
+    }
+    return result;
+}
+
+double apply_mask_samples(std::span<const std::string> required,
+                          std::span<const LayerMaskSample> samples, double opacity) {
+    std::map<std::string_view, double, std::less<>> supplied;
+    for (const LayerMaskSample& sample : samples) {
+        if (sample.mask_identifier.empty() || !std::isfinite(sample.value) || sample.value < 0.0 ||
+            sample.value > 1.0 || !supplied.emplace(sample.mask_identifier, sample.value).second) {
+            refuse(LayerStackRule::mask_sample,
+                   "layer-stack mask samples require unique identities and finite values within "
+                   "[0, 1]");
+        }
+    }
+    if (supplied.size() != required.size()) {
+        refuse(LayerStackRule::mask_sample,
+               "layer-stack mask samples must cover every active applicable mask exactly once");
+    }
+    for (const std::string& identifier : required) {
+        const auto found = supplied.find(identifier);
+        if (found == supplied.end()) {
+            refuse(LayerStackRule::mask_sample,
+                   "layer-stack mask sample is missing for active mask: " + identifier,
+                   {identifier});
+        }
+        opacity *= found->second;
+    }
+    return opacity;
+}
+
 }  // namespace
 
 LayerStackError::LayerStackError(LayerStackRule rule, std::string message,
@@ -163,6 +234,56 @@ graph::ColourValue LayerStack::evaluate_blend(std::string_view identifier, graph
         refuse(LayerStackRule::blend_mode, "layer-stack blend factor must be finite");
     }
     return graph::blend_colour(entry(identifier).blend_mode, base, layer, factor);
+}
+
+std::vector<std::string> LayerStack::applicable_masks(std::string_view identifier) const {
+    EntryIndices indices;
+    for (std::size_t index = 0; index < entries_.size(); ++index) {
+        indices.emplace(entries_[index].identifier, index);
+    }
+    const std::vector<std::size_t> targets =
+        target_chain(entries_, indices, index_of(entries_, identifier));
+    return active_masks(entries_, targets);
+}
+
+LayerChannelParticipation LayerStack::channel_participation(
+    std::string_view identifier, std::string_view semantic_id, bool texture_channel_enabled,
+    std::span<const LayerMaskSample> mask_samples) const {
+    const std::size_t layer_index = index_of(entries_, identifier);
+    const LayerEntry& layer = entries_[layer_index];
+    if (!is_channel_layer(layer.kind)) {
+        refuse(LayerStackRule::channel_participation,
+               "layer-stack channel participation requires a content layer: " + layer.identifier);
+    }
+    if (semantic_id.empty()) {
+        refuse(LayerStackRule::channel_participation,
+               "layer-stack channel participation requires a semantic identity");
+    }
+    const LayerEntry::ChannelModulation* channel = find_channel(layer, semantic_id);
+    if (!texture_channel_enabled || !layer.enabled || channel == nullptr || !channel->enabled) {
+        return {};
+    }
+
+    EntryIndices indices;
+    for (std::size_t index = 0; index < entries_.size(); ++index) {
+        indices.emplace(entries_[index].identifier, index);
+    }
+    const std::vector<std::size_t> targets = target_chain(entries_, indices, layer_index);
+    double opacity = layer.opacity * channel->opacity;
+    for (const std::size_t index : targets) {
+        if (index == layer_index) {
+            continue;
+        }
+        const LayerEntry& group = entries_[index];
+        if (!group.enabled) {
+            return {};
+        }
+        opacity *= group.opacity;
+    }
+    std::vector<std::string> masks = active_masks(entries_, targets);
+    opacity = apply_mask_samples(masks, mask_samples, opacity);
+    return {
+        .participates = true, .effective_opacity = opacity, .mask_identifiers = std::move(masks)};
 }
 
 void LayerStack::append(LayerEntry entry) {
