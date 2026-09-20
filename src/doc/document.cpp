@@ -189,6 +189,10 @@ LayerChannelParticipation TextureSet::channel_participation(
                                               channels_.is_enabled(semantic_id), mask_samples);
 }
 
+LayerCompositeResult TextureSet::composite_cpu(const LayerCompositeRequest& request) const {
+    return composite_texture_set_cpu(*this, request);
+}
+
 TextureSetMemoryReport TextureSet::memory_report() const {
     const std::size_t channel_bytes = channels_.resident_pixel_bytes();
     const std::size_t map_bytes = memory_state_->mesh_map_pixel_bytes;

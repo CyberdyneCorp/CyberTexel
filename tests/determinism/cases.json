@@ -74,6 +74,17 @@
             ]
         },
         {
+            "name": "document-composite",
+            "task": "3.7",
+            "cases": [
+                {
+                    "name": "nested CPU layer composite",
+                    "command": ["build/headless/ctex_layer_compositor_test"],
+                    "outputs": ["layer-composite.bin"]
+                }
+            ]
+        },
+        {
             "name": "texture-export",
             "task": "12.10",
             "cases": [

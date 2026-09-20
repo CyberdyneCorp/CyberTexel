@@ -155,10 +155,22 @@ bool direct_paint_and_invalid_references_are_refused() {
             invalid.append(cycle_entries);
         },
         LayerStackRule::instance_cycle, "instances accepted a two-entry reference cycle");
+    const bool containment_cycle = expect_rule(
+        [&] {
+            LayerStack invalid;
+            LayerEntry group = paint("group");
+            group.kind = LayerEntryKind::group;
+            invalid.append(std::move(group));
+            LayerEntry child = instance("child", "group");
+            child.parent_identifier = "group";
+            invalid.append(std::move(child));
+        },
+        LayerStackRule::instance_cycle,
+        "instance accepted its enclosing group as a recursive content source");
     return expect(stack.paint_target("source").identifier == "source",
                   "paint layer was not accepted as a paint target") &&
            expect(named_source, "instance paint refusal did not name its source") && forward &&
-           self_cycle && pair_cycle &&
+           self_cycle && pair_cycle && containment_cycle &&
            expect(stack == before, "reference refusal changed the valid stack");
 }
 

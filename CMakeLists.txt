@@ -151,6 +151,7 @@ ctex_add_module(
     SOURCES
         src/doc/channels.cpp
         src/doc/document.cpp
+        src/doc/layer_compositor.cpp
         src/doc/layer_stack.cpp
         src/doc/material_graph.cpp
         src/doc/mesh_replacement.cpp
@@ -1006,6 +1007,21 @@ if(BUILD_TESTING)
         ctex_layer_participation_test PRIVATE ctex_doc ctex_mesh ctex_graph ctex_image
     )
     add_test(NAME texture-document-channel-participation COMMAND ctex_layer_participation_test)
+
+    add_executable(ctex_layer_compositor_test tests/doc/layer_compositor_test.cpp)
+    ctex_configure_cpp_target(ctex_layer_compositor_test)
+    target_link_libraries(
+        ctex_layer_compositor_test PRIVATE ctex_doc ctex_mesh ctex_graph ctex_image
+    )
+    add_test(NAME texture-document-cpu-compositor COMMAND ctex_layer_compositor_test)
+    add_test(
+        NAME texture-document-composite-determinism
+        COMMAND "${CTEX_PYTHON3_EXECUTABLE}" tools/check_determinism.py document-composite
+    )
+    set_tests_properties(
+        texture-document-composite-determinism
+        PROPERTIES WORKING_DIRECTORY "${PROJECT_SOURCE_DIR}"
+    )
 
     add_executable(ctex_mesh_test tests/mesh/mesh_test.cpp)
     ctex_configure_cpp_target(ctex_mesh_test)

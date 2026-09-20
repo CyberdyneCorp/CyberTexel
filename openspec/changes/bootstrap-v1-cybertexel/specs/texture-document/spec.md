@@ -111,14 +111,18 @@ Each layer SHALL carry an independent enable flag and an independent opacity per
 - **THEN** compositing SHALL alter roughness and leave every other channel of the accumulated result unchanged
 
 ### Requirement: Effective opacity
-Effective opacity for a participating channel SHALL be the entry opacity multiplied by that channel's opacity, the opacity of every enclosing group and every enabled mask that applies directly to the entry or to an enclosing group, evaluated per texel. Disabled masks SHALL be omitted from the chain. The mask factors supplied for a texel SHALL cover every active applicable mask exactly once, be finite and lie within `[0,1]`; incomplete, duplicate, unknown or invalid factors SHALL be refused rather than producing a partial result.
+Effective opacity for a participating channel SHALL be the entry opacity multiplied by that channel's opacity, the opacity of every enclosing group and every enabled mask that applies directly to the entry or to an enclosing group, evaluated per texel. This flattened participation factor SHALL NOT erase group scope: an ordinary group applies its factor once to its isolated result, while a Pass Through group propagates it to its children. Disabled masks SHALL be omitted from the chain. The mask factors supplied for a texel SHALL cover every active applicable mask exactly once, be finite and lie within `[0,1]`; incomplete, duplicate, unknown or invalid factors SHALL be refused rather than producing a partial result.
 
 #### Scenario: Nested opacity
 - **WHEN** a layer at opacity 0.5 sits in a group at opacity 0.5
 - **THEN** its contribution SHALL be scaled by 0.25 before blending
 
 ### Requirement: Compositing order and determinism
-Compositing SHALL proceed from the bottom of the stack upward, and SHALL be deterministic: the same document composited twice on the same executor SHALL produce bit-identical output.
+Compositing SHALL proceed from the bottom of the stack upward, and SHALL be deterministic: the same document composited twice on the same executor SHALL produce bit-identical output. The device-free CPU reference SHALL composite every enabled texture-set channel from explicit normalized content, coverage and mask rasters. A paint, fill or editable entry SHALL use its resolved content raster; an instance SHALL use its source's resolved content with only the instance's modulation; and an enabled filter SHALL consume its target's isolated result and supply a resolved filter-output raster before the target enters its parent accumulator.
+
+An ordinary group SHALL composite its children into an isolated transparent accumulator and blend that result once with the group's mode, opacity and masks. A Pass Through group without an enabled filter SHALL instead evaluate its children directly against the enclosing accumulator while propagating its opacity and masks. A filter attached to a Pass Through group SHALL require an isolated group result so the filter has the specified input, after which the filtered result SHALL use Normal group composition.
+
+Colour channels SHALL use the selected blend formula. Scalar channels SHALL apply the component formula independently. Additive channels SHALL use clamped addition, and normal-vector channels SHALL apply the selected RGB blend then decode, normalize and re-encode the resulting vector. Source coverage and effective opacity SHALL be combined by deterministic straight-alpha source-over; final texture-set defaults are opaque while isolated groups begin transparent. Missing, duplicate, unknown, dimension-mismatched, non-finite or unevaluable inputs SHALL be refused before a result is returned.
 
 #### Scenario: Repeat composite
 - **WHEN** an unchanged document is composited twice

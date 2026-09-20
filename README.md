@@ -153,7 +153,10 @@ The current implementation provides:
   shared material-graph CPU reference, with Pass Through restricted to groups.
   Per-channel participation now resolves against texture-set enablement and
   computes effective opacity through nested groups and direct/group mask chains,
-  refusing incomplete or invalid per-texel mask inputs.
+  refusing incomplete or invalid per-texel mask inputs. The device-free
+  [CPU compositor](docs/layer-compositing.md) evaluates that stack bottom to top,
+  including isolated/Pass Through groups, instances, resolved filters, channel
+  blending policies and independent coverage, with byte-identical repeat output.
 - Validated read-only [mesh ingest](docs/mesh-ingest.md), reusable flat CPU
   acceleration structures, overlap and coverage diagnostics, and two-phase mesh
   replacement that reports per-set UV changes before the host chooses to keep,

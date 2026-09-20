@@ -80,6 +80,13 @@ Mask samples are identity-addressed and must cover the active chain exactly
 once. Missing, duplicate, unknown, non-finite, or out-of-range values report
 `LayerStackRule::mask_sample`; disabled masks are absent from the chain.
 `LayerChannelParticipation` reports both the final factor and the ordered masks
-that contributed to it.
+that contributed to it. This is a flattened participation report; the CPU
+compositor preserves scope boundaries by applying an ordinary group's factor to
+its isolated result and propagating the same factor through children only for a
+Pass Through group.
 
-General layer operations, compositing and history are subsequent roadmap tasks.
+The [CPU layer compositor](layer-compositing.md) consumes these semantics for
+bottom-to-top channel evaluation, isolated and Pass Through groups, filters,
+instances, coverage and deterministic results.
+
+General layer operations and history are subsequent roadmap tasks.

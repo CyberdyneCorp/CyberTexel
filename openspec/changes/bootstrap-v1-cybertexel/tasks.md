@@ -1080,6 +1080,16 @@ group and every active direct or group mask. Applicable masks retain canonical
 stack order; incomplete, duplicate, unknown, non-finite and out-of-range texel
 samples are refused rather than silently omitting part of the chain.
 
+Task 3.7 adds the device-free texture-set compositor over explicit resolved
+content, coverage and mask rasters. It evaluates enabled channels bottom to top,
+keeps ordinary groups isolated, propagates Pass Through groups directly, resolves
+instance content dynamically and applies resolved filters before their target
+enters its parent accumulator. Colour/scalar, additive and normalized-vector
+policies have explicit CPU behavior. Typed validation refuses incomplete or
+ambiguous requests, and the determinism registry byte-compares a nested output
+across independent runs. A recursive instance sourcing its enclosing group is
+now refused before it can create a content-evaluation cycle.
+
 ## 1. Foundation
 
 - [x] 1.1 CMake project, C++20, warnings as errors, presets for headless, macOS, Linux, Windows, iOS, Android
@@ -1117,7 +1127,7 @@ samples are refused rather than silently omitting part of the chain.
 - [x] 3.4 Instances: reference semantics, own modulation, paint refusal, deletion policy, cycle refusal
 - [x] 3.5 Blend modes, with the formula table and a test per mode
 - [x] 3.6 Per-channel participation and effective opacity including group and mask chains
-- [ ] 3.7 Compositing on the CPU reference, with the determinism test
+- [x] 3.7 Compositing on the CPU reference, with the determinism test
 - [ ] 3.8 Layer operations: create, duplicate, delete, reorder, reparent, clear, invert, merge, flatten, convert, apply mask — each atomic
 - [ ] 3.9 Tile-scoped history, ownership-exchange restore, declared budget and its refusals
 - [ ] 3.10 Transactions: grouping and byte-identical cancellation

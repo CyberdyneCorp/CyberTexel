@@ -66,6 +66,17 @@ std::size_t resolved_content_index(std::span<const LayerEntry> entries, const En
     return index;
 }
 
+bool is_enclosing_group(std::span<const LayerEntry> entries, const EntryIndices& indices,
+                        std::size_t entry_index, std::size_t candidate_group) {
+    while (!entries[entry_index].parent_identifier.empty()) {
+        entry_index = indices.at(entries[entry_index].parent_identifier);
+        if (entry_index == candidate_group) {
+            return true;
+        }
+    }
+    return false;
+}
+
 void validate_entry_content(const LayerEntry& entry) {
     if (!std::isfinite(entry.opacity) || entry.opacity < 0.0 || entry.opacity > 1.0) {
         refuse(LayerStackRule::entry_content,
@@ -470,6 +481,11 @@ void LayerStack::validate(std::span<const LayerEntry> entries) {
             if (source_index == index || indices.at(entry.source_identifier) >= index) {
                 refuse(LayerStackRule::instance_source,
                        "layer-stack instance source must precede it in evaluation order");
+            }
+            if (entries[source_index].kind == LayerEntryKind::group &&
+                is_enclosing_group(entries, indices, index, source_index)) {
+                refuse(LayerStackRule::instance_cycle,
+                       "layer-stack instance cannot source an enclosing group's content");
             }
             if (!can_receive_attachment(entries[source_index].kind)) {
                 refuse(LayerStackRule::instance_source,
