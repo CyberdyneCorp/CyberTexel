@@ -138,6 +138,7 @@ typedef struct ctex_uv_pick_index ctex_uv_pick_index;
 typedef struct ctex_transport_snapshot_pool ctex_transport_snapshot_pool;
 typedef struct ctex_transport_snapshot ctex_transport_snapshot;
 typedef struct ctex_executor_registry ctex_executor_registry;
+typedef struct ctex_cpu_execution_result ctex_cpu_execution_result;
 typedef struct ctex_host_execution_session ctex_host_execution_session;
 typedef struct ctex_host_completion_result ctex_host_completion_result;
 typedef struct ctex_host_recovery_report ctex_host_recovery_report;
@@ -1491,6 +1492,57 @@ typedef struct ctex_executor_fallback_info {
 #define CTEX_EXECUTOR_FALLBACK_INFO_V1_SIZE ((uint32_t)sizeof(ctex_executor_fallback_info))
 #define CTEX_EXECUTOR_FALLBACK_INFO_CURRENT_SIZE ((uint32_t)sizeof(ctex_executor_fallback_info))
 
+typedef enum ctex_cpu_execution_status {
+    CTEX_CPU_EXECUTION_COMPLETED = 0,
+    CTEX_CPU_EXECUTION_CANCELLED = 1,
+    CTEX_CPU_EXECUTION_MEMORY_CEILING_EXCEEDED = 2
+} ctex_cpu_execution_status;
+
+typedef ctex_result (*ctex_cpu_work_item_callback)(size_t work_item, void* shared_working_memory,
+                                                   size_t shared_working_memory_size,
+                                                   void* worker_working_memory,
+                                                   size_t worker_working_memory_size,
+                                                   void* user_data);
+typedef ctex_result (*ctex_cpu_commit_callback)(const void* shared_working_memory,
+                                                size_t shared_working_memory_size, void* user_data);
+typedef uint32_t (*ctex_cpu_cancel_callback)(void* user_data);
+typedef void (*ctex_cpu_progress_callback)(size_t completed_work_items, size_t total_work_items,
+                                           void* user_data);
+
+typedef struct ctex_cpu_bounded_execution_descriptor {
+    uint32_t size;
+    const char* operation;
+    size_t work_item_count;
+    size_t shared_working_memory_bytes;
+    size_t working_memory_bytes_per_worker;
+    size_t maximum_workers;
+    size_t memory_ceiling_bytes;
+    size_t progress_interval;
+    ctex_cpu_work_item_callback execute_work_item;
+    ctex_cpu_commit_callback commit;
+    ctex_cpu_cancel_callback is_cancelled;
+    ctex_cpu_progress_callback report_progress;
+    void* user_data;
+} ctex_cpu_bounded_execution_descriptor;
+
+#define CTEX_CPU_BOUNDED_EXECUTION_DESCRIPTOR_V1_SIZE \
+    ((uint32_t)sizeof(ctex_cpu_bounded_execution_descriptor))
+#define CTEX_CPU_BOUNDED_EXECUTION_DESCRIPTOR_CURRENT_SIZE \
+    ((uint32_t)sizeof(ctex_cpu_bounded_execution_descriptor))
+
+typedef struct ctex_cpu_execution_info {
+    uint32_t size;
+    uint32_t status;
+    size_t completed_work_items;
+    size_t total_work_items;
+    size_t required_memory_bytes;
+    size_t worker_count;
+    size_t required_message_size;
+} ctex_cpu_execution_info;
+
+#define CTEX_CPU_EXECUTION_INFO_V1_SIZE ((uint32_t)sizeof(ctex_cpu_execution_info))
+#define CTEX_CPU_EXECUTION_INFO_CURRENT_SIZE ((uint32_t)sizeof(ctex_cpu_execution_info))
+
 typedef enum ctex_host_resource_owner {
     CTEX_HOST_RESOURCE_LIBRARY = 0,
     CTEX_HOST_RESOURCE_HOST = 1
@@ -2787,6 +2839,15 @@ CTEX_API ctex_result ctex_executor_registry_clear_default(ctex_executor_registry
 CTEX_API ctex_result ctex_executor_make_fallback_report(
     const ctex_executor_fallback_descriptor* descriptor, ctex_executor_fallback_info* out_info,
     char* message, size_t message_size);
+
+/* Runs staged CPU work; only a completed execution invokes the commit callback. */
+CTEX_API ctex_result
+ctex_cpu_execute_bounded(const ctex_cpu_bounded_execution_descriptor* descriptor,
+                         ctex_cpu_execution_result** out_result);
+CTEX_API void ctex_cpu_execution_result_destroy(ctex_cpu_execution_result* result);
+CTEX_API ctex_result ctex_cpu_execution_result_get_info(const ctex_cpu_execution_result* result,
+                                                        ctex_cpu_execution_info* out_info,
+                                                        char* message, size_t message_size);
 
 /* Host-executed work names logical resources only; device handles stay outside the library. */
 CTEX_API ctex_result ctex_host_execution_session_create(uint64_t initial_revision,

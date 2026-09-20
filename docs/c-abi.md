@@ -159,6 +159,24 @@ unknown explicit or pinned identity is refused. `ctex_executor_make_fallback_rep
 validates fallback decisions and refuses a CPU fallback unless recovery was
 restored and the fallback executor is named.
 
+`ctex_cpu_execute_bounded` exposes staged CPU work without publishing partial
+results. The descriptor declares the item count, shared staging bytes,
+per-worker scratch bytes, maximum workers, total memory ceiling and progress
+interval before execution. A request whose complete working set overflows or
+exceeds the ceiling is refused before allocating work storage or invoking a
+work callback. A worker bound of one provides the same result as a larger bound
+when the operation obeys the callback contract.
+
+Work-item callbacks may run concurrently, receive one shared staging buffer and
+one worker-private scratch buffer, and must synchronize any overlapping shared
+writes. Cancellation and progress callbacks are serialized by the executor.
+Cancellation is polled between bounded items; it discards all staging and never
+calls commit. Commit runs once on the calling thread only after every item
+succeeds. A non-success work or commit callback result aborts the C operation,
+and callbacks must not throw across the boundary. The immutable execution-result
+handle preserves status, processed count, exact memory request, actual worker
+count and diagnostic message for two-call readback without rerunning the work.
+
 `ctex_host_execution_session` exposes the host-executed submission state
 machine without moving device handles or pixels across the boundary. Each
 resource handoff names a stable logical identity and generation, its owner,
@@ -571,6 +589,7 @@ The contract is stated per entry-point family:
 | `ctex_transport_snapshot_pool_create`, `ctex_transport_snapshot_pool_destroy`, `ctex_transport_snapshot_pool_get_memory_report`, `ctex_texture_set_query_channel_snapshot`, `ctex_paint_preview_session_query_snapshot`, `ctex_transport_snapshot_destroy`, `ctex_transport_snapshot_get_tile_versions`, `ctex_transport_snapshot_negotiate_format`, `ctex_transport_snapshot_get_tile_memory_layout`, `ctex_transport_snapshot_read_tiles` | Distinct pools and snapshots are independent. Callers serialize query/report operations on one pool and all operations or destruction on one snapshot. A document or preview session is required only during its snapshot query and must be externally serialized for that call; an admitted snapshot owns its pinned versions and may outlive the source handle and pool |
 | `ctex_executor_registry_create`, `ctex_executor_registry_destroy`, `ctex_executor_registry_get_count`, `ctex_executor_registry_get_info`, `ctex_executor_registry_select`, `ctex_executor_registry_pin_default`, `ctex_executor_registry_clear_default` | Distinct registries are independent. Callers serialize selection/default changes and destruction of one registry; read-only count and descriptor queries may run concurrently when no operation mutates that registry |
 | `ctex_executor_make_fallback_report` | Stateless and safe to call concurrently; input strings are borrowed only for the call and the report buffer is caller-owned |
+| `ctex_cpu_execute_bounded`, `ctex_cpu_execution_result_destroy`, `ctex_cpu_execution_result_get_info` | Distinct executions and immutable result handles are independent. Work callbacks may run concurrently up to the declared worker bound; cancellation and progress callbacks are serialized; commit runs once on the calling thread. A result may be queried concurrently, but destruction requires that no query is active |
 | `ctex_host_execution_session_*`, `ctex_host_completion_result_*`, `ctex_host_recovery_report_*` | Distinct sessions are independent. Callers serialize submission, completion, cancellation, recovery, queries and destruction on one session. Completion-result and recovery-report handles are immutable after creation; each may be queried concurrently, but destruction requires that no query is active |
 | `ctex_paint_dilation_session_create`, `ctex_paint_dilation_session_destroy`, `ctex_paint_dilation_session_stage_tile`, `ctex_paint_dilation_session_get_preview`, `ctex_paint_dilation_session_finish` | Distinct sessions are independent and may be used concurrently; callers serialize staging, preview, finish and destruction of the same session |
 | `ctex_paint_surface_map_cache_create`, `ctex_paint_surface_map_cache_destroy`, `ctex_paint_surface_map_cache_clear`, `ctex_paint_surface_map_cache_get_statistics`, `ctex_paint_surface_map_cache_lookup` | Distinct caches are independent and may be used concurrently; callers serialize lookup, statistics, clearing and destruction of the same cache, and keep each mesh alive for its lookup call |

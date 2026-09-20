@@ -52,7 +52,11 @@ reports refuse CPU fallback until recovery is established. Host-execution
 sessions now expose logical resource handoff, output validation, completion and
 cancellation, recovery-gated publication and device-loss restoration without
 crossing device handles or pixels. Completion and recovery reports preserve
-logical resource identity through atomic caller-owned readback. Exactly 114
-runtime requirements remain unmapped.
+logical resource identity through atomic caller-owned readback. Bounded CPU work
+now exposes staged parallel execution, serialized progress, cooperative
+cancellation, real worker limits and pre-allocation memory refusal through C
+callbacks. Immutable result handles preserve one-shot execution while
+supporting caller-owned message readback. Exactly 111 runtime requirements
+remain unmapped.
 The gate is not part of the aggregate `just check` until that count reaches zero;
 its unit tests run in the normal tooling suite throughout the migration.

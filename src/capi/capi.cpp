@@ -3,6 +3,7 @@
 
 #include <algorithm>
 #include <array>
+#include <atomic>
 #include <cmath>
 #include <cstdio>
 #include <cstring>
@@ -239,6 +240,14 @@ struct ctex_executor_registry {
 
     ctex_allocator_state allocator;
     ctex::exec::ExecutorRegistry value;
+};
+
+struct ctex_cpu_execution_result {
+    explicit ctex_cpu_execution_result(ctex_allocator_state allocator_value)
+        : allocator(allocator_value) {}
+
+    ctex_allocator_state allocator;
+    ctex::exec::ExecutionOutcome value;
 };
 
 struct ctex_host_execution_session {
@@ -593,6 +602,28 @@ void destroy_executor_registry(ctex_executor_registry* registry) noexcept {
     registry->~ctex_executor_registry();
     deallocate_storage(allocator, registry, sizeof(ctex_executor_registry),
                        alignof(ctex_executor_registry));
+}
+
+ctex_cpu_execution_result* create_cpu_execution_result(const ctex_allocator_state& allocator) {
+    void* storage = allocate_storage(allocator, sizeof(ctex_cpu_execution_result),
+                                     alignof(ctex_cpu_execution_result));
+    try {
+        return ::new (storage) ctex_cpu_execution_result(allocator);
+    } catch (...) {
+        deallocate_storage(allocator, storage, sizeof(ctex_cpu_execution_result),
+                           alignof(ctex_cpu_execution_result));
+        throw;
+    }
+}
+
+void destroy_cpu_execution_result(ctex_cpu_execution_result* result) noexcept {
+    if (result == nullptr) {
+        return;
+    }
+    const ctex_allocator_state allocator = result->allocator;
+    result->~ctex_cpu_execution_result();
+    deallocate_storage(allocator, result, sizeof(ctex_cpu_execution_result),
+                       alignof(ctex_cpu_execution_result));
 }
 
 ctex_host_execution_session* create_host_execution_session(const ctex_allocator_state& allocator,
@@ -4989,7 +5020,7 @@ void copy_executor_string(const std::string& value, char* output) {
     }
 }
 
-const char* require_host_execution_text(const char* value, std::string_view field) {
+const char* require_executor_text(const char* value, std::string_view field) {
     if (value == nullptr) {
         throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
                        std::string(field) + "=null");
@@ -5001,9 +5032,147 @@ const char* require_host_execution_text(const char* value, std::string_view fiel
     return value;
 }
 
+bool valid_callback_result(ctex_result result) {
+    return result >= CTEX_RESULT_SUCCESS && result <= CTEX_RESULT_BUFFER_TOO_SMALL;
+}
+
+void require_successful_cpu_callback(ctex_result result, std::string_view callback) {
+    if (result == CTEX_RESULT_SUCCESS) {
+        return;
+    }
+    if (!valid_callback_result(result)) {
+        throw_boundary(CTEX_RESULT_INTERNAL_ERROR, CTEX_DIAGNOSTIC_INVALID_EXECUTOR,
+                       std::string(callback) + " callback returned an invalid result code");
+    }
+    throw_boundary(result, CTEX_DIAGNOSTIC_INVALID_EXECUTOR,
+                   std::string(callback) + " callback reported failure");
+}
+
+class CapiCpuBoundedOperation final : public ctex::exec::CpuBoundedOperation {
+public:
+    explicit CapiCpuBoundedOperation(const ctex_cpu_bounded_execution_descriptor& descriptor)
+        : descriptor_(descriptor) {}
+
+    [[nodiscard]] std::string_view identifier() const noexcept override {
+        return descriptor_.operation;
+    }
+
+    [[nodiscard]] ctex::exec::CpuWorkPlan plan() const override {
+        return {
+            .work_item_count = descriptor_.work_item_count,
+            .shared_working_memory_bytes = descriptor_.shared_working_memory_bytes,
+            .working_memory_bytes_per_worker = descriptor_.working_memory_bytes_per_worker,
+        };
+    }
+
+    void execute_work_item(const ctex::exec::CpuReferenceExecutor&, std::size_t work_item,
+                           std::span<std::byte> shared,
+                           std::span<std::byte> worker_memory) override {
+        ctex_result result = CTEX_RESULT_INTERNAL_ERROR;
+        try {
+            result = descriptor_.execute_work_item(work_item, shared.data(), shared.size(),
+                                                   worker_memory.data(), worker_memory.size(),
+                                                   descriptor_.user_data);
+        } catch (...) {
+            throw_boundary(CTEX_RESULT_INTERNAL_ERROR, CTEX_DIAGNOSTIC_INVALID_EXECUTOR,
+                           "execute_work_item callback threw an exception");
+        }
+        require_successful_cpu_callback(result, "execute_work_item");
+    }
+
+    void commit(std::span<const std::byte> shared) noexcept override {
+        try {
+            commit_result_.store(
+                descriptor_.commit(shared.data(), shared.size(), descriptor_.user_data),
+                std::memory_order_relaxed);
+        } catch (...) {
+            callback_exception_.store(true, std::memory_order_relaxed);
+        }
+    }
+
+    [[nodiscard]] ctex::exec::ExecutionControl control() noexcept {
+        return {
+            .maximum_workers = descriptor_.maximum_workers,
+            .memory_ceiling_bytes = descriptor_.memory_ceiling_bytes,
+            .progress_interval = descriptor_.progress_interval,
+            .user_data = this,
+            .is_cancelled = cancel_bridge,
+            .report_progress = progress_bridge,
+        };
+    }
+
+    void validate_callbacks() const {
+        if (callback_exception_.load(std::memory_order_relaxed)) {
+            throw_boundary(CTEX_RESULT_INTERNAL_ERROR, CTEX_DIAGNOSTIC_INVALID_EXECUTOR,
+                           "CPU execution callback threw an exception");
+        }
+        require_successful_cpu_callback(commit_result_.load(std::memory_order_relaxed), "commit");
+    }
+
+private:
+    static bool cancel_bridge(void* user_data) noexcept {
+        auto& operation = *static_cast<CapiCpuBoundedOperation*>(user_data);
+        if (operation.callback_exception_.load(std::memory_order_relaxed)) {
+            return true;
+        }
+        if (operation.descriptor_.is_cancelled == nullptr) {
+            return false;
+        }
+        try {
+            return operation.descriptor_.is_cancelled(operation.descriptor_.user_data) != 0;
+        } catch (...) {
+            operation.callback_exception_.store(true, std::memory_order_relaxed);
+            return true;
+        }
+    }
+
+    static void progress_bridge(void* user_data, ctex::exec::ExecutionProgress progress) noexcept {
+        auto& operation = *static_cast<CapiCpuBoundedOperation*>(user_data);
+        if (operation.descriptor_.report_progress == nullptr ||
+            operation.callback_exception_.load(std::memory_order_relaxed)) {
+            return;
+        }
+        try {
+            operation.descriptor_.report_progress(progress.completed_work_items,
+                                                  progress.total_work_items,
+                                                  operation.descriptor_.user_data);
+        } catch (...) {
+            operation.callback_exception_.store(true, std::memory_order_relaxed);
+        }
+    }
+
+    const ctex_cpu_bounded_execution_descriptor& descriptor_;
+    std::atomic<ctex_result> commit_result_{CTEX_RESULT_SUCCESS};
+    std::atomic_bool callback_exception_{};
+};
+
+void validate_cpu_bounded_execution_descriptor(
+    const ctex_cpu_bounded_execution_descriptor& descriptor) {
+    validate_structure_size(descriptor.size, CTEX_CPU_BOUNDED_EXECUTION_DESCRIPTOR_V1_SIZE,
+                            CTEX_CPU_BOUNDED_EXECUTION_DESCRIPTOR_CURRENT_SIZE,
+                            "CPU bounded execution descriptor size");
+    static_cast<void>(require_executor_text(descriptor.operation, "operation"));
+    if (descriptor.execute_work_item == nullptr || descriptor.commit == nullptr) {
+        throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                       "execute_work_item and commit callbacks are required");
+    }
+}
+
+std::uint32_t cpu_execution_status(ctex::exec::ExecutionStatus status) {
+    switch (status) {
+        case ctex::exec::ExecutionStatus::completed:
+            return CTEX_CPU_EXECUTION_COMPLETED;
+        case ctex::exec::ExecutionStatus::cancelled:
+            return CTEX_CPU_EXECUTION_CANCELLED;
+        case ctex::exec::ExecutionStatus::memory_ceiling_exceeded:
+            return CTEX_CPU_EXECUTION_MEMORY_CEILING_EXCEEDED;
+    }
+    throw std::logic_error("unknown CPU execution status");
+}
+
 ctex::emit::ResourceVersion host_resource_version(const char* logical_id,
                                                   std::uint64_t generation) {
-    return {.logical_id = require_host_execution_text(logical_id, "logical_id"),
+    return {.logical_id = require_executor_text(logical_id, "logical_id"),
             .generation = generation};
 }
 
@@ -5020,7 +5189,7 @@ ctex::exec::HostResourceHandoff host_resource(const ctex_host_resource_descripto
     require_executor_boolean(descriptor.output, "output");
     return {
         .texture = {.version = host_resource_version(descriptor.logical_id, descriptor.generation),
-                    .role = require_host_execution_text(descriptor.role, "resource role"),
+                    .role = require_executor_text(descriptor.role, "resource role"),
                     .format = executor_texture_format(descriptor.format),
                     .extent = {.width = descriptor.width,
                                .height = descriptor.height,
@@ -5049,7 +5218,7 @@ ctex::exec::HostSubmissionRequest host_submission_request(
                        "host replay semantics=" + std::to_string(descriptor.replay_semantics));
     }
     ctex::exec::HostSubmissionRequest converted{
-        .operation = require_host_execution_text(descriptor.operation, "operation"),
+        .operation = require_executor_text(descriptor.operation, "operation"),
         .base_revision = descriptor.base_revision,
         .resources = {},
         .replay_semantics =
@@ -8077,6 +8246,59 @@ extern "C" ctex_result ctex_executor_make_fallback_report(
     });
 }
 
+extern "C" ctex_result ctex_cpu_execute_bounded(
+    const ctex_cpu_bounded_execution_descriptor* descriptor,
+    ctex_cpu_execution_result** out_result) {
+    return call_boundary("ctex_cpu_execute_bounded", [&] {
+        if (descriptor == nullptr || out_result == nullptr) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                           descriptor == nullptr ? "descriptor=null" : "out_result=null");
+        }
+        *out_result = nullptr;
+        validate_cpu_bounded_execution_descriptor(*descriptor);
+        CapiCpuBoundedOperation operation(*descriptor);
+        ctex_cpu_execution_result* created = create_cpu_execution_result(current_allocator());
+        try {
+            created->value =
+                ctex::exec::CpuReferenceExecutor{}.execute_bounded(operation, operation.control());
+            operation.validate_callbacks();
+            *out_result = created;
+        } catch (...) {
+            destroy_cpu_execution_result(created);
+            throw;
+        }
+    });
+}
+
+extern "C" void ctex_cpu_execution_result_destroy(ctex_cpu_execution_result* result) {
+    destroy_cpu_execution_result(result);
+}
+
+extern "C" ctex_result ctex_cpu_execution_result_get_info(const ctex_cpu_execution_result* result,
+                                                          ctex_cpu_execution_info* out_info,
+                                                          char* message, std::size_t message_size) {
+    return call_boundary("ctex_cpu_execution_result_get_info", [&] {
+        if (result == nullptr || out_info == nullptr) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                           result == nullptr ? "result=null" : "out_info=null");
+        }
+        validate_structure_size(out_info->size, CTEX_CPU_EXECUTION_INFO_V1_SIZE,
+                                CTEX_CPU_EXECUTION_INFO_CURRENT_SIZE, "CPU execution info size");
+        const auto& value = result->value;
+        *out_info = {
+            .size = CTEX_CPU_EXECUTION_INFO_CURRENT_SIZE,
+            .status = cpu_execution_status(value.status),
+            .completed_work_items = value.completed_work_items,
+            .total_work_items = value.total_work_items,
+            .required_memory_bytes = value.required_memory_bytes,
+            .worker_count = value.worker_count,
+            .required_message_size = value.message.size() + 1,
+        };
+        validate_executor_string(message, message_size, value.message);
+        copy_executor_string(value.message, message);
+    });
+}
+
 extern "C" ctex_result ctex_host_execution_session_create(
     std::uint64_t initial_revision, ctex_host_execution_session** out_session) {
     return call_boundary("ctex_host_execution_session_create", [&] {
@@ -8210,8 +8432,8 @@ extern "C" ctex_result ctex_host_execution_session_get_committed_resource(
             throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
                            "session, out_found and out_generation are required");
         }
-        const auto resource = session->value.committed_resource(
-            require_host_execution_text(logical_id, "logical_id"));
+        const auto resource =
+            session->value.committed_resource(require_executor_text(logical_id, "logical_id"));
         *out_found = resource.has_value() ? 1U : 0U;
         *out_generation = resource.has_value() ? resource->generation : 0;
     });

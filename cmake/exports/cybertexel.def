@@ -24,6 +24,9 @@ EXPORTS
     ctex_executor_registry_pin_default
     ctex_executor_registry_clear_default
     ctex_executor_make_fallback_report
+    ctex_cpu_execute_bounded
+    ctex_cpu_execution_result_destroy
+    ctex_cpu_execution_result_get_info
     ctex_host_execution_session_create
     ctex_host_execution_session_destroy
     ctex_host_execution_session_get_info

@@ -771,6 +771,16 @@ cancel uncommitted tokens and return released logical generations without
 passing device handles or pixels through the library. The exact remaining C ABI
 gap is 114 runtime requirements.
 
+The bounded-CPU continuation exposes three more execution-backend requirements.
+Hosts submit callback-driven staged work with declared shared and per-worker
+storage, a maximum worker count, a total memory ceiling and a progress interval.
+The CPU reference refuses over-budget requests before work allocation, reports
+serialized progress, polls cooperative cancellation between items and invokes
+commit only after complete success. Immutable outcome handles preserve one-shot
+execution while returning exact work, memory and worker counts through the
+caller-owned buffer contract. The exact remaining C ABI gap is 111 runtime
+requirements.
+
 ## 1. Foundation
 
 - [x] 1.1 CMake project, C++20, warnings as errors, presets for headless, macOS, Linux, Windows, iOS, Android
