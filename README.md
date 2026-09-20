@@ -142,7 +142,11 @@ The current implementation provides:
 - Extensible semantic channels and a nine-channel metallic/roughness PBR preset,
   with independent precision and allocation-free disabled channels.
 - Texture-set documents derived from mesh partitions and named UVs, with stable
-  identities and independent channel storage.
+  identities, independent channel storage, and a canonical ordered
+  [layer stack](docs/layer-stack.md). Entries explicitly distinguish paint,
+  fill, group, mask, filter, instance and editable authoring kinds; validated
+  group nesting and single-target attachments are transactional, and fill-graph
+  edits invalidate derived content by revision.
 - Validated read-only [mesh ingest](docs/mesh-ingest.md), reusable flat CPU
   acceleration structures, overlap and coverage diagnostics, and two-phase mesh
   replacement that reports per-set UV changes before the host chooses to keep,
@@ -272,10 +276,10 @@ The current implementation provides:
   [project-I/O and texture-export](docs/io-scenarios.md), plus combined
   [stroke-model and paint-engine](docs/paint-scenarios.md) scenario suites.
 
-The remaining paint tools, editable layer document, project IO, host-transport
-binding/performance integrations, remaining language bindings, and export
-encoding/workflow stages remain roadmap work and are not presented as
-implemented APIs yet.
+The remaining instance semantics, layer operations/compositing/history, project
+IO, host-transport binding/performance integrations, remaining language
+bindings, and export workflow stages remain roadmap work and are not presented
+as implemented APIs yet.
 
 ## Architecture
 

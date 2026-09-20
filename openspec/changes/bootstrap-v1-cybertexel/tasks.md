@@ -1048,6 +1048,16 @@ the full task-20.5 operation. Otherwise the owned replacement and all policies
 publish atomically through C++, strict C and allocator-balanced fixtures. This
 reduces the exact remaining C ABI gap to 37 runtime requirements.
 
+Task 3.3 adds one canonical ordered layer stack to every texture set. All nine
+specified entry kinds are explicit; parent and attachment dependencies must
+precede their consumers; only groups own children; masks and filters name one
+layer/group target; and group nesting is bounded at 32 levels. Candidate-copy
+validation makes every refusal byte-preserving and names the violated rule.
+Fill-graph edits advance a derived-content revision. Smart-material and smart-
+mask application, parameter edits, ordinary entry edits and one-step undo now
+synchronize with this same stack rather than creating a second evaluation
+model. Instance reference semantics are next in task 3.4.
+
 ## 1. Foundation
 
 - [x] 1.1 CMake project, C++20, warnings as errors, presets for headless, macOS, Linux, Windows, iOS, Android
@@ -1081,7 +1091,7 @@ reduces the exact remaining C ABI gap to 37 runtime requirements.
 
 - [x] 3.1 Texture sets: partitioning, per-set resolution and bit depth, stable identity
 - [x] 3.2 Semantic channel descriptors, built-in preset, per-channel precision and enablement, and no storage for disabled channels
-- [ ] 3.3 Layer stack: entry kinds, nesting rules and their refusals, ordering
+- [x] 3.3 Layer stack: entry kinds, nesting rules and their refusals, ordering
 - [ ] 3.4 Instances: reference semantics, own modulation, paint refusal, deletion policy, cycle refusal
 - [ ] 3.5 Blend modes, with the formula table and a test per mode
 - [ ] 3.6 Per-channel participation and effective opacity including group and mask chains

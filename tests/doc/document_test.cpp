@@ -200,7 +200,9 @@ bool smart_material_application_is_one_editable_undo_step() {
         expect(report.entry_identifiers.size() == 12 && report.content.derived_entry_count == 11 &&
                    report.content.model_specific_entry_count == 1 &&
                    report.content.model_specific_pixel_bytes == 1 &&
-                   set.preset_application_count() == 1 && set.preset_undo_step_count() == 1,
+                   set.preset_application_count() == 1 && set.preset_undo_step_count() == 1 &&
+                   set.layer_stack().size() == 12 &&
+                   set.layer_stack().entry(first_entry).kind == LayerEntryKind::paint_layer,
                "twelve-layer material was not one application and undo step") &&
         expect(std::get<double>(applied_input) == 0.25,
                "smart material application did not reset its exposed default") &&
@@ -209,6 +211,7 @@ bool smart_material_application_is_one_editable_undo_step() {
                                        .schema_version = preset.schema_version},
                "applied entry did not retain its preset origin");
 
+    const std::uint64_t original_revision = set.layer_stack().entry(first_entry).content_revision;
     static_cast<void>(set.set_applied_preset_parameter_value("application-1", "amount", 0.75));
     SmartMaterialEntry edited = set.applied_entry(first_entry);
     edited.display_name = "Edited layer";
@@ -224,13 +227,15 @@ bool smart_material_application_is_one_editable_undo_step() {
             set.applied_entry(first_entry).display_name == "Edited layer" &&
                 std::get<double>(
                     set.applied_entry(first_entry).graph->node(1).inputs.front().value) == 0.75 &&
+                set.layer_stack().entry(first_entry).content_revision == original_revision + 1 &&
                 set.applied_entry_origin(first_entry).preset_identifier == preset.identifier,
             "ordinary applied entry edit or parameter update lost origin metadata");
 
     const PresetApplicationUndoReport undone = set.undo_last_preset_application();
     return applied && editable &&
            expect(undone.removed && undone.entry_identifiers.size() == 12 &&
-                      set.preset_application_count() == 0 && set.preset_undo_step_count() == 0,
+                      set.preset_application_count() == 0 && set.preset_undo_step_count() == 0 &&
+                      set.layer_stack().empty(),
                   "one undo did not remove all twelve instantiated entries") &&
            expect_application_error([&] { static_cast<void>(set.applied_entry(first_entry)); },
                                     "undone smart material entry remained addressable");

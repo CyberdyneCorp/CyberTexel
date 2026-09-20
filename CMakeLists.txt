@@ -151,6 +151,7 @@ ctex_add_module(
     SOURCES
         src/doc/channels.cpp
         src/doc/document.cpp
+        src/doc/layer_stack.cpp
         src/doc/material_graph.cpp
         src/doc/mesh_replacement.cpp
         src/doc/preset_application.cpp
@@ -983,6 +984,11 @@ if(BUILD_TESTING)
     ctex_configure_cpp_target(ctex_document_test)
     target_link_libraries(ctex_document_test PRIVATE ctex_doc ctex_mesh ctex_graph ctex_image)
     add_test(NAME texture-document COMMAND ctex_document_test)
+
+    add_executable(ctex_layer_stack_test tests/doc/layer_stack_test.cpp)
+    ctex_configure_cpp_target(ctex_layer_stack_test)
+    target_link_libraries(ctex_layer_stack_test PRIVATE ctex_doc ctex_mesh ctex_graph ctex_image)
+    add_test(NAME texture-document-layer-stack COMMAND ctex_layer_stack_test)
 
     add_executable(ctex_mesh_test tests/mesh/mesh_test.cpp)
     ctex_configure_cpp_target(ctex_mesh_test)

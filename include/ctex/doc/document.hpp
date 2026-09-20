@@ -4,6 +4,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <ctex/doc/channels.hpp>
+#include <ctex/doc/layer_stack.hpp>
 #include <ctex/doc/smart_mask.hpp>
 #include <map>
 #include <memory>
@@ -126,6 +127,8 @@ public:
     [[nodiscard]] TextureSetDescriptor descriptor() const;
     [[nodiscard]] TextureChannels& channels() noexcept { return channels_; }
     [[nodiscard]] const TextureChannels& channels() const noexcept { return channels_; }
+    [[nodiscard]] LayerStack& layer_stack() noexcept { return layer_stack_; }
+    [[nodiscard]] const LayerStack& layer_stack() const noexcept { return layer_stack_; }
     [[nodiscard]] TextureSetMemoryAccount create_memory_account(
         TextureSetMemoryCategory category) const;
     [[nodiscard]] TextureSetMemoryReport memory_report() const;
@@ -163,6 +166,7 @@ private:
     std::uint8_t default_bit_depth_;
     std::pmr::string id_;
     TextureChannels channels_;
+    LayerStack layer_stack_;
     std::shared_ptr<TextureSetMemoryState> memory_state_;
     std::pmr::vector<AppliedPresetApplication> preset_applications_;
 };

@@ -123,6 +123,58 @@ PresetApplicationReport application_report(const AppliedPresetApplication& appli
             .content = report_smart_material_content(application.fragment)};
 }
 
+LayerEntryKind layer_kind(SmartMaterialEntryKind kind) {
+    switch (kind) {
+        case SmartMaterialEntryKind::layer:
+            return LayerEntryKind::paint_layer;
+        case SmartMaterialEntryKind::group:
+            return LayerEntryKind::group;
+        case SmartMaterialEntryKind::mask:
+            return LayerEntryKind::mask;
+        case SmartMaterialEntryKind::filter:
+            return LayerEntryKind::filter;
+        case SmartMaterialEntryKind::generator:
+            return LayerEntryKind::fill_layer;
+    }
+    invalid_application("smart-material entry kind cannot be added to the layer stack");
+}
+
+LayerEntry layer_entry(const SmartMaterialEntry& entry, std::string_view external_target = {}) {
+    const LayerEntryKind kind = layer_kind(entry.kind);
+    const bool attachment = kind == LayerEntryKind::mask || kind == LayerEntryKind::filter;
+    const std::string target =
+        entry.parent_identifier.empty() ? std::string(external_target) : entry.parent_identifier;
+    return {.identifier = entry.identifier,
+            .display_name = entry.display_name,
+            .kind = kind,
+            .parent_identifier = attachment ? std::string{} : entry.parent_identifier,
+            .target_identifier = attachment ? target : std::string{},
+            .enabled = entry.enabled,
+            .opacity = entry.opacity,
+            .graph = entry.graph,
+            .content_revision = 1};
+}
+
+void append_fragment(LayerStack& stack, const AppliedPresetApplication& application) {
+    std::vector<LayerEntry> entries;
+    entries.reserve(application.fragment.stack.size());
+    for (const SmartMaterialEntry& entry : application.fragment.stack) {
+        entries.push_back(layer_entry(entry, application.target_entry_identifier));
+    }
+    stack.append(entries);
+}
+
+void synchronize_fragment(LayerStack& stack, const AppliedPresetApplication& application) {
+    for (const SmartMaterialEntry& entry : application.fragment.stack) {
+        LayerEntry replacement = layer_entry(entry, application.target_entry_identifier);
+        const LayerEntry& current = stack.entry(entry.identifier);
+        replacement.content_revision =
+            current.content_revision +
+            static_cast<std::uint64_t>(replacement.graph != current.graph);
+        stack.replace(entry.identifier, std::move(replacement));
+    }
+}
+
 }  // namespace
 
 PresetApplicationReport TextureSet::apply_smart_material(const SmartMaterialPreset& preset,
@@ -143,7 +195,10 @@ PresetApplicationReport TextureSet::apply_smart_material(const SmartMaterialPres
     require_new_entry_identities(preset_applications_, entries);
     validate_smart_material(application.fragment);
     PresetApplicationReport report = application_report(application);
+    LayerStack updated_stack = layer_stack_;
+    append_fragment(updated_stack, application);
     preset_applications_.push_back(std::move(application));
+    layer_stack_ = std::move(updated_stack);
     return report;
 }
 
@@ -182,7 +237,10 @@ PresetApplicationReport TextureSet::apply_smart_mask(const SmartMaskPreset& pres
     require_new_entry_identities(preset_applications_, entries);
     validate_smart_material(application.fragment);
     PresetApplicationReport report = application_report(application);
+    LayerStack updated_stack = layer_stack_;
+    append_fragment(updated_stack, application);
     preset_applications_.push_back(std::move(application));
+    layer_stack_ = std::move(updated_stack);
     return report;
 }
 
@@ -203,7 +261,10 @@ SmartMaterialParameterUpdate TextureSet::set_applied_preset_parameter_value(
         invalid_application("applied preset parameter state is incomplete");
     }
     state->value = std::move(value);
+    LayerStack updated_stack = layer_stack_;
+    synchronize_fragment(updated_stack, updated);
     current = std::move(updated);
+    layer_stack_ = std::move(updated_stack);
     return report;
 }
 
@@ -219,6 +280,9 @@ PresetApplicationUndoReport TextureSet::undo_last_preset_application() {
     for (const SmartMaterialEntry& entry : preset_applications_.back().fragment.stack) {
         report.entry_identifiers.push_back(entry.identifier);
     }
+    LayerStack updated_stack = layer_stack_;
+    updated_stack.remove(report.entry_identifiers);
+    layer_stack_ = std::move(updated_stack);
     preset_applications_.pop_back();
     return report;
 }
@@ -246,7 +310,10 @@ void TextureSet::replace_applied_entry(std::string_view entry_identifier,
                                     });
     *entry = std::move(replacement);
     validate_smart_material(updated.fragment);
+    LayerStack updated_stack = layer_stack_;
+    synchronize_fragment(updated_stack, updated);
     current = std::move(updated);
+    layer_stack_ = std::move(updated_stack);
 }
 
 const AppliedPresetOrigin& TextureSet::applied_entry_origin(
