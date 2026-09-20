@@ -990,6 +990,11 @@ if(BUILD_TESTING)
     target_link_libraries(ctex_layer_stack_test PRIVATE ctex_doc ctex_mesh ctex_graph ctex_image)
     add_test(NAME texture-document-layer-stack COMMAND ctex_layer_stack_test)
 
+    add_executable(ctex_layer_instance_test tests/doc/layer_instance_test.cpp)
+    ctex_configure_cpp_target(ctex_layer_instance_test)
+    target_link_libraries(ctex_layer_instance_test PRIVATE ctex_doc ctex_mesh ctex_graph ctex_image)
+    add_test(NAME texture-document-instances COMMAND ctex_layer_instance_test)
+
     add_executable(ctex_mesh_test tests/mesh/mesh_test.cpp)
     ctex_configure_cpp_target(ctex_mesh_test)
     target_link_libraries(ctex_mesh_test PRIVATE ctex_doc ctex_mesh ctex_graph ctex_image)

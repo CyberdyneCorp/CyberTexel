@@ -46,8 +46,11 @@ LayerEntry entry(std::string identifier, LayerEntryKind kind) {
             .kind = kind,
             .parent_identifier = {},
             .target_identifier = {},
+            .source_identifier = {},
             .enabled = true,
             .opacity = 1.0,
+            .blend_mode = "normal",
+            .channels = {},
             .graph = std::nullopt,
             .content_revision = 1};
 }
@@ -69,7 +72,9 @@ bool explicit_kinds_and_order_are_retained() {
     LayerEntry filter = entry("filter", LayerEntryKind::filter);
     filter.target_identifier = "paint";
     entries.push_back(std::move(filter));
-    entries.push_back(entry("instance", LayerEntryKind::instance));
+    LayerEntry instance = entry("instance", LayerEntryKind::instance);
+    instance.source_identifier = "paint";
+    entries.push_back(std::move(instance));
     entries.push_back(entry("decal", LayerEntryKind::editable_decal));
     entries.push_back(entry("text", LayerEntryKind::editable_text));
     entries.push_back(entry("path", LayerEntryKind::surface_path));

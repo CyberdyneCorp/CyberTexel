@@ -149,8 +149,11 @@ LayerEntry layer_entry(const SmartMaterialEntry& entry, std::string_view externa
             .kind = kind,
             .parent_identifier = attachment ? std::string{} : entry.parent_identifier,
             .target_identifier = attachment ? target : std::string{},
+            .source_identifier = {},
             .enabled = entry.enabled,
             .opacity = entry.opacity,
+            .blend_mode = "normal",
+            .channels = {},
             .graph = entry.graph,
             .content_revision = 1};
 }

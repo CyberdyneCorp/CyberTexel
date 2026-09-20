@@ -1058,6 +1058,14 @@ mask application, parameter edits, ordinary entry edits and one-step undo now
 synchronize with this same stack rather than creating a second evaluation
 model. Instance reference semantics are next in task 3.4.
 
+Task 3.4 makes instances live references to preceding stack content rather than
+copies. Direct and chained resolution observes source paint/content revisions;
+each instance retains independent opacity, blend identity, per-channel
+enablement/opacity, parent and masks. Missing, forward and cyclic references are
+transactionally refused. Direct paint reports the referenced source. Source
+deletion requires the caller to refuse with all dependent instance identities
+or atomically convert direct and transitive dependents to independent copies.
+
 ## 1. Foundation
 
 - [x] 1.1 CMake project, C++20, warnings as errors, presets for headless, macOS, Linux, Windows, iOS, Android
@@ -1092,7 +1100,7 @@ model. Instance reference semantics are next in task 3.4.
 - [x] 3.1 Texture sets: partitioning, per-set resolution and bit depth, stable identity
 - [x] 3.2 Semantic channel descriptors, built-in preset, per-channel precision and enablement, and no storage for disabled channels
 - [x] 3.3 Layer stack: entry kinds, nesting rules and their refusals, ordering
-- [ ] 3.4 Instances: reference semantics, own modulation, paint refusal, deletion policy, cycle refusal
+- [x] 3.4 Instances: reference semantics, own modulation, paint refusal, deletion policy, cycle refusal
 - [ ] 3.5 Blend modes, with the formula table and a test per mode
 - [ ] 3.6 Per-channel participation and effective opacity including group and mask chains
 - [ ] 3.7 Compositing on the CPU reference, with the determinism test

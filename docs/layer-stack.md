@@ -24,5 +24,26 @@ that stack, and undo removes the complete imported fragment as one operation.
 The preset fragment remains separately available for origin and exposed-
 parameter metadata; it is not a second evaluation stack.
 
-Instance reference semantics, blend/channel modulation, general layer
-operations, compositing and history are subsequent roadmap tasks.
+## Instances
+
+An instance stores only the stable identity of a preceding source entry. Calling
+`resolved_content()` follows instance chains at query time, so painting or
+revising the source is immediately visible through every instance without a
+content copy. Missing, forward, self-cyclic and multi-entry cyclic references
+are refused before the stack changes.
+
+Opacity, blend-mode identity, per-channel enablement/opacity, group parent and
+attached masks remain fields of the instance itself. Their setters replace a
+validated candidate entry and never modify the source. `paint_target()` and
+`record_paint()` refuse a direct instance target with a diagnostic and related-
+identity record naming its source.
+
+Removing a referenced source requires an explicit
+`ReferencedSourceDeletionPolicy`. `refuse` preserves the complete stack and
+reports all direct and transitive live instances. `make_instances_independent`
+copies the resolved source definition and revision into each dependent entry
+while preserving its own modulation and attached masks, then removes the
+source atomically.
+
+Blend formulas, general layer operations, compositing and history are
+subsequent roadmap tasks.

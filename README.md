@@ -146,7 +146,9 @@ The current implementation provides:
   [layer stack](docs/layer-stack.md). Entries explicitly distinguish paint,
   fill, group, mask, filter, instance and editable authoring kinds; validated
   group nesting and single-target attachments are transactional, and fill-graph
-  edits invalidate derived content by revision.
+  edits invalidate derived content by revision. Instances dynamically reference
+  preceding content while owning opacity, blend, channel and mask modulation;
+  direct painting, cycles and ambiguous source deletion are explicitly refused.
 - Validated read-only [mesh ingest](docs/mesh-ingest.md), reusable flat CPU
   acceleration structures, overlap and coverage diagnostics, and two-phase mesh
   replacement that reports per-set UV changes before the host chooses to keep,
@@ -276,10 +278,10 @@ The current implementation provides:
   [project-I/O and texture-export](docs/io-scenarios.md), plus combined
   [stroke-model and paint-engine](docs/paint-scenarios.md) scenario suites.
 
-The remaining instance semantics, layer operations/compositing/history, project
-IO, host-transport binding/performance integrations, remaining language
-bindings, and export workflow stages remain roadmap work and are not presented
-as implemented APIs yet.
+The remaining layer operations/compositing/history, project IO, host-transport
+binding/performance integrations, remaining language bindings, and export
+workflow stages remain roadmap work and are not presented as implemented APIs
+yet.
 
 ## Architecture
 
