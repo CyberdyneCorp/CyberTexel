@@ -68,6 +68,33 @@ Groups SHALL nest to a documented maximum depth of at least 8. A mask SHALL atta
 ### Requirement: Blend modes
 The system SHALL provide the blend modes Normal, Darken, Multiply, Color Burn, Lighten, Screen, Color Dodge, Add, Overlay, Soft Light, Linear Light, Difference, Exclusion, Subtract, Divide, Hue, Saturation, Color, Value and Pass Through, and SHALL define each by a formula in the specification rather than by reference to another product. Pass Through SHALL be valid only on a group.
 
+For the table below, `C` is one linear working-space base component, `L` is the corresponding layer component and `B(C,L)` is the unweighted mode result. The component formulas through Divide are evaluated independently; the four HSV modes operate on RGB triples. Results are clamped to `[0,1]`. With finite opacity `t`, the final RGB is `clamp(C + (B(C,L)-C) * clamp(t,0,1), 0, 1)` and alpha is `clamp(Ca + (La-Ca) * clamp(t,0,1), 0, 1)`.
+
+| Mode | `B(C,L)` or RGB definition |
+|---|---|
+| Normal | `L` |
+| Darken | `min(C,L)` |
+| Multiply | `C*L` |
+| Color Burn | `L <= 0 ? 0 : 1-min(1,(1-C)/L)` |
+| Lighten | `max(C,L)` |
+| Screen | `1-(1-C)*(1-L)` |
+| Color Dodge | `L >= 1 ? 1 : min(1,C/(1-L))` |
+| Add | `min(1,C+L)` |
+| Overlay | `C <= 0.5 ? 2*C*L : 1-2*(1-C)*(1-L)` |
+| Soft Light | `L <= 0.5 ? C-(1-2*L)*C*(1-C) : C+(2*L-1)*(D(C)-C)`, where `D(C)=((16*C-12)*C+4)*C` for `C <= 0.25`, otherwise `sqrt(C)` |
+| Linear Light | `clamp(C+2*L-1,0,1)` |
+| Difference | `abs(C-L)` |
+| Exclusion | `C+L-2*C*L` |
+| Subtract | `max(0,C-L)` |
+| Divide | `L <= 0 ? 1 : min(1,C/L)` |
+| Hue | `HSV(Hl,Sc,Vc)` |
+| Saturation | `HSV(Hc,Sl,Vc)` |
+| Color | `HSV(Hl,Sl,Vc)` |
+| Value | `HSV(Hc,Sc,Vl)` |
+| Pass Through | `L`; a group evaluates its children directly against the enclosing accumulator rather than first isolating a group result |
+
+For the four HSV modes, RGB-to-HSV uses `V=max(R,G,B)`, `m=min(R,G,B)`, `d=V-m`, `S=(V == 0 ? 0 : d/V)` and `H=0` when `d==0`; otherwise the maximum-component sector is `(G-B)/d`, `(B-R)/d+2`, or `(R-G)/d+4`, divided by six and wrapped to `[0,1)`. HSV-to-RGB uses `k=floor(6H) mod 6`, `f=6H-floor(6H)`, `p=V*(1-S)`, `q=V*(1-f*S)` and `u=V*(1-(1-f)*S)`, selecting `(V,u,p)`, `(q,V,p)`, `(p,V,u)`, `(p,q,V)`, `(u,p,V)` or `(V,p,q)` for sectors zero through five.
+
 #### Scenario: Formula is authoritative
 - **WHEN** a blend mode is applied by the CPU reference executor and by a GPU executor
 - **THEN** both SHALL implement the specified formula and agree within the parity tolerance

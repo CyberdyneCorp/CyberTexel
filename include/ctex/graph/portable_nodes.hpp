@@ -9,6 +9,15 @@
 
 namespace ctex::graph {
 
+struct BlendModeDefinition {
+    std::string_view identifier;
+    std::string_view display_name;
+    std::string_view formula;
+};
+
+[[nodiscard]] std::span<const BlendModeDefinition> blend_mode_definitions() noexcept;
+[[nodiscard]] bool is_blend_mode(std::string_view identifier) noexcept;
+
 class BuiltinNodeEvaluationError final : public std::runtime_error {
 public:
     using std::runtime_error::runtime_error;

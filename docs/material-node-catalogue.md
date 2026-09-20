@@ -26,8 +26,9 @@ The Blend node exposes the same complete set used by the shared
 Normal, Darken, Multiply, Color Burn, Lighten, Screen, Color Dodge, Add, Overlay,
 Soft Light, Linear Light, Difference, Exclusion, Subtract, Divide, Hue,
 Saturation, Color, Value, and Pass Through. Node conformance fixtures and the
-future layer-stack implementation consume that one formula surface rather than
-maintaining independent CPU tables.
+document layer stack consume that one formula surface rather than maintaining
+independent CPU tables. The ordered definitions also carry the explicit formula
+text used by the texture-document specification and host-facing catalogues.
 
 Seeded Noise uses stable integer hashing, smooth value-noise interpolation and
 bounded fractal octaves. Equal coordinates, seed, scale, detail, roughness,

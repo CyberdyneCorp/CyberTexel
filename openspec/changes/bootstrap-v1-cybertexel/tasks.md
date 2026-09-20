@@ -1066,6 +1066,13 @@ transactionally refused. Direct paint reports the referenced source. Source
 deletion requires the caller to refuse with all dependent instance identities
 or atomically convert direct and transitive dependents to independent copies.
 
+Task 3.5 makes the twenty-mode ordered catalogue and formula text one public
+graph surface shared by material nodes and document layers. The specification
+now defines every component/HSV equation and opacity interpolation directly.
+Document entries reject unknown modes, restrict Pass Through to groups, and
+evaluate through the canonical CPU formula. Fixed reference values exercise
+every mode, while refusal tests prove the previous layer mode is unchanged.
+
 ## 1. Foundation
 
 - [x] 1.1 CMake project, C++20, warnings as errors, presets for headless, macOS, Linux, Windows, iOS, Android
@@ -1101,7 +1108,7 @@ or atomically convert direct and transitive dependents to independent copies.
 - [x] 3.2 Semantic channel descriptors, built-in preset, per-channel precision and enablement, and no storage for disabled channels
 - [x] 3.3 Layer stack: entry kinds, nesting rules and their refusals, ordering
 - [x] 3.4 Instances: reference semantics, own modulation, paint refusal, deletion policy, cycle refusal
-- [ ] 3.5 Blend modes, with the formula table and a test per mode
+- [x] 3.5 Blend modes, with the formula table and a test per mode
 - [ ] 3.6 Per-channel participation and effective opacity including group and mask chains
 - [ ] 3.7 Compositing on the CPU reference, with the determinism test
 - [ ] 3.8 Layer operations: create, duplicate, delete, reorder, reparent, clear, invert, merge, flatten, convert, apply mask — each atomic

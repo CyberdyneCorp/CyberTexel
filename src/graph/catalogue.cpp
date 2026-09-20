@@ -1,6 +1,7 @@
 #include <algorithm>
 #include <array>
 #include <ctex/graph/catalogue.hpp>
+#include <ctex/graph/portable_nodes.hpp>
 #include <stdexcept>
 #include <utility>
 
@@ -135,6 +136,17 @@ NodePropertyDeclaration operation_choice(std::string identifier, std::string dis
     result.allowed_values.reserve(operations.size());
     for (const OperationDefinition& operation : operations) {
         result.allowed_values.emplace_back(operation.identifier);
+    }
+    return result;
+}
+
+NodePropertyDeclaration blend_mode_choice() {
+    NodePropertyDeclaration result{.identifier = "mode",
+                                   .display_name = "Mode",
+                                   .default_value = std::string("normal"),
+                                   .allowed_values = {}};
+    for (const BlendModeDefinition& mode : blend_mode_definitions()) {
+        result.allowed_values.emplace_back(mode.identifier);
     }
     return result;
 }
@@ -296,12 +308,7 @@ std::vector<NodeTypeDeclaration> colour_filter_nodes() {
              {input_socket("background", "Background", colour, ColourValue{0.0F, 0.0F, 0.0F, 1.0F}),
               input_socket("foreground", "Foreground", colour, ColourValue{1.0F, 1.0F, 1.0F, 1.0F}),
               input_socket("opacity", "Opacity", scalar, 1.0)},
-             {output("colour", "Colour", colour)},
-             {choice("mode", "Mode", "normal",
-                     {"normal",       "darken",      "multiply",  "color_burn", "lighten",
-                      "screen",       "color_dodge", "add",       "overlay",    "soft_light",
-                      "linear_light", "difference",  "exclusion", "subtract",   "divide",
-                      "hue",          "saturation",  "color",     "value",      "pass_through"})}),
+             {output("colour", "Colour", colour)}, {blend_mode_choice()}),
         type(colour_filter, "ctex.colour.levels", "Levels",
              {input_socket("colour", "Colour", colour), input_socket("black", "Black", scalar, 0.0),
               input_socket("white", "White", scalar, 1.0),

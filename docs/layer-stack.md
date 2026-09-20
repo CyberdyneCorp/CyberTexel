@@ -45,5 +45,18 @@ copies the resolved source definition and revision into each dependent entry
 while preserving its own modulation and attached masks, then removes the
 source atomically.
 
-Blend formulas, general layer operations, compositing and history are
-subsequent roadmap tasks.
+## Blend modes
+
+`graph::blend_mode_definitions()` is the single ordered catalogue of the twenty
+document and material-graph modes. Each definition carries its stable identity,
+display name and formula; the authoritative component and HSV equations are in
+the texture-document specification. `LayerStack::evaluate_blend()` dispatches
+to the shared `graph::blend_colour()` CPU reference rather than maintaining a
+second formula table.
+
+Every entry validates its blend identity transactionally. Pass Through is
+accepted only on a group and means that its children composite directly into
+the enclosing accumulator. Setting it on a paint layer—or setting any unknown
+mode—reports `LayerStackRule::blend_mode` and preserves the previous mode.
+
+General layer operations, compositing and history are subsequent roadmap tasks.

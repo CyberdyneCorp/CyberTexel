@@ -149,6 +149,8 @@ The current implementation provides:
   edits invalidate derived content by revision. Instances dynamically reference
   preceding content while owning opacity, blend, channel and mask modulation;
   direct painting, cycles and ambiguous source deletion are explicitly refused.
+  The same stack validates all twenty formula-defined blend modes against the
+  shared material-graph CPU reference, with Pass Through restricted to groups.
 - Validated read-only [mesh ingest](docs/mesh-ingest.md), reusable flat CPU
   acceleration structures, overlap and coverage diagnostics, and two-phase mesh
   replacement that reports per-set UV changes before the host chooses to keep,

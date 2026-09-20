@@ -11,6 +11,32 @@
 namespace ctex::graph {
 namespace {
 
+constexpr std::array blend_modes{
+    BlendModeDefinition{"normal", "Normal", "L"},
+    BlendModeDefinition{"darken", "Darken", "min(C, L)"},
+    BlendModeDefinition{"multiply", "Multiply", "C * L"},
+    BlendModeDefinition{"color_burn", "Color Burn", "L <= 0 ? 0 : 1 - min(1, (1 - C) / L)"},
+    BlendModeDefinition{"lighten", "Lighten", "max(C, L)"},
+    BlendModeDefinition{"screen", "Screen", "1 - (1 - C) * (1 - L)"},
+    BlendModeDefinition{"color_dodge", "Color Dodge", "L >= 1 ? 1 : min(1, C / (1 - L))"},
+    BlendModeDefinition{"add", "Add", "min(1, C + L)"},
+    BlendModeDefinition{"overlay", "Overlay", "C <= 0.5 ? 2*C*L : 1 - 2*(1-C)*(1-L)"},
+    BlendModeDefinition{"soft_light", "Soft Light",
+                        "L <= 0.5 ? C-(1-2*L)*C*(1-C) : C+(2*L-1)*(D(C)-C), where "
+                        "D(C)=((16*C-12)*C+4)*C for C<=0.25 and sqrt(C) otherwise"},
+    BlendModeDefinition{"linear_light", "Linear Light", "clamp(C + 2*L - 1, 0, 1)"},
+    BlendModeDefinition{"difference", "Difference", "abs(C - L)"},
+    BlendModeDefinition{"exclusion", "Exclusion", "C + L - 2*C*L"},
+    BlendModeDefinition{"subtract", "Subtract", "max(0, C - L)"},
+    BlendModeDefinition{"divide", "Divide", "L <= 0 ? 1 : min(1, C / L)"},
+    BlendModeDefinition{"hue", "Hue", "HSV(H_L, S_C, V_C)"},
+    BlendModeDefinition{"saturation", "Saturation", "HSV(H_C, S_L, V_C)"},
+    BlendModeDefinition{"color", "Color", "HSV(H_L, S_L, V_C)"},
+    BlendModeDefinition{"value", "Value", "HSV(H_C, S_C, V_L)"},
+    BlendModeDefinition{"pass_through", "Pass Through",
+                        "L; group children composite directly into the parent accumulator"},
+};
+
 struct Rgb {
     float r;
     float g;
@@ -294,6 +320,14 @@ std::vector<SocketValue> evaluate_blend(const GraphNode& node,
 }
 
 }  // namespace
+
+std::span<const BlendModeDefinition> blend_mode_definitions() noexcept { return blend_modes; }
+
+bool is_blend_mode(std::string_view identifier) noexcept {
+    return std::ranges::any_of(blend_modes, [&](const BlendModeDefinition& mode) {
+        return mode.identifier == identifier;
+    });
+}
 
 ColourValue blend_colour(std::string_view mode, ColourValue base, ColourValue blend,
                          double factor) {

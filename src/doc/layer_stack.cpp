@@ -2,6 +2,7 @@
 #include <array>
 #include <cmath>
 #include <ctex/doc/layer_stack.hpp>
+#include <ctex/graph/portable_nodes.hpp>
 #include <limits>
 #include <map>
 #include <set>
@@ -64,8 +65,13 @@ void validate_entry_content(const LayerEntry& entry) {
         refuse(LayerStackRule::entry_content,
                "layer-stack opacity must be finite and within [0, 1]");
     }
-    if (entry.blend_mode.empty()) {
-        refuse(LayerStackRule::entry_content, "layer-stack blend mode must not be empty");
+    if (!graph::is_blend_mode(entry.blend_mode)) {
+        refuse(LayerStackRule::blend_mode,
+               "layer-stack blend mode is unknown: " + entry.blend_mode);
+    }
+    if (entry.blend_mode == "pass_through" && entry.kind != LayerEntryKind::group) {
+        refuse(LayerStackRule::blend_mode,
+               "layer-stack Pass Through blend mode is valid only on a group");
     }
     std::set<std::string, std::less<>> channel_ids;
     for (const LayerEntry::ChannelModulation& channel : entry.channels) {
@@ -149,6 +155,14 @@ const LayerEntry& LayerStack::paint_target(std::string_view identifier) const {
                "paint target must be a paint-layer entry: " + target.identifier);
     }
     return target;
+}
+
+graph::ColourValue LayerStack::evaluate_blend(std::string_view identifier, graph::ColourValue base,
+                                              graph::ColourValue layer, double factor) const {
+    if (!std::isfinite(factor)) {
+        refuse(LayerStackRule::blend_mode, "layer-stack blend factor must be finite");
+    }
+    return graph::blend_colour(entry(identifier).blend_mode, base, layer, factor);
 }
 
 void LayerStack::append(LayerEntry entry) {

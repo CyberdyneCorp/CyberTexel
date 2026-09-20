@@ -995,6 +995,11 @@ if(BUILD_TESTING)
     target_link_libraries(ctex_layer_instance_test PRIVATE ctex_doc ctex_mesh ctex_graph ctex_image)
     add_test(NAME texture-document-instances COMMAND ctex_layer_instance_test)
 
+    add_executable(ctex_layer_blend_test tests/doc/layer_blend_test.cpp)
+    ctex_configure_cpp_target(ctex_layer_blend_test)
+    target_link_libraries(ctex_layer_blend_test PRIVATE ctex_doc ctex_mesh ctex_graph ctex_image)
+    add_test(NAME texture-document-blend-modes COMMAND ctex_layer_blend_test)
+
     add_executable(ctex_mesh_test tests/mesh/mesh_test.cpp)
     ctex_configure_cpp_target(ctex_mesh_test)
     target_link_libraries(ctex_mesh_test PRIVATE ctex_doc ctex_mesh ctex_graph ctex_image)

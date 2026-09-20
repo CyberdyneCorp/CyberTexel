@@ -58,6 +58,7 @@ enum class LayerStackRule : std::uint8_t {
     instance_cycle,
     direct_instance_paint,
     live_instances,
+    blend_mode,
     entry_content,
 };
 
@@ -88,6 +89,9 @@ public:
     [[nodiscard]] const LayerEntry& entry(std::string_view identifier) const;
     [[nodiscard]] const LayerEntry& resolved_content(std::string_view identifier) const;
     [[nodiscard]] const LayerEntry& paint_target(std::string_view identifier) const;
+    [[nodiscard]] graph::ColourValue evaluate_blend(std::string_view identifier,
+                                                    graph::ColourValue base,
+                                                    graph::ColourValue layer, double factor) const;
 
     void append(LayerEntry entry);
     void append(std::span<const LayerEntry> entries);
