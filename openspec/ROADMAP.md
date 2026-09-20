@@ -7,10 +7,11 @@ decisions taken and questions still open.
 ## Status
 
 Implementation started. 24 capabilities, 332 requirements, 409 scenarios and
-222 tasks, 151 done. Foundation and the complete headless color-management
-scenario suite are green. Slice-A now has memory-buffer PNG input plus
-PNG/JPEG/TGA/TIFF/OpenEXR output, with 8/16-bit preservation and hostile-input
-ceilings; full decoder breadth remains scheduled for slice D. Extensible channel
+222 tasks, 155 done. Foundation and the complete headless color-management
+scenario suite are green. Image input now detects and decodes PNG, JPEG, TGA,
+BMP, baseline TIFF, flat OpenEXR, Radiance HDR and flattened PSD from caller
+memory, with mismatch reporting, 8/16-bit preservation and hostile-input
+ceilings. Extensible channel
 descriptors and sparse per-channel enablement are also complete. Document layers
 now resolve independent channel participation against texture-set storage and
 multiply effective opacity through nested groups and direct/group mask chains.
@@ -282,8 +283,9 @@ out-of-range faces. Exactly 38 runtime requirements remain without C ABI
 evidence at that point. Painted-document mesh replacement now exposes stable
 per-set matching, UV-change reports, host policy selection, stale-plan refusal
 and atomic keep/clear publication while deferring requested reprojection without
-mutation. Exactly 37 runtime requirements remain without C ABI evidence; those gaps must be
-implemented before task 14.8 can close.
+mutation. The complete decoded-format set is now mapped to its public memory
+decode operation. Exactly 36 runtime requirements remain without C ABI evidence;
+those gaps must be implemented before task 14.8 can close.
 
 ## Milestones
 

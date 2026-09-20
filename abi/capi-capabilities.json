@@ -69,6 +69,7 @@
       {"requirement": "Snapshot pressure is bounded", "symbols": ["ctex_transport_snapshot_pool_create", "ctex_transport_snapshot_pool_destroy", "ctex_transport_snapshot_pool_get_memory_report", "ctex_texture_set_query_channel_snapshot", "ctex_transport_snapshot_destroy"]}
     ]},
     {"name": "image-io", "kind": "runtime", "requirements": [
+      {"requirement": "Decoded formats", "symbols": ["ctex_image_decode_memory"]},
       {"requirement": "Format detection is by content", "symbols": ["ctex_image_decode_memory"]},
       {"requirement": "Bit depth and channel preservation", "symbols": ["ctex_image_decode_memory", "ctex_image_expand_channels"]},
       {"requirement": "Colour space on read", "symbols": ["ctex_image_decode_memory"]},

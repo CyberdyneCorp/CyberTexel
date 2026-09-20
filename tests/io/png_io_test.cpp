@@ -90,6 +90,206 @@ std::vector<std::byte> make_gray8_png(ColorSpace color_space = ColorSpace::linea
     return ctex::io::encode_png_memory(source, {.color_space = color_space});
 }
 
+TiledImage red_green_rgb8() {
+    TiledImage source(2, 1, PixelFormat{ChannelType::uint8_unorm, 3});
+    const std::array red{std::byte{255}, std::byte{0}, std::byte{0}};
+    const std::array green{std::byte{0}, std::byte{255}, std::byte{0}};
+    source.write_pixel(0, 0, red);
+    source.write_pixel(1, 0, green);
+    return source;
+}
+
+void append_be16(std::vector<std::byte>& bytes, std::uint16_t value) {
+    bytes.push_back(static_cast<std::byte>(value >> 8U));
+    bytes.push_back(static_cast<std::byte>(value));
+}
+
+void append_be32(std::vector<std::byte>& bytes, std::uint32_t value) {
+    bytes.push_back(static_cast<std::byte>(value >> 24U));
+    bytes.push_back(static_cast<std::byte>(value >> 16U));
+    bytes.push_back(static_cast<std::byte>(value >> 8U));
+    bytes.push_back(static_cast<std::byte>(value));
+}
+
+std::vector<std::byte> make_rgb8_psd() {
+    std::vector<std::byte> bytes;
+    for (const char value : std::string_view("8BPS")) {
+        bytes.push_back(static_cast<std::byte>(value));
+    }
+    append_be16(bytes, 1);
+    bytes.insert(bytes.end(), 6, std::byte{0});
+    append_be16(bytes, 3);
+    append_be32(bytes, 1);
+    append_be32(bytes, 2);
+    append_be16(bytes, 8);
+    append_be16(bytes, 3);
+    append_be32(bytes, 0);
+    append_be32(bytes, 0);
+    append_be32(bytes, 0);
+    append_be16(bytes, 0);
+    const std::array planar{std::byte{255}, std::byte{0}, std::byte{0},
+                            std::byte{255}, std::byte{0}, std::byte{0}};
+    bytes.insert(bytes.end(), planar.begin(), planar.end());
+    return bytes;
+}
+
+std::vector<std::byte> make_rgb16_psd() {
+    std::vector<std::byte> bytes;
+    for (const char value : std::string_view("8BPS")) {
+        bytes.push_back(static_cast<std::byte>(value));
+    }
+    append_be16(bytes, 1);
+    bytes.insert(bytes.end(), 6, std::byte{0});
+    append_be16(bytes, 3);
+    append_be32(bytes, 1);
+    append_be32(bytes, 1);
+    append_be16(bytes, 16);
+    append_be16(bytes, 3);
+    append_be32(bytes, 0);
+    append_be32(bytes, 0);
+    append_be32(bytes, 0);
+    append_be16(bytes, 0);
+    append_be16(bytes, 0x1234);
+    append_be16(bytes, 0x5678);
+    append_be16(bytes, 0xabcd);
+    return bytes;
+}
+
+std::vector<std::byte> make_rgb8_bmp() {
+    constexpr std::array<std::uint8_t, 62> values{
+        'B', 'M', 62, 0, 0, 0, 0, 0, 0,  0, 54, 0, 0, 0, 40,  0, 0,   0, 2, 0,
+        0,   0,   1,  0, 0, 0, 1, 0, 24, 0, 0,  0, 0, 0, 8,   0, 0,   0, 0, 0,
+        0,   0,   0,  0, 0, 0, 0, 0, 0,  0, 0,  0, 0, 0, 255, 0, 255, 0, 0, 0,
+    };
+    std::vector<std::byte> result;
+    result.reserve(values.size());
+    std::transform(values.begin(), values.end(), std::back_inserter(result),
+                   [](std::uint8_t value) { return static_cast<std::byte>(value); });
+    return result;
+}
+
+std::vector<std::byte> make_rgb8_rle_tga() {
+    std::vector<std::byte> bytes(18, std::byte{0});
+    bytes[2] = std::byte{10};
+    bytes[12] = std::byte{2};
+    bytes[14] = std::byte{1};
+    bytes[16] = std::byte{24};
+    bytes[17] = std::byte{0x20};
+    const std::array payload{std::byte{1}, std::byte{0},   std::byte{0}, std::byte{255},
+                             std::byte{0}, std::byte{255}, std::byte{0}};
+    bytes.insert(bytes.end(), payload.begin(), payload.end());
+    return bytes;
+}
+
+bool decoder_set_covers_flat_formats() {
+    const TiledImage source = red_green_rgb8();
+    const auto encode = [&](ctex::io::ExportImageFormat format) {
+        return ctex::io::encode_texture_memory(source,
+                                               {.format = format,
+                                                .bit_depth = ctex::io::ExportBitDepth::bits_8,
+                                                .color_space = ColorSpace::srgb_rec709,
+                                                .jpeg_quality = 100});
+    };
+    const std::array encoded{
+        std::pair{ImageFileFormat::jpeg, encode(ctex::io::ExportImageFormat::jpeg)},
+        std::pair{ImageFileFormat::tga, encode(ctex::io::ExportImageFormat::tga)},
+        std::pair{ImageFileFormat::tga, make_rgb8_rle_tga()},
+        std::pair{ImageFileFormat::bmp, make_rgb8_bmp()},
+        std::pair{ImageFileFormat::tiff, encode(ctex::io::ExportImageFormat::tiff)},
+        std::pair{ImageFileFormat::psd, make_rgb8_psd()},
+    };
+    for (const auto& [format, bytes] : encoded) {
+        const auto decoded = ctex::io::decode_image_memory({
+            .bytes = bytes,
+            .source_name = "mislabelled.bin",
+            .intended_channel = ChannelSemantic::base_color,
+        });
+        const bool valid = decoded.report.detected_format == format &&
+                           decoded.pixels.width() == 2 && decoded.pixels.height() == 1 &&
+                           decoded.pixels.format() == PixelFormat{ChannelType::uint8_unorm, 3} &&
+                           decoded.report.extension_mismatch;
+        if (!valid) {
+            std::cerr << "flat decoder expected format " << static_cast<int>(format)
+                      << ", detected " << static_cast<int>(decoded.report.detected_format)
+                      << ", dimensions " << decoded.pixels.width() << 'x' << decoded.pixels.height()
+                      << ", channels "
+                      << static_cast<unsigned>(decoded.pixels.format().channel_count) << '\n';
+        }
+        if (!expect(valid, "flat image decoder changed the format, layout, or mismatch report")) {
+            return false;
+        }
+        if (!expect_error(
+                [&] {
+                    static_cast<void>(ctex::io::decode_image_memory({
+                        .bytes = bytes,
+                        .source_name = "limited.bin",
+                        .limits = DecodeLimits{.maximum_width = 1,
+                                               .maximum_height = 1,
+                                               .maximum_decoded_bytes = 3},
+                    }));
+                },
+                ImageIoErrorCode::over_limit, "2x1", format)) {
+            return false;
+        }
+    }
+    return true;
+}
+
+bool tiff_preserves_integer_and_float_precision() {
+    TiledImage integer_source(2, 1, PixelFormat{ChannelType::uint16_unorm, 1});
+    const auto first = bytes_of(0x1234);
+    const auto second = bytes_of(0xabcd);
+    integer_source.write_pixel(0, 0, first);
+    integer_source.write_pixel(1, 0, second);
+    const auto integer_encoded = ctex::io::encode_texture_memory(
+        integer_source, {.format = ctex::io::ExportImageFormat::tiff,
+                         .bit_depth = ctex::io::ExportBitDepth::bits_16});
+    const auto integer_decoded =
+        ctex::io::decode_image_memory({.bytes = integer_encoded, .source_name = "height.tiff"});
+
+    TiledImage float_source(1, 1, PixelFormat{ChannelType::float32, 1});
+    constexpr float value = 4.5F;
+    std::array<std::byte, sizeof(value)> pixel{};
+    std::memcpy(pixel.data(), &value, sizeof(value));
+    float_source.write_pixel(0, 0, pixel);
+    const auto float_encoded = ctex::io::encode_texture_memory(
+        float_source, {.format = ctex::io::ExportImageFormat::tiff,
+                       .bit_depth = ctex::io::ExportBitDepth::bits_32});
+    const auto float_decoded =
+        ctex::io::decode_image_memory({.bytes = float_encoded, .source_name = "height.tif"});
+    return expect(
+               integer_decoded.report.detected_format == ImageFileFormat::tiff &&
+                   integer_decoded.pixels.format() == PixelFormat{ChannelType::uint16_unorm, 1} &&
+                   uint16_from(integer_decoded.pixels.read_pixel(0, 0)) == 0x1234 &&
+                   uint16_from(integer_decoded.pixels.read_pixel(1, 0)) == 0xabcd,
+               "TIFF decoder changed 16-bit integer samples") &&
+           expect(float_decoded.pixels.format() == PixelFormat{ChannelType::float32, 1} &&
+                      float_from(float_decoded.pixels.read_pixel(0, 0), 0) == value,
+                  "TIFF decoder clamped or changed a floating-point sample");
+}
+
+bool psd_preserves_sixteen_bit_composite() {
+    const std::vector<std::byte> encoded = make_rgb16_psd();
+    const auto decoded = ctex::io::decode_image_memory({
+        .bytes = encoded,
+        .source_name = "composite.psd",
+        .intended_channel = ChannelSemantic::base_color,
+    });
+    const auto pixel = decoded.pixels.read_pixel(0, 0);
+    if (!expect(decoded.pixels.format() == PixelFormat{ChannelType::uint16_unorm, 3},
+                "PSD decoder reduced its 16-bit composite layout")) {
+        return false;
+    }
+    const std::uint16_t red = uint16_from(pixel.subspan(0, 2));
+    const std::uint16_t green = uint16_from(pixel.subspan(2, 2));
+    const std::uint16_t blue = uint16_from(pixel.subspan(4, 2));
+    if (red != 0x1234 || green != 0x5678 || blue != 0xabcd) {
+        std::cerr << "PSD16 decoded values: " << red << ", " << green << ", " << blue << '\n';
+    }
+    return expect(red == 0x1234 && green == 0x5678 && blue == 0xabcd,
+                  "PSD decoder reduced or changed its 16-bit composite");
+}
+
 bool grayscale_memory_decode_and_mismatch() {
     const std::vector<std::byte> encoded = make_gray8_png();
     const auto decoded = ctex::io::decode_image_memory({
@@ -182,15 +382,47 @@ bool hostile_input_is_bounded_and_named() {
 }
 
 bool unsupported_content_is_named() {
-    const std::array jpeg{std::byte{0xff}, std::byte{0xd8}, std::byte{0xff}, std::byte{0x00}};
+    const std::array gif{std::byte{'G'}, std::byte{'I'}, std::byte{'F'},
+                         std::byte{'8'}, std::byte{'9'}, std::byte{'a'}};
     return expect_error(
         [&] {
             static_cast<void>(ctex::io::decode_image_memory({
-                .bytes = jpeg,
-                .source_name = "photo.bin",
+                .bytes = gif,
+                .source_name = "animation.gif",
             }));
         },
-        ImageIoErrorCode::unsupported_format, "JPEG");
+        ImageIoErrorCode::unsupported_format, "supported");
+}
+
+bool malformed_flat_inputs_are_named() {
+    const std::array jpeg{std::byte{0xff}, std::byte{0xd8}, std::byte{0xff}, std::byte{0xe0}};
+    const std::array bmp{std::byte{'B'}, std::byte{'M'}};
+    const std::array tiff{std::byte{'I'}, std::byte{'I'}, std::byte{42}, std::byte{0},
+                          std::byte{8},   std::byte{0},   std::byte{0},  std::byte{0}};
+    const std::array psd{std::byte{'8'}, std::byte{'B'}, std::byte{'P'}, std::byte{'S'}};
+    std::array<std::byte, 18> tga{};
+    tga[2] = std::byte{2};
+    tga[12] = std::byte{1};
+    tga[14] = std::byte{1};
+    tga[16] = std::byte{24};
+    const auto malformed = [&](std::span<const std::byte> bytes, std::string_view name,
+                               ImageFileFormat format) {
+        const bool result = expect_error(
+            [&] {
+                static_cast<void>(ctex::io::decode_image_memory({
+                    .bytes = bytes,
+                    .source_name = name,
+                }));
+            },
+            ImageIoErrorCode::malformed_input, ctex::io::image_file_format_name(format), format);
+        if (!result) std::cerr << "malformed fixture was not refused as " << name << '\n';
+        return result;
+    };
+    return malformed(jpeg, "broken.jpg", ImageFileFormat::jpeg) &&
+           malformed(bmp, "broken.bmp", ImageFileFormat::bmp) &&
+           malformed(tiff, "broken.tif", ImageFileFormat::tiff) &&
+           malformed(psd, "broken.psd", ImageFileFormat::psd) &&
+           malformed(tga, "broken.tga", ImageFileFormat::tga);
 }
 
 bool float_png_is_refused() {
@@ -291,8 +523,11 @@ bool hdr_limits_are_checked_before_decode() {
 
 int main() {
     return grayscale_memory_decode_and_mismatch() && sixteen_bit_round_trip() &&
-                   embedded_space_and_caller_override() && hostile_input_is_bounded_and_named() &&
-                   unsupported_content_is_named() && float_png_is_refused() &&
+                   decoder_set_covers_flat_formats() &&
+                   tiff_preserves_integer_and_float_precision() &&
+                   psd_preserves_sixteen_bit_composite() && embedded_space_and_caller_override() &&
+                   hostile_input_is_bounded_and_named() && unsupported_content_is_named() &&
+                   malformed_flat_inputs_are_named() && float_png_is_refused() &&
                    radiance_hdr_preserves_unclamped_float_values() &&
                    openexr_preserves_unclamped_float_values() &&
                    hdr_limits_are_checked_before_decode()

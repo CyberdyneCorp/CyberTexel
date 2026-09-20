@@ -12,7 +12,7 @@ dependencies fetched at configure time.
 | Component | Licence | Revision | Role |
 |---|---|---|---|
 | LodePNG | Zlib | `ed6fe5825c6a4fbb7f58ab35a4231c7543cd452a` | Slice-A PNG decoding and encoding |
-| [stb](https://github.com/nothings/stb) | MIT | `2c980bb59875b0d32144a71867fbdebb2f77cd20` | JPEG/TGA memory encoding and Radiance HDR memory decoding |
+| [stb](https://github.com/nothings/stb) | MIT | `2c980bb59875b0d32144a71867fbdebb2f77cd20` | JPEG/TGA memory encoding and JPEG/TGA/BMP/flattened PSD/Radiance HDR memory decoding |
 | [TinyEXR with bundled miniz](https://github.com/syoyo/tinyexr) | BSD-3-Clause (TinyEXR), MIT (miniz) | `644148d0fd6b1b204a68a902dc963a70c749b417` | Memory decoding of flat OpenEXR images |
 | [Kongruent minikong](https://github.com/armory3d/armorpaint/tree/c5ccdf27818a36e67decb691009a3db457d59ab3/base/sources/kong) | Zlib | `c5ccdf27818a36e67decb691009a3db457d59ab3` | Context-isolated multi-target shader compiler backend |
 | [Vulkan-Headers](https://github.com/KhronosGroup/Vulkan-Headers) | MIT | `217e93c664ec6704ec2d8c36fa116c1a4a1e2d40` | Optional owned Vulkan executor API declarations |
@@ -23,16 +23,6 @@ The upstream licence texts are copied under `thirdparty/licenses/` for all
 included dependencies. ArmorPaint's minikong tree is derived from Kongruent
 revision `1b0f3b70673122e3b20701cdb434781a065555d7`; CyberTexel's local changes
 are recorded in `thirdparty/kong/CYBERTEXEL_CHANGES.md`.
-
-## Planned
-
-| Component | Licence | Role | Task |
-|---|---|---|---|
-| Remaining image decoders — to be selected | permissive only | JPEG, TGA, BMP, TIFF and PSD decoding | 2.1 |
-
-Each entry gains its pinned revision and its full licence text here when it is
-vendored, recorded from that dependency's own licence file rather than from its
-reputation.
 
 ## Behavioural references
 

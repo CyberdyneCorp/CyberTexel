@@ -1,5 +1,6 @@
 #include <ctex/capi.h>
 #include <stdint.h>
+#include <stdio.h>
 #include <string.h>
 
 static const unsigned char gray8_png[] = {
@@ -204,15 +205,15 @@ static int decode_honours_color_and_resource_limits(void) {
 }
 
 static int decode_refuses_unsupported_and_truncated_content(void) {
-    static const unsigned char jpeg[] = {0xff, 0xd8, 0xff, 0x00};
+    static const unsigned char gif[] = {'G', 'I', 'F', '8', '9', 'a'};
     ctex_decoded_image_info info = {.size = CTEX_DECODED_IMAGE_INFO_CURRENT_SIZE};
     size_t required_size = 0;
-    return expect(ctex_image_decode_memory(jpeg, sizeof(jpeg), "photo.bin",
+    return expect(ctex_image_decode_memory(gif, sizeof(gif), "animation.gif",
                                            CTEX_CHANNEL_SEMANTIC_BASE_COLOR,
                                            CTEX_INPUT_COLOR_SPACE_AUTOMATIC, NULL, &info, NULL, 0,
                                            &required_size) == CTEX_RESULT_UNSUPPORTED_OPERATION) &&
            expect(ctex_get_last_diagnostic_code() == CTEX_DIAGNOSTIC_UNSUPPORTED_IMAGE_FORMAT &&
-                  strstr(ctex_get_last_diagnostic(), "JPEG") != NULL) &&
+                  strstr(ctex_get_last_diagnostic(), "supported") != NULL) &&
            expect(ctex_image_decode_memory(gray8_png, sizeof(gray8_png) / 2, "broken.png",
                                            CTEX_CHANNEL_SEMANTIC_BASE_COLOR,
                                            CTEX_INPUT_COLOR_SPACE_AUTOMATIC, NULL, &info, NULL, 0,
@@ -267,7 +268,9 @@ static int encode_supports_every_output_format(void) {
     size_t index = 0;
     for (index = 0; index < sizeof(formats) / sizeof(formats[0]); ++index) {
         ctex_image_encode_descriptor descriptor = rgba8_descriptor(formats[index]);
+        ctex_decoded_image_info decoded = {.size = CTEX_DECODED_IMAGE_INFO_CURRENT_SIZE};
         size_t required_size = 0;
+        size_t decoded_size = 0;
         if (formats[index] == CTEX_IMAGE_FILE_FORMAT_OPENEXR) {
             descriptor.output_bit_depth = 16;
         }
@@ -278,6 +281,17 @@ static int encode_supports_every_output_format(void) {
                                              sizeof(encoded),
                                              &required_size) == CTEX_RESULT_SUCCESS) ||
             !expect(encoded_signature_is_valid(formats[index], encoded, required_size))) {
+            return 0;
+        }
+        const ctex_result decode_result = ctex_image_decode_memory(
+            encoded, required_size, "mislabelled.bin", CTEX_CHANNEL_SEMANTIC_BASE_COLOR,
+            CTEX_INPUT_COLOR_SPACE_AUTOMATIC, NULL, &decoded, NULL, 0, &decoded_size);
+        if (!expect(decode_result == CTEX_RESULT_SUCCESS) ||
+            !expect(decoded.width == 2 && decoded.height == 2 &&
+                    decoded.detected_format == formats[index] && decoded.extension_mismatch == 1 &&
+                    decoded_size > 0)) {
+            fprintf(stderr, "format %u decode result %u: %s\n", formats[index], decode_result,
+                    ctex_get_last_diagnostic());
             return 0;
         }
     }

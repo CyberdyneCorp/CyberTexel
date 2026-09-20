@@ -1,10 +1,11 @@
 # Image input and output
 
-The image path decodes PNG, flat OpenEXR and Radiance HDR entirely from
-caller-owned byte buffers and encodes PNG the same way. Detection uses the file
-signature; a misleading extension is reported but does not select the decoder.
-Signatures for JPEG, BMP, TIFF and PSD are named as unsupported until their
-decoder tasks land.
+The image path decodes PNG, JPEG, TGA, BMP, baseline TIFF, flat OpenEXR,
+Radiance HDR and flattened PSD entirely from caller-owned byte buffers. It
+encodes PNG, JPEG, TGA, baseline TIFF and flat OpenEXR the same way. Detection
+uses signatures and validated structural markers rather than the filename; a
+misleading extension is reported but does not select the decoder. Unknown
+content is refused with the complete supported-format list.
 
 PNG grayscale, grayscale-alpha, RGB and RGBA data retain 8- or 16-bit channel
 precision. Sub-byte grayscale expands to 8-bit and palette input expands to
@@ -31,9 +32,19 @@ caller requests the default. Resampling accepts row-strided input, writes tightl
 packed output and refuses the operation before allocation when its declared or
 default 1 GiB output ceiling would be exceeded.
 
-Decode limits are checked from the PNG header before pixel allocation. The
-default ceiling is 16384×16384 and 1 GiB of decoded pixels; hosts can lower each
-limit. Truncated or malformed data produces a named error and no partial image.
+Decode limits are checked from each format header before decoded-pixel
+allocation. The default ceiling is 16384×16384 and 1 GiB of decoded pixels;
+hosts can lower each limit. Truncated or malformed data produces a named error
+and no partial image.
+
+JPEG, TGA and BMP decode to their native one-to-four-channel 8-bit layouts.
+Flattened PSD composites retain one-to-four 8-bit or 16-bit channels; importing
+individual PSD layers remains part of task 2.6. The baseline TIFF path accepts
+little- or big-endian, uncompressed, contiguous, top-left grayscale,
+grayscale-alpha, RGB and RGBA strips. It retains unsigned 8/16-bit and float32
+samples and rejects unsupported compression, planar layouts, orientations or
+photometric interpretations by name. TIFF metadata fields unrelated to pixel
+layout are ignored safely.
 
 Flat OpenEXR and Radiance HDR headers are inspected against the same limits
 before pixel allocation. They decode to native float32 storage without clamping:
@@ -46,12 +57,12 @@ An explicit caller colour-space declaration overrides metadata. Otherwise an
 embedded PNG sRGB declaration is used, followed by the automatic semantic rule.
 Unsupported ICC profiles are reported before the automatic rule is applied.
 
-LodePNG is pinned for this path because it supports memory-based 8/16-bit PNG
-encoding and decoding without another runtime dependency. Its revision and
-licence are recorded in the dependency manifest and third-party notices.
-Radiance HDR uses the pinned stb decoder. Flat OpenEXR uses pinned TinyEXR and
-its bundled miniz implementation; both licence texts are recorded with the
-dependency.
+LodePNG is pinned for memory-based 8/16-bit PNG encoding and decoding. The
+pinned stb implementation decodes JPEG, TGA, BMP, flattened PSD and Radiance
+HDR and encodes JPEG and TGA. Flat OpenEXR uses pinned TinyEXR and its bundled
+miniz implementation. Revisions and licence texts are recorded in the
+dependency manifest and third-party notices; baseline TIFF is implemented
+locally.
 
 The texture-export path additionally encodes PNG, JPEG, TGA, TIFF and OpenEXR
 to caller-owned buffers. Its exact format/depth compatibility table and output

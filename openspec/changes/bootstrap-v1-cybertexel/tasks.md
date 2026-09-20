@@ -1146,6 +1146,19 @@ The suite includes mesh partitioning, sparse channels and tiles, the complete
 layer/compositor/operation/history surface, executor parity, project storage,
 and export integration where those are part of a document scenario.
 
+Tasks 2.1, 2.2, 2.8 and 2.9 complete the flat image decoder set over caller-owned
+memory. PNG, JPEG, TGA, BMP, baseline TIFF, flat OpenEXR, Radiance HDR and
+flattened PSD are selected from their content rather than their filename, and
+every misleading extension is reported after decoding by content. JPEG/TGA/BMP
+retain their native 8-bit component layout, PSD retains 8/16-bit composites,
+and uncompressed contiguous TIFF retains unsigned 8/16-bit or float32 samples
+across byte orders and strips. Header inspection applies decode ceilings before
+decoded-pixel allocation; malformed input and unsupported TIFF storage are
+named. C++ fixtures cover every decoder and exact high-precision paths, while
+the strict C surface round-trips every encodable input format through detection.
+The decoded-format requirement now has public C-operation evidence, reducing
+the exact remaining task-14.8 C ABI gap to 36 runtime requirements.
+
 ## 1. Foundation
 
 - [x] 1.1 CMake project, C++20, warnings as errors, presets for headless, macOS, Linux, Windows, iOS, Android
@@ -1161,15 +1174,15 @@ and export integration where those are part of a document scenario.
 
 ## 2. Image input and output
 
-- [ ] 2.1 Decoders: PNG, JPEG, TGA, BMP, TIFF, OpenEXR, Radiance HDR, PSD
-- [ ] 2.2 Content-based format detection and extension-mismatch reporting
+- [x] 2.1 Decoders: PNG, JPEG, TGA, BMP, TIFF, OpenEXR, Radiance HDR, PSD
+- [x] 2.2 Content-based format detection and extension-mismatch reporting
 - [x] 2.3 Bit depth and channel preservation; documented expansion rules
 - [ ] 2.4 Colour space on read: embedded profiles, caller declaration, the automatic rule
 - [x] 2.5 High dynamic range decoding without clamping
 - [ ] 2.6 Layered sources: PSD layers and multi-part EXR, composited or per-layer
 - [x] 2.7 Encoders with per-format options and the impossible-combination refusal
-- [ ] 2.8 Decoding from memory buffers
-- [ ] 2.9 Untrusted input bounds: dimension validation before allocation, configurable ceiling, named refusals
+- [x] 2.8 Decoding from memory buffers
+- [x] 2.9 Untrusted input bounds: dimension validation before allocation, configurable ceiling, named refusals
 - [ ] 2.10 Decoder fuzzing gate in CI
 - [ ] 2.11 Cancellation, progress and bounded working memory for large decodes
 - [x] 2.12 Documented resampling filters with a stated default

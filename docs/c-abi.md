@@ -361,10 +361,10 @@ operation; authored and exported texture data are not mutated.
 ## In-memory image decode
 
 `ctex_image_decode_memory` accepts encoded bytes directly and detects their
-format from content. The current decoder slice accepts PNG, flat OpenEXR and
-Radiance HDR, and refuses detected JPEG, BMP, TIFF and PSD by name until their
-scheduled decoders land. A mismatched filename extension is reported without
-changing the content-selected format.
+format from content. It accepts PNG, JPEG, TGA, BMP, baseline TIFF, flat
+OpenEXR, Radiance HDR and flattened PSD. A mismatched filename extension is
+reported without changing the content-selected format; unknown content is
+refused with the supported set.
 
 The output uses the standard two-call caller-buffer contract and is tightly
 packed, row-major and interleaved; 16-bit components use native byte order.

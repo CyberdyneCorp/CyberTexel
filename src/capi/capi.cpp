@@ -1370,6 +1370,8 @@ std::uint32_t image_file_format(ctex::io::ImageFileFormat format) noexcept {
             return CTEX_IMAGE_FILE_FORMAT_PNG;
         case ctex::io::ImageFileFormat::jpeg:
             return CTEX_IMAGE_FILE_FORMAT_JPEG;
+        case ctex::io::ImageFileFormat::tga:
+            return CTEX_IMAGE_FILE_FORMAT_TGA;
         case ctex::io::ImageFileFormat::bmp:
             return CTEX_IMAGE_FILE_FORMAT_BMP;
         case ctex::io::ImageFileFormat::tiff:

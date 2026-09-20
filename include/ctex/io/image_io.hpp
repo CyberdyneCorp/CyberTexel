@@ -13,7 +13,7 @@
 
 namespace ctex::io {
 
-enum class ImageFileFormat { unknown, png, jpeg, bmp, tiff, openexr, radiance_hdr, psd };
+enum class ImageFileFormat { unknown, png, jpeg, bmp, tiff, openexr, radiance_hdr, psd, tga };
 
 enum class ImageIoErrorCode {
     unsupported_format,

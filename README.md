@@ -116,8 +116,11 @@ The current implementation provides:
   modifying committed document pixels.
 - Linear Rec. 709 and sRGB colour transforms, semantic input policies,
   preview-only 3D LUTs, ordered dithering, and promoted-precision operations.
-- Memory-buffer PNG decoding and encoding with 8/16-bit preservation,
-  content-based detection, metadata handling, and allocation limits.
+- Memory-buffer decoding for PNG, JPEG, TGA, BMP, baseline TIFF, flat OpenEXR,
+  Radiance HDR, and flattened PSD, with content-based detection, extension-
+  mismatch reporting, allocation limits, 8/16-bit preservation where carried,
+  and unclamped floating-point HDR input. Memory encoding covers PNG, JPEG,
+  TGA, baseline TIFF, and flat OpenEXR.
 - A versioned, forward-preserving [project container](docs/project-container.md)
   with a probeable header, independently compressed sparse tile storage, and
   portable referenced or packed image, font, map, and mesh resources with
@@ -301,10 +304,10 @@ The current implementation provides:
   [project-I/O and texture-export](docs/io-scenarios.md), plus combined
   [stroke-model and paint-engine](docs/paint-scenarios.md) scenario suites.
 
-Remaining image IO, mesh/texture-set extensions, paint-tool scenario closure,
-host-transport binding/performance integrations, remaining language bindings,
-and delivery workflow stages remain roadmap work and are not presented as
-implemented APIs yet.
+Remaining advanced image IO, mesh/texture-set extensions, paint-tool scenario
+closure, host-transport binding/performance integrations, remaining language
+bindings, and delivery workflow stages remain roadmap work and are not
+presented as implemented APIs yet.
 
 ## Architecture
 

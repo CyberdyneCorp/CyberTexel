@@ -150,5 +150,8 @@ host keep/reproject/clear decision, refuses stale plans, and publishes clear or
 keep decisions atomically with the new mesh. Reprojection leaves both source
 mesh and pixels intact for the later editable-authoring operation. The exact
 remaining gap is 37 runtime requirements.
+The complete content-detected image decoder set is exposed by
+`ctex_image_decode_memory`, reducing the exact remaining gap to 36 runtime
+requirements.
 The gate is not part of the aggregate `just check` until that count reaches zero;
 its unit tests run in the normal tooling suite throughout the migration.
