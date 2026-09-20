@@ -169,7 +169,16 @@
       {"requirement": "Export of individual assets", "symbols": ["ctex_project_asset_export"]}
     ]},
     {"name": "resource-residency", "kind": "runtime", "requirements": []},
-    {"name": "shader-emission", "kind": "runtime", "requirements": []},
+    {"name": "shader-emission", "kind": "runtime", "requirements": [
+      {"requirement": "Emission produces shader artifacts, never a device object", "symbols": ["ctex_shader_emit_material"]},
+      {"requirement": "Target languages", "symbols": ["ctex_shader_emit_material"]},
+      {"requirement": "Pass plan", "symbols": ["ctex_shader_emit_material"]},
+      {"requirement": "Stable binding layout", "symbols": ["ctex_shader_emit_material"]},
+      {"requirement": "Feature-gated emission", "symbols": ["ctex_shader_emit_material"]},
+      {"requirement": "Thread safety", "symbols": ["ctex_shader_emit_material"]},
+      {"requirement": "Deterministic output", "symbols": ["ctex_shader_emit_material"]},
+      {"requirement": "Resource lifetimes and synchronization in pass plans", "symbols": ["ctex_shader_emit_material"]}
+    ]},
     {"name": "smart-materials", "kind": "runtime", "requirements": [
       {"requirement": "Smart materials carry no baked pixels for derived content", "symbols": ["ctex_smart_material_inspect"]},
       {"requirement": "Exposed parameters", "symbols": ["ctex_smart_material_set_parameter"]},

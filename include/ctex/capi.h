@@ -90,7 +90,8 @@ typedef enum ctex_diagnostic_code {
     CTEX_DIAGNOSTIC_INVALID_HOST_TRANSPORT = 54,
     CTEX_DIAGNOSTIC_INVALID_EXECUTOR = 55,
     CTEX_DIAGNOSTIC_INVALID_PAINT_TOOL = 56,
-    CTEX_DIAGNOSTIC_INVALID_MATERIAL_GRAPH = 57
+    CTEX_DIAGNOSTIC_INVALID_MATERIAL_GRAPH = 57,
+    CTEX_DIAGNOSTIC_INVALID_SHADER_EMISSION = 58
 } ctex_diagnostic_code;
 
 typedef enum ctex_log_severity {
@@ -3518,6 +3519,87 @@ typedef enum ctex_material_graph_emission_target {
     CTEX_MATERIAL_GRAPH_TARGET_HLSL = 3
 } ctex_material_graph_emission_target;
 
+typedef enum ctex_shader_filter_mode {
+    CTEX_SHADER_FILTER_NEAREST = 0,
+    CTEX_SHADER_FILTER_LINEAR = 1
+} ctex_shader_filter_mode;
+
+typedef struct ctex_shader_texture_descriptor {
+    uint32_t size;
+    const char* logical_id;
+    uint64_t generation;
+    const char* role;
+    uint32_t format; /* ctex_executor_texture_format */
+    uint32_t width;
+    uint32_t height;
+    uint32_t layers;
+    uint32_t mip_levels;
+    uint32_t tile_width;
+    uint32_t tile_height;
+    uint32_t externally_initialized;
+} ctex_shader_texture_descriptor;
+
+#define CTEX_SHADER_TEXTURE_DESCRIPTOR_V1_SIZE ((uint32_t)sizeof(ctex_shader_texture_descriptor))
+#define CTEX_SHADER_TEXTURE_DESCRIPTOR_CURRENT_SIZE \
+    ((uint32_t)sizeof(ctex_shader_texture_descriptor))
+
+typedef struct ctex_shader_material_resource_descriptor {
+    uint32_t size;
+    const char* identifier;
+    ctex_shader_texture_descriptor texture;
+} ctex_shader_material_resource_descriptor;
+
+#define CTEX_SHADER_MATERIAL_RESOURCE_DESCRIPTOR_V1_SIZE \
+    ((uint32_t)sizeof(ctex_shader_material_resource_descriptor))
+#define CTEX_SHADER_MATERIAL_RESOURCE_DESCRIPTOR_CURRENT_SIZE \
+    ((uint32_t)sizeof(ctex_shader_material_resource_descriptor))
+
+typedef struct ctex_shader_device_features_descriptor {
+    uint32_t size;
+    uint32_t binding_budget;
+    uint32_t maximum_texture_dimension;
+    const uint32_t* supported_texture_formats;
+    size_t supported_texture_format_count;
+    uint32_t floating_point_filtering;
+    uint32_t compute_available;
+} ctex_shader_device_features_descriptor;
+
+#define CTEX_SHADER_DEVICE_FEATURES_DESCRIPTOR_V1_SIZE \
+    ((uint32_t)sizeof(ctex_shader_device_features_descriptor))
+#define CTEX_SHADER_DEVICE_FEATURES_DESCRIPTOR_CURRENT_SIZE \
+    ((uint32_t)sizeof(ctex_shader_device_features_descriptor))
+
+typedef struct ctex_shader_material_request {
+    uint32_t size;
+    const char* stable_identity;
+    uint32_t target; /* ctex_material_graph_emission_target */
+    ctex_shader_device_features_descriptor features;
+    const ctex_shader_material_resource_descriptor* resources;
+    size_t resource_count;
+    ctex_shader_texture_descriptor output;
+    uint32_t requested_filter; /* ctex_shader_filter_mode */
+    uint32_t vertex_count;
+} ctex_shader_material_request;
+
+#define CTEX_SHADER_MATERIAL_REQUEST_V1_SIZE ((uint32_t)sizeof(ctex_shader_material_request))
+#define CTEX_SHADER_MATERIAL_REQUEST_CURRENT_SIZE ((uint32_t)sizeof(ctex_shader_material_request))
+
+typedef struct ctex_shader_material_info {
+    uint32_t size;
+    uint32_t target;
+    size_t vertex_artifact_size;
+    size_t fragment_artifact_size;
+    size_t pass_plan_size;
+    size_t workaround_report_size;
+    size_t pass_count;
+    size_t logical_resource_count;
+    size_t binding_count;
+    size_t workaround_count;
+} ctex_shader_material_info;
+
+#define CTEX_SHADER_MATERIAL_INFO_V1_SIZE ((uint32_t)sizeof(ctex_shader_material_info))
+#define CTEX_SHADER_MATERIAL_INFO_CURRENT_SIZE ((uint32_t)sizeof(ctex_shader_material_info))
+
 typedef struct ctex_material_graph_property_descriptor {
     uint32_t size;
     const char* identifier;
@@ -4092,6 +4174,21 @@ CTEX_API ctex_result ctex_material_graph_node_registry_verify_contract(
     const char* const* pinned_dependencies, size_t pinned_dependency_count,
     ctex_material_graph_host_contract_info* out_info, char* report_output,
     size_t report_output_size);
+
+/*
+ * Emits a headless material shader and its complete host pass plan. The node
+ * registry is optional for built-in-only graphs. WGSL and HLSL return two
+ * NUL-terminated text artifacts; MSL returns one unified NUL-terminated text
+ * artifact in vertex_artifact; SPIR-V returns two raw byte modules. The JSON
+ * outputs and all artifacts are published atomically with two-call sizing.
+ */
+CTEX_API ctex_result ctex_shader_emit_material(
+    const ctex_material_graph_node_registry* registry, const void* graph_serialized,
+    size_t graph_serialized_size, const ctex_shader_material_request* request,
+    ctex_shader_material_info* out_info, void* vertex_artifact, size_t vertex_artifact_size,
+    void* fragment_artifact, size_t fragment_artifact_size, char* pass_plan_output,
+    size_t pass_plan_output_size, char* workaround_report_output,
+    size_t workaround_report_output_size);
 
 /*
  * Validates and migrates a canonical smart-material serialization. The output

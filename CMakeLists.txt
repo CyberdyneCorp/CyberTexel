@@ -410,6 +410,17 @@ if(BUILD_TESTING)
         target_link_libraries(ctex_capi_material_graph_library_test PRIVATE cybertexel_c)
         add_test(NAME c-abi-material-graph-library
                  COMMAND ctex_capi_material_graph_library_test)
+        add_executable(ctex_capi_shader_emission_test tests/capi/shader_emission_test.c)
+        ctex_configure_c_target(ctex_capi_shader_emission_test)
+        target_link_libraries(ctex_capi_shader_emission_test PRIVATE cybertexel_c)
+        add_test(NAME c-abi-shader-emission COMMAND ctex_capi_shader_emission_test)
+        add_executable(ctex_capi_shader_emission_concurrency_test
+                       tests/capi/shader_emission_concurrency_test.cpp)
+        ctex_configure_cpp_target(ctex_capi_shader_emission_concurrency_test)
+        target_link_libraries(ctex_capi_shader_emission_concurrency_test
+                              PRIVATE cybertexel Threads::Threads)
+        add_test(NAME c-abi-shader-emission-concurrency
+                 COMMAND ctex_capi_shader_emission_concurrency_test)
         add_executable(ctex_capi_smart_material_test tests/capi/smart_material_test.cpp)
         ctex_configure_cpp_target(ctex_capi_smart_material_test)
         target_link_libraries(ctex_capi_smart_material_test PRIVATE cybertexel)

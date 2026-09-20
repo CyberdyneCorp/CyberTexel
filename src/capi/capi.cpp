@@ -9,6 +9,7 @@
 #include <cstring>
 #include <ctex/doc/material_graph.hpp>
 #include <ctex/doc/smart_material.hpp>
+#include <ctex/emit/material_emission.hpp>
 #include <ctex/exec/cpu_reference.hpp>
 #include <ctex/exec/host_execution.hpp>
 #include <ctex/exec/parity.hpp>
@@ -66,6 +67,7 @@
 #include <optional>
 #include <stdexcept>
 #include <string>
+#include <type_traits>
 #include <utility>
 #include <vector>
 
@@ -6885,7 +6887,8 @@ ctex::graph::EmissionTarget material_graph_emission_target(std::uint32_t target)
             return ctex::graph::EmissionTarget::hlsl;
         default:
             throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_INVALID_ENUM_VALUE,
-                           "material graph emission target=" + std::to_string(target));
+                           "shader target unknown(" + std::to_string(target) +
+                               "); available targets: WGSL, MSL, SPIR-V, HLSL");
     }
 }
 
@@ -7555,6 +7558,519 @@ ctex::emit::DeviceFeatureSet host_executor_features(
             executor_texture_format(descriptor.supported_texture_formats[index]));
     }
     return features;
+}
+
+ctex::emit::LogicalTexture shader_texture(const ctex_shader_texture_descriptor& descriptor,
+                                          std::string_view field) {
+    validate_structure_size(descriptor.size, CTEX_SHADER_TEXTURE_DESCRIPTOR_V1_SIZE,
+                            CTEX_SHADER_TEXTURE_DESCRIPTOR_CURRENT_SIZE,
+                            std::string(field) + " size");
+    if (descriptor.logical_id == nullptr || descriptor.role == nullptr) {
+        throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                       std::string(field) + " identity and role are required");
+    }
+    require_executor_boolean(descriptor.externally_initialized, "externally_initialized");
+    return {
+        .version = {descriptor.logical_id, descriptor.generation},
+        .role = descriptor.role,
+        .format = executor_texture_format(descriptor.format),
+        .extent = {descriptor.width, descriptor.height, descriptor.layers},
+        .mip_levels = descriptor.mip_levels,
+        .tile_shape = {descriptor.tile_width, descriptor.tile_height},
+        .externally_initialized = descriptor.externally_initialized != 0,
+    };
+}
+
+ctex::emit::DeviceFeatureSet shader_features(
+    const ctex_shader_device_features_descriptor& descriptor) {
+    validate_structure_size(descriptor.size, CTEX_SHADER_DEVICE_FEATURES_DESCRIPTOR_V1_SIZE,
+                            CTEX_SHADER_DEVICE_FEATURES_DESCRIPTOR_CURRENT_SIZE,
+                            "shader device features size");
+    if (descriptor.supported_texture_formats == nullptr &&
+        descriptor.supported_texture_format_count != 0) {
+        throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                       "supported_texture_formats=null with nonzero count");
+    }
+    require_executor_boolean(descriptor.floating_point_filtering, "floating_point_filtering");
+    require_executor_boolean(descriptor.compute_available, "compute_available");
+    ctex::emit::DeviceFeatureSet result{
+        .binding_budget = descriptor.binding_budget,
+        .maximum_texture_dimension = descriptor.maximum_texture_dimension,
+        .supported_texture_formats = {},
+        .floating_point_filtering = descriptor.floating_point_filtering != 0,
+        .compute_available = descriptor.compute_available != 0,
+    };
+    result.supported_texture_formats.reserve(descriptor.supported_texture_format_count);
+    for (std::size_t index = 0; index < descriptor.supported_texture_format_count; ++index) {
+        result.supported_texture_formats.push_back(
+            executor_texture_format(descriptor.supported_texture_formats[index]));
+    }
+    return result;
+}
+
+ctex::emit::MaterialShaderEmissionRequest shader_material_request(
+    const ctex_shader_material_request& descriptor) {
+    validate_structure_size(descriptor.size, CTEX_SHADER_MATERIAL_REQUEST_V1_SIZE,
+                            CTEX_SHADER_MATERIAL_REQUEST_CURRENT_SIZE,
+                            "shader material request size");
+    if (descriptor.stable_identity == nullptr ||
+        (descriptor.resources == nullptr && descriptor.resource_count != 0)) {
+        throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                       "stable_identity and resource storage are required");
+    }
+    if (descriptor.requested_filter > CTEX_SHADER_FILTER_LINEAR) {
+        throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_INVALID_ENUM_VALUE,
+                       "requested_filter=" + std::to_string(descriptor.requested_filter));
+    }
+    ctex::emit::MaterialShaderEmissionRequest result{
+        .stable_identity = descriptor.stable_identity,
+        .target = material_graph_emission_target(descriptor.target),
+        .features = shader_features(descriptor.features),
+        .resources = {},
+        .output = shader_texture(descriptor.output, "shader output texture"),
+        .requested_filter = static_cast<ctex::emit::FilterMode>(descriptor.requested_filter),
+        .vertex_count = descriptor.vertex_count,
+    };
+    result.resources.reserve(descriptor.resource_count);
+    for (std::size_t index = 0; index < descriptor.resource_count; ++index) {
+        const auto& resource = descriptor.resources[index];
+        validate_structure_size(resource.size, CTEX_SHADER_MATERIAL_RESOURCE_DESCRIPTOR_V1_SIZE,
+                                CTEX_SHADER_MATERIAL_RESOURCE_DESCRIPTOR_CURRENT_SIZE,
+                                "shader material resource size");
+        if (resource.identifier == nullptr) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                           "shader material resource identifier=null");
+        }
+        result.resources.push_back(
+            {resource.identifier, shader_texture(resource.texture, "shader resource texture")});
+    }
+    return result;
+}
+
+void append_shader_resource_version(std::string& output,
+                                    const ctex::emit::ResourceVersion& resource) {
+    output += "{\"logical_id\":";
+    append_json_text(output, resource.logical_id);
+    output += ",\"generation\":" + std::to_string(resource.generation) + "}";
+}
+
+void append_shader_subresources(std::string& output,
+                                const ctex::emit::TextureSubresourceRange& range) {
+    output += "{\"first_mip\":" + std::to_string(range.first_mip) +
+              ",\"mip_count\":" + std::to_string(range.mip_count) +
+              ",\"first_layer\":" + std::to_string(range.first_layer) +
+              ",\"layer_count\":" + std::to_string(range.layer_count) + ",\"tiles\":";
+    if (!range.tiles.has_value()) {
+        output += "null}";
+        return;
+    }
+    output += "{\"x\":" + std::to_string(range.tiles->x) +
+              ",\"y\":" + std::to_string(range.tiles->y) +
+              ",\"width\":" + std::to_string(range.tiles->width) +
+              ",\"height\":" + std::to_string(range.tiles->height) + "}}";
+}
+
+std::string_view shader_texture_format_name(ctex::emit::TextureFormat value) {
+    static constexpr std::array names{"r8_unorm",     "rg8_unorm",    "rgba8_unorm", "r16_unorm",
+                                      "rg16_unorm",   "rgba16_unorm", "r16_float",   "rg16_float",
+                                      "rgba16_float", "r32_float",    "rg32_float",  "rgba32_float",
+                                      "depth32_float"};
+    const auto index = static_cast<std::size_t>(value);
+    return index < names.size() ? names[index] : "unknown";
+}
+
+std::string_view shader_access_mode_name(ctex::emit::ResourceAccessMode value) {
+    switch (value) {
+        case ctex::emit::ResourceAccessMode::read:
+            return "read";
+        case ctex::emit::ResourceAccessMode::write:
+            return "write";
+        case ctex::emit::ResourceAccessMode::read_write:
+            return "read_write";
+    }
+    return "unknown";
+}
+
+std::string_view shader_load_name(ctex::emit::LoadAction value) {
+    switch (value) {
+        case ctex::emit::LoadAction::load:
+            return "load";
+        case ctex::emit::LoadAction::clear:
+            return "clear";
+        case ctex::emit::LoadAction::discard:
+            return "discard";
+    }
+    return "unknown";
+}
+
+std::string_view shader_store_name(ctex::emit::StoreAction value) {
+    switch (value) {
+        case ctex::emit::StoreAction::not_applicable:
+            return "not_applicable";
+        case ctex::emit::StoreAction::store:
+            return "store";
+        case ctex::emit::StoreAction::discard:
+            return "discard";
+    }
+    return "unknown";
+}
+
+template <typename Enum, std::size_t Size>
+std::string_view shader_enum_name(Enum value, const std::array<std::string_view, Size>& names) {
+    const auto index = static_cast<std::size_t>(value);
+    return index < names.size() ? names[index] : "unknown";
+}
+
+std::string_view shader_visibility_name(ctex::emit::ShaderVisibility value) {
+    static constexpr std::array<std::string_view, 4> names{"vertex", "fragment", "vertex_fragment",
+                                                           "compute"};
+    return shader_enum_name(value, names);
+}
+
+std::string_view shader_binding_kind_name(ctex::emit::TextureBindingKind value) {
+    static constexpr std::array<std::string_view, 4> names{"sampled", "storage_read",
+                                                           "storage_write", "storage_read_write"};
+    return shader_enum_name(value, names);
+}
+
+std::string_view shader_filter_name(ctex::emit::FilterMode value) {
+    static constexpr std::array<std::string_view, 2> names{"nearest", "linear"};
+    return shader_enum_name(value, names);
+}
+
+std::string_view shader_address_name(ctex::emit::AddressMode value) {
+    static constexpr std::array<std::string_view, 3> names{"clamp_to_edge", "repeat",
+                                                           "mirror_repeat"};
+    return shader_enum_name(value, names);
+}
+
+std::string_view shader_vertex_format_name(ctex::emit::VertexFormat value) {
+    static constexpr std::array<std::string_view, 5> names{"float32", "float32x2", "float32x3",
+                                                           "float32x4", "uint32"};
+    return shader_enum_name(value, names);
+}
+
+std::string_view shader_compare_name(ctex::emit::CompareFunction value) {
+    static constexpr std::array<std::string_view, 8> names{
+        "never", "less", "less_equal", "equal", "greater_equal", "greater", "not_equal", "always"};
+    return shader_enum_name(value, names);
+}
+
+std::string_view shader_blend_factor_name(ctex::emit::BlendFactor value) {
+    static constexpr std::array<std::string_view, 10> names{"zero",
+                                                            "one",
+                                                            "source",
+                                                            "one_minus_source",
+                                                            "source_alpha",
+                                                            "one_minus_source_alpha",
+                                                            "destination",
+                                                            "one_minus_destination",
+                                                            "destination_alpha",
+                                                            "one_minus_destination_alpha"};
+    return shader_enum_name(value, names);
+}
+
+std::string_view shader_blend_operation_name(ctex::emit::BlendOperation value) {
+    static constexpr std::array<std::string_view, 5> names{"add", "subtract", "reverse_subtract",
+                                                           "minimum", "maximum"};
+    return shader_enum_name(value, names);
+}
+
+std::string_view shader_topology_name(ctex::emit::PrimitiveTopology value) {
+    static constexpr std::array<std::string_view, 5> names{"point_list", "line_list", "line_strip",
+                                                           "triangle_list", "triangle_strip"};
+    return shader_enum_name(value, names);
+}
+
+void append_shader_logical_texture(std::string& output, const ctex::emit::LogicalTexture& texture) {
+    output += "{\"version\":";
+    append_shader_resource_version(output, texture.version);
+    output += ",\"role\":";
+    append_json_text(output, texture.role);
+    output += ",\"format\":";
+    append_json_text(output, shader_texture_format_name(texture.format));
+    output +=
+        ",\"extent\":{\"width\":" + std::to_string(texture.extent.width) +
+        ",\"height\":" + std::to_string(texture.extent.height) +
+        ",\"layers\":" + std::to_string(texture.extent.layers) +
+        "},\"mip_levels\":" + std::to_string(texture.mip_levels) +
+        ",\"tile_shape\":{\"width\":" + std::to_string(texture.tile_shape.width) +
+        ",\"height\":" + std::to_string(texture.tile_shape.height) +
+        "},\"externally_initialized\":" + (texture.externally_initialized ? "true}" : "false}");
+}
+
+void append_shader_access(std::string& output, const ctex::emit::ResourceAccess& access) {
+    output += "{\"resource\":";
+    append_shader_resource_version(output, access.resource);
+    output += ",\"subresources\":";
+    append_shader_subresources(output, access.subresources);
+    output += ",\"mode\":";
+    append_json_text(output, shader_access_mode_name(access.mode));
+    output += ",\"load\":";
+    append_json_text(output, shader_load_name(access.load));
+    output += ",\"store\":";
+    append_json_text(output, shader_store_name(access.store));
+    output.push_back('}');
+}
+
+void append_shader_texture_binding(std::string& output, const ctex::emit::TextureBinding& binding) {
+    output += "{\"group\":" + std::to_string(binding.group) +
+              ",\"binding\":" + std::to_string(binding.binding) + ",\"role\":";
+    append_json_text(output, binding.role);
+    output += ",\"visibility\":";
+    append_json_text(output, shader_visibility_name(binding.visibility));
+    output += ",\"kind\":";
+    append_json_text(output, shader_binding_kind_name(binding.kind));
+    output += ",\"resource\":";
+    append_shader_resource_version(output, binding.resource);
+    output += ",\"subresources\":";
+    append_shader_subresources(output, binding.subresources);
+    output += ",\"view_dimension\":";
+    append_json_text(
+        output, binding.view_dimension == ctex::emit::TextureViewDimension::d2 ? "2d" : "cube");
+    output += ",\"encoding\":";
+    append_json_text(output, binding.encoding);
+    output += ",\"mip_convention\":";
+    append_json_text(output, binding.mip_convention);
+    output.push_back('}');
+}
+
+void append_shader_sampler(std::string& output, const ctex::emit::SamplerBinding& sampler) {
+    output += "{\"group\":" + std::to_string(sampler.group) +
+              ",\"binding\":" + std::to_string(sampler.binding) + ",\"role\":";
+    append_json_text(output, sampler.role);
+    output += ",\"visibility\":";
+    append_json_text(output, shader_visibility_name(sampler.visibility));
+    output += ",\"min_filter\":";
+    append_json_text(output, shader_filter_name(sampler.min_filter));
+    output += ",\"mag_filter\":";
+    append_json_text(output, shader_filter_name(sampler.mag_filter));
+    output += ",\"mip_filter\":";
+    append_json_text(output, shader_filter_name(sampler.mip_filter));
+    output += ",\"address_u\":";
+    append_json_text(output, shader_address_name(sampler.address_u));
+    output += ",\"address_v\":";
+    append_json_text(output, shader_address_name(sampler.address_v));
+    output += ",\"address_w\":";
+    append_json_text(output, shader_address_name(sampler.address_w));
+    output.push_back('}');
+}
+
+void append_shader_vertex_buffer(std::string& output,
+                                 const ctex::emit::VertexBufferLayout& layout) {
+    output += "{\"slot\":" + std::to_string(layout.slot) +
+              ",\"stride\":" + std::to_string(layout.stride) + ",\"step_mode\":";
+    append_json_text(
+        output, layout.step_mode == ctex::emit::VertexStepMode::vertex ? "vertex" : "instance");
+    output += ",\"attributes\":[";
+    for (std::size_t index = 0; index < layout.attributes.size(); ++index) {
+        if (index != 0) output.push_back(',');
+        const auto& attribute = layout.attributes[index];
+        output += "{\"semantic\":";
+        append_json_text(output, attribute.semantic);
+        output += ",\"location\":" + std::to_string(attribute.location) + ",\"format\":";
+        append_json_text(output, shader_vertex_format_name(attribute.format));
+        output += ",\"offset\":" + std::to_string(attribute.offset) + "}";
+    }
+    output += "]}";
+}
+
+void append_shader_blend(std::string& output, const ctex::emit::BlendState& blend) {
+    const auto append_component = [&](const ctex::emit::BlendComponent& component) {
+        output += "{\"source\":";
+        append_json_text(output, shader_blend_factor_name(component.source));
+        output += ",\"destination\":";
+        append_json_text(output, shader_blend_factor_name(component.destination));
+        output += ",\"operation\":";
+        append_json_text(output, shader_blend_operation_name(component.operation));
+        output.push_back('}');
+    };
+    output += "{\"enabled\":";
+    output += blend.enabled ? "true" : "false";
+    output += ",\"colour\":";
+    append_component(blend.colour);
+    output += ",\"alpha\":";
+    append_component(blend.alpha);
+    output += ",\"write_mask\":" + std::to_string(blend.write_mask) + "}";
+}
+
+void append_shader_render_target(std::string& output, const ctex::emit::RenderTarget& target) {
+    output += "{\"role\":";
+    append_json_text(output, target.role);
+    output += ",\"resource\":";
+    append_shader_resource_version(output, target.resource);
+    output += ",\"subresources\":";
+    append_shader_subresources(output, target.subresources);
+    output += ",\"format\":";
+    append_json_text(output, shader_texture_format_name(target.format));
+    output += ",\"width\":" + std::to_string(target.width) +
+              ",\"height\":" + std::to_string(target.height) + ",\"load\":";
+    append_json_text(output, shader_load_name(target.load));
+    output += ",\"store\":";
+    append_json_text(output, shader_store_name(target.store));
+    output += ",\"clear_colour\":[" + std::to_string(target.clear_colour.r) + "," +
+              std::to_string(target.clear_colour.g) + "," + std::to_string(target.clear_colour.b) +
+              "," + std::to_string(target.clear_colour.a) + "],\"blend\":";
+    append_shader_blend(output, target.blend);
+    output.push_back('}');
+}
+
+template <typename Values, typename Append>
+void append_shader_array(std::string& output, const Values& values, Append append) {
+    output.push_back('[');
+    for (std::size_t index = 0; index < values.size(); ++index) {
+        if (index != 0) output.push_back(',');
+        append(output, values[index]);
+    }
+    output.push_back(']');
+}
+
+void append_shader_pass(std::string& output, const ctex::emit::PassDescriptor& pass) {
+    output += "{\"identifier\":";
+    append_json_text(output, pass.identifier);
+    output += ",\"kind\":";
+    append_json_text(output, pass.kind == ctex::emit::PassKind::render ? "render" : "compute");
+    output += ",\"dependencies\":";
+    append_shader_array(output, pass.dependencies, [](std::string& json, const std::string& value) {
+        append_json_text(json, value);
+    });
+    output += ",\"entry_points\":{\"vertex\":";
+    append_json_text(output, pass.vertex_entry_point);
+    output += ",\"fragment\":";
+    append_json_text(output, pass.fragment_entry_point);
+    output += ",\"compute\":";
+    append_json_text(output, pass.compute_entry_point);
+    output += "},\"accesses\":";
+    append_shader_array(output, pass.accesses, append_shader_access);
+    output += ",\"texture_bindings\":";
+    append_shader_array(output, pass.texture_bindings, append_shader_texture_binding);
+    output += ",\"sampler_bindings\":";
+    append_shader_array(output, pass.sampler_bindings, append_shader_sampler);
+    output += ",\"uniform_blocks\":[],\"vertex_buffers\":";
+    append_shader_array(output, pass.vertex_buffers, append_shader_vertex_buffer);
+    output += ",\"render_targets\":";
+    append_shader_array(output, pass.render_targets, append_shader_render_target);
+    output += ",\"depth_target\":null,\"depth_state\":{\"test_enabled\":";
+    output += pass.depth_state.test_enabled ? "true" : "false";
+    output += ",\"write_enabled\":";
+    output += pass.depth_state.write_enabled ? "true" : "false";
+    output += ",\"compare\":";
+    append_json_text(output, shader_compare_name(pass.depth_state.compare));
+    output += "},\"command\":";
+    if (const auto* draw = std::get_if<ctex::emit::DrawCommand>(&pass.command)) {
+        output += "{\"kind\":\"draw\",\"topology\":";
+        append_json_text(output, shader_topology_name(draw->topology));
+        output += ",\"indexed\":" + (draw->indexed ? std::string("true") : "false") +
+                  ",\"vertex_count\":" + std::to_string(draw->vertex_count) +
+                  ",\"index_count\":" + std::to_string(draw->index_count) +
+                  ",\"instance_count\":" + std::to_string(draw->instance_count) +
+                  ",\"first_vertex\":" + std::to_string(draw->first_vertex) +
+                  ",\"first_index\":" + std::to_string(draw->first_index) +
+                  ",\"base_vertex\":" + std::to_string(draw->base_vertex) +
+                  ",\"first_instance\":" + std::to_string(draw->first_instance) + "}}";
+    } else {
+        const auto& dispatch = std::get<ctex::emit::DispatchCommand>(pass.command);
+        output += "{\"kind\":\"dispatch\",\"x\":" + std::to_string(dispatch.x) +
+                  ",\"y\":" + std::to_string(dispatch.y) + ",\"z\":" + std::to_string(dispatch.z) +
+                  "}}";
+    }
+}
+
+std::string shader_pass_plan_json(const ctex::emit::PassPlan& plan) {
+    std::string output = "{\"stable_identity\":";
+    append_json_text(output, plan.stable_identity());
+    output += ",\"resources\":";
+    append_shader_array(output, plan.resources(), append_shader_logical_texture);
+    output += ",\"passes\":";
+    append_shader_array(output, plan.passes(), append_shader_pass);
+    output += ",\"lifetimes\":";
+    append_shader_array(output, plan.lifetimes(),
+                        [](std::string& json, const ctex::emit::ResourceLifetime& lifetime) {
+                            json += "{\"resource\":";
+                            append_shader_resource_version(json, lifetime.resource);
+                            json += ",\"first_pass\":" + std::to_string(lifetime.first_pass) +
+                                    ",\"last_pass\":" + std::to_string(lifetime.last_pass) + "}";
+                        });
+    output.push_back('}');
+    return output;
+}
+
+std::string shader_workaround_json(std::span<const ctex::emit::CapabilityWorkaround> workarounds) {
+    std::string output;
+    append_shader_array(output, workarounds,
+                        [](std::string& json, const ctex::emit::CapabilityWorkaround& workaround) {
+                            json += "{\"code\":";
+                            append_json_text(json, workaround.code);
+                            json += ",\"message\":";
+                            append_json_text(json, workaround.message);
+                            json.push_back('}');
+                        });
+    return output;
+}
+
+struct PreparedShaderEmission {
+    ctex::emit::MaterialShaderEmission value;
+    std::vector<std::byte> vertex;
+    std::vector<std::byte> fragment;
+    std::string pass_plan;
+    std::string workarounds;
+};
+
+std::vector<std::byte> shader_text_artifact(std::string_view source) {
+    std::vector<std::byte> output(source.size() + 1);
+    std::memcpy(output.data(), source.data(), source.size());
+    output.back() = std::byte{};
+    return output;
+}
+
+PreparedShaderEmission prepare_shader_emission(ctex::emit::MaterialShaderEmission emission) {
+    PreparedShaderEmission result{.value = std::move(emission),
+                                  .vertex = {},
+                                  .fragment = {},
+                                  .pass_plan = {},
+                                  .workarounds = {}};
+    std::visit(
+        [&](const auto& payload) {
+            using Payload = std::decay_t<decltype(payload)>;
+            if constexpr (std::is_same_v<Payload, ctex::emit::SplitTextShaderProgram>) {
+                result.vertex = shader_text_artifact(payload.vertex_source);
+                result.fragment = shader_text_artifact(payload.fragment_source);
+            } else if constexpr (std::is_same_v<Payload, ctex::emit::UnifiedTextShaderProgram>) {
+                result.vertex = shader_text_artifact(payload.source);
+            } else {
+                result.vertex.resize(payload.vertex_module.size() * sizeof(std::uint32_t));
+                result.fragment.resize(payload.fragment_module.size() * sizeof(std::uint32_t));
+                std::memcpy(result.vertex.data(), payload.vertex_module.data(),
+                            result.vertex.size());
+                std::memcpy(result.fragment.data(), payload.fragment_module.data(),
+                            result.fragment.size());
+            }
+        },
+        result.value.shader.payload);
+    result.pass_plan = shader_pass_plan_json(result.value.pass_plan);
+    result.workarounds = shader_workaround_json(result.value.workarounds);
+    return result;
+}
+
+template <typename Operation>
+ctex_result call_shader_emission_boundary(const char* name, Operation&& operation) noexcept {
+    return call_boundary(name, [&] {
+        try {
+            operation();
+        } catch (const ctex::emit::KongCompilationError& error) {
+            throw_boundary(CTEX_RESULT_UNSUPPORTED_OPERATION,
+                           CTEX_DIAGNOSTIC_INVALID_SHADER_EMISSION, error.what());
+        } catch (const ctex::emit::GraphEmissionError& error) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_INVALID_SHADER_EMISSION,
+                           error.what());
+        } catch (const ctex::emit::MaterialEmissionError& error) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_INVALID_SHADER_EMISSION,
+                           error.what());
+        } catch (const std::invalid_argument& error) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_INVALID_SHADER_EMISSION,
+                           error.what());
+        }
+    });
 }
 
 const ctex::exec::ExecutorDescriptor& executor_at(const ctex_executor_registry& registry,
@@ -9680,6 +10196,69 @@ extern "C" ctex_result ctex_material_graph_node_registry_verify_contract(
         validate_string_buffer(report_output, report_output_size, out_info->report_size);
         if (report_output != nullptr) {
             std::memcpy(report_output, report.c_str(), out_info->report_size);
+        }
+    });
+}
+
+extern "C" ctex_result ctex_shader_emit_material(
+    const ctex_material_graph_node_registry* registry, const void* graph_serialized,
+    std::size_t graph_serialized_size, const ctex_shader_material_request* request,
+    ctex_shader_material_info* out_info, void* vertex_artifact, std::size_t vertex_artifact_size,
+    void* fragment_artifact, std::size_t fragment_artifact_size, char* pass_plan_output,
+    std::size_t pass_plan_output_size, char* workaround_report_output,
+    std::size_t workaround_report_output_size) {
+    return call_shader_emission_boundary("ctex_shader_emit_material", [&] {
+        if (request == nullptr || out_info == nullptr) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                           request == nullptr ? "request=null" : "out_info=null");
+        }
+        validate_structure_size(out_info->size, CTEX_SHADER_MATERIAL_INFO_V1_SIZE,
+                                CTEX_SHADER_MATERIAL_INFO_CURRENT_SIZE,
+                                "shader material info size");
+        const ctex::graph::GraphDocument graph = ctex::graph::deserialize_graph(
+            material_graph_bytes(graph_serialized, graph_serialized_size));
+        const ctex::emit::MaterialShaderEmissionRequest converted =
+            shader_material_request(*request);
+        PreparedShaderEmission prepared = prepare_shader_emission(
+            registry == nullptr
+                ? ctex::emit::emit_material_shader(graph, converted)
+                : ctex::emit::emit_material_shader(graph, registry->value, converted));
+        std::size_t binding_count = 0;
+        for (const ctex::emit::PassDescriptor& pass : prepared.value.pass_plan.passes()) {
+            binding_count += pass.texture_bindings.size() + pass.sampler_bindings.size() +
+                             pass.uniform_blocks.size();
+        }
+        *out_info = {
+            .size = CTEX_SHADER_MATERIAL_INFO_CURRENT_SIZE,
+            .target = request->target,
+            .vertex_artifact_size = prepared.vertex.size(),
+            .fragment_artifact_size = prepared.fragment.size(),
+            .pass_plan_size = prepared.pass_plan.size() + 1,
+            .workaround_report_size = prepared.workarounds.size() + 1,
+            .pass_count = prepared.value.pass_plan.passes().size(),
+            .logical_resource_count = prepared.value.pass_plan.resources().size(),
+            .binding_count = binding_count,
+            .workaround_count = prepared.value.workarounds.size(),
+        };
+        validate_output_array(vertex_artifact, vertex_artifact_size, prepared.vertex.size(),
+                              "vertex_artifact");
+        validate_output_array(fragment_artifact, fragment_artifact_size, prepared.fragment.size(),
+                              "fragment_artifact");
+        validate_string_buffer(pass_plan_output, pass_plan_output_size, out_info->pass_plan_size);
+        validate_string_buffer(workaround_report_output, workaround_report_output_size,
+                               out_info->workaround_report_size);
+        if (vertex_artifact != nullptr) {
+            std::memcpy(vertex_artifact, prepared.vertex.data(), prepared.vertex.size());
+        }
+        if (fragment_artifact != nullptr) {
+            std::memcpy(fragment_artifact, prepared.fragment.data(), prepared.fragment.size());
+        }
+        if (pass_plan_output != nullptr) {
+            std::memcpy(pass_plan_output, prepared.pass_plan.c_str(), out_info->pass_plan_size);
+        }
+        if (workaround_report_output != nullptr) {
+            std::memcpy(workaround_report_output, prepared.workarounds.c_str(),
+                        out_info->workaround_report_size);
         }
     });
 }

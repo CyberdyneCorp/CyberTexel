@@ -106,6 +106,11 @@ type during registry-aware validation. Canonical material libraries now save
 named graph presets with stable
 identities and thumbnail resources, enumerate them in identity order and resolve
 the same independent graph from transferred bytes. Material-graph is therefore
-fully mapped, and exactly 75 runtime requirements remain unmapped overall.
+fully mapped. Headless material shader emission now returns WGSL, MSL, SPIR-V or
+HLSL artifacts beside a deterministic JSON pass plan. The request carries the
+device feature set and logical resources, while the plan publishes stable
+bindings, generations, subresource access and submission lifetimes without
+device handles. Concurrent calls over different graphs and targets match their
+serial results. Exactly 67 runtime requirements remain unmapped overall.
 The gate is not part of the aggregate `just check` until that count reaches zero;
 its unit tests run in the normal tooling suite throughout the migration.

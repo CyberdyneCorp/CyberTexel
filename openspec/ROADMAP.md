@@ -216,9 +216,12 @@ Registered nodes participate in documents, groups and validation; unknown nodes
 round-trip opaquely and are named as non-emittable. Canonical material libraries
 now save named graphs with stable identities and thumbnail resources, order
 presets independently of insertion and resolve the same graph after transfer.
-All material-graph requirements are now mapped through C. Exactly 75 runtime
-requirements still lack C ABI evidence; those gaps must be implemented before
-task 14.8 can close.
+All material-graph requirements are now mapped through C. Material shader
+emission now crosses the boundary for all four targets with declared feature
+sets, deterministic artifacts, stable bindings and complete logical-resource
+pass plans. Concurrent calls over distinct graphs and targets match their serial
+results. Exactly 67 runtime requirements still lack C ABI evidence; those
+gaps must be implemented before task 14.8 can close.
 
 ## Milestones
 

@@ -928,6 +928,16 @@ and missing identities are named and refused, and insertion order cannot change
 the bytes. This completes C coverage for every material-graph requirement. The
 exact remaining C ABI gap is 75 runtime requirements.
 
+The shader-emission continuation exposes all four targets through one
+registry-aware, caller-owned entry point. It returns text or binary stage
+artifacts plus deterministic JSON pass plans containing stable bindings,
+logical generations, subresource accesses and lifetimes; device features and
+workarounds remain explicit and no device handles cross the boundary. A
+strict-C fixture covers every target, repeat determinism, constant-edit layout
+stability and atomic sizing refusal. A four-thread boundary fixture compares
+distinct graph/target emissions with their serial baselines. The exact remaining
+C ABI gap is 67 runtime requirements.
+
 ## 1. Foundation
 
 - [x] 1.1 CMake project, C++20, warnings as errors, presets for headless, macOS, Linux, Windows, iOS, Android

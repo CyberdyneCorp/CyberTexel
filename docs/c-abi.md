@@ -744,6 +744,32 @@ independent canonical graph document. Consequently the same library bytes on a
 second machine resolve an identity to the same graph without depending on
 insertion order or local paths. Library input is bounded to 256 MiB.
 
+## Shader emission
+
+`ctex_shader_emit_material` compiles a canonical material graph without
+creating or receiving a graphics-device object. Its versioned request declares
+the target language, device binding and texture capabilities, logical input
+resources, output resource generation and extent, sampling policy, and draw
+vertex count. A node registry is optional for built-in-only graphs and required
+when the document contains registered host nodes.
+
+WGSL and HLSL return separate NUL-terminated vertex and fragment sources. MSL
+returns one NUL-terminated module containing both entry points in the vertex
+artifact and reports a zero fragment size. SPIR-V returns separate raw vertex
+and fragment byte modules. The accompanying NUL-terminated JSON pass plan names
+the stable plan identity, logical textures and generations, extents and tile
+shapes, subresource accesses, bindings and entry points, vertex layout, target
+state, draw command, dependencies, and derived submission lifetimes. A second
+JSON array reports capability workarounds such as nearest sampling when float
+linear filtering is unavailable.
+
+All four outputs use one atomic two-call sizing operation. The sizing call
+returns exact artifact and JSON sizes in `ctex_shader_material_info`; a later
+call validates every destination before copying any output. Text sizes include
+their terminating NUL, while SPIR-V sizes are exact binary byte counts.
+Repeated requests are byte-identical, and changing only graph constants changes
+the shader while preserving the pass plan and binding layout.
+
 ## ABI version and compatibility
 
 `ctex_get_abi_version` is safe before any handle exists and returns the major,
@@ -810,6 +836,7 @@ The contract is stated per entry-point family:
 | `ctex_material_graph_workspace_destroy`, `ctex_material_graph_workspace_get_info`, `ctex_material_graph_workspace_add_material`, `ctex_material_graph_workspace_create_group`, `ctex_material_graph_workspace_instantiate_group`, `ctex_material_graph_workspace_update_group_interface`, `ctex_material_graph_workspace_get_graph`, `ctex_material_graph_workspace_add_builtin_node`, `ctex_material_graph_workspace_set_input_value`, `ctex_material_graph_workspace_set_property_value`, `ctex_material_graph_workspace_add_link` | Calls on distinct workspaces are independent. Every operation on one workspace, including reads and destruction, requires external serialization |
 | `ctex_material_graph_node_registry_create` | Process-safe; each successful call creates an independent registry and captures the active allocator |
 | `ctex_material_graph_node_registry_destroy`, `ctex_material_graph_node_registry_get_info`, `ctex_material_graph_node_registry_register`, `ctex_material_graph_add_registered_node`, `ctex_material_graph_workspace_add_registered_node`, `ctex_material_graph_validate_registered`, `ctex_material_graph_node_registry_verify_contract` | Calls on distinct registries are independent. Registration and destruction require exclusive access; read-only operations may run concurrently when no registration is active. A workspace insertion also requires exclusive access to that workspace. Host callbacks obey the concurrency chosen by the caller and their borrowed request/result storage is valid only for the callback |
+| `ctex_shader_emit_material` | Built-in-only calls are stateless and safe to invoke concurrently. Registry-backed calls may run concurrently while that registry is not being registered into or destroyed; callback state must support the caller's chosen concurrency. Graph, request and registry storage is borrowed only for the call, and every output is caller-owned |
 | `ctex_document_create_texture_set`, `ctex_document_create_texture_sets_from_mesh`, `ctex_document_get_texture_set_ids`, `ctex_texture_set_*` | Calls on distinct document handles are safe concurrently; every call on the same document handle must be externally synchronized, including read-only calls. Mesh-derived creation also requires no concurrent use of that mesh handle |
 | `ctex_mesh_create` | Process-safe; each successful call creates independent owned state and captures the active allocator |
 | `ctex_mesh_destroy`, `ctex_mesh_replace`, `ctex_mesh_get_info`, `ctex_mesh_get_uv_set_names` | Calls on distinct mesh handles are safe concurrently; every call on the same mesh handle must be externally synchronized, including read-only calls |
