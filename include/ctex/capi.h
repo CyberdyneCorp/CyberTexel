@@ -129,6 +129,7 @@ typedef struct ctex_paint_preview_session ctex_paint_preview_session;
 
 #define CTEX_MAX_MESH_VERTEX_COUNT ((size_t)100000000)
 #define CTEX_MAX_MESH_TRIANGLE_COUNT ((size_t)100000000)
+#define CTEX_DEFAULT_TILE_SIZE ((uint32_t)64)
 #define CTEX_NO_SURFACE_TRIANGLE UINT32_MAX
 #define CTEX_NO_UV_ISLAND UINT32_MAX
 

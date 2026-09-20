@@ -70,6 +70,41 @@ static int decode_preserves_sixteen_bit_samples(void) {
                   first == 0x1234 && second == 0xabcd);
 }
 
+static int sixteen_bit_png_round_trip_is_lossless(void) {
+    ctex_decoded_image_info info = {.size = CTEX_DECODED_IMAGE_INFO_CURRENT_SIZE};
+    ctex_image_encode_descriptor descriptor = {
+        CTEX_IMAGE_ENCODE_DESCRIPTOR_CURRENT_SIZE,
+        2,
+        1,
+        1,
+        CTEX_SCALAR_REPRESENTATION_UNSIGNED_NORMALIZED,
+        16,
+        0,
+        CTEX_COLOR_SPACE_LINEAR_REC709,
+        CTEX_IMAGE_FILE_FORMAT_PNG,
+        16,
+        0,
+    };
+    uint16_t source[2] = {0};
+    uint16_t decoded[2] = {0};
+    unsigned char encoded[4096];
+    size_t source_size = 0;
+    size_t encoded_size = 0;
+    size_t decoded_size = 0;
+    return expect(ctex_image_decode_memory(gray16_png, sizeof(gray16_png), "height.png",
+                                           CTEX_CHANNEL_SEMANTIC_HEIGHT,
+                                           CTEX_INPUT_COLOR_SPACE_AUTOMATIC, NULL, &info, source,
+                                           sizeof(source), &source_size) == CTEX_RESULT_SUCCESS) &&
+           expect(ctex_image_encode_memory(source, source_size, &descriptor, encoded,
+                                           sizeof(encoded),
+                                           &encoded_size) == CTEX_RESULT_SUCCESS) &&
+           expect(ctex_image_decode_memory(
+                      encoded, encoded_size, "height.png", CTEX_CHANNEL_SEMANTIC_HEIGHT,
+                      CTEX_INPUT_COLOR_SPACE_AUTOMATIC, NULL, &info, decoded, sizeof(decoded),
+                      &decoded_size) == CTEX_RESULT_SUCCESS) &&
+           expect(decoded_size == sizeof(source) && memcmp(decoded, source, sizeof(source)) == 0);
+}
+
 static int decode_honours_color_and_resource_limits(void) {
     ctex_decoded_image_info info = {.size = CTEX_DECODED_IMAGE_INFO_CURRENT_SIZE};
     ctex_image_decode_limits_descriptor limits = {
@@ -304,6 +339,7 @@ static int openexr_round_trip_preserves_hdr_values(void) {
 
 int main(void) {
     return decode_reports_content_and_caller_buffers() && decode_preserves_sixteen_bit_samples() &&
+                   sixteen_bit_png_round_trip_is_lossless() &&
                    decode_honours_color_and_resource_limits() &&
                    decode_refuses_unsupported_and_truncated_content() &&
                    encode_supports_every_output_format() &&

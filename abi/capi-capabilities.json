@@ -41,10 +41,12 @@
     {"name": "host-transport", "kind": "runtime", "requirements": []},
     {"name": "image-io", "kind": "runtime", "requirements": [
       {"requirement": "Format detection is by content", "symbols": ["ctex_image_decode_memory"]},
+      {"requirement": "Colour space on read", "symbols": ["ctex_image_decode_memory"]},
       {"requirement": "High dynamic range", "symbols": ["ctex_image_decode_memory"]},
       {"requirement": "Encoded formats", "symbols": ["ctex_image_encode_memory"]},
       {"requirement": "Decoding from memory", "symbols": ["ctex_image_decode_memory"]},
-      {"requirement": "Every image source is untrusted", "symbols": ["ctex_image_decode_memory"]}
+      {"requirement": "Every image source is untrusted", "symbols": ["ctex_image_decode_memory"]},
+      {"requirement": "Round-trip fidelity", "symbols": ["ctex_image_decode_memory", "ctex_image_encode_memory"]}
     ]},
     {"name": "language-bindings", "kind": "non-runtime", "rationale": "Bindings mirror the C ABI and are checked by their own parity gate.", "evidence": ["just gate-binding-parity"]},
     {"name": "material-graph", "kind": "runtime", "requirements": []},
@@ -97,12 +99,15 @@
       {"requirement": "Symmetry planes", "symbols": ["ctex_stroke_settings_init", "ctex_stroke_resolve"]},
       {"requirement": "Externally resolved stamps", "symbols": ["ctex_paint_evaluate_tile_coverage"]},
       {"requirement": "Stroke presets are versioned", "symbols": ["ctex_stroke_preset_serialize", "ctex_stroke_preset_deserialize"]},
+      {"requirement": "Cancellation leaves no trace", "symbols": ["ctex_paint_preview_session_cancel", "ctex_paint_preview_session_get_pixels", "ctex_paint_preview_session_destroy"]},
       {"requirement": "Continuous and discrete tip modes", "symbols": ["ctex_stroke_settings_init", "ctex_stroke_resolve"]},
       {"requirement": "Input reconstruction limits", "symbols": ["ctex_stroke_resolve"]}
     ]},
     {"name": "texture-document", "kind": "runtime", "requirements": [
       {"requirement": "Document and texture sets", "symbols": ["ctex_document_create", "ctex_document_create_texture_set", "ctex_document_get_texture_set_ids"]},
-      {"requirement": "Channel set", "symbols": ["ctex_texture_set_get_channel_ids", "ctex_texture_set_register_channel", "ctex_texture_set_set_channel_enabled", "ctex_texture_set_get_channel_info", "ctex_texture_set_get_memory_report"]}
+      {"requirement": "Channel set", "symbols": ["ctex_texture_set_get_channel_ids", "ctex_texture_set_register_channel", "ctex_texture_set_set_channel_enabled", "ctex_texture_set_get_channel_info", "ctex_texture_set_get_memory_report"]},
+      {"requirement": "Tiled storage", "symbols": ["ctex_paint_preview_session_write_pixel", "ctex_paint_preview_session_get_changed_tiles"]},
+      {"requirement": "Extensible channel descriptors", "symbols": ["ctex_texture_set_register_channel", "ctex_texture_set_get_channel_info", "ctex_texture_set_set_channel_enabled"]}
     ]},
     {"name": "texture-export", "kind": "runtime", "requirements": []}
   ]

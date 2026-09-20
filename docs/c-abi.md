@@ -266,7 +266,8 @@ misses and invalidations; clearing also resets those counters.
 Paint previews use an opaque `ctex_paint_preview_session` bound to one enabled
 document channel. Pixel writes affect only its copy-on-write image. Metadata,
 row-major authored-format bytes and changed tile coordinates are available
-through caller-owned buffers. Finalization applies seam dilation, commit refuses
+through caller-owned buffers. `CTEX_DEFAULT_TILE_SIZE` declares the 64-texel
+storage tile used to interpret those coordinates. Finalization applies seam dilation, commit refuses
 a stale source revision, and cancellation never publishes pixels. The document
 must outlive the session.
 

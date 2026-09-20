@@ -10,15 +10,16 @@ static int expect(int condition, const char* message) {
     return condition;
 }
 
-static int create_fixture(ctex_document** document, char* texture_set_id, size_t capacity) {
+static int create_fixture(ctex_document** document, char* texture_set_id, size_t capacity,
+                          uint32_t width, uint32_t height) {
     const ctex_texture_set_descriptor descriptor = {
         .size = CTEX_TEXTURE_SET_DESCRIPTOR_CURRENT_SIZE,
         .display_name = "Preview",
         .partition_kind = CTEX_PARTITION_SOURCE_MATERIAL,
         .partition_key = "preview",
         .uv_set = "uv0",
-        .width = 3,
-        .height = 1,
+        .width = width,
+        .height = height,
         .default_bit_depth = 16,
     };
     size_t required_size = 0;
@@ -47,7 +48,7 @@ static int preview_is_isolated_and_commits_exactly(void) {
     size_t changed_count = 0;
     ctex_paint_tile_coordinate changed = {9, 9};
     int passed =
-        expect(create_fixture(&document, texture_set_id, sizeof(texture_set_id)),
+        expect(create_fixture(&document, texture_set_id, sizeof(texture_set_id), 3, 1),
                "preview fixture creation failed") &&
         expect(ctex_paint_preview_session_create(document, texture_set_id, "pbr.height",
                                                  &session) == CTEX_RESULT_SUCCESS,
@@ -102,12 +103,13 @@ static int stale_commit_and_cancel_are_refused(void) {
     ctex_paint_preview_session* first = NULL;
     ctex_paint_preview_session* stale = NULL;
     ctex_paint_preview_session* cancelled = NULL;
+    ctex_paint_preview_session* verification = NULL;
     ctex_paint_preview_info info = {.size = CTEX_PAINT_PREVIEW_INFO_CURRENT_SIZE};
     const uint8_t coverage[3] = {1, 1, 1};
     uint16_t first_value = 100;
     uint16_t stale_value = 200;
     int passed =
-        create_fixture(&document, texture_set_id, sizeof(texture_set_id)) &&
+        create_fixture(&document, texture_set_id, sizeof(texture_set_id), 3, 1) &&
         ctex_paint_preview_session_create(document, texture_set_id, "pbr.height", &first) ==
             CTEX_RESULT_SUCCESS &&
         ctex_paint_preview_session_create(document, texture_set_id, "pbr.height", &stale) ==
@@ -130,10 +132,23 @@ static int stale_commit_and_cancel_are_refused(void) {
         passed =
             ctex_paint_preview_session_create(document, texture_set_id, "pbr.height", &cancelled) ==
                 CTEX_RESULT_SUCCESS &&
+            ctex_paint_preview_session_write_pixel(cancelled, 1, 0, &stale_value,
+                                                   sizeof(stale_value)) == CTEX_RESULT_SUCCESS &&
             ctex_paint_preview_session_cancel(cancelled) == CTEX_RESULT_SUCCESS &&
             ctex_paint_preview_session_write_pixel(
                 cancelled, 0, 0, &first_value, sizeof(first_value)) == CTEX_RESULT_INVALID_ARGUMENT;
     }
+    if (passed) {
+        uint16_t committed[3] = {0};
+        size_t required_size = 0;
+        passed = ctex_paint_preview_session_create(document, texture_set_id, "pbr.height",
+                                                   &verification) == CTEX_RESULT_SUCCESS &&
+                 ctex_paint_preview_session_get_pixels(verification, committed, sizeof(committed),
+                                                       &required_size) == CTEX_RESULT_SUCCESS &&
+                 expect(committed[0] == first_value && committed[1] == 0 && committed[2] == 0,
+                        "cancelled preview changed document pixels");
+    }
+    ctex_paint_preview_session_destroy(verification);
     ctex_paint_preview_session_destroy(cancelled);
     ctex_paint_preview_session_destroy(stale);
     ctex_paint_preview_session_destroy(first);
@@ -141,7 +156,34 @@ static int stale_commit_and_cancel_are_refused(void) {
     return passed;
 }
 
+static int dirty_tiles_are_bounded(void) {
+    ctex_document* document = NULL;
+    char texture_set_id[128] = {0};
+    ctex_paint_preview_session* session = NULL;
+    ctex_paint_preview_info info = {.size = CTEX_PAINT_PREVIEW_INFO_CURRENT_SIZE};
+    ctex_paint_tile_coordinate changed = {0, 0};
+    uint16_t value = 1;
+    size_t changed_count = 0;
+    int passed = create_fixture(&document, texture_set_id, sizeof(texture_set_id), 128, 128) &&
+                 CTEX_DEFAULT_TILE_SIZE == 64 &&
+                 ctex_paint_preview_session_create(document, texture_set_id, "pbr.height",
+                                                   &session) == CTEX_RESULT_SUCCESS &&
+                 ctex_paint_preview_session_write_pixel(session, 70, 70, &value, sizeof(value)) ==
+                     CTEX_RESULT_SUCCESS &&
+                 ctex_paint_preview_session_get_info(session, &info) == CTEX_RESULT_SUCCESS &&
+                 ctex_paint_preview_session_get_changed_tiles(
+                     session, &changed, 1, &changed_count) == CTEX_RESULT_SUCCESS &&
+                 expect(info.changed_tile_count == 1 && changed_count == 1 && changed.x == 1 &&
+                            changed.y == 1,
+                        "one-pixel preview dirtied more than its storage tile");
+    ctex_paint_preview_session_destroy(session);
+    ctex_document_destroy(document);
+    return passed;
+}
+
 int main(void) {
-    return preview_is_isolated_and_commits_exactly() && stale_commit_and_cancel_are_refused() ? 0
-                                                                                              : 1;
+    return preview_is_isolated_and_commits_exactly() && stale_commit_and_cancel_are_refused() &&
+                   dirty_tiles_are_bounded()
+               ? 0
+               : 1;
 }
