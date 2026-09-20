@@ -69,7 +69,9 @@ and Eraser now consume the same canonical deposition through atomic,
 caller-owned multi-channel outputs. Fill now resolves all six scopes from public
 surface-map data, intersects masks and rejection, and shades caller-owned
 channels atomically. Clone now maps aligned and fixed immutable source snapshots,
-publishes resolved sample indices and refuses cross-set operations. Exactly 103
+publishes resolved sample indices and refuses cross-set operations. Blur and
+Smear now filter immutable stroke-start snapshots through explicit surface-aware
+neighborhoods and mappings. Exactly 102
 runtime requirements remain
 unmapped.
 The gate is not part of the aggregate `just check` until that count reaches zero;

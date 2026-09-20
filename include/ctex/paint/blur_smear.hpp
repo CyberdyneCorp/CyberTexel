@@ -46,6 +46,21 @@ struct BlurResult {
     std::vector<std::string> applied_channel_ids;
 };
 
+struct BlurShadeResult {
+    std::uint32_t width{};
+    std::uint32_t height{};
+    ToolParameterReport parameter_report;
+    SamplingFootprint footprint;
+    std::vector<PaintToolChannelRaster> filtered_snapshot;
+    std::vector<PaintToolChannelRaster> channels;
+    std::vector<std::string> applied_channel_ids;
+};
+
+[[nodiscard]] BlurShadeResult shade_blur_channels(
+    std::uint32_t width, std::uint32_t height,
+    std::span<const PaintToolChannelRaster> enabled_layer_stroke_start_snapshot,
+    std::span<const double> deposited_strength, const BlurSettings& settings);
+
 [[nodiscard]] BlurResult apply_blur(
     const ResolvedStroke& stroke, const RejectedCoverageRaster& rejected,
     std::span<const PaintToolChannelRaster> enabled_layer_stroke_start_snapshot,
@@ -79,6 +94,23 @@ struct SmearResult {
     std::vector<PaintToolChannelRaster> channels;
     std::vector<std::string> applied_channel_ids;
 };
+
+struct SmearShadeResult {
+    std::uint32_t width{};
+    std::uint32_t height{};
+    ToolParameterReport parameter_report;
+    SamplingFootprint footprint;
+    double strength{};
+    std::vector<double> effective_strength;
+    std::vector<PaintToolChannelRaster> dragged_snapshot;
+    std::vector<PaintToolChannelRaster> channels;
+    std::vector<std::string> applied_channel_ids;
+};
+
+[[nodiscard]] SmearShadeResult shade_smear_channels(
+    std::uint32_t width, std::uint32_t height,
+    std::span<const PaintToolChannelRaster> enabled_layer_stroke_start_snapshot,
+    std::span<const double> deposited_strength, const SmearSettings& settings);
 
 [[nodiscard]] SmearResult apply_smear(
     const ResolvedStroke& stroke, const RejectedCoverageRaster& rejected,

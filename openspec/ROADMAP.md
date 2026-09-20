@@ -187,8 +187,9 @@ pixel-centred bilinear filters while recording the resolved choice. Brush and
 Eraser are now public through the canonical deposited-stroke pipeline. Fill now
 resolves all six scopes from cached surface-map data and shades every enabled
 channel atomically. Clone now exposes aligned and fixed immutable snapshot
-mapping with explicit cross-set refusal. Exactly 103 runtime requirements still
-lack C ABI evidence;
+mapping with explicit cross-set refusal. Blur and Smear now expose immutable
+stroke-start filtering through explicit surface-aware neighborhoods and mappings.
+Exactly 102 runtime requirements still lack C ABI evidence;
 those gaps must be implemented before task 14.8 can close.
 
 ## Milestones

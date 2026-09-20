@@ -24,6 +24,7 @@
 #include <ctex/io/texture_encode.hpp>
 #include <ctex/io/texture_export.hpp>
 #include <ctex/paint/blending.hpp>
+#include <ctex/paint/blur_smear.hpp>
 #include <ctex/paint/brush.hpp>
 #include <ctex/paint/clone.hpp>
 #include <ctex/paint/coverage.hpp>
@@ -2860,6 +2861,17 @@ ctex::paint::SurfaceFilterOperation capi_surface_filter_operation(std::uint32_t 
     }
 }
 
+ctex::paint::SurfaceAdjacentSample capi_surface_filter_sample(
+    const ctex_paint_surface_filter_sample& sample) {
+    return {
+        .texel_index = sample.texel_index,
+        .tangent_frame = stroke_frame(sample.tangent_frame),
+        .offset_x = sample.offset_x,
+        .offset_y = sample.offset_y,
+        .weight = sample.weight,
+    };
+}
+
 std::vector<ctex::paint::SurfaceAdjacentSample> capi_surface_filter_samples(
     const ctex_paint_surface_filter_descriptor& descriptor) {
     if (descriptor.samples == nullptr && descriptor.sample_count != 0) {
@@ -2873,14 +2885,7 @@ std::vector<ctex::paint::SurfaceAdjacentSample> capi_surface_filter_samples(
     std::vector<ctex::paint::SurfaceAdjacentSample> samples;
     samples.reserve(descriptor.sample_count);
     for (std::size_t index = 0; index < descriptor.sample_count; ++index) {
-        const ctex_paint_surface_filter_sample& sample = descriptor.samples[index];
-        samples.push_back({
-            .texel_index = sample.texel_index,
-            .tangent_frame = stroke_frame(sample.tangent_frame),
-            .offset_x = sample.offset_x,
-            .offset_y = sample.offset_y,
-            .weight = sample.weight,
-        });
+        samples.push_back(capi_surface_filter_sample(descriptor.samples[index]));
     }
     return samples;
 }
@@ -3650,6 +3655,72 @@ void copy_paint_clone_outputs(const ctex_paint_clone_outputs* outputs,
     std::copy(result.source_sample_indices.begin(), result.source_sample_indices.end(),
               outputs->source_sample_indices);
     copy_paint_tool_outputs(result.channels, outputs->channels);
+}
+
+std::vector<ctex::paint::BlurNeighborhood> paint_blur_neighborhoods(
+    const ctex_paint_blur_descriptor& descriptor, std::size_t pixel_count) {
+    require_paint_tool_array(descriptor.neighborhoods, descriptor.neighborhood_count,
+                             "neighborhoods");
+    if (descriptor.neighborhood_count != pixel_count) {
+        throw std::invalid_argument("paint blur neighborhood count does not match its dimensions");
+    }
+    std::size_t total_samples = 0;
+    std::vector<ctex::paint::BlurNeighborhood> result;
+    result.reserve(pixel_count);
+    for (std::size_t index = 0; index < pixel_count; ++index) {
+        const ctex_paint_blur_neighborhood_descriptor& source = descriptor.neighborhoods[index];
+        validate_structure_size(source.size, CTEX_PAINT_BLUR_NEIGHBORHOOD_DESCRIPTOR_V1_SIZE,
+                                CTEX_PAINT_BLUR_NEIGHBORHOOD_DESCRIPTOR_CURRENT_SIZE,
+                                "neighborhood.size");
+        require_paint_tool_array(source.horizontal_samples, source.horizontal_sample_count,
+                                 "neighborhood.horizontal_samples");
+        require_paint_tool_array(source.vertical_samples, source.vertical_sample_count,
+                                 "neighborhood.vertical_samples");
+        if (source.horizontal_sample_count > CTEX_MAX_PAINT_TILE_TEXEL_COUNT - total_samples ||
+            source.vertical_sample_count >
+                CTEX_MAX_PAINT_TILE_TEXEL_COUNT - total_samples - source.horizontal_sample_count) {
+            throw_boundary(CTEX_RESULT_OVER_BUDGET, CTEX_DIAGNOSTIC_PAINT_LIMIT_EXCEEDED,
+                           "blur neighborhood sample count exceeds the paint tile limit");
+        }
+        total_samples += source.horizontal_sample_count + source.vertical_sample_count;
+        ctex::paint::BlurNeighborhood converted{
+            .output_frame = stroke_frame(source.output_frame),
+            .horizontal_samples = {},
+            .vertical_samples = {},
+        };
+        converted.horizontal_samples.reserve(source.horizontal_sample_count);
+        converted.vertical_samples.reserve(source.vertical_sample_count);
+        for (std::size_t sample = 0; sample < source.horizontal_sample_count; ++sample) {
+            converted.horizontal_samples.push_back(
+                capi_surface_filter_sample(source.horizontal_samples[sample]));
+        }
+        for (std::size_t sample = 0; sample < source.vertical_sample_count; ++sample) {
+            converted.vertical_samples.push_back(
+                capi_surface_filter_sample(source.vertical_samples[sample]));
+        }
+        result.push_back(std::move(converted));
+    }
+    return result;
+}
+
+std::vector<ctex::paint::SmearMapping> paint_smear_mappings(
+    const ctex_paint_smear_descriptor& descriptor, std::size_t pixel_count) {
+    require_paint_tool_array(descriptor.mappings, descriptor.mapping_count, "mappings");
+    if (descriptor.mapping_count != pixel_count) {
+        throw std::invalid_argument("paint smear mapping count does not match its dimensions");
+    }
+    std::vector<ctex::paint::SmearMapping> result;
+    result.reserve(pixel_count);
+    for (std::size_t index = 0; index < pixel_count; ++index) {
+        const ctex_paint_smear_mapping_descriptor& source = descriptor.mappings[index];
+        validate_structure_size(source.size, CTEX_PAINT_SMEAR_MAPPING_DESCRIPTOR_V1_SIZE,
+                                CTEX_PAINT_SMEAR_MAPPING_DESCRIPTOR_CURRENT_SIZE, "mapping.size");
+        result.push_back({
+            .output_frame = stroke_frame(source.output_frame),
+            .upstream_sample = capi_surface_filter_sample(source.upstream_sample),
+        });
+    }
+    return result;
 }
 
 void validate_paint_tool_outputs(const ctex_paint_tool_channel_output* outputs,
@@ -8135,6 +8206,132 @@ extern "C" ctex_result ctex_paint_apply_clone(const ctex_paint_clone_descriptor*
             };
             validate_paint_clone_outputs(outputs, result, pixel_count);
             copy_paint_clone_outputs(outputs, result);
+        } catch (const std::invalid_argument& error) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_INVALID_PAINT_TOOL,
+                           error.what());
+        }
+    });
+}
+
+extern "C" ctex_result ctex_paint_apply_blur(const ctex_paint_blur_descriptor* descriptor,
+                                             ctex_paint_blur_info* out_info,
+                                             const ctex_paint_tool_channel_output* output_channels,
+                                             std::size_t output_channel_count) {
+    return call_boundary("ctex_paint_apply_blur", [&] {
+        if (descriptor == nullptr || out_info == nullptr) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                           descriptor == nullptr ? "descriptor=null" : "out_info=null");
+        }
+        validate_structure_size(descriptor->size, CTEX_PAINT_BLUR_DESCRIPTOR_V1_SIZE,
+                                CTEX_PAINT_BLUR_DESCRIPTOR_CURRENT_SIZE, "descriptor.size");
+        validate_structure_size(out_info->size, CTEX_PAINT_BLUR_INFO_V1_SIZE,
+                                CTEX_PAINT_BLUR_INFO_CURRENT_SIZE, "out_info.size");
+        const std::size_t pixel_count = bounded_paint_pixel_count(
+            descriptor->width, descriptor->height, CTEX_DIAGNOSTIC_INVALID_PAINT_TOOL);
+        try {
+            const auto snapshot =
+                paint_tool_channels(descriptor->stroke_start_snapshot, descriptor->channel_count,
+                                    pixel_count, "stroke_start_snapshot");
+            const auto strength = paint_tool_strength(descriptor->deposition,
+                                                      descriptor->deposition_count, pixel_count);
+            const auto neighborhoods = paint_blur_neighborhoods(*descriptor, pixel_count);
+            if (descriptor->blend_mode == nullptr) {
+                throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                               "blend_mode=null");
+            }
+            const ctex::paint::BlurSettings settings{
+                .radius = descriptor->radius,
+                .deposition_mode = ctex::paint::DepositionMode::non_building,
+                .blend_mode = descriptor->blend_mode,
+                .masks = {},
+                .neighborhoods = neighborhoods,
+            };
+            const ctex::paint::BlurShadeResult result = ctex::paint::shade_blur_channels(
+                descriptor->width, descriptor->height, snapshot, strength, settings);
+            const auto clamp =
+                result.parameter_report.clamp_for(ctex::paint::blur_radius_parameter.name);
+            *out_info = {
+                .size = CTEX_PAINT_BLUR_INFO_CURRENT_SIZE,
+                .resolved_radius = result.footprint.radius_x,
+                .radius_clamped = clamp.has_value() ? 1U : 0U,
+                .applied_channel_count = result.channels.size(),
+                .required_pixels_per_channel = pixel_count,
+            };
+            validate_paint_tool_outputs(output_channels, output_channel_count,
+                                        result.channels.size(), pixel_count);
+            copy_paint_tool_outputs(result.channels, output_channels);
+        } catch (const std::invalid_argument& error) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_INVALID_PAINT_TOOL,
+                           error.what());
+        }
+    });
+}
+
+extern "C" ctex_result ctex_paint_apply_smear(const ctex_paint_smear_descriptor* descriptor,
+                                              ctex_paint_smear_info* out_info,
+                                              const ctex_paint_tool_channel_output* output_channels,
+                                              std::size_t output_channel_count) {
+    return call_boundary("ctex_paint_apply_smear", [&] {
+        if (descriptor == nullptr || out_info == nullptr) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                           descriptor == nullptr ? "descriptor=null" : "out_info=null");
+        }
+        validate_structure_size(descriptor->size, CTEX_PAINT_SMEAR_DESCRIPTOR_V1_SIZE,
+                                CTEX_PAINT_SMEAR_DESCRIPTOR_CURRENT_SIZE, "descriptor.size");
+        validate_structure_size(out_info->size, CTEX_PAINT_SMEAR_INFO_V1_SIZE,
+                                CTEX_PAINT_SMEAR_INFO_CURRENT_SIZE, "out_info.size");
+        const std::size_t pixel_count = bounded_paint_pixel_count(
+            descriptor->width, descriptor->height, CTEX_DIAGNOSTIC_INVALID_PAINT_TOOL);
+        try {
+            const auto snapshot =
+                paint_tool_channels(descriptor->stroke_start_snapshot, descriptor->channel_count,
+                                    pixel_count, "stroke_start_snapshot");
+            const auto strength = paint_tool_strength(descriptor->deposition,
+                                                      descriptor->deposition_count, pixel_count);
+            const auto mappings = paint_smear_mappings(*descriptor, pixel_count);
+            if (descriptor->blend_mode == nullptr) {
+                throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                               "blend_mode=null");
+            }
+            const ctex::paint::SmearSettings settings{
+                .strength = descriptor->strength,
+                .footprint = {.radius_x = descriptor->footprint_radius_x,
+                              .radius_y = descriptor->footprint_radius_y},
+                .deposition_mode = ctex::paint::DepositionMode::non_building,
+                .blend_mode = descriptor->blend_mode,
+                .masks = {},
+                .mappings = mappings,
+            };
+            const ctex::paint::SmearShadeResult result = ctex::paint::shade_smear_channels(
+                descriptor->width, descriptor->height, snapshot, strength, settings);
+            *out_info = {
+                .size = CTEX_PAINT_SMEAR_INFO_CURRENT_SIZE,
+                .resolved_strength = result.strength,
+                .strength_clamped =
+                    result.parameter_report.clamp_for(ctex::paint::smear_strength_parameter.name)
+                            .has_value()
+                        ? 1U
+                        : 0U,
+                .resolved_footprint_radius_x = result.footprint.radius_x,
+                .resolved_footprint_radius_y = result.footprint.radius_y,
+                .footprint_radius_x_clamped =
+                    result.parameter_report
+                            .clamp_for(ctex::paint::smear_footprint_radius_x_parameter.name)
+                            .has_value()
+                        ? 1U
+                        : 0U,
+                .footprint_radius_y_clamped =
+                    result.parameter_report
+                            .clamp_for(ctex::paint::smear_footprint_radius_y_parameter.name)
+                            .has_value()
+                        ? 1U
+                        : 0U,
+                .applied_channel_count = result.channels.size(),
+                .required_pixels_per_channel = pixel_count,
+            };
+            validate_paint_tool_outputs(output_channels, output_channel_count,
+                                        result.channels.size(), pixel_count);
+            copy_paint_tool_outputs(result.channels, output_channels);
         } catch (const std::invalid_argument& error) {
             throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_INVALID_PAINT_TOOL,
                            error.what());

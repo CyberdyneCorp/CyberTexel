@@ -26,3 +26,10 @@ defaults to 0.5 and is clamped to `[0, 1]`; each footprint radius defaults to 1
 and is clamped to `[0, 4096]`, while an all-zero footprint is refused. The
 resolved values drive filtering and are returned with any clamps in the tool
 result's `parameter_report`. Non-finite strength is refused.
+
+The public C boundary exposes these paths as `ctex_paint_apply_blur` and
+`ctex_paint_apply_smear`. Both consume canonical deposited strength and
+caller-owned immutable stroke-start channels. Blur receives one horizontal and
+vertical surface-aware neighborhood per texel; Smear receives one upstream
+mapping per texel. Query calls report resolved/clamped parameters and output
+shape before atomic caller-owned publication.

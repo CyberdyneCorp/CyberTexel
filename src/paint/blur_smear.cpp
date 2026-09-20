@@ -13,14 +13,21 @@ namespace {
 constexpr std::string_view normal_channel_id = "pbr.normal";
 constexpr double normal_epsilon = 1.0e-12;
 
-std::size_t checked_texel_count(const RejectedCoverageRaster& rejected) {
-    const std::uint32_t width = rejected.coverage.width;
-    const std::uint32_t height = rejected.coverage.height;
+std::size_t checked_dimensions(std::uint32_t width, std::uint32_t height) {
     if (width == 0 || height == 0 ||
         static_cast<std::size_t>(width) > std::numeric_limits<std::size_t>::max() / height) {
         throw std::invalid_argument("blur/smear dimensions are invalid");
     }
     return static_cast<std::size_t>(width) * height;
+}
+
+void validate_strength(std::span<const double> strength, std::size_t texel_count) {
+    if (strength.size() != texel_count ||
+        !std::all_of(strength.begin(), strength.end(), [](double value) {
+            return std::isfinite(value) && value >= 0.0 && value <= 1.0;
+        })) {
+        throw std::invalid_argument("blur/smear deposited strength is invalid");
+    }
 }
 
 bool finite(graph::ColourValue value) {
@@ -258,10 +265,11 @@ void normalize_output_normals(std::span<PaintToolChannelRaster> channels,
 
 }  // namespace
 
-BlurResult apply_blur(const ResolvedStroke& stroke, const RejectedCoverageRaster& rejected,
-                      std::span<const PaintToolChannelRaster> enabled_layer_stroke_start_snapshot,
-                      const BlurSettings& settings) {
-    const std::size_t texel_count = checked_texel_count(rejected);
+BlurShadeResult shade_blur_channels(
+    std::uint32_t width, std::uint32_t height,
+    std::span<const PaintToolChannelRaster> enabled_layer_stroke_start_snapshot,
+    std::span<const double> deposited_strength, const BlurSettings& settings) {
+    const std::size_t texel_count = checked_dimensions(width, height);
     ToolParameterReport parameter_report;
     const auto radius = static_cast<std::uint32_t>(
         validate_tool_parameter(blur_radius_parameter, settings.radius, parameter_report));
@@ -269,28 +277,27 @@ BlurResult apply_blur(const ResolvedStroke& stroke, const RejectedCoverageRaster
         throw std::invalid_argument("blur neighborhood count is invalid");
     }
     validate_snapshot(enabled_layer_stroke_start_snapshot, texel_count);
-    DepositionRaster deposition =
-        tool_deposition(stroke, rejected, settings.masks, settings.deposition_mode);
+    validate_strength(deposited_strength, texel_count);
     std::vector<PaintToolChannelRaster> filtered =
         blur_snapshot(enabled_layer_stroke_start_snapshot, settings.neighborhoods, radius);
-    PaintToolShadeResult shaded = shade_paint_tool_channels(
-        rejected.coverage.width, rejected.coverage.height, enabled_layer_stroke_start_snapshot,
-        filtered, deposition.strength, settings.blend_mode);
-    normalize_output_normals(shaded.channels, deposition.strength);
-    return {.width = rejected.coverage.width,
-            .height = rejected.coverage.height,
+    PaintToolShadeResult shaded =
+        shade_paint_tool_channels(width, height, enabled_layer_stroke_start_snapshot, filtered,
+                                  deposited_strength, settings.blend_mode);
+    normalize_output_normals(shaded.channels, deposited_strength);
+    return {.width = width,
+            .height = height,
             .parameter_report = std::move(parameter_report),
             .footprint = {.radius_x = radius, .radius_y = radius},
-            .deposition = std::move(deposition),
             .filtered_snapshot = std::move(filtered),
             .channels = std::move(shaded.channels),
             .applied_channel_ids = std::move(shaded.applied_channel_ids)};
 }
 
-SmearResult apply_smear(const ResolvedStroke& stroke, const RejectedCoverageRaster& rejected,
-                        std::span<const PaintToolChannelRaster> enabled_layer_stroke_start_snapshot,
-                        const SmearSettings& settings) {
-    const std::size_t texel_count = checked_texel_count(rejected);
+SmearShadeResult shade_smear_channels(
+    std::uint32_t width, std::uint32_t height,
+    std::span<const PaintToolChannelRaster> enabled_layer_stroke_start_snapshot,
+    std::span<const double> deposited_strength, const SmearSettings& settings) {
+    const std::size_t texel_count = checked_dimensions(width, height);
     ToolParameterReport parameter_report;
     const double strength =
         validate_tool_parameter(smear_strength_parameter, settings.strength, parameter_report);
@@ -304,26 +311,62 @@ SmearResult apply_smear(const ResolvedStroke& stroke, const RejectedCoverageRast
         throw std::invalid_argument("smear footprint or mapping count is invalid");
     }
     validate_snapshot(enabled_layer_stroke_start_snapshot, texel_count);
-    DepositionRaster deposition =
-        tool_deposition(stroke, rejected, settings.masks, settings.deposition_mode);
-    std::vector<double> effective_strength = deposition.strength;
+    validate_strength(deposited_strength, texel_count);
+    std::vector<double> effective_strength(deposited_strength.begin(), deposited_strength.end());
     for (double& value : effective_strength) {
         value *= strength;
     }
     std::vector<PaintToolChannelRaster> dragged =
         smear_snapshot(enabled_layer_stroke_start_snapshot, settings.mappings, footprint);
-    PaintToolShadeResult shaded = shade_paint_tool_channels(
-        rejected.coverage.width, rejected.coverage.height, enabled_layer_stroke_start_snapshot,
-        dragged, effective_strength, settings.blend_mode);
+    PaintToolShadeResult shaded =
+        shade_paint_tool_channels(width, height, enabled_layer_stroke_start_snapshot, dragged,
+                                  effective_strength, settings.blend_mode);
     normalize_output_normals(shaded.channels, effective_strength);
-    return {.width = rejected.coverage.width,
-            .height = rejected.coverage.height,
+    return {.width = width,
+            .height = height,
             .parameter_report = std::move(parameter_report),
             .footprint = footprint,
             .strength = strength,
-            .deposition = std::move(deposition),
             .effective_strength = std::move(effective_strength),
             .dragged_snapshot = std::move(dragged),
+            .channels = std::move(shaded.channels),
+            .applied_channel_ids = std::move(shaded.applied_channel_ids)};
+}
+
+BlurResult apply_blur(const ResolvedStroke& stroke, const RejectedCoverageRaster& rejected,
+                      std::span<const PaintToolChannelRaster> enabled_layer_stroke_start_snapshot,
+                      const BlurSettings& settings) {
+    DepositionRaster deposition =
+        tool_deposition(stroke, rejected, settings.masks, settings.deposition_mode);
+    BlurShadeResult shaded =
+        shade_blur_channels(rejected.coverage.width, rejected.coverage.height,
+                            enabled_layer_stroke_start_snapshot, deposition.strength, settings);
+    return {.width = rejected.coverage.width,
+            .height = rejected.coverage.height,
+            .parameter_report = std::move(shaded.parameter_report),
+            .footprint = shaded.footprint,
+            .deposition = std::move(deposition),
+            .filtered_snapshot = std::move(shaded.filtered_snapshot),
+            .channels = std::move(shaded.channels),
+            .applied_channel_ids = std::move(shaded.applied_channel_ids)};
+}
+
+SmearResult apply_smear(const ResolvedStroke& stroke, const RejectedCoverageRaster& rejected,
+                        std::span<const PaintToolChannelRaster> enabled_layer_stroke_start_snapshot,
+                        const SmearSettings& settings) {
+    DepositionRaster deposition =
+        tool_deposition(stroke, rejected, settings.masks, settings.deposition_mode);
+    SmearShadeResult shaded =
+        shade_smear_channels(rejected.coverage.width, rejected.coverage.height,
+                             enabled_layer_stroke_start_snapshot, deposition.strength, settings);
+    return {.width = rejected.coverage.width,
+            .height = rejected.coverage.height,
+            .parameter_report = std::move(shaded.parameter_report),
+            .footprint = shaded.footprint,
+            .strength = shaded.strength,
+            .deposition = std::move(deposition),
+            .effective_strength = std::move(shaded.effective_strength),
+            .dragged_snapshot = std::move(shaded.dragged_snapshot),
             .channels = std::move(shaded.channels),
             .applied_channel_ids = std::move(shaded.applied_channel_ids)};
 }

@@ -112,7 +112,8 @@
       {"requirement": "Brush", "symbols": ["ctex_paint_apply_brush"]},
       {"requirement": "Eraser", "symbols": ["ctex_paint_apply_eraser"]},
       {"requirement": "Fill modes", "symbols": ["ctex_paint_apply_fill"]},
-      {"requirement": "Clone", "symbols": ["ctex_paint_apply_clone"]}
+      {"requirement": "Clone", "symbols": ["ctex_paint_apply_clone"]},
+      {"requirement": "Blur and Smear", "symbols": ["ctex_paint_apply_blur", "ctex_paint_apply_smear"]}
     ]},
     {"name": "picking", "kind": "runtime", "requirements": [
       {"requirement": "Ray construction", "symbols": ["ctex_pick_ray_from_screen"]},

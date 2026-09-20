@@ -937,6 +937,95 @@ static int clone_maps_aligned_and_fixed_sources_and_refuses_cross_set(void) {
     return passed;
 }
 
+static int blur_and_smear_filter_the_immutable_snapshot(void) {
+    const ctex_stroke_frame frame = {
+        {1, 0, 0},
+        {0, 1, 0},
+        {0, 0, 1},
+    };
+    const ctex_paint_surface_filter_sample horizontal0[2] = {{0, frame, 0, 0, 1},
+                                                             {1, frame, 1, 0, 1}};
+    const ctex_paint_surface_filter_sample horizontal1[3] = {
+        {0, frame, -1, 0, 1}, {1, frame, 0, 0, 1}, {2, frame, 1, 0, 1}};
+    const ctex_paint_surface_filter_sample horizontal2[2] = {{1, frame, -1, 0, 1},
+                                                             {2, frame, 0, 0, 1}};
+    const ctex_paint_surface_filter_sample vertical0 = {0, frame, 0, 0, 1};
+    const ctex_paint_surface_filter_sample vertical1 = {1, frame, 0, 0, 1};
+    const ctex_paint_surface_filter_sample vertical2 = {2, frame, 0, 0, 1};
+    const ctex_paint_blur_neighborhood_descriptor neighborhoods[3] = {
+        {CTEX_PAINT_BLUR_NEIGHBORHOOD_DESCRIPTOR_CURRENT_SIZE, frame, horizontal0, 2, &vertical0,
+         1},
+        {CTEX_PAINT_BLUR_NEIGHBORHOOD_DESCRIPTOR_CURRENT_SIZE, frame, horizontal1, 3, &vertical1,
+         1},
+        {CTEX_PAINT_BLUR_NEIGHBORHOOD_DESCRIPTOR_CURRENT_SIZE, frame, horizontal2, 2, &vertical2,
+         1}};
+    const ctex_vec4f snapshot_pixels[3] = {{0, 0, 0, 1}, {1, 1, 1, 1}, {0, 0, 0, 1}};
+    const ctex_paint_tool_channel_descriptor snapshot = {
+        CTEX_PAINT_TOOL_CHANNEL_DESCRIPTOR_CURRENT_SIZE, "pbr.roughness", 1, snapshot_pixels, 3};
+    const ctex_paint_deposition_sample deposition[3] = {
+        {.strength = 1, .write = 1}, {.strength = 1, .write = 1}, {.strength = 1, .write = 1}};
+    ctex_paint_blur_descriptor blur = {CTEX_PAINT_BLUR_DESCRIPTOR_CURRENT_SIZE,
+                                       3,
+                                       1,
+                                       1,
+                                       &snapshot,
+                                       1,
+                                       deposition,
+                                       3,
+                                       "normal",
+                                       neighborhoods,
+                                       3};
+    ctex_paint_blur_info blur_info = {.size = CTEX_PAINT_BLUR_INFO_CURRENT_SIZE};
+    ctex_vec4f output_pixels[3] = {{-1, -1, -1, -1}, {-1, -1, -1, -1}, {-1, -1, -1, -1}};
+    const ctex_paint_tool_channel_output output = {CTEX_PAINT_TOOL_CHANNEL_OUTPUT_CURRENT_SIZE,
+                                                   output_pixels, 3};
+    int passed =
+        expect(ctex_paint_apply_blur(&blur, &blur_info, &output, 1) == CTEX_RESULT_SUCCESS) &&
+        expect(near_float(output_pixels[0].x, 0.5f) &&
+               near_float(output_pixels[1].x, 1.0f / 3.0f) && near_float(output_pixels[2].x, 0.5f));
+    if (passed) {
+        blur.radius = 0;
+        passed = expect(ctex_paint_apply_blur(&blur, &blur_info, NULL, 0) == CTEX_RESULT_SUCCESS) &&
+                 expect(blur_info.resolved_radius == 1 && blur_info.radius_clamped == 1);
+    }
+
+    const ctex_vec4f smear_pixels[3] = {{0, 0, 0, 1}, {0.4f, 0.4f, 0.4f, 1}, {0.8f, 0.8f, 0.8f, 1}};
+    const ctex_paint_tool_channel_descriptor smear_snapshot = {
+        CTEX_PAINT_TOOL_CHANNEL_DESCRIPTOR_CURRENT_SIZE, "pbr.base_color", 3, smear_pixels, 3};
+    const ctex_paint_smear_mapping_descriptor mappings[3] = {
+        {CTEX_PAINT_SMEAR_MAPPING_DESCRIPTOR_CURRENT_SIZE, frame, {0, frame, 0, 0, 1}},
+        {CTEX_PAINT_SMEAR_MAPPING_DESCRIPTOR_CURRENT_SIZE, frame, {0, frame, -1, 0, 1}},
+        {CTEX_PAINT_SMEAR_MAPPING_DESCRIPTOR_CURRENT_SIZE, frame, {1, frame, -1, 0, 1}}};
+    ctex_paint_smear_descriptor smear = {CTEX_PAINT_SMEAR_DESCRIPTOR_CURRENT_SIZE,
+                                         3,
+                                         1,
+                                         0.5,
+                                         1,
+                                         0,
+                                         &smear_snapshot,
+                                         1,
+                                         deposition,
+                                         3,
+                                         "normal",
+                                         mappings,
+                                         3};
+    ctex_paint_smear_info smear_info = {.size = CTEX_PAINT_SMEAR_INFO_CURRENT_SIZE};
+    if (passed) {
+        passed =
+            expect(ctex_paint_apply_smear(&smear, &smear_info, &output, 1) ==
+                   CTEX_RESULT_SUCCESS) &&
+            expect(near_float(output_pixels[0].x, 0.0f) && near_float(output_pixels[1].x, 0.2f) &&
+                   near_float(output_pixels[2].x, 0.6f));
+    }
+    if (passed) {
+        smear.strength = 2;
+        passed =
+            expect(ctex_paint_apply_smear(&smear, &smear_info, NULL, 0) == CTEX_RESULT_SUCCESS) &&
+            expect(near(smear_info.resolved_strength, 1) && smear_info.strength_clamped == 1);
+    }
+    return passed;
+}
+
 static int invalid_inputs_are_stable_diagnostics(void) {
     ctex_mesh* mesh = coverage_mesh();
     ctex_paint_tile_coverage_descriptor tile = {
@@ -992,6 +1081,7 @@ int main(void) {
                    eraser_reduces_the_selected_target_atomically() &&
                    fill_exposes_all_scopes_and_shades_atomically() &&
                    clone_maps_aligned_and_fixed_sources_and_refuses_cross_set() &&
+                   blur_and_smear_filter_the_immutable_snapshot() &&
                    invalid_inputs_are_stable_diagnostics()
                ? 0
                : 1;

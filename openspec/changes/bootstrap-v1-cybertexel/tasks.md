@@ -829,6 +829,12 @@ resolved sample index beside atomic channel output, honours canonical deposited
 strength, and refuses cross-texture-set requests with both identities in the
 diagnostic. The exact remaining C ABI gap is 103 runtime requirements.
 
+The Blur-and-Smear continuation exposes separable surface-aware neighborhoods
+and one upstream mapping per texel through deposited-strength entry points. Both
+operate only on immutable stroke-start channel snapshots, preserve tangent-frame
+filtering, report resolved parameter clamps and publish channels atomically. The
+exact remaining C ABI gap is 102 runtime requirements.
+
 ## 1. Foundation
 
 - [x] 1.1 CMake project, C++20, warnings as errors, presets for headless, macOS, Linux, Windows, iOS, Android

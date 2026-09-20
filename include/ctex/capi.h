@@ -1091,6 +1091,93 @@ typedef struct ctex_paint_clone_outputs {
 #define CTEX_PAINT_CLONE_OUTPUTS_CURRENT_SIZE ((uint32_t)sizeof(ctex_paint_clone_outputs))
 #define CTEX_PAINT_NO_CLONE_SAMPLE ((size_t)-1)
 
+typedef struct ctex_paint_blur_neighborhood_descriptor {
+    uint32_t size;
+    ctex_stroke_frame output_frame;
+    const ctex_paint_surface_filter_sample* horizontal_samples;
+    size_t horizontal_sample_count;
+    const ctex_paint_surface_filter_sample* vertical_samples;
+    size_t vertical_sample_count;
+} ctex_paint_blur_neighborhood_descriptor;
+
+#define CTEX_PAINT_BLUR_NEIGHBORHOOD_DESCRIPTOR_V1_SIZE \
+    ((uint32_t)sizeof(ctex_paint_blur_neighborhood_descriptor))
+#define CTEX_PAINT_BLUR_NEIGHBORHOOD_DESCRIPTOR_CURRENT_SIZE \
+    ((uint32_t)sizeof(ctex_paint_blur_neighborhood_descriptor))
+
+typedef struct ctex_paint_blur_descriptor {
+    uint32_t size;
+    uint32_t width;
+    uint32_t height;
+    uint32_t radius;
+    const ctex_paint_tool_channel_descriptor* stroke_start_snapshot;
+    size_t channel_count;
+    const ctex_paint_deposition_sample* deposition;
+    size_t deposition_count;
+    const char* blend_mode;
+    const ctex_paint_blur_neighborhood_descriptor* neighborhoods;
+    size_t neighborhood_count;
+} ctex_paint_blur_descriptor;
+
+#define CTEX_PAINT_BLUR_DESCRIPTOR_V1_SIZE ((uint32_t)sizeof(ctex_paint_blur_descriptor))
+#define CTEX_PAINT_BLUR_DESCRIPTOR_CURRENT_SIZE ((uint32_t)sizeof(ctex_paint_blur_descriptor))
+
+typedef struct ctex_paint_blur_info {
+    uint32_t size;
+    uint32_t resolved_radius;
+    uint32_t radius_clamped;
+    size_t applied_channel_count;
+    size_t required_pixels_per_channel;
+} ctex_paint_blur_info;
+
+#define CTEX_PAINT_BLUR_INFO_V1_SIZE ((uint32_t)sizeof(ctex_paint_blur_info))
+#define CTEX_PAINT_BLUR_INFO_CURRENT_SIZE ((uint32_t)sizeof(ctex_paint_blur_info))
+
+typedef struct ctex_paint_smear_mapping_descriptor {
+    uint32_t size;
+    ctex_stroke_frame output_frame;
+    ctex_paint_surface_filter_sample upstream_sample;
+} ctex_paint_smear_mapping_descriptor;
+
+#define CTEX_PAINT_SMEAR_MAPPING_DESCRIPTOR_V1_SIZE \
+    ((uint32_t)sizeof(ctex_paint_smear_mapping_descriptor))
+#define CTEX_PAINT_SMEAR_MAPPING_DESCRIPTOR_CURRENT_SIZE \
+    ((uint32_t)sizeof(ctex_paint_smear_mapping_descriptor))
+
+typedef struct ctex_paint_smear_descriptor {
+    uint32_t size;
+    uint32_t width;
+    uint32_t height;
+    double strength;
+    uint32_t footprint_radius_x;
+    uint32_t footprint_radius_y;
+    const ctex_paint_tool_channel_descriptor* stroke_start_snapshot;
+    size_t channel_count;
+    const ctex_paint_deposition_sample* deposition;
+    size_t deposition_count;
+    const char* blend_mode;
+    const ctex_paint_smear_mapping_descriptor* mappings;
+    size_t mapping_count;
+} ctex_paint_smear_descriptor;
+
+#define CTEX_PAINT_SMEAR_DESCRIPTOR_V1_SIZE ((uint32_t)sizeof(ctex_paint_smear_descriptor))
+#define CTEX_PAINT_SMEAR_DESCRIPTOR_CURRENT_SIZE ((uint32_t)sizeof(ctex_paint_smear_descriptor))
+
+typedef struct ctex_paint_smear_info {
+    uint32_t size;
+    double resolved_strength;
+    uint32_t strength_clamped;
+    uint32_t resolved_footprint_radius_x;
+    uint32_t resolved_footprint_radius_y;
+    uint32_t footprint_radius_x_clamped;
+    uint32_t footprint_radius_y_clamped;
+    size_t applied_channel_count;
+    size_t required_pixels_per_channel;
+} ctex_paint_smear_info;
+
+#define CTEX_PAINT_SMEAR_INFO_V1_SIZE ((uint32_t)sizeof(ctex_paint_smear_info))
+#define CTEX_PAINT_SMEAR_INFO_CURRENT_SIZE ((uint32_t)sizeof(ctex_paint_smear_info))
+
 typedef struct ctex_stroke_preset_info {
     uint32_t size;
     uint32_t schema_version;
@@ -3091,6 +3178,18 @@ CTEX_API ctex_result ctex_paint_apply_fill(const ctex_paint_fill_descriptor* des
 CTEX_API ctex_result ctex_paint_apply_clone(const ctex_paint_clone_descriptor* descriptor,
                                             ctex_paint_clone_info* out_info,
                                             const ctex_paint_clone_outputs* outputs);
+
+/* Filters immutable stroke-start channels with explicit surface-aware neighborhoods. */
+CTEX_API ctex_result ctex_paint_apply_blur(const ctex_paint_blur_descriptor* descriptor,
+                                           ctex_paint_blur_info* out_info,
+                                           const ctex_paint_tool_channel_output* output_channels,
+                                           size_t output_channel_count);
+
+/* Drags immutable stroke-start channels through one upstream mapping per texel. */
+CTEX_API ctex_result ctex_paint_apply_smear(const ctex_paint_smear_descriptor* descriptor,
+                                            ctex_paint_smear_info* out_info,
+                                            const ctex_paint_tool_channel_output* output_channels,
+                                            size_t output_channel_count);
 
 /*
  * Installs one process-wide sink. Pass NULL to uninstall it. The callback can
