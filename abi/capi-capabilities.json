@@ -108,7 +108,10 @@
       {"requirement": "Blending against a stroke-start snapshot", "symbols": ["ctex_paint_blend_snapshot"]},
       {"requirement": "Masking inputs", "symbols": ["ctex_paint_combine_masks", "ctex_paint_evaluate_tile_deposition"]}
     ]},
-    {"name": "paint-tools", "kind": "runtime", "requirements": []},
+    {"name": "paint-tools", "kind": "runtime", "requirements": [
+      {"requirement": "Brush", "symbols": ["ctex_paint_apply_brush"]},
+      {"requirement": "Eraser", "symbols": ["ctex_paint_apply_eraser"]}
+    ]},
     {"name": "picking", "kind": "runtime", "requirements": [
       {"requirement": "Ray construction", "symbols": ["ctex_pick_ray_from_screen"]},
       {"requirement": "Hit record", "symbols": ["ctex_pick_ray_query", "ctex_pick_uv_query", "ctex_pick_snap_to_surface"]},

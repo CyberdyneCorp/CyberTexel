@@ -183,8 +183,9 @@ available routes to the CPU reference and report per-case drift or unavailable
 devices through immutable caller-readable results. Image decoding and explicit
 destination-channel expansion now preserve component precision across the C
 boundary. Bounded image resampling now exposes selectable nearest and default
-pixel-centred bilinear filters while recording the resolved choice. Exactly 107
-runtime requirements still lack C ABI evidence;
+pixel-centred bilinear filters while recording the resolved choice. Brush and
+Eraser are now public through the canonical deposited-stroke pipeline. Exactly
+105 runtime requirements still lack C ABI evidence;
 those gaps must be implemented before task 14.8 can close.
 
 ## Milestones

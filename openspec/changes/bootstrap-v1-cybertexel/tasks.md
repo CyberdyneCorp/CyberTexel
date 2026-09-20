@@ -811,6 +811,12 @@ preserve unclamped float values, supply row-strided input and bound tightly
 packed output before allocation. The exact remaining C ABI gap is 107 runtime
 requirements.
 
+The paint-tool boundary continuation exposes Brush and Eraser without
+duplicating stroke semantics. Both consume the canonical deposited tile after
+coverage, rejection, masking and alpha discard; Brush writes every enabled
+channel atomically in layer order and Eraser explicitly targets layer opacity
+or a mask. The exact remaining C ABI gap is 105 runtime requirements.
+
 ## 1. Foundation
 
 - [x] 1.1 CMake project, C++20, warnings as errors, presets for headless, macOS, Linux, Windows, iOS, Android

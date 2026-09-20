@@ -24,6 +24,7 @@
 #include <ctex/io/texture_encode.hpp>
 #include <ctex/io/texture_export.hpp>
 #include <ctex/paint/blending.hpp>
+#include <ctex/paint/brush.hpp>
 #include <ctex/paint/coverage.hpp>
 #include <ctex/paint/deposition.hpp>
 #include <ctex/paint/masking.hpp>
@@ -3344,6 +3345,117 @@ PaintBlendInputs paint_blend_inputs(const ctex_paint_blend_descriptor& descripto
             descriptor.deposition[index].write != 0 ? descriptor.deposition[index].strength : 0.0);
     }
     return result;
+}
+
+ctex::paint::PaintToolChannelRaster paint_tool_channel(
+    const ctex_paint_tool_channel_descriptor& descriptor, std::size_t expected_pixels,
+    std::string_view role) {
+    validate_structure_size(descriptor.size, CTEX_PAINT_TOOL_CHANNEL_DESCRIPTOR_V1_SIZE,
+                            CTEX_PAINT_TOOL_CHANNEL_DESCRIPTOR_CURRENT_SIZE,
+                            std::string(role) + ".size");
+    if (descriptor.semantic_id == nullptr || descriptor.pixels == nullptr) {
+        throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                       std::string(role) + " semantic_id and pixels are required");
+    }
+    if (descriptor.pixel_count != expected_pixels || descriptor.component_count < 1 ||
+        descriptor.component_count > 4) {
+        throw std::invalid_argument(std::string(role) + " shape is invalid");
+    }
+    ctex::paint::PaintToolChannelRaster result{
+        .semantic_id = descriptor.semantic_id,
+        .component_count = static_cast<std::uint8_t>(descriptor.component_count),
+        .pixels = {}};
+    result.pixels.reserve(expected_pixels);
+    for (std::size_t pixel = 0; pixel < expected_pixels; ++pixel) {
+        result.pixels.push_back(paint_colour(descriptor.pixels[pixel]));
+    }
+    return result;
+}
+
+std::vector<ctex::paint::PaintToolChannelRaster> paint_tool_channels(
+    const ctex_paint_tool_channel_descriptor* descriptors, std::size_t count,
+    std::size_t expected_pixels, std::string_view role) {
+    if (descriptors == nullptr && count != 0) {
+        throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                       std::string(role) + "=null with nonzero count");
+    }
+    std::vector<ctex::paint::PaintToolChannelRaster> result;
+    result.reserve(count);
+    for (std::size_t index = 0; index < count; ++index) {
+        result.push_back(paint_tool_channel(descriptors[index], expected_pixels,
+                                            std::string(role) + "[" + std::to_string(index) + "]"));
+    }
+    return result;
+}
+
+std::vector<double> paint_tool_strength(const ctex_paint_deposition_sample* deposition,
+                                        std::size_t count, std::size_t expected_pixels) {
+    if (deposition == nullptr) {
+        throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                       "deposition=null");
+    }
+    if (count != expected_pixels) {
+        throw std::invalid_argument("paint tool deposition count does not match its dimensions");
+    }
+    std::vector<double> result;
+    result.reserve(count);
+    for (std::size_t pixel = 0; pixel < count; ++pixel) {
+        if (deposition[pixel].write > 1 || !std::isfinite(deposition[pixel].strength) ||
+            deposition[pixel].strength < 0.0 || deposition[pixel].strength > 1.0) {
+            throw std::invalid_argument("paint tool deposition sample is invalid");
+        }
+        result.push_back(deposition[pixel].write != 0 ? deposition[pixel].strength : 0.0);
+    }
+    return result;
+}
+
+ctex::paint::EraserTarget paint_eraser_target(std::uint32_t value) {
+    switch (value) {
+        case CTEX_PAINT_ERASER_TARGET_LAYER_OPACITY:
+            return ctex::paint::EraserTarget::layer_opacity;
+        case CTEX_PAINT_ERASER_TARGET_MASK:
+            return ctex::paint::EraserTarget::mask;
+        default:
+            throw std::invalid_argument("paint eraser target is invalid");
+    }
+}
+
+void validate_paint_tool_outputs(const ctex_paint_tool_channel_output* outputs,
+                                 std::size_t output_count, std::size_t required_channels,
+                                 std::size_t required_pixels) {
+    if (outputs == nullptr) {
+        if (output_count != 0) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                           "output_channels=null with nonzero count");
+        }
+        return;
+    }
+    if (output_count < required_channels) {
+        throw_boundary(CTEX_RESULT_BUFFER_TOO_SMALL, CTEX_DIAGNOSTIC_BUFFER_TOO_SMALL,
+                       "output channel count is smaller than required");
+    }
+    for (std::size_t channel = 0; channel < required_channels; ++channel) {
+        validate_structure_size(outputs[channel].size, CTEX_PAINT_TOOL_CHANNEL_OUTPUT_V1_SIZE,
+                                CTEX_PAINT_TOOL_CHANNEL_OUTPUT_CURRENT_SIZE,
+                                "output_channels.size");
+        if (outputs[channel].pixels == nullptr) {
+            throw_boundary(CTEX_RESULT_BUFFER_TOO_SMALL, CTEX_DIAGNOSTIC_BUFFER_TOO_SMALL,
+                           "output channel pixels are required for a filling call");
+        }
+        validate_output_array(outputs[channel].pixels, outputs[channel].pixel_capacity,
+                              required_pixels, "output_channels.pixels");
+    }
+}
+
+void copy_paint_tool_outputs(std::span<const ctex::paint::PaintToolChannelRaster> channels,
+                             const ctex_paint_tool_channel_output* outputs) {
+    if (outputs == nullptr) {
+        return;
+    }
+    for (std::size_t channel = 0; channel < channels.size(); ++channel) {
+        std::transform(channels[channel].pixels.begin(), channels[channel].pixels.end(),
+                       outputs[channel].pixels, capi_colour);
+    }
 }
 
 const char* require_export_text(const char* value, std::string_view field) {
@@ -7575,6 +7687,95 @@ extern "C" ctex_result ctex_paint_blend_snapshot(const ctex_paint_blend_descript
             }
         } catch (const std::invalid_argument& error) {
             throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_INVALID_PAINT_BLEND,
+                           error.what());
+        }
+    });
+}
+
+extern "C" ctex_result ctex_paint_apply_brush(const ctex_paint_brush_descriptor* descriptor,
+                                              ctex_paint_brush_info* out_info,
+                                              const ctex_paint_tool_channel_output* output_channels,
+                                              std::size_t output_channel_count) {
+    return call_boundary("ctex_paint_apply_brush", [&] {
+        if (descriptor == nullptr || out_info == nullptr) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                           descriptor == nullptr ? "descriptor=null" : "out_info=null");
+        }
+        validate_structure_size(descriptor->size, CTEX_PAINT_BRUSH_DESCRIPTOR_V1_SIZE,
+                                CTEX_PAINT_BRUSH_DESCRIPTOR_CURRENT_SIZE, "descriptor.size");
+        validate_structure_size(out_info->size, CTEX_PAINT_BRUSH_INFO_V1_SIZE,
+                                CTEX_PAINT_BRUSH_INFO_CURRENT_SIZE, "out_info.size");
+        const std::size_t pixel_count = bounded_paint_pixel_count(
+            descriptor->width, descriptor->height, CTEX_DIAGNOSTIC_INVALID_PAINT_TOOL);
+        try {
+            const auto layer = paint_tool_channels(descriptor->enabled_layer_snapshot,
+                                                   descriptor->enabled_layer_channel_count,
+                                                   pixel_count, "enabled_layer_snapshot");
+            const auto material = paint_tool_channels(
+                descriptor->material, descriptor->material_channel_count, pixel_count, "material");
+            const auto strength = paint_tool_strength(descriptor->deposition,
+                                                      descriptor->deposition_count, pixel_count);
+            if (descriptor->blend_mode == nullptr) {
+                throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                               "blend_mode=null");
+            }
+            const ctex::paint::PaintToolShadeResult result =
+                ctex::paint::shade_paint_tool_channels(descriptor->width, descriptor->height, layer,
+                                                       material, strength, descriptor->blend_mode);
+            *out_info = {
+                .size = CTEX_PAINT_BRUSH_INFO_CURRENT_SIZE,
+                .applied_channel_count = result.channels.size(),
+                .required_pixels_per_channel = pixel_count,
+            };
+            validate_paint_tool_outputs(output_channels, output_channel_count,
+                                        result.channels.size(), pixel_count);
+            copy_paint_tool_outputs(result.channels, output_channels);
+        } catch (const std::invalid_argument& error) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_INVALID_PAINT_TOOL,
+                           error.what());
+        }
+    });
+}
+
+extern "C" ctex_result ctex_paint_apply_eraser(const ctex_paint_eraser_descriptor* descriptor,
+                                               ctex_paint_eraser_info* out_info, double* values,
+                                               std::size_t value_capacity) {
+    return call_boundary("ctex_paint_apply_eraser", [&] {
+        if (descriptor == nullptr || out_info == nullptr) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                           descriptor == nullptr ? "descriptor=null" : "out_info=null");
+        }
+        validate_structure_size(descriptor->size, CTEX_PAINT_ERASER_DESCRIPTOR_V1_SIZE,
+                                CTEX_PAINT_ERASER_DESCRIPTOR_CURRENT_SIZE, "descriptor.size");
+        validate_structure_size(out_info->size, CTEX_PAINT_ERASER_INFO_V1_SIZE,
+                                CTEX_PAINT_ERASER_INFO_CURRENT_SIZE, "out_info.size");
+        const std::size_t value_count = bounded_paint_pixel_count(
+            descriptor->width, descriptor->height, CTEX_DIAGNOSTIC_INVALID_PAINT_TOOL);
+        if (descriptor->stroke_start_values == nullptr) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                           "stroke_start_values=null");
+        }
+        if (descriptor->value_count != value_count) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_INVALID_PAINT_TOOL,
+                           "eraser value count does not match its dimensions");
+        }
+        try {
+            const auto strength = paint_tool_strength(descriptor->deposition,
+                                                      descriptor->deposition_count, value_count);
+            const ctex::paint::EraserTarget target = paint_eraser_target(descriptor->target);
+            const std::vector<double> result = ctex::paint::erase_paint_tool_values(
+                std::span(descriptor->stroke_start_values, value_count), strength, target);
+            *out_info = {
+                .size = CTEX_PAINT_ERASER_INFO_CURRENT_SIZE,
+                .target = descriptor->target,
+                .required_value_count = value_count,
+            };
+            validate_output_array(values, value_capacity, value_count, "values");
+            if (values != nullptr) {
+                std::copy(result.begin(), result.end(), values);
+            }
+        } catch (const std::invalid_argument& error) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_INVALID_PAINT_TOOL,
                            error.what());
         }
     });

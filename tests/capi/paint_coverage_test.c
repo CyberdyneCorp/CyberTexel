@@ -644,6 +644,96 @@ static int snapshot_blending_uses_deposition_write_mask(void) {
     return passed;
 }
 
+static int brush_applies_every_enabled_channel_atomically(void) {
+    const ctex_vec4f layer_base[2] = {{0.0f, 0.0f, 0.0f, 1.0f}, {0.1f, 0.2f, 0.3f, 1.0f}};
+    const ctex_vec4f layer_roughness[2] = {{0.2f, 0.2f, 0.2f, 1.0f}, {0.4f, 0.4f, 0.4f, 1.0f}};
+    const ctex_vec4f material_base[2] = {{1.0f, 0.0f, 0.0f, 1.0f}, {1.0f, 0.0f, 0.0f, 1.0f}};
+    const ctex_vec4f material_roughness[2] = {{0.8f, 0.8f, 0.8f, 1.0f}, {0.8f, 0.8f, 0.8f, 1.0f}};
+    const ctex_vec4f material_metallic[2] = {{1.0f, 1.0f, 1.0f, 1.0f}, {1.0f, 1.0f, 1.0f, 1.0f}};
+    const ctex_paint_tool_channel_descriptor layer[2] = {
+        {CTEX_PAINT_TOOL_CHANNEL_DESCRIPTOR_CURRENT_SIZE, "pbr.base_color", 3, layer_base, 2},
+        {CTEX_PAINT_TOOL_CHANNEL_DESCRIPTOR_CURRENT_SIZE, "pbr.roughness", 1, layer_roughness, 2}};
+    const ctex_paint_tool_channel_descriptor material[3] = {
+        {CTEX_PAINT_TOOL_CHANNEL_DESCRIPTOR_CURRENT_SIZE, "pbr.base_color", 3, material_base, 2},
+        {CTEX_PAINT_TOOL_CHANNEL_DESCRIPTOR_CURRENT_SIZE, "pbr.roughness", 1, material_roughness,
+         2},
+        {CTEX_PAINT_TOOL_CHANNEL_DESCRIPTOR_CURRENT_SIZE, "pbr.metallic", 1, material_metallic, 2}};
+    const ctex_paint_deposition_sample deposition[2] = {
+        {.strength = 0.5, .retained_strength = 0.5, .write = 1},
+        {.strength = 1.0, .retained_strength = 1.0, .write = 0}};
+    const ctex_paint_brush_descriptor descriptor = {CTEX_PAINT_BRUSH_DESCRIPTOR_CURRENT_SIZE,
+                                                    2,
+                                                    1,
+                                                    layer,
+                                                    2,
+                                                    material,
+                                                    3,
+                                                    deposition,
+                                                    2,
+                                                    "normal"};
+    ctex_paint_brush_info info = {.size = CTEX_PAINT_BRUSH_INFO_CURRENT_SIZE};
+    ctex_vec4f base_output[2] = {{-1.0f, -1.0f, -1.0f, -1.0f}, {-1.0f, -1.0f, -1.0f, -1.0f}};
+    ctex_vec4f roughness_output[2] = {{-1.0f, -1.0f, -1.0f, -1.0f}, {-1.0f, -1.0f, -1.0f, -1.0f}};
+    const ctex_paint_tool_channel_output outputs[2] = {
+        {CTEX_PAINT_TOOL_CHANNEL_OUTPUT_CURRENT_SIZE, base_output, 2},
+        {CTEX_PAINT_TOOL_CHANNEL_OUTPUT_CURRENT_SIZE, roughness_output, 2}};
+    int passed =
+        expect(ctex_paint_apply_brush(&descriptor, &info, NULL, 0) == CTEX_RESULT_SUCCESS) &&
+        expect(info.applied_channel_count == 2 && info.required_pixels_per_channel == 2);
+    if (passed) {
+        passed = expect(ctex_paint_apply_brush(&descriptor, &info, outputs, 1) ==
+                        CTEX_RESULT_BUFFER_TOO_SMALL) &&
+                 expect(base_output[0].x == -1.0f && roughness_output[0].x == -1.0f);
+    }
+    if (passed) {
+        passed =
+            expect(ctex_paint_apply_brush(&descriptor, &info, outputs, 2) == CTEX_RESULT_SUCCESS) &&
+            expect(near_float(base_output[0].x, 0.5f) && near_float(roughness_output[0].x, 0.5f) &&
+                   near_float(base_output[1].x, layer_base[1].x) &&
+                   near_float(roughness_output[1].x, layer_roughness[1].x));
+    }
+    return passed;
+}
+
+static int eraser_reduces_the_selected_target_atomically(void) {
+    const double snapshot[2] = {0.8, 0.4};
+    const ctex_paint_deposition_sample deposition[2] = {
+        {.strength = 0.5, .retained_strength = 0.5, .write = 1},
+        {.strength = 0.25, .retained_strength = 0.25, .write = 1}};
+    ctex_paint_eraser_descriptor descriptor = {CTEX_PAINT_ERASER_DESCRIPTOR_CURRENT_SIZE,
+                                               2,
+                                               1,
+                                               CTEX_PAINT_ERASER_TARGET_MASK,
+                                               snapshot,
+                                               2,
+                                               deposition,
+                                               2};
+    ctex_paint_eraser_info info = {.size = CTEX_PAINT_ERASER_INFO_CURRENT_SIZE};
+    double values[2] = {-1.0, -1.0};
+    int passed =
+        expect(ctex_paint_apply_eraser(&descriptor, &info, NULL, 0) == CTEX_RESULT_SUCCESS) &&
+        expect(info.target == CTEX_PAINT_ERASER_TARGET_MASK && info.required_value_count == 2);
+    if (passed) {
+        passed = expect(ctex_paint_apply_eraser(&descriptor, &info, values, 1) ==
+                        CTEX_RESULT_BUFFER_TOO_SMALL) &&
+                 expect(values[0] == -1.0 && values[1] == -1.0);
+    }
+    if (passed) {
+        passed =
+            expect(ctex_paint_apply_eraser(&descriptor, &info, values, 2) == CTEX_RESULT_SUCCESS) &&
+            expect(near(values[0], 0.4) && near(values[1], 0.3));
+    }
+    descriptor.target = 99;
+    values[0] = -2.0;
+    if (passed) {
+        passed = expect(ctex_paint_apply_eraser(&descriptor, &info, values, 2) ==
+                        CTEX_RESULT_INVALID_ARGUMENT) &&
+                 expect(ctex_get_last_diagnostic_code() == CTEX_DIAGNOSTIC_INVALID_PAINT_TOOL) &&
+                 expect(values[0] == -2.0);
+    }
+    return passed;
+}
+
 static int invalid_inputs_are_stable_diagnostics(void) {
     ctex_mesh* mesh = coverage_mesh();
     ctex_paint_tile_coverage_descriptor tile = {
@@ -695,6 +785,8 @@ int main(void) {
                    deposition_accumulates_and_discards_canonical_stamps() &&
                    paint_mask_classes_intersect_before_deposition() &&
                    snapshot_blending_uses_deposition_write_mask() &&
+                   brush_applies_every_enabled_channel_atomically() &&
+                   eraser_reduces_the_selected_target_atomically() &&
                    invalid_inputs_are_stable_diagnostics()
                ? 0
                : 1;

@@ -29,3 +29,17 @@ The target is explicit: `layer_opacity` reduces the active layer's opacity,
 while `mask` reduces mask values. Both operations are pure result builders;
 invalid inputs are rejected before caller-owned layer or mask storage can be
 changed.
+
+## C boundary
+
+`ctex_paint_apply_brush` consumes caller-owned deposition from the canonical
+coverage, rejection and masking pipeline. It applies the active material to
+every enabled layer channel in layer order, ignores material-only channels, and
+writes one caller-owned output raster per enabled channel. A count-only call
+reports the exact channel and pixel counts. Every output buffer is validated
+before any is written.
+
+`ctex_paint_apply_eraser` consumes the same deposition samples and explicitly
+targets either layer opacity or a mask. Alpha-discarded samples preserve their
+stroke-start value. Its count-only and short-buffer behavior follows the same
+atomic caller-buffer contract.

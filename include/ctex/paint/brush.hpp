@@ -63,6 +63,10 @@ struct EraserResult {
     std::vector<double> values;
 };
 
+[[nodiscard]] std::vector<double> erase_paint_tool_values(
+    std::span<const double> stroke_start_values, std::span<const double> strength,
+    EraserTarget target);
+
 [[nodiscard]] EraserResult apply_eraser(const ResolvedStroke& stroke,
                                         const RejectedCoverageRaster& rejected,
                                         std::span<const double> stroke_start_values,

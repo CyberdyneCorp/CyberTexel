@@ -61,6 +61,15 @@ void validate_eraser_target(EraserTarget target) {
     }
 }
 
+void validate_eraser_strength(std::span<const double> strength, std::size_t expected) {
+    if (strength.size() != expected ||
+        !std::all_of(strength.begin(), strength.end(), [](double value) {
+            return std::isfinite(value) && value >= 0.0 && value <= 1.0;
+        })) {
+        throw std::invalid_argument("eraser stroke strength is invalid");
+    }
+}
+
 }  // namespace
 
 PaintToolShadeResult shade_paint_tool_channels(
@@ -125,21 +134,30 @@ BrushResult apply_brush(const ResolvedStroke& stroke, const RejectedCoverageRast
     return result;
 }
 
+std::vector<double> erase_paint_tool_values(std::span<const double> stroke_start_values,
+                                            std::span<const double> strength, EraserTarget target) {
+    validate_eraser_target(target);
+    validate_eraser_values(stroke_start_values, strength.size());
+    validate_eraser_strength(strength, stroke_start_values.size());
+    std::vector<double> result(stroke_start_values.begin(), stroke_start_values.end());
+    for (std::size_t texel = 0; texel < result.size(); ++texel) {
+        result[texel] *= 1.0 - strength[texel];
+    }
+    return result;
+}
+
 EraserResult apply_eraser(const ResolvedStroke& stroke, const RejectedCoverageRaster& rejected,
                           std::span<const double> stroke_start_values, EraserTarget target,
                           const EraserSettings& settings) {
-    const std::size_t texel_count = checked_texel_count(rejected);
-    validate_eraser_target(target);
-    validate_eraser_values(stroke_start_values, texel_count);
+    static_cast<void>(checked_texel_count(rejected));
     EraserResult result{
         .width = rejected.coverage.width,
         .height = rejected.coverage.height,
         .target = target,
         .deposition = tool_deposition(stroke, rejected, settings.masks, settings.deposition_mode),
-        .values = {stroke_start_values.begin(), stroke_start_values.end()}};
-    for (std::size_t texel = 0; texel < texel_count; ++texel) {
-        result.values[texel] *= 1.0 - result.deposition.strength[texel];
-    }
+        .values = {}};
+    result.values =
+        erase_paint_tool_values(stroke_start_values, result.deposition.strength, target);
     return result;
 }
 

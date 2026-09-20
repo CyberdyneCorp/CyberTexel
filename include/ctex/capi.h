@@ -88,7 +88,8 @@ typedef enum ctex_diagnostic_code {
     CTEX_DIAGNOSTIC_INVALID_SMART_MATERIAL = 52,
     CTEX_DIAGNOSTIC_INVALID_PRESET_LIBRARY = 53,
     CTEX_DIAGNOSTIC_INVALID_HOST_TRANSPORT = 54,
-    CTEX_DIAGNOSTIC_INVALID_EXECUTOR = 55
+    CTEX_DIAGNOSTIC_INVALID_EXECUTOR = 55,
+    CTEX_DIAGNOSTIC_INVALID_PAINT_TOOL = 56
 } ctex_diagnostic_code;
 
 typedef enum ctex_log_severity {
@@ -871,6 +872,82 @@ typedef struct ctex_paint_blend_descriptor {
 
 #define CTEX_PAINT_BLEND_DESCRIPTOR_V1_SIZE ((uint32_t)sizeof(ctex_paint_blend_descriptor))
 #define CTEX_PAINT_BLEND_DESCRIPTOR_CURRENT_SIZE ((uint32_t)sizeof(ctex_paint_blend_descriptor))
+
+typedef struct ctex_paint_tool_channel_descriptor {
+    uint32_t size;
+    const char* semantic_id;
+    uint32_t component_count;
+    const ctex_vec4f* pixels;
+    size_t pixel_count;
+} ctex_paint_tool_channel_descriptor;
+
+#define CTEX_PAINT_TOOL_CHANNEL_DESCRIPTOR_V1_SIZE \
+    ((uint32_t)sizeof(ctex_paint_tool_channel_descriptor))
+#define CTEX_PAINT_TOOL_CHANNEL_DESCRIPTOR_CURRENT_SIZE \
+    ((uint32_t)sizeof(ctex_paint_tool_channel_descriptor))
+
+typedef struct ctex_paint_tool_channel_output {
+    uint32_t size;
+    ctex_vec4f* pixels;
+    size_t pixel_capacity;
+} ctex_paint_tool_channel_output;
+
+#define CTEX_PAINT_TOOL_CHANNEL_OUTPUT_V1_SIZE ((uint32_t)sizeof(ctex_paint_tool_channel_output))
+#define CTEX_PAINT_TOOL_CHANNEL_OUTPUT_CURRENT_SIZE \
+    ((uint32_t)sizeof(ctex_paint_tool_channel_output))
+
+typedef struct ctex_paint_brush_descriptor {
+    uint32_t size;
+    uint32_t width;
+    uint32_t height;
+    const ctex_paint_tool_channel_descriptor* enabled_layer_snapshot;
+    size_t enabled_layer_channel_count;
+    const ctex_paint_tool_channel_descriptor* material;
+    size_t material_channel_count;
+    const ctex_paint_deposition_sample* deposition;
+    size_t deposition_count;
+    const char* blend_mode;
+} ctex_paint_brush_descriptor;
+
+#define CTEX_PAINT_BRUSH_DESCRIPTOR_V1_SIZE ((uint32_t)sizeof(ctex_paint_brush_descriptor))
+#define CTEX_PAINT_BRUSH_DESCRIPTOR_CURRENT_SIZE ((uint32_t)sizeof(ctex_paint_brush_descriptor))
+
+typedef struct ctex_paint_brush_info {
+    uint32_t size;
+    size_t applied_channel_count;
+    size_t required_pixels_per_channel;
+} ctex_paint_brush_info;
+
+#define CTEX_PAINT_BRUSH_INFO_V1_SIZE ((uint32_t)sizeof(ctex_paint_brush_info))
+#define CTEX_PAINT_BRUSH_INFO_CURRENT_SIZE ((uint32_t)sizeof(ctex_paint_brush_info))
+
+typedef enum ctex_paint_eraser_target {
+    CTEX_PAINT_ERASER_TARGET_LAYER_OPACITY = 0,
+    CTEX_PAINT_ERASER_TARGET_MASK = 1
+} ctex_paint_eraser_target;
+
+typedef struct ctex_paint_eraser_descriptor {
+    uint32_t size;
+    uint32_t width;
+    uint32_t height;
+    uint32_t target;
+    const double* stroke_start_values;
+    size_t value_count;
+    const ctex_paint_deposition_sample* deposition;
+    size_t deposition_count;
+} ctex_paint_eraser_descriptor;
+
+#define CTEX_PAINT_ERASER_DESCRIPTOR_V1_SIZE ((uint32_t)sizeof(ctex_paint_eraser_descriptor))
+#define CTEX_PAINT_ERASER_DESCRIPTOR_CURRENT_SIZE ((uint32_t)sizeof(ctex_paint_eraser_descriptor))
+
+typedef struct ctex_paint_eraser_info {
+    uint32_t size;
+    uint32_t target;
+    size_t required_value_count;
+} ctex_paint_eraser_info;
+
+#define CTEX_PAINT_ERASER_INFO_V1_SIZE ((uint32_t)sizeof(ctex_paint_eraser_info))
+#define CTEX_PAINT_ERASER_INFO_CURRENT_SIZE ((uint32_t)sizeof(ctex_paint_eraser_info))
 
 typedef struct ctex_stroke_preset_info {
     uint32_t size;
@@ -2848,6 +2925,20 @@ CTEX_API ctex_result ctex_paint_evaluate_tile_deposition(
 CTEX_API ctex_result ctex_paint_blend_snapshot(const ctex_paint_blend_descriptor* descriptor,
                                                ctex_vec4f* pixels, size_t pixel_capacity,
                                                size_t* out_pixel_count);
+
+/*
+ * Applies one deposited stroke to every enabled layer channel in layer order.
+ * A null output array with count zero queries the exact output shape in info.
+ */
+CTEX_API ctex_result ctex_paint_apply_brush(const ctex_paint_brush_descriptor* descriptor,
+                                            ctex_paint_brush_info* out_info,
+                                            const ctex_paint_tool_channel_output* output_channels,
+                                            size_t output_channel_count);
+
+/* Reduces layer opacity or mask values through the same deposited stroke. */
+CTEX_API ctex_result ctex_paint_apply_eraser(const ctex_paint_eraser_descriptor* descriptor,
+                                             ctex_paint_eraser_info* out_info, double* values,
+                                             size_t value_capacity);
 
 /*
  * Installs one process-wide sink. Pass NULL to uninstall it. The callback can

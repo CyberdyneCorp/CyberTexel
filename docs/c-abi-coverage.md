@@ -64,7 +64,9 @@ and exposes immutable JSON reports with per-case drift and explicit unmeasured
 devices. Image channel expansion now preserves 8-bit, 16-bit and floating-point
 components while applying the documented grayscale/RGB/alpha mappings. Import
 resampling now exposes selectable nearest and default pixel-centred bilinear
-filters with bounded caller-owned output and recorded filter metadata. Exactly
-107 runtime requirements remain unmapped.
+filters with bounded caller-owned output and recorded filter metadata. Brush
+and Eraser now consume the same canonical deposition through atomic,
+caller-owned multi-channel outputs. Exactly 105 runtime requirements remain
+unmapped.
 The gate is not part of the aggregate `just check` until that count reaches zero;
 its unit tests run in the normal tooling suite throughout the migration.

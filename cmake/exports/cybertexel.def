@@ -106,6 +106,8 @@ EXPORTS
     ctex_smart_material_set_anchor
     ctex_smart_material_set_parameter
     ctex_paint_blend_snapshot
+    ctex_paint_apply_brush
+    ctex_paint_apply_eraser
     ctex_paint_combine_masks
     ctex_paint_dilate_uv_seams
     ctex_paint_apply_island_padding
