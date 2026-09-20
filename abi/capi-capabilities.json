@@ -76,7 +76,12 @@
       {"requirement": "Round-trip fidelity", "symbols": ["ctex_image_decode_memory", "ctex_image_encode_memory"]}
     ]},
     {"name": "language-bindings", "kind": "non-runtime", "rationale": "Bindings mirror the C ABI and are checked by their own parity gate.", "evidence": ["just gate-binding-parity"]},
-    {"name": "material-graph", "kind": "runtime", "requirements": []},
+    {"name": "material-graph", "kind": "runtime", "requirements": [
+      {"requirement": "Node catalogue — input", "symbols": ["ctex_material_graph_get_builtin_catalogue"]},
+      {"requirement": "Node catalogue — texture", "symbols": ["ctex_material_graph_get_builtin_catalogue"]},
+      {"requirement": "Node catalogue — colour and filter", "symbols": ["ctex_material_graph_get_builtin_catalogue"]},
+      {"requirement": "Node catalogue — vector and math", "symbols": ["ctex_material_graph_get_builtin_catalogue"]}
+    ]},
     {"name": "mesh-and-texture-sets", "kind": "runtime", "requirements": [
       {"requirement": "Mesh ingest is read-only", "symbols": ["ctex_mesh_create", "ctex_mesh_destroy"]},
       {"requirement": "Mesh is supplied, not loaded", "symbols": ["ctex_mesh_create"]},
@@ -166,7 +171,8 @@
       {"requirement": "Smart masks", "symbols": ["ctex_texture_set_apply_smart_mask", "ctex_texture_set_get_preset_applications"]},
       {"requirement": "Applying is one undo step", "symbols": ["ctex_texture_set_apply_smart_material", "ctex_texture_set_apply_smart_mask", "ctex_texture_set_undo_last_preset_application"]},
       {"requirement": "Instantiation is inspectable", "symbols": ["ctex_texture_set_get_preset_applications", "ctex_texture_set_set_applied_entry_state"]},
-      {"requirement": "Shelf and library", "symbols": ["ctex_preset_library_enumerate", "ctex_preset_library_resolve"]}
+      {"requirement": "Shelf and library", "symbols": ["ctex_preset_library_enumerate", "ctex_preset_library_resolve"]},
+      {"requirement": "Versioned presets", "symbols": ["ctex_smart_material_inspect", "ctex_preset_library_enumerate", "ctex_preset_library_resolve"]}
     ]},
     {"name": "stroke-model", "kind": "runtime", "requirements": [
       {"requirement": "A stroke resolves to ordered stamps", "symbols": ["ctex_stroke_settings_init", "ctex_stroke_resolve"]},

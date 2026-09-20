@@ -201,9 +201,11 @@ Colour-ID selection now exposes explicit tolerance, clamp and matched-or-empty
 reporting beside its reusable selection mask. Selection now exposes clipped
 screen regions and all polygon expansion modes as caller-owned masks. The full
 tool inventory and all 69 audited numeric controls now expose discoverable
-contextual defaults, bounds and shared clamp results. Exactly 91 runtime
-requirements still lack C ABI evidence; those gaps must be implemented before
-task 14.8 can close.
+contextual defaults, bounds and shared clamp results. The complete built-in
+material-node catalogue now exposes all 52 schemas, property choices and
+documented math formulas, while preset inspection exposes schema migration and
+forward-version refusal. Exactly 86 runtime requirements still lack C ABI
+evidence; those gaps must be implemented before task 14.8 can close.
 
 ## Milestones
 

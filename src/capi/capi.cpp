@@ -13,6 +13,7 @@
 #include <ctex/exec/parity.hpp>
 #include <ctex/exec/parity_gate.hpp>
 #include <ctex/exec/vulkan_executor.hpp>
+#include <ctex/graph/catalogue.hpp>
 #include <ctex/image/channel_expansion.hpp>
 #include <ctex/image/color_policy.hpp>
 #include <ctex/image/resampling.hpp>
@@ -6323,6 +6324,152 @@ std::string preset_library_json(const ctex::io::PresetLibrary& library) {
     return output;
 }
 
+std::string_view graph_node_category_name(ctex::graph::NodeCategory category) noexcept {
+    switch (category) {
+        case ctex::graph::NodeCategory::input:
+            return "input";
+        case ctex::graph::NodeCategory::texture:
+            return "texture";
+        case ctex::graph::NodeCategory::colour_filter:
+            return "colour_filter";
+        case ctex::graph::NodeCategory::vector_math:
+            return "vector_math";
+        case ctex::graph::NodeCategory::host:
+            return "host";
+    }
+    return "unknown";
+}
+
+void append_graph_value_json(std::string& output, const ctex::graph::SocketValue& value) {
+    if (std::holds_alternative<std::monostate>(value)) {
+        output += "null";
+    } else if (const bool* scalar = std::get_if<bool>(&value)) {
+        output += *scalar ? "true" : "false";
+    } else if (const double* scalar = std::get_if<double>(&value)) {
+        output += std::to_string(*scalar);
+    } else if (const auto* vector = std::get_if<ctex::graph::VectorValue>(&value)) {
+        output += "[" + std::to_string(vector->x) + "," + std::to_string(vector->y) + "," +
+                  std::to_string(vector->z) + "]";
+    } else if (const auto* colour = std::get_if<ctex::graph::ColourValue>(&value)) {
+        output += "[" + std::to_string(colour->r) + "," + std::to_string(colour->g) + "," +
+                  std::to_string(colour->b) + "," + std::to_string(colour->a) + "]";
+    } else if (const auto* text = std::get_if<std::string>(&value)) {
+        append_json_text(output, *text);
+    } else {
+        append_json_text(output, std::get<ctex::graph::ImageValue>(value).resource_id);
+    }
+}
+
+std::string_view graph_value_type_name(const ctex::graph::SocketValue& value) noexcept {
+    constexpr std::array names{"none", "boolean", "scalar", "vector", "colour", "string", "image"};
+    return names[value.index()];
+}
+
+void append_graph_socket_json(std::string& output, const ctex::graph::NodeSocket& socket) {
+    output += "{\"id\":";
+    append_json_text(output, socket.identifier);
+    output += ",\"display_name\":";
+    append_json_text(output, socket.display_name);
+    output += ",\"type\":";
+    append_json_text(output, ctex::graph::socket_type_name(socket.type));
+    output += ",\"default\":";
+    append_graph_value_json(output, socket.value);
+    output.push_back('}');
+}
+
+void append_graph_property_json(std::string& output,
+                                const ctex::graph::NodePropertyDeclaration& property) {
+    output += "{\"id\":";
+    append_json_text(output, property.identifier);
+    output += ",\"display_name\":";
+    append_json_text(output, property.display_name);
+    output += ",\"default_type\":";
+    append_json_text(output, graph_value_type_name(property.default_value));
+    output += ",\"default\":";
+    append_graph_value_json(output, property.default_value);
+    output += ",\"allowed_values\":[";
+    for (std::size_t index = 0; index < property.allowed_values.size(); ++index) {
+        if (index != 0) {
+            output.push_back(',');
+        }
+        append_json_text(output, property.allowed_values[index]);
+    }
+    output += "]}";
+}
+
+void append_graph_node_json(std::string& output, const ctex::graph::NodeTypeDeclaration& node) {
+    output += "{\"type_id\":";
+    append_json_text(output, node.type_id);
+    output += ",\"version\":" + std::to_string(node.version) + ",\"display_name\":";
+    append_json_text(output, node.display_name);
+    output += ",\"category\":";
+    append_json_text(output, graph_node_category_name(node.category));
+    output += ",\"inputs\":[";
+    for (std::size_t index = 0; index < node.inputs.size(); ++index) {
+        if (index != 0) {
+            output.push_back(',');
+        }
+        append_graph_socket_json(output, node.inputs[index]);
+    }
+    output += "],\"outputs\":[";
+    for (std::size_t index = 0; index < node.outputs.size(); ++index) {
+        if (index != 0) {
+            output.push_back(',');
+        }
+        append_graph_socket_json(output, node.outputs[index]);
+    }
+    output += "],\"properties\":[";
+    for (std::size_t index = 0; index < node.properties.size(); ++index) {
+        if (index != 0) {
+            output.push_back(',');
+        }
+        append_graph_property_json(output, node.properties[index]);
+    }
+    output += "]}";
+}
+
+void append_graph_operations_json(std::string& output,
+                                  std::span<const ctex::graph::OperationDefinition> operations) {
+    output.push_back('[');
+    for (std::size_t index = 0; index < operations.size(); ++index) {
+        if (index != 0) {
+            output.push_back(',');
+        }
+        output += "{\"id\":";
+        append_json_text(output, operations[index].identifier);
+        output += ",\"display_name\":";
+        append_json_text(output, operations[index].display_name);
+        output += ",\"formula\":";
+        append_json_text(output, operations[index].formula);
+        output.push_back('}');
+    }
+    output.push_back(']');
+}
+
+std::string material_graph_catalogue_json() {
+    const std::span nodes = ctex::graph::builtin_node_types();
+    std::string output = "{\"nodes\":[";
+    for (std::size_t index = 0; index < nodes.size(); ++index) {
+        if (index != 0) {
+            output.push_back(',');
+        }
+        append_graph_node_json(output, nodes[index]);
+    }
+    output += "],\"math_operations\":";
+    append_graph_operations_json(output, ctex::graph::math_operations());
+    output += ",\"vector_math_operations\":";
+    append_graph_operations_json(output, ctex::graph::vector_math_operations());
+    output.push_back('}');
+    return output;
+}
+
+std::size_t graph_node_category_count(std::span<const ctex::graph::NodeTypeDeclaration> nodes,
+                                      ctex::graph::NodeCategory category) {
+    return static_cast<std::size_t>(
+        std::count_if(nodes.begin(), nodes.end(),
+                      [category](const auto& node) { return node.category == category; }));
+}
+
 void include_listing_thumbnail(ctex::io::ResolvedPreset& resolved) {
     const auto found =
         std::find_if(resolved.package.tiled_images.begin(), resolved.package.tiled_images.end(),
@@ -7996,6 +8143,40 @@ extern "C" ctex_result ctex_project_asset_install(
             write_project_container_outputs(prepared, library_output, report_output);
         } catch (const ctex::io::ProjectContainerError& error) {
             throw_project_container_error(error);
+        }
+    });
+}
+
+extern "C" ctex_result ctex_material_graph_get_builtin_catalogue(
+    ctex_material_graph_catalogue_info* out_info, char* report_output,
+    std::size_t report_output_size) {
+    return call_boundary("ctex_material_graph_get_builtin_catalogue", [&] {
+        if (out_info == nullptr) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                           "out_info=null");
+        }
+        validate_structure_size(out_info->size, CTEX_MATERIAL_GRAPH_CATALOGUE_INFO_V1_SIZE,
+                                CTEX_MATERIAL_GRAPH_CATALOGUE_INFO_CURRENT_SIZE,
+                                "material graph catalogue info size");
+        const std::span nodes = ctex::graph::builtin_node_types();
+        const std::string report = material_graph_catalogue_json();
+        *out_info = {
+            .size = CTEX_MATERIAL_GRAPH_CATALOGUE_INFO_CURRENT_SIZE,
+            .node_count = nodes.size(),
+            .input_node_count = graph_node_category_count(nodes, ctex::graph::NodeCategory::input),
+            .texture_node_count =
+                graph_node_category_count(nodes, ctex::graph::NodeCategory::texture),
+            .colour_filter_node_count =
+                graph_node_category_count(nodes, ctex::graph::NodeCategory::colour_filter),
+            .vector_math_node_count =
+                graph_node_category_count(nodes, ctex::graph::NodeCategory::vector_math),
+            .math_operation_count = ctex::graph::math_operations().size(),
+            .vector_math_operation_count = ctex::graph::vector_math_operations().size(),
+            .report_size = report.size() + 1,
+        };
+        validate_string_buffer(report_output, report_output_size, out_info->report_size);
+        if (report_output != nullptr) {
+            std::memcpy(report_output, report.c_str(), out_info->report_size);
         }
     });
 }

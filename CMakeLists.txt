@@ -380,6 +380,12 @@ if(BUILD_TESTING)
         target_link_libraries(ctex_capi_project_container_content_test PRIVATE cybertexel)
         add_test(NAME c-abi-project-container-content
                  COMMAND ctex_capi_project_container_content_test)
+        add_executable(ctex_capi_material_graph_catalogue_test
+                       tests/capi/material_graph_catalogue_test.c)
+        ctex_configure_c_target(ctex_capi_material_graph_catalogue_test)
+        target_link_libraries(ctex_capi_material_graph_catalogue_test PRIVATE cybertexel_c)
+        add_test(NAME c-abi-material-graph-catalogue
+                 COMMAND ctex_capi_material_graph_catalogue_test)
         add_executable(ctex_capi_smart_material_test tests/capi/smart_material_test.cpp)
         ctex_configure_cpp_target(ctex_capi_smart_material_test)
         target_link_libraries(ctex_capi_smart_material_test PRIVATE cybertexel)

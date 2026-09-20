@@ -3286,6 +3286,23 @@ typedef struct ctex_preset_library_info {
 #define CTEX_PRESET_LIBRARY_INFO_V1_SIZE ((uint32_t)sizeof(ctex_preset_library_info))
 #define CTEX_PRESET_LIBRARY_INFO_CURRENT_SIZE ((uint32_t)sizeof(ctex_preset_library_info))
 
+typedef struct ctex_material_graph_catalogue_info {
+    uint32_t size;
+    size_t node_count;
+    size_t input_node_count;
+    size_t texture_node_count;
+    size_t colour_filter_node_count;
+    size_t vector_math_node_count;
+    size_t math_operation_count;
+    size_t vector_math_operation_count;
+    size_t report_size;
+} ctex_material_graph_catalogue_info;
+
+#define CTEX_MATERIAL_GRAPH_CATALOGUE_INFO_V1_SIZE \
+    ((uint32_t)sizeof(ctex_material_graph_catalogue_info))
+#define CTEX_MATERIAL_GRAPH_CATALOGUE_INFO_CURRENT_SIZE \
+    ((uint32_t)sizeof(ctex_material_graph_catalogue_info))
+
 typedef enum ctex_smart_material_value_type {
     CTEX_SMART_MATERIAL_VALUE_SCALAR = 0,
     CTEX_SMART_MATERIAL_VALUE_VECTOR = 1,
@@ -3569,6 +3586,14 @@ CTEX_API ctex_result ctex_project_asset_install(
     const ctex_project_asset_search_paths_descriptor* search_paths,
     ctex_project_container_info* out_info, void* library_output, size_t library_output_size,
     char* report_output, size_t report_output_size);
+
+/*
+ * Returns every built-in node schema and the documented scalar/vector math
+ * formulas as deterministic NUL-terminated JSON. A null report with zero size
+ * queries the exact byte count.
+ */
+CTEX_API ctex_result ctex_material_graph_get_builtin_catalogue(
+    ctex_material_graph_catalogue_info* out_info, char* report_output, size_t report_output_size);
 
 /*
  * Validates and migrates a canonical smart-material serialization. The output

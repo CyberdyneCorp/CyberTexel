@@ -889,6 +889,13 @@ clamps. Together with the behavior audit and now-complete named tool surface,
 this closes tool inventory, defaults/ranges and no-inert-parameter coverage. The
 exact remaining C ABI gap is 91 runtime requirements.
 
+The material-catalogue continuation exposes all 52 built-in node schemas,
+including socket types, defaults, property choices and the 40 scalar plus 27
+vector-math operation formulas, as deterministic caller-owned JSON. Existing
+smart-material migration and seven-kind shelf validation now also carry explicit
+C ABI coverage evidence for versioned presets. The exact remaining C ABI gap is
+86 runtime requirements.
+
 ## 1. Foundation
 
 - [x] 1.1 CMake project, C++20, warnings as errors, presets for headless, macOS, Linux, Windows, iOS, Android

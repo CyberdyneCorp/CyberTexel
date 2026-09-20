@@ -88,7 +88,11 @@ matched and empty outcomes. Selection now exposes clipped rectangle and lasso
 queries plus triangle, UV-island and connected-by-angle polygon masks. The 74
 contextual catalogue entries now expose all 69 audited numeric paint
 parameters, and the shared validator returns the same bounds and clamp outcome
-used by tool execution. The complete named tool inventory is now public. Exactly
-91 runtime requirements remain unmapped.
+used by tool execution. The complete named tool inventory is now public. The
+complete 52-node built-in material catalogue now publishes stable schemas,
+property choices and all documented scalar/vector math formulas. Existing
+smart-material inspection and shelf resolution also expose the preset migration
+and forward-version refusal policy. Exactly 86 runtime requirements remain
+unmapped.
 The gate is not part of the aggregate `just check` until that count reaches zero;
 its unit tests run in the normal tooling suite throughout the migration.
