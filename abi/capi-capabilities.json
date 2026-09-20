@@ -83,6 +83,8 @@
       {"requirement": "Node catalogue — texture", "symbols": ["ctex_material_graph_get_builtin_catalogue"]},
       {"requirement": "Node catalogue — colour and filter", "symbols": ["ctex_material_graph_get_builtin_catalogue"]},
       {"requirement": "Node catalogue — vector and math", "symbols": ["ctex_material_graph_get_builtin_catalogue"]},
+      {"requirement": "Node groups", "symbols": ["ctex_material_graph_workspace_create", "ctex_material_graph_workspace_destroy", "ctex_material_graph_workspace_get_info", "ctex_material_graph_workspace_add_material", "ctex_material_graph_workspace_create_group", "ctex_material_graph_workspace_instantiate_group", "ctex_material_graph_workspace_update_group_interface", "ctex_material_graph_workspace_get_graph", "ctex_material_graph_workspace_add_builtin_node", "ctex_material_graph_workspace_set_input_value", "ctex_material_graph_workspace_set_property_value", "ctex_material_graph_workspace_add_link"]},
+      {"requirement": "Group recursion is refused", "symbols": ["ctex_material_graph_workspace_instantiate_group"]},
       {"requirement": "Socket types and coercion", "symbols": ["ctex_material_graph_get_builtin_catalogue", "ctex_material_graph_add_link"]},
       {"requirement": "One link per input", "symbols": ["ctex_material_graph_add_link"]},
       {"requirement": "Cycle detection is explicit", "symbols": ["ctex_material_graph_add_link"]},

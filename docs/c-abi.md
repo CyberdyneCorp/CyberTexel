@@ -704,6 +704,18 @@ without output bytes. `ctex_material_graph_validate` reports required inputs,
 missing images or mesh maps, and unreachable nodes without attempting emission.
 Serialized graph input is bounded to 64 MiB.
 
+Reusable node groups live in an opaque `ctex_material_graph_workspace`. A
+workspace owns named material graphs and group definitions; group subgraphs can
+be edited through the same built-in-node, typed-value and link operations as a
+material. Each group declares ordered input and output sockets. Interface edits
+propagate atomically to every material and nested-group instance, preserve
+stored values whose socket identity and type remain compatible, and report the
+number of updated instances and removed links. Group placement checks the full
+dependency path before mutation. Direct and transitive recursion return
+`CTEX_DIAGNOSTIC_INVALID_MATERIAL_GRAPH` with the complete cycle in the thread-
+local diagnostic, leaving the containing graph unchanged. Material and group
+graphs remain inspectable through the caller-owned graph two-call contract.
+
 ## ABI version and compatibility
 
 `ctex_get_abi_version` is safe before any handle exists and returns the major,
@@ -765,6 +777,8 @@ The contract is stated per entry-point family:
 | `ctex_set_allocator` | Process-safe process-wide default for subsequently created objects; each object retains its creating configuration, and the host keeps its user data alive through destruction |
 | `ctex_document_create` | Process-safe; each successful call creates independent state |
 | `ctex_document_destroy` | The caller ensures no other call is using that handle; distinct handles may be destroyed concurrently |
+| `ctex_material_graph_workspace_create` | Process-safe; each successful call creates an independent workspace and captures the active allocator |
+| `ctex_material_graph_workspace_destroy`, `ctex_material_graph_workspace_get_info`, `ctex_material_graph_workspace_add_material`, `ctex_material_graph_workspace_create_group`, `ctex_material_graph_workspace_instantiate_group`, `ctex_material_graph_workspace_update_group_interface`, `ctex_material_graph_workspace_get_graph`, `ctex_material_graph_workspace_add_builtin_node`, `ctex_material_graph_workspace_set_input_value`, `ctex_material_graph_workspace_set_property_value`, `ctex_material_graph_workspace_add_link` | Calls on distinct workspaces are independent. Every operation on one workspace, including reads and destruction, requires external serialization |
 | `ctex_document_create_texture_set`, `ctex_document_create_texture_sets_from_mesh`, `ctex_document_get_texture_set_ids`, `ctex_texture_set_*` | Calls on distinct document handles are safe concurrently; every call on the same document handle must be externally synchronized, including read-only calls. Mesh-derived creation also requires no concurrent use of that mesh handle |
 | `ctex_mesh_create` | Process-safe; each successful call creates independent owned state and captures the active allocator |
 | `ctex_mesh_destroy`, `ctex_mesh_replace`, `ctex_mesh_get_info`, `ctex_mesh_get_uv_set_names` | Calls on distinct mesh handles are safe concurrently; every call on the same mesh handle must be externally synchronized, including read-only calls |

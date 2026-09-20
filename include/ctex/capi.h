@@ -145,6 +145,7 @@ typedef struct ctex_parity_gate_result ctex_parity_gate_result;
 typedef struct ctex_host_execution_session ctex_host_execution_session;
 typedef struct ctex_host_completion_result ctex_host_completion_result;
 typedef struct ctex_host_recovery_report ctex_host_recovery_report;
+typedef struct ctex_material_graph_workspace ctex_material_graph_workspace;
 
 #define CTEX_MAX_MESH_VERTEX_COUNT ((size_t)100000000)
 #define CTEX_MAX_MESH_TRIANGLE_COUNT ((size_t)100000000)
@@ -3413,6 +3414,75 @@ typedef struct ctex_smart_material_value_descriptor {
 #define CTEX_SMART_MATERIAL_VALUE_DESCRIPTOR_CURRENT_SIZE \
     ((uint32_t)sizeof(ctex_smart_material_value_descriptor))
 
+typedef enum ctex_material_graph_owner_kind {
+    CTEX_MATERIAL_GRAPH_OWNER_MATERIAL = 0,
+    CTEX_MATERIAL_GRAPH_OWNER_GROUP = 1
+} ctex_material_graph_owner_kind;
+
+typedef struct ctex_material_graph_socket_descriptor {
+    uint32_t size;
+    const char* identifier;
+    const char* display_name;
+    uint32_t type;
+    const ctex_smart_material_value_descriptor* default_value;
+} ctex_material_graph_socket_descriptor;
+
+#define CTEX_MATERIAL_GRAPH_SOCKET_DESCRIPTOR_V1_SIZE \
+    ((uint32_t)sizeof(ctex_material_graph_socket_descriptor))
+#define CTEX_MATERIAL_GRAPH_SOCKET_DESCRIPTOR_CURRENT_SIZE \
+    ((uint32_t)sizeof(ctex_material_graph_socket_descriptor))
+
+typedef struct ctex_material_graph_group_descriptor {
+    uint32_t size;
+    const char* identifier;
+    const char* display_name;
+    const ctex_material_graph_socket_descriptor* inputs;
+    size_t input_count;
+    const ctex_material_graph_socket_descriptor* outputs;
+    size_t output_count;
+} ctex_material_graph_group_descriptor;
+
+#define CTEX_MATERIAL_GRAPH_GROUP_DESCRIPTOR_V1_SIZE \
+    ((uint32_t)sizeof(ctex_material_graph_group_descriptor))
+#define CTEX_MATERIAL_GRAPH_GROUP_DESCRIPTOR_CURRENT_SIZE \
+    ((uint32_t)sizeof(ctex_material_graph_group_descriptor))
+
+typedef struct ctex_material_graph_group_interface_descriptor {
+    uint32_t size;
+    const ctex_material_graph_socket_descriptor* inputs;
+    size_t input_count;
+    const ctex_material_graph_socket_descriptor* outputs;
+    size_t output_count;
+} ctex_material_graph_group_interface_descriptor;
+
+#define CTEX_MATERIAL_GRAPH_GROUP_INTERFACE_DESCRIPTOR_V1_SIZE \
+    ((uint32_t)sizeof(ctex_material_graph_group_interface_descriptor))
+#define CTEX_MATERIAL_GRAPH_GROUP_INTERFACE_DESCRIPTOR_CURRENT_SIZE \
+    ((uint32_t)sizeof(ctex_material_graph_group_interface_descriptor))
+
+typedef struct ctex_material_graph_workspace_info {
+    uint32_t size;
+    size_t material_count;
+    size_t group_count;
+} ctex_material_graph_workspace_info;
+
+#define CTEX_MATERIAL_GRAPH_WORKSPACE_INFO_V1_SIZE \
+    ((uint32_t)sizeof(ctex_material_graph_workspace_info))
+#define CTEX_MATERIAL_GRAPH_WORKSPACE_INFO_CURRENT_SIZE \
+    ((uint32_t)sizeof(ctex_material_graph_workspace_info))
+
+typedef struct ctex_material_graph_group_update_info {
+    uint32_t size;
+    uint32_t group_version;
+    size_t instances_updated;
+    size_t removed_link_count;
+} ctex_material_graph_group_update_info;
+
+#define CTEX_MATERIAL_GRAPH_GROUP_UPDATE_INFO_V1_SIZE \
+    ((uint32_t)sizeof(ctex_material_graph_group_update_info))
+#define CTEX_MATERIAL_GRAPH_GROUP_UPDATE_INFO_CURRENT_SIZE \
+    ((uint32_t)sizeof(ctex_material_graph_group_update_info))
+
 typedef struct ctex_smart_material_info {
     uint32_t size;
     uint32_t source_schema_version;
@@ -3729,6 +3799,57 @@ CTEX_API ctex_result ctex_material_graph_validate(
     const void* serialized, size_t serialized_size,
     const ctex_material_graph_validation_resources_descriptor* resources,
     ctex_material_graph_validation_info* out_info, char* report_output, size_t report_output_size);
+
+/* Creates an allocator-owned workspace for reusable material node groups. */
+CTEX_API ctex_result
+ctex_material_graph_workspace_create(ctex_material_graph_workspace** out_workspace);
+CTEX_API void ctex_material_graph_workspace_destroy(ctex_material_graph_workspace* workspace);
+
+/* Returns the number of material graphs and reusable group definitions. */
+CTEX_API ctex_result ctex_material_graph_workspace_get_info(
+    const ctex_material_graph_workspace* workspace, ctex_material_graph_workspace_info* out_info);
+
+/* Adds a canonical material graph under a stable workspace-local identifier. */
+CTEX_API ctex_result ctex_material_graph_workspace_add_material(
+    ctex_material_graph_workspace* workspace, const char* identifier, const void* serialized,
+    size_t serialized_size);
+
+/* Creates a reusable group and its editable input/output boundary nodes. */
+CTEX_API ctex_result
+ctex_material_graph_workspace_create_group(ctex_material_graph_workspace* workspace,
+                                           const ctex_material_graph_group_descriptor* descriptor);
+
+/* Places a group in a material or group graph; recursive placement is atomic. */
+CTEX_API ctex_result ctex_material_graph_workspace_instantiate_group(
+    ctex_material_graph_workspace* workspace, const char* group_identifier, uint32_t owner_kind,
+    const char* owner_identifier, ctex_vec2f position, uint64_t* out_node_id);
+
+/* Propagates an interface edit to every material and nested-group instance. */
+CTEX_API ctex_result ctex_material_graph_workspace_update_group_interface(
+    ctex_material_graph_workspace* workspace, const char* group_identifier,
+    const ctex_material_graph_group_interface_descriptor* descriptor,
+    ctex_material_graph_group_update_info* out_info);
+
+/* Returns one material or group subgraph using the graph two-call contract. */
+CTEX_API ctex_result ctex_material_graph_workspace_get_graph(
+    const ctex_material_graph_workspace* workspace, uint32_t owner_kind,
+    const char* owner_identifier, ctex_material_graph_info* out_info, void* canonical_output,
+    size_t canonical_output_size, char* report_output, size_t report_output_size);
+
+/* Edits a material or group subgraph without bypassing workspace ownership. */
+CTEX_API ctex_result ctex_material_graph_workspace_add_builtin_node(
+    ctex_material_graph_workspace* workspace, uint32_t owner_kind, const char* owner_identifier,
+    const char* type_id, ctex_vec2f position, uint64_t* out_node_id);
+CTEX_API ctex_result ctex_material_graph_workspace_set_input_value(
+    ctex_material_graph_workspace* workspace, uint32_t owner_kind, const char* owner_identifier,
+    uint64_t node_id, const char* input_id, const ctex_smart_material_value_descriptor* value);
+CTEX_API ctex_result ctex_material_graph_workspace_set_property_value(
+    ctex_material_graph_workspace* workspace, uint32_t owner_kind, const char* owner_identifier,
+    uint64_t node_id, const char* property_id, const ctex_smart_material_value_descriptor* value);
+CTEX_API ctex_result ctex_material_graph_workspace_add_link(
+    ctex_material_graph_workspace* workspace, uint32_t owner_kind, const char* owner_identifier,
+    const ctex_material_graph_link_descriptor* link, ctex_material_graph_link_info* out_info,
+    char* replaced_source_socket, size_t replaced_source_socket_size);
 
 /*
  * Validates and migrates a canonical smart-material serialization. The output

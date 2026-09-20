@@ -903,6 +903,14 @@ sources; incompatible types and cycles preserve the input document. Independent
 validation names missing resources without emission. The exact remaining C ABI
 gap is 80 runtime requirements.
 
+The material-group continuation exposes opaque graph workspaces with named
+material and reusable group subgraphs. Strict-C callers can declare group
+interfaces, edit either owner graph, instantiate groups in materials or nested
+groups, and propagate interface changes while preserving compatible stored
+values. Direct and transitive recursion are refused before mutation with the
+complete group cycle in the diagnostic. The exact remaining C ABI gap is 78
+runtime requirements.
+
 ## 1. Foundation
 
 - [x] 1.1 CMake project, C++20, warnings as errors, presets for headless, macOS, Linux, Windows, iOS, Android

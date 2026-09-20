@@ -105,6 +105,18 @@ EXPORTS
     ctex_material_graph_set_property_value
     ctex_material_graph_add_link
     ctex_material_graph_validate
+    ctex_material_graph_workspace_create
+    ctex_material_graph_workspace_destroy
+    ctex_material_graph_workspace_get_info
+    ctex_material_graph_workspace_add_material
+    ctex_material_graph_workspace_create_group
+    ctex_material_graph_workspace_instantiate_group
+    ctex_material_graph_workspace_update_group_interface
+    ctex_material_graph_workspace_get_graph
+    ctex_material_graph_workspace_add_builtin_node
+    ctex_material_graph_workspace_set_input_value
+    ctex_material_graph_workspace_set_property_value
+    ctex_material_graph_workspace_add_link
     ctex_preset_library_enumerate
     ctex_preset_library_resolve
     ctex_smart_material_add_anchor_reference
