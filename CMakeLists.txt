@@ -93,6 +93,7 @@ ctex_add_module(
     image
     SOURCES
         src/image/image.cpp
+        src/image/channel_expansion.cpp
         src/image/color.cpp
         src/image/color_policy.cpp
         src/image/cube_lut.cpp

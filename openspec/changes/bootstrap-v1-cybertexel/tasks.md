@@ -797,6 +797,13 @@ JSON failure details naming the fixture, channel and deviation. Malformed
 reference output and callback failure publish no partial handle. The exact
 remaining C ABI gap is 109 runtime requirements.
 
+The image-channel continuation completes task 2.3 and exposes its requirement
+through the C boundary. Decoding retains native 8-bit, 16-bit or float32
+components. Explicit destination expansion replicates grayscale into RGB,
+preserves grayscale alpha in RGBA, adds opaque alpha to RGB, reports the chosen
+rule and refuses lossy or ambiguous mappings. The exact remaining C ABI gap is
+108 runtime requirements.
+
 ## 1. Foundation
 
 - [x] 1.1 CMake project, C++20, warnings as errors, presets for headless, macOS, Linux, Windows, iOS, Android
@@ -814,7 +821,7 @@ remaining C ABI gap is 109 runtime requirements.
 
 - [ ] 2.1 Decoders: PNG, JPEG, TGA, BMP, TIFF, OpenEXR, Radiance HDR, PSD
 - [ ] 2.2 Content-based format detection and extension-mismatch reporting
-- [ ] 2.3 Bit depth and channel preservation; documented expansion rules
+- [x] 2.3 Bit depth and channel preservation; documented expansion rules
 - [ ] 2.4 Colour space on read: embedded profiles, caller declaration, the automatic rule
 - [x] 2.5 High dynamic range decoding without clamping
 - [ ] 2.6 Layered sources: PSD layers and multi-part EXR, composited or per-layer

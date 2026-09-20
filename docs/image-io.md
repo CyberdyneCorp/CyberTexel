@@ -12,6 +12,15 @@ precision. Sub-byte grayscale expands to 8-bit and palette input expands to
 layout. Sixteen-bit samples are stored in native byte order inside CyberTexel
 and converted to PNG network order only at the codec boundary.
 
+Destination expansion is explicit and never changes component precision.
+Single-channel grayscale replicates into RGB; when RGBA is requested it also
+gains an opaque alpha. Two-channel input is interpreted as grayscale-alpha and
+expands to replicated RGB with the original alpha. RGB expands to RGBA with an
+opaque alpha. Identity mappings copy unchanged. Shrinking and ambiguous
+two-channel-to-RGB conversion are refused rather than dropping information.
+These rules apply equally to 8-bit and 16-bit unsigned-normalized components and
+32-bit floating-point components.
+
 Decode limits are checked from the PNG header before pixel allocation. The
 default ceiling is 16384×16384 and 1 GiB of decoded pixels; hosts can lower each
 limit. Truncated or malformed data produces a named error and no partial image.

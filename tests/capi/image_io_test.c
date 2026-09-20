@@ -70,6 +70,40 @@ static int decode_preserves_sixteen_bit_samples(void) {
                   first == 0x1234 && second == 0xabcd);
 }
 
+static int channel_expansion_preserves_depth_and_reports_rule(void) {
+    const uint16_t source[] = {0x1234, 0xabcd};
+    const uint16_t expected[] = {0x1234, 0x1234, 0x1234, 0xabcd, 0xabcd, 0xabcd};
+    uint16_t output[6] = {0};
+    unsigned char short_output = 0xa5;
+    const ctex_image_channel_expansion_descriptor descriptor = {
+        .size = CTEX_IMAGE_CHANNEL_EXPANSION_DESCRIPTOR_CURRENT_SIZE,
+        .width = 2,
+        .height = 1,
+        .source_channel_count = 1,
+        .scalar_representation = CTEX_SCALAR_REPRESENTATION_UNSIGNED_NORMALIZED,
+        .bit_depth = 16,
+        .source_row_stride_bytes = 0,
+        .target_channel_count = 3,
+    };
+    ctex_image_channel_expansion_info info = {
+        .size = CTEX_IMAGE_CHANNEL_EXPANSION_INFO_CURRENT_SIZE,
+    };
+    return expect(ctex_image_expand_channels(source, sizeof(source), &descriptor, &info, NULL, 0) ==
+                  CTEX_RESULT_SUCCESS) &&
+           expect(info.channel_count == 3 &&
+                  info.scalar_representation == CTEX_SCALAR_REPRESENTATION_UNSIGNED_NORMALIZED &&
+                  info.bit_depth == 16 &&
+                  info.rule == CTEX_IMAGE_CHANNEL_EXPANSION_GRAYSCALE_TO_RGB &&
+                  info.required_pixel_buffer_size == sizeof(output)) &&
+           expect(ctex_image_expand_channels(source, sizeof(source), &descriptor, &info,
+                                             &short_output, sizeof(short_output)) ==
+                  CTEX_RESULT_BUFFER_TOO_SMALL) &&
+           expect(short_output == 0xa5) &&
+           expect(ctex_image_expand_channels(source, sizeof(source), &descriptor, &info, output,
+                                             sizeof(output)) == CTEX_RESULT_SUCCESS) &&
+           expect(memcmp(output, expected, sizeof(expected)) == 0);
+}
+
 static int sixteen_bit_png_round_trip_is_lossless(void) {
     ctex_decoded_image_info info = {.size = CTEX_DECODED_IMAGE_INFO_CURRENT_SIZE};
     ctex_image_encode_descriptor descriptor = {
@@ -339,6 +373,7 @@ static int openexr_round_trip_preserves_hdr_values(void) {
 
 int main(void) {
     return decode_reports_content_and_caller_buffers() && decode_preserves_sixteen_bit_samples() &&
+                   channel_expansion_preserves_depth_and_reports_rule() &&
                    sixteen_bit_png_round_trip_is_lossless() &&
                    decode_honours_color_and_resource_limits() &&
                    decode_refuses_unsupported_and_truncated_content() &&

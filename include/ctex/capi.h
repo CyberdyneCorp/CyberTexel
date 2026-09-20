@@ -1156,6 +1156,44 @@ typedef struct ctex_decoded_image_info {
 #define CTEX_DECODED_IMAGE_INFO_V1_SIZE ((uint32_t)sizeof(ctex_decoded_image_info))
 #define CTEX_DECODED_IMAGE_INFO_CURRENT_SIZE ((uint32_t)sizeof(ctex_decoded_image_info))
 
+typedef enum ctex_image_channel_expansion_rule {
+    CTEX_IMAGE_CHANNEL_EXPANSION_IDENTITY = 0,
+    CTEX_IMAGE_CHANNEL_EXPANSION_GRAYSCALE_TO_RGB = 1,
+    CTEX_IMAGE_CHANNEL_EXPANSION_GRAYSCALE_TO_RGBA = 2,
+    CTEX_IMAGE_CHANNEL_EXPANSION_GRAYSCALE_ALPHA_TO_RGBA = 3,
+    CTEX_IMAGE_CHANNEL_EXPANSION_RGB_TO_RGBA = 4
+} ctex_image_channel_expansion_rule;
+
+typedef struct ctex_image_channel_expansion_descriptor {
+    uint32_t size;
+    uint32_t width;
+    uint32_t height;
+    uint32_t source_channel_count;
+    uint32_t scalar_representation;
+    uint32_t bit_depth;
+    size_t source_row_stride_bytes;
+    uint32_t target_channel_count;
+} ctex_image_channel_expansion_descriptor;
+
+#define CTEX_IMAGE_CHANNEL_EXPANSION_DESCRIPTOR_V1_SIZE \
+    ((uint32_t)sizeof(ctex_image_channel_expansion_descriptor))
+#define CTEX_IMAGE_CHANNEL_EXPANSION_DESCRIPTOR_CURRENT_SIZE \
+    ((uint32_t)sizeof(ctex_image_channel_expansion_descriptor))
+
+typedef struct ctex_image_channel_expansion_info {
+    uint32_t size;
+    uint32_t channel_count;
+    uint32_t scalar_representation;
+    uint32_t bit_depth;
+    uint32_t rule;
+    size_t required_pixel_buffer_size;
+} ctex_image_channel_expansion_info;
+
+#define CTEX_IMAGE_CHANNEL_EXPANSION_INFO_V1_SIZE \
+    ((uint32_t)sizeof(ctex_image_channel_expansion_info))
+#define CTEX_IMAGE_CHANNEL_EXPANSION_INFO_CURRENT_SIZE \
+    ((uint32_t)sizeof(ctex_image_channel_expansion_info))
+
 typedef struct ctex_image_encode_descriptor {
     uint32_t size;
     uint32_t width;
@@ -2440,6 +2478,17 @@ CTEX_API ctex_result ctex_image_decode_memory(const void* encoded, size_t encode
                                               const ctex_image_decode_limits_descriptor* limits,
                                               ctex_decoded_image_info* out_info, void* pixel_buffer,
                                               size_t pixel_buffer_size, size_t* out_required_size);
+
+/*
+ * Expands packed or row-strided pixels without changing component bit depth.
+ * Grayscale replicates to RGB; grayscale-alpha preserves alpha when expanding
+ * to RGBA; RGB gains an opaque alpha. Pass NULL output with size zero to size.
+ */
+CTEX_API ctex_result
+ctex_image_expand_channels(const void* source_pixels, size_t source_pixel_buffer_size,
+                           const ctex_image_channel_expansion_descriptor* descriptor,
+                           ctex_image_channel_expansion_info* out_info, void* output_pixels,
+                           size_t output_pixel_buffer_size);
 
 /*
  * Encodes borrowed, row-major interleaved pixels to PNG, JPEG, TGA, TIFF or

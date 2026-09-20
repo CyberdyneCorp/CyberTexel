@@ -180,8 +180,9 @@ cooperative cancellation and progress, worker limits and pre-allocation memory
 ceilings through the C boundary. Numeric parity tolerances and detailed array
 comparison are also public. Registry-backed parity fixture runs now compare
 available routes to the CPU reference and report per-case drift or unavailable
-devices through immutable caller-readable results. Exactly 109 runtime requirements
-still lack C ABI evidence;
+devices through immutable caller-readable results. Image decoding and explicit
+destination-channel expansion now preserve component precision across the C
+boundary. Exactly 108 runtime requirements still lack C ABI evidence;
 those gaps must be implemented before task 14.8 can close.
 
 ## Milestones

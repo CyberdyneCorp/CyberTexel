@@ -13,6 +13,7 @@
 #include <ctex/exec/parity.hpp>
 #include <ctex/exec/parity_gate.hpp>
 #include <ctex/exec/vulkan_executor.hpp>
+#include <ctex/image/channel_expansion.hpp>
 #include <ctex/image/color_policy.hpp>
 #include <ctex/io/image_io.hpp>
 #include <ctex/io/preset_library.hpp>
@@ -1139,26 +1140,36 @@ void copy_decoded_pixels(const ctex::image::TiledImage& pixels, void* buffer) {
     }
 }
 
-ctex::image::PixelFormat encoded_input_format(const ctex_image_encode_descriptor& descriptor) {
-    if (descriptor.channel_count < 1 || descriptor.channel_count > 4) {
+ctex::image::PixelFormat image_pixel_format(std::uint32_t channel_count,
+                                            std::uint32_t scalar_representation,
+                                            std::uint32_t bit_depth) {
+    if (channel_count < 1 || channel_count > 4) {
         throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_INVALID_IMAGE_DATA,
-                       "channel_count=" + std::to_string(descriptor.channel_count));
+                       "channel_count=" + std::to_string(channel_count));
     }
     ctex::image::ChannelType type;
-    if (descriptor.scalar_representation == CTEX_SCALAR_REPRESENTATION_UNSIGNED_NORMALIZED &&
-        descriptor.input_bit_depth == 8) {
+    if (scalar_representation == CTEX_SCALAR_REPRESENTATION_UNSIGNED_NORMALIZED && bit_depth == 8) {
         type = ctex::image::ChannelType::uint8_unorm;
-    } else if (descriptor.scalar_representation == CTEX_SCALAR_REPRESENTATION_UNSIGNED_NORMALIZED &&
-               descriptor.input_bit_depth == 16) {
+    } else if (scalar_representation == CTEX_SCALAR_REPRESENTATION_UNSIGNED_NORMALIZED &&
+               bit_depth == 16) {
         type = ctex::image::ChannelType::uint16_unorm;
-    } else if (descriptor.scalar_representation == CTEX_SCALAR_REPRESENTATION_FLOATING_POINT &&
-               descriptor.input_bit_depth == 32) {
+    } else if (scalar_representation == CTEX_SCALAR_REPRESENTATION_FLOATING_POINT &&
+               bit_depth == 32) {
         type = ctex::image::ChannelType::float32;
     } else {
         throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_INVALID_IMAGE_DATA,
                        "input scalar representation and bit depth are incompatible");
     }
-    return {type, static_cast<std::uint8_t>(descriptor.channel_count)};
+    return {type, static_cast<std::uint8_t>(channel_count)};
+}
+
+ctex::image::PixelFormat encoded_input_format(const ctex_image_encode_descriptor& descriptor) {
+    return image_pixel_format(descriptor.channel_count, descriptor.scalar_representation,
+                              descriptor.input_bit_depth);
+}
+
+std::uint32_t channel_expansion_rule(ctex::image::ChannelExpansionRule rule) noexcept {
+    return static_cast<std::uint32_t>(rule);
 }
 
 ctex::io::ExportImageFormat encoded_output_format(std::uint32_t value) {
@@ -6051,6 +6062,65 @@ extern "C" ctex_result ctex_image_decode_memory(
         validate_string_buffer(static_cast<char*>(pixel_buffer), pixel_buffer_size, required_size);
         if (pixel_buffer != nullptr) {
             copy_decoded_pixels(decoded.pixels, pixel_buffer);
+        }
+    });
+}
+
+extern "C" ctex_result ctex_image_expand_channels(
+    const void* source_pixels, std::size_t source_pixel_buffer_size,
+    const ctex_image_channel_expansion_descriptor* descriptor,
+    ctex_image_channel_expansion_info* out_info, void* output_pixels,
+    std::size_t output_pixel_buffer_size) {
+    return call_boundary("ctex_image_expand_channels", [&] {
+        if (descriptor == nullptr || out_info == nullptr ||
+            (source_pixels == nullptr && source_pixel_buffer_size != 0)) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                           "channel expansion argument is null");
+        }
+        validate_structure_size(descriptor->size, CTEX_IMAGE_CHANNEL_EXPANSION_DESCRIPTOR_V1_SIZE,
+                                CTEX_IMAGE_CHANNEL_EXPANSION_DESCRIPTOR_CURRENT_SIZE,
+                                "descriptor.size");
+        validate_structure_size(out_info->size, CTEX_IMAGE_CHANNEL_EXPANSION_INFO_V1_SIZE,
+                                CTEX_IMAGE_CHANNEL_EXPANSION_INFO_CURRENT_SIZE, "out_info.size");
+        if (descriptor->target_channel_count < 1 || descriptor->target_channel_count > 4) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_INVALID_IMAGE_DATA,
+                           "target channel count must be from one through four");
+        }
+        const auto source =
+            source_pixel_buffer_size == 0
+                ? std::span<const std::byte>{}
+                : std::span(static_cast<const std::byte*>(source_pixels), source_pixel_buffer_size);
+        ctex::image::ChannelExpansionResult expanded;
+        try {
+            expanded = ctex::image::expand_channels({
+                .pixels = source,
+                .width = descriptor->width,
+                .height = descriptor->height,
+                .source_format =
+                    image_pixel_format(descriptor->source_channel_count,
+                                       descriptor->scalar_representation, descriptor->bit_depth),
+                .row_stride_bytes = descriptor->source_row_stride_bytes,
+                .target_channel_count = static_cast<std::uint8_t>(descriptor->target_channel_count),
+            });
+        } catch (const std::overflow_error& error) {
+            throw_boundary(CTEX_RESULT_OVER_BUDGET, CTEX_DIAGNOSTIC_IMAGE_LIMIT_EXCEEDED,
+                           error.what());
+        } catch (const std::invalid_argument& error) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_INVALID_IMAGE_DATA,
+                           error.what());
+        }
+        *out_info = {
+            .size = CTEX_IMAGE_CHANNEL_EXPANSION_INFO_CURRENT_SIZE,
+            .channel_count = expanded.format.channel_count,
+            .scalar_representation = descriptor->scalar_representation,
+            .bit_depth = descriptor->bit_depth,
+            .rule = channel_expansion_rule(expanded.rule),
+            .required_pixel_buffer_size = expanded.pixels.size(),
+        };
+        validate_string_buffer(static_cast<char*>(output_pixels), output_pixel_buffer_size,
+                               expanded.pixels.size());
+        if (output_pixels != nullptr) {
+            std::memcpy(output_pixels, expanded.pixels.data(), expanded.pixels.size());
         }
     });
 }

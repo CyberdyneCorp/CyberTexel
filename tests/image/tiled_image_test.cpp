@@ -3,6 +3,8 @@
 #include <bit>
 #include <cstddef>
 #include <cstdint>
+#include <cstring>
+#include <ctex/image/channel_expansion.hpp>
 #include <ctex/image/tiled_image.hpp>
 #include <exception>
 #include <iostream>
@@ -15,6 +17,7 @@
 
 namespace {
 
+using ctex::image::ChannelExpansionRule;
 using ctex::image::ChannelType;
 using ctex::image::PixelFormat;
 using ctex::image::TileCoordinate;
@@ -79,6 +82,118 @@ bool test_formats_preserve_bytes() {
                          "pixel bytes changed during tiled storage");
     }
     return passed;
+}
+
+bool test_channel_expansion_preserves_components() {
+    const std::array gray{std::byte{37}};
+    const auto gray_rgb = ctex::image::expand_channels({
+        .pixels = gray,
+        .width = 1,
+        .height = 1,
+        .source_format = PixelFormat{ChannelType::uint8_unorm, 1},
+        .target_channel_count = 3,
+    });
+    const std::array expected_gray_rgb{std::byte{37}, std::byte{37}, std::byte{37}};
+    const auto gray_rgba = ctex::image::expand_channels({
+        .pixels = gray,
+        .width = 1,
+        .height = 1,
+        .source_format = PixelFormat{ChannelType::uint8_unorm, 1},
+        .target_channel_count = 4,
+    });
+    const std::array expected_gray_rgba{std::byte{37}, std::byte{37}, std::byte{37},
+                                        std::byte{0xff}};
+    const auto gray_identity = ctex::image::expand_channels({
+        .pixels = gray,
+        .width = 1,
+        .height = 1,
+        .source_format = PixelFormat{ChannelType::uint8_unorm, 1},
+        .target_channel_count = 1,
+    });
+
+    const std::array<std::uint16_t, 2> gray_alpha_values{0x1234, 0xabcd};
+    const auto gray_alpha_bytes = std::as_bytes(std::span(gray_alpha_values));
+    const auto gray_alpha_rgba = ctex::image::expand_channels({
+        .pixels = gray_alpha_bytes,
+        .width = 1,
+        .height = 1,
+        .source_format = PixelFormat{ChannelType::uint16_unorm, 2},
+        .target_channel_count = 4,
+    });
+    std::array<std::uint16_t, 4> expanded_gray_alpha{};
+    std::memcpy(expanded_gray_alpha.data(), gray_alpha_rgba.pixels.data(),
+                gray_alpha_rgba.pixels.size());
+
+    const std::array<float, 3> rgb_values{2.0F, 0.5F, -1.0F};
+    const auto rgb_rgba = ctex::image::expand_channels({
+        .pixels = std::as_bytes(std::span(rgb_values)),
+        .width = 1,
+        .height = 1,
+        .source_format = PixelFormat{ChannelType::float32, 3},
+        .target_channel_count = 4,
+    });
+    std::array<float, 4> expanded_rgb{};
+    std::memcpy(expanded_rgb.data(), rgb_rgba.pixels.data(), rgb_rgba.pixels.size());
+
+    return expect(gray_rgb.rule == ChannelExpansionRule::grayscale_to_rgb &&
+                      gray_rgb.format == PixelFormat{ChannelType::uint8_unorm, 3} &&
+                      std::ranges::equal(gray_rgb.pixels, expected_gray_rgb),
+                  "grayscale was not replicated into RGB") &&
+           expect(gray_rgba.rule == ChannelExpansionRule::grayscale_to_rgba &&
+                      std::ranges::equal(gray_rgba.pixels, expected_gray_rgba),
+                  "grayscale was not replicated into opaque RGBA") &&
+           expect(gray_identity.rule == ChannelExpansionRule::identity &&
+                      std::ranges::equal(gray_identity.pixels, gray),
+                  "identity channel mapping changed the source") &&
+           expect(gray_alpha_rgba.rule == ChannelExpansionRule::grayscale_alpha_to_rgba &&
+                      expanded_gray_alpha ==
+                          std::array<std::uint16_t, 4>{0x1234, 0x1234, 0x1234, 0xabcd},
+                  "grayscale-alpha did not preserve precision or alpha") &&
+           expect(rgb_rgba.rule == ChannelExpansionRule::rgb_to_rgba &&
+                      expanded_rgb == std::array<float, 4>{2.0F, 0.5F, -1.0F, 1.0F},
+                  "floating-point RGB did not gain an opaque alpha");
+}
+
+bool test_channel_expansion_refuses_lossy_or_short_inputs() {
+    const std::array source{std::byte{1}, std::byte{2}};
+    return expect_throws<std::invalid_argument>(
+               [&] {
+                   static_cast<void>(ctex::image::expand_channels({
+                       .pixels = source,
+                       .width = 1,
+                       .height = 1,
+                       .source_format = PixelFormat{ChannelType::uint8_unorm, 2},
+                       .target_channel_count = 3,
+                   }));
+               },
+               "ambiguous grayscale-alpha to RGB expansion was accepted") &&
+           expect_throws<std::invalid_argument>(
+               [&] {
+                   static_cast<void>(ctex::image::expand_channels({
+                       .pixels = std::span(source).first(1),
+                       .width = 2,
+                       .height = 1,
+                       .source_format = PixelFormat{ChannelType::uint8_unorm, 1},
+                       .target_channel_count = 3,
+                   }));
+               },
+               "short channel expansion input was accepted");
+}
+
+bool test_channel_expansion_honours_row_stride() {
+    const std::array source{std::byte{7}, std::byte{99}, std::byte{11}};
+    const auto expanded = ctex::image::expand_channels({
+        .pixels = source,
+        .width = 1,
+        .height = 2,
+        .source_format = PixelFormat{ChannelType::uint8_unorm, 1},
+        .row_stride_bytes = 2,
+        .target_channel_count = 3,
+    });
+    const std::array expected{std::byte{7},  std::byte{7},  std::byte{7},
+                              std::byte{11}, std::byte{11}, std::byte{11}};
+    return expect(std::ranges::equal(expanded.pixels, expected),
+                  "channel expansion ignored the source row stride");
 }
 
 bool test_sparse_clear_and_dirty_tracking() {
@@ -178,7 +293,10 @@ bool test_validation() {
 }  // namespace
 
 int main() {
-    return test_formats_preserve_bytes() && test_sparse_clear_and_dirty_tracking() &&
+    return test_formats_preserve_bytes() && test_channel_expansion_preserves_components() &&
+                   test_channel_expansion_refuses_lossy_or_short_inputs() &&
+                   test_channel_expansion_honours_row_stride() &&
+                   test_sparse_clear_and_dirty_tracking() &&
                    test_pinned_tile_storage_is_copy_on_write() &&
                    test_persistent_storage_uses_supplied_resource() && test_validation()
                ? 0

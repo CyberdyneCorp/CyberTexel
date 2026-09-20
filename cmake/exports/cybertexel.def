@@ -67,6 +67,7 @@ EXPORTS
     ctex_get_version
     ctex_get_working_color_space
     ctex_image_decode_memory
+    ctex_image_expand_channels
     ctex_image_encode_memory
     ctex_mesh_create
     ctex_mesh_destroy
