@@ -252,7 +252,10 @@ counts through C. Exactly 39 runtime requirements remained without C ABI
 evidence at that point. Resolution-aware unit-square diagnostics now expose
 covered and uncovered texels, normalized uncovered area, bounded work and
 out-of-range faces. Exactly 38 runtime requirements remain without C ABI
-evidence; those gaps must be
+evidence at that point. Painted-document mesh replacement now exposes stable
+per-set matching, UV-change reports, host policy selection, stale-plan refusal
+and atomic keep/clear publication while deferring requested reprojection without
+mutation. Exactly 37 runtime requirements remain without C ABI evidence; those gaps must be
 implemented before task 14.8 can close.
 
 ## Milestones

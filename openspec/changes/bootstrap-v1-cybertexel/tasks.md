@@ -1037,6 +1037,17 @@ isolation, out-of-range faces, zero dimensions and ceiling refusal. Together
 with overlap diagnostics this completes task 4.5, and the exact remaining C ABI
 gap is 38 runtime requirements.
 
+Task 4.7 adds a two-phase painted-document mesh replacement transaction. Stable
+partition kind/key and named-UV matching ignores display, partition, vertex,
+winding and face order while reporting missing identities and changed layouts
+per texture set. The host must choose keep, reprojection or clear for every
+affected set. Invalid and stale plans mutate nothing; clear releases sparse
+tiles while preserving channel definitions and invalidating old revision
+cursors. Any reprojection request keeps the old mesh and every pixel pending
+the full task-20.5 operation. Otherwise the owned replacement and all policies
+publish atomically through C++, strict C and allocator-balanced fixtures. This
+reduces the exact remaining C ABI gap to 37 runtime requirements.
+
 ## 1. Foundation
 
 - [x] 1.1 CMake project, C++20, warnings as errors, presets for headless, macOS, Linux, Windows, iOS, Android
@@ -1088,7 +1099,7 @@ gap is 38 runtime requirements.
 - [ ] 4.4 Atlases and their export-time regions
 - [x] 4.5 Overlap and coverage diagnostics
 - [x] 4.6 Mesh revision; every derived structure keyed by it
-- [ ] 4.7 Mesh replacement: identity matching, UV-change reporting, host-chosen policy
+- [x] 4.7 Mesh replacement: identity matching, UV-change reporting, host-chosen policy
 - [x] 4.8 Declared mesh limits and their named refusals
 - [ ] 4.9 `mesh-and-texture-sets` scenarios as tests
 

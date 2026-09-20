@@ -265,6 +265,24 @@ void TiledImage::write_pixel(std::uint32_t x, std::uint32_t y, std::span<const s
     dirty_[index] = true;
 }
 
+bool TiledImage::can_clear() const noexcept {
+    return allocated_tiles_.empty() || revision_epoch_ != std::numeric_limits<RevisionEpoch>::max();
+}
+
+void TiledImage::clear() {
+    if (allocated_tiles_.empty()) {
+        return;
+    }
+    if (!can_clear()) {
+        throw std::overflow_error("image revision epoch space is exhausted");
+    }
+    std::fill(tiles_.begin(), tiles_.end(), nullptr);
+    allocated_tiles_.clear();
+    std::fill(dirty_.begin(), dirty_.end(), false);
+    std::fill(tile_generations_.begin(), tile_generations_.end(), 0);
+    begin_new_revision_epoch();
+}
+
 RevisionCursor TiledImage::reset_revision_history() {
     if (revision_epoch_ == std::numeric_limits<RevisionEpoch>::max()) {
         throw std::overflow_error("image revision epoch space is exhausted");

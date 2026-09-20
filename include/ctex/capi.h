@@ -134,6 +134,7 @@ typedef struct ctex_allocator_descriptor {
 typedef struct ctex_document ctex_document;
 typedef struct ctex_cube_lut ctex_cube_lut;
 typedef struct ctex_mesh ctex_mesh;
+typedef struct ctex_mesh_replacement_plan ctex_mesh_replacement_plan;
 typedef struct ctex_paint_dilation_session ctex_paint_dilation_session;
 typedef struct ctex_paint_surface_map_cache ctex_paint_surface_map_cache;
 typedef struct ctex_paint_preview_session ctex_paint_preview_session;
@@ -1721,6 +1722,68 @@ typedef struct ctex_mesh_uv_coverage_info {
 
 #define CTEX_MESH_UV_COVERAGE_INFO_V1_SIZE ((uint32_t)sizeof(ctex_mesh_uv_coverage_info))
 #define CTEX_MESH_UV_COVERAGE_INFO_CURRENT_SIZE ((uint32_t)sizeof(ctex_mesh_uv_coverage_info))
+
+typedef enum ctex_mesh_uv_change {
+    CTEX_MESH_UV_UNCHANGED = 0,
+    CTEX_MESH_UV_CHANGED = 1,
+    CTEX_MESH_SOURCE_PARTITION_MISSING = 2,
+    CTEX_MESH_REPLACEMENT_PARTITION_MISSING = 3,
+    CTEX_MESH_UV_SET_MISSING = 4
+} ctex_mesh_uv_change;
+
+typedef enum ctex_mesh_replacement_policy {
+    CTEX_MESH_REPLACEMENT_KEEP_TEXELS = 0,
+    CTEX_MESH_REPLACEMENT_REQUEST_REPROJECTION = 1,
+    CTEX_MESH_REPLACEMENT_CLEAR = 2
+} ctex_mesh_replacement_policy;
+
+typedef struct ctex_mesh_replacement_entry {
+    uint32_t uv_change;
+    uint32_t source_partition_index;
+    uint32_t replacement_partition_index;
+    size_t source_face_count;
+    size_t replacement_face_count;
+    size_t texture_set_id_offset;
+    size_t texture_set_id_size;
+} ctex_mesh_replacement_entry;
+
+#define CTEX_MESH_REPLACEMENT_NO_PARTITION UINT32_MAX
+
+typedef struct ctex_mesh_replacement_plan_info {
+    uint32_t size;
+    uint64_t source_mesh_revision;
+    size_t texture_set_count;
+    size_t changed_texture_set_count;
+    size_t required_texture_set_id_size;
+} ctex_mesh_replacement_plan_info;
+
+#define CTEX_MESH_REPLACEMENT_PLAN_INFO_V1_SIZE ((uint32_t)sizeof(ctex_mesh_replacement_plan_info))
+#define CTEX_MESH_REPLACEMENT_PLAN_INFO_CURRENT_SIZE \
+    ((uint32_t)sizeof(ctex_mesh_replacement_plan_info))
+
+typedef struct ctex_mesh_replacement_decision {
+    uint32_t size;
+    const char* texture_set_id;
+    uint32_t policy;
+} ctex_mesh_replacement_decision;
+
+#define CTEX_MESH_REPLACEMENT_DECISION_V1_SIZE ((uint32_t)sizeof(ctex_mesh_replacement_decision))
+#define CTEX_MESH_REPLACEMENT_DECISION_CURRENT_SIZE \
+    ((uint32_t)sizeof(ctex_mesh_replacement_decision))
+
+typedef struct ctex_mesh_replacement_apply_info {
+    uint32_t size;
+    uint32_t replacement_applied;
+    size_t kept_texture_set_count;
+    size_t cleared_texture_set_count;
+    size_t reprojection_pending_texture_set_count;
+    uint64_t replacement_mesh_revision;
+} ctex_mesh_replacement_apply_info;
+
+#define CTEX_MESH_REPLACEMENT_APPLY_INFO_V1_SIZE \
+    ((uint32_t)sizeof(ctex_mesh_replacement_apply_info))
+#define CTEX_MESH_REPLACEMENT_APPLY_INFO_CURRENT_SIZE \
+    ((uint32_t)sizeof(ctex_mesh_replacement_apply_info))
 
 typedef enum ctex_pick_occlusion_policy {
     CTEX_PICK_OCCLUSION_NEAREST = 0,
@@ -5497,6 +5560,32 @@ CTEX_API ctex_result ctex_mesh_analyze_uv_coverage(const ctex_mesh* mesh, const 
                                                    ctex_mesh_uv_coverage_info* out_info,
                                                    uint32_t* outside_face_indices,
                                                    size_t outside_face_index_capacity);
+
+/*
+ * A replacement plan owns a validated copy of the proposed mesh and compares it
+ * with every texture set in the document. Query it before supplying exactly one
+ * policy for each entry whose uv_change is not CTEX_MESH_UV_UNCHANGED.
+ *
+ * Apply is atomic with mesh publication. If any set requests reprojection, no
+ * channel is cleared and the mesh is not replaced; replacement_applied is zero
+ * and the plan remains reusable. The document and mesh must outlive the plan.
+ */
+CTEX_API ctex_result ctex_mesh_replacement_plan_create(ctex_document* document, ctex_mesh* mesh,
+                                                       const ctex_mesh_descriptor* replacement,
+                                                       ctex_mesh_replacement_plan** out_plan);
+CTEX_API ctex_result ctex_mesh_replacement_plan_create_with_tangent_data(
+    ctex_document* document, ctex_mesh* mesh, const ctex_mesh_descriptor* replacement,
+    const ctex_mesh_tangent_data_descriptor* tangents, ctex_mesh_replacement_plan** out_plan);
+CTEX_API void ctex_mesh_replacement_plan_destroy(ctex_mesh_replacement_plan* plan);
+CTEX_API ctex_result ctex_mesh_replacement_plan_get_info(const ctex_mesh_replacement_plan* plan,
+                                                         ctex_mesh_replacement_plan_info* out_info,
+                                                         ctex_mesh_replacement_entry* entries,
+                                                         size_t entry_capacity,
+                                                         char* texture_set_ids,
+                                                         size_t texture_set_id_size);
+CTEX_API ctex_result ctex_mesh_replacement_plan_apply(
+    ctex_mesh_replacement_plan* plan, const ctex_mesh_replacement_decision* decisions,
+    size_t decision_count, ctex_mesh_replacement_apply_info* out_info);
 
 /*
  * These variants copy one tangent per triangle corner and retain the complete

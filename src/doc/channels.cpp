@@ -239,6 +239,24 @@ ChannelRevisionCursor TextureChannels::reset_revision_history(std::string_view s
     return pixels(semantic_id).reset_revision_history();
 }
 
+bool TextureChannels::can_clear_enabled() const noexcept {
+    return std::ranges::all_of(channels_, [](const auto& item) {
+        return item.second.pixels == nullptr || item.second.pixels->can_clear();
+    });
+}
+
+void TextureChannels::clear_enabled() {
+    if (!can_clear_enabled()) {
+        throw std::overflow_error("channel image revision epoch space is exhausted");
+    }
+    for (auto& [unused, channel] : channels_) {
+        static_cast<void>(unused);
+        if (channel.pixels) {
+            channel.pixels->clear();
+        }
+    }
+}
+
 std::size_t TextureChannels::enabled_channel_count() const noexcept {
     return static_cast<std::size_t>(
         std::count_if(channels_.begin(), channels_.end(),

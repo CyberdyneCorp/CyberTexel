@@ -82,6 +82,8 @@ public:
 
     [[nodiscard]] std::span<const std::byte> read_pixel(std::uint32_t x, std::uint32_t y) const;
     void write_pixel(std::uint32_t x, std::uint32_t y, std::span<const std::byte> pixel);
+    [[nodiscard]] bool can_clear() const noexcept;
+    void clear();
     [[nodiscard]] RevisionCursor reset_revision_history();
     void clear_dirty() noexcept;
 

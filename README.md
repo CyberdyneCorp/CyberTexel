@@ -143,7 +143,10 @@ The current implementation provides:
   with independent precision and allocation-free disabled channels.
 - Texture-set documents derived from mesh partitions and named UVs, with stable
   identities and independent channel storage.
-- Validated read-only mesh ingest and reusable flat CPU acceleration structures.
+- Validated read-only [mesh ingest](docs/mesh-ingest.md), reusable flat CPU
+  acceleration structures, overlap and coverage diagnostics, and two-phase mesh
+  replacement that reports per-set UV changes before the host chooses to keep,
+  clear, or defer content for reprojection.
 - Revision-aware [mesh-map sets](docs/mesh-maps.md) with named missing-map and
   staleness reports, asynchronous stale-safe bake tokens with coordinated undo,
   a host-supplied bake-provider seam, and transactional

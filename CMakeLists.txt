@@ -152,6 +152,7 @@ ctex_add_module(
         src/doc/channels.cpp
         src/doc/document.cpp
         src/doc/material_graph.cpp
+        src/doc/mesh_replacement.cpp
         src/doc/preset_application.cpp
         src/doc/smart_mask.cpp
         src/doc/smart_material.cpp
@@ -656,6 +657,12 @@ if(BUILD_TESTING)
     ctex_configure_cpp_target(ctex_channels_test)
     target_link_libraries(ctex_channels_test PRIVATE ctex_doc ctex_mesh ctex_graph ctex_image)
     add_test(NAME document-channels COMMAND ctex_channels_test)
+    add_executable(ctex_mesh_replacement_test tests/doc/mesh_replacement_test.cpp)
+    ctex_configure_cpp_target(ctex_mesh_replacement_test)
+    target_link_libraries(
+        ctex_mesh_replacement_test PRIVATE ctex_doc ctex_mesh ctex_graph ctex_image
+    )
+    add_test(NAME mesh-replacement-policy COMMAND ctex_mesh_replacement_test)
     add_executable(ctex_smart_material_test tests/doc/smart_material_test.cpp)
     ctex_configure_cpp_target(ctex_smart_material_test)
     target_link_libraries(
@@ -1471,6 +1478,7 @@ if(BUILD_TESTING)
     set_tests_properties(
         mesh-ingest
         mesh-uv-diagnostics
+        mesh-replacement-policy
         c-abi-mesh-ingest
         c-abi-mesh-uv-diagnostics
         PROPERTIES LABELS mesh-and-texture-sets-scenario

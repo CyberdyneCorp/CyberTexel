@@ -144,5 +144,11 @@ remaining gap to 39 runtime requirements.
 Resolution-aware non-UDIM coverage now reports exact covered and uncovered
 texel-centre counts, normalized uncovered area, bounded work and sorted
 out-of-range faces. The exact remaining gap is 38 runtime requirements.
+Two-phase document-aware mesh replacement now owns and validates the proposed
+mesh, reports stable per-texture-set identity and UV-layout changes, requires a
+host keep/reproject/clear decision, refuses stale plans, and publishes clear or
+keep decisions atomically with the new mesh. Reprojection leaves both source
+mesh and pixels intact for the later editable-authoring operation. The exact
+remaining gap is 37 runtime requirements.
 The gate is not part of the aggregate `just check` until that count reaches zero;
 its unit tests run in the normal tooling suite throughout the migration.

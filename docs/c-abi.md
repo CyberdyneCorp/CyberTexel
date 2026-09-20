@@ -67,6 +67,21 @@ prior mesh and revision. The maximum supported mesh has 100,000,000 vertices and
 before reading array contents and report `CTEX_DIAGNOSTIC_MESH_LIMIT_EXCEEDED`
 with the count, supplied value and maximum.
 
+For a painted document, use `ctex_mesh_replacement_plan_create` instead of the
+mesh-only replacement call. The opaque plan owns a validated copy of the
+candidate mesh. Its two-call info query reports each stable texture-set ID,
+source and replacement partition, face counts, and whether its named UV layout
+is unchanged, changed, or missing. Unchanged sets need no decision; every other
+set requires exactly one keep, reprojection, or clear policy at apply time.
+
+Keep and clear policies publish atomically with the candidate mesh, while stale,
+missing, duplicate, or unknown decisions publish nothing. If any texture set
+requests reprojection, apply succeeds as a preflight with
+`replacement_applied == 0`: neither mesh nor pixels change and the plan can be
+queried or submitted again. The document and mesh must outlive the plan. The
+`_with_tangent_data` constructor provides the same transaction for a declared
+per-corner tangent frame.
+
 `ctex_document_create_texture_sets_from_mesh` selects any named UV set on a mesh
 and creates one document texture set for every validated face partition, using
 the requested resolution and precision. The operation refuses a missing UV set
@@ -1007,6 +1022,7 @@ The contract is stated per entry-point family:
 | `ctex_document_create_texture_set`, `ctex_document_create_texture_sets_from_mesh`, `ctex_document_get_texture_set_ids`, `ctex_texture_set_*` | Calls on distinct document handles are safe concurrently; every call on the same document handle must be externally synchronized, including read-only calls. Mesh-derived creation also requires no concurrent use of that mesh handle |
 | `ctex_mesh_create` | Process-safe; each successful call creates independent owned state and captures the active allocator |
 | `ctex_mesh_destroy`, `ctex_mesh_replace`, `ctex_mesh_get_info`, `ctex_mesh_get_uv_set_names`, `ctex_mesh_analyze_uv_overlaps`, `ctex_mesh_analyze_uv_coverage` | Calls on distinct mesh handles are safe concurrently; every call on the same mesh handle must be externally synchronized, including read-only calls |
+| `ctex_mesh_replacement_plan_*` | Plans over distinct document/mesh pairs are independent. The source document and mesh must outlive the plan; callers serialize plan queries, apply and destruction with every operation on either source handle. Apply consumes the candidate mesh only when `replacement_applied` is nonzero |
 | `ctex_pick_ray_from_screen` | Stateless, process-safe and callable concurrently from any thread |
 | `ctex_pick_index_create`, `ctex_uv_pick_index_create` | Process-safe when no concurrent call mutates or destroys the supplied mesh; each successful call creates independent index state and captures the active allocator |
 | `ctex_pick_index_destroy`, `ctex_uv_pick_index_destroy`, `ctex_pick_index_get_info`, `ctex_uv_pick_index_get_info`, `ctex_pick_ray_query`, `ctex_pick_uv_query`, `ctex_pick_snap_to_surface`, `ctex_pick_query_*`, `ctex_pick_nearest_batch`, `ctex_paint_apply_particles`, `ctex_paint_select_screen` | Calls on distinct indexes over idle or distinct meshes are safe concurrently. Every call on the same index or its mesh must be externally serialized; the mesh must outlive the index and callbacks must remain valid for the batch call |

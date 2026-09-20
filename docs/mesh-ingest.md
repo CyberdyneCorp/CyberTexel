@@ -70,3 +70,28 @@ precision for those sets.
 `MeshBinding` associates a validated view with an opaque revision. Call
 `replace()` after changing any caller-owned geometry, UV, or partition buffer;
 successful replacement advances the revision so derived structures can rebuild.
+
+## Painted-document mesh replacement
+
+`analyze_mesh_replacement` matches every document texture set to source and
+replacement partitions by partition kind and stable key, never by array order or
+display name. It compares the bound named UV set as an unordered collection of
+triangles, so face order, winding, vertex indexing, 3D positions, and partition
+order do not create false UV changes. The report distinguishes unchanged UVs,
+changed UVs, a missing source or replacement partition, and a missing bound UV
+set, with both matched partition indices and face counts.
+
+Every non-unchanged set requires exactly one host decision: keep its texels in
+place, request reprojection, or clear its enabled channels back to their declared
+defaults. Missing, duplicate, unknown, stale, and invalid decisions are rejected
+before mutation. Clear preserves channel enablement and format while releasing
+sparse tiles and advancing the revision epoch so old cursors cannot be mistaken
+for current data.
+
+Reprojection is deliberately a preflight outcome at this stage. If any set
+requests it, all requested clears and mesh publication remain pending, leaving
+the old mesh and all pixels intact for the reprojection operation specified by
+editable-authoring task 20.5. Otherwise the C replacement-plan API publishes
+the already validated, owned replacement mesh atomically after applying all
+policies. The plan refuses publication if another mesh replacement made its
+source revision stale.

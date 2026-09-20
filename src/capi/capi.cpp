@@ -8,6 +8,7 @@
 #include <cstdio>
 #include <cstring>
 #include <ctex/doc/material_graph.hpp>
+#include <ctex/doc/mesh_replacement.hpp>
 #include <ctex/doc/smart_material.hpp>
 #include <ctex/emit/emission_cache.hpp>
 #include <ctex/exec/cpu_reference.hpp>
@@ -289,6 +290,24 @@ struct ctex_mesh_map_set {
     ctex_document* document;
     const ctex_mesh* mesh;
     ctex::maps::MeshMapSet value;
+};
+
+struct ctex_mesh_replacement_plan {
+    ctex_mesh_replacement_plan(ctex_allocator_state allocator_value, ctex_document* document_value,
+                               ctex_mesh* mesh_value, ctex_mesh_state* replacement_value,
+                               ctex::doc::MeshReplacementPlan analysis_value)
+        : allocator(allocator_value),
+          document(document_value),
+          mesh(mesh_value),
+          replacement(replacement_value),
+          analysis(std::move(analysis_value)) {}
+
+    ctex_allocator_state allocator;
+    ctex_document* document;
+    ctex_mesh* mesh;
+    ctex_mesh_state* replacement;
+    ctex::doc::MeshReplacementPlan analysis;
+    bool applied{};
 };
 
 struct ctex_mesh_map_bake_session {
@@ -1777,8 +1796,85 @@ ctex_mesh_state* create_mesh_state(ctex_mesh& mesh, const ctex_mesh_descriptor& 
 }
 
 void destroy_mesh_state(ctex_mesh& mesh, ctex_mesh_state* state) noexcept {
+    if (state == nullptr) {
+        return;
+    }
     state->~ctex_mesh_state();
     mesh.memory_resource.deallocate(state, sizeof(ctex_mesh_state), alignof(ctex_mesh_state));
+}
+
+ctex_mesh_replacement_plan* create_mesh_replacement_plan(const ctex_allocator_state& allocator,
+                                                         ctex_document* document, ctex_mesh* mesh,
+                                                         ctex_mesh_state* replacement,
+                                                         ctex::doc::MeshReplacementPlan analysis) {
+    void* storage = allocate_storage(allocator, sizeof(ctex_mesh_replacement_plan),
+                                     alignof(ctex_mesh_replacement_plan));
+    try {
+        return ::new (storage)
+            ctex_mesh_replacement_plan(allocator, document, mesh, replacement, std::move(analysis));
+    } catch (...) {
+        deallocate_storage(allocator, storage, sizeof(ctex_mesh_replacement_plan),
+                           alignof(ctex_mesh_replacement_plan));
+        throw;
+    }
+}
+
+void destroy_mesh_replacement_plan(ctex_mesh_replacement_plan* plan) noexcept {
+    if (plan == nullptr) {
+        return;
+    }
+    destroy_mesh_state(*plan->mesh, plan->replacement);
+    const ctex_allocator_state allocator = plan->allocator;
+    plan->~ctex_mesh_replacement_plan();
+    deallocate_storage(allocator, plan, sizeof(ctex_mesh_replacement_plan),
+                       alignof(ctex_mesh_replacement_plan));
+}
+
+ctex_mesh_replacement_plan* prepare_mesh_replacement_plan(
+    ctex_document* document, ctex_mesh* mesh, const ctex_mesh_descriptor& descriptor,
+    const ctex_mesh_tangent_data_descriptor* tangents) {
+    ctex_mesh_state* replacement = nullptr;
+    try {
+        replacement = create_mesh_state(*mesh, descriptor, tangents);
+        ctex::doc::MeshReplacementPlan analysis = ctex::doc::analyze_mesh_replacement(
+            document->value, mesh->state->mesh_binding(), replacement->mesh_binding().view());
+        ctex_mesh_replacement_plan* result = create_mesh_replacement_plan(
+            mesh->allocator, document, mesh, replacement, std::move(analysis));
+        replacement = nullptr;
+        return result;
+    } catch (...) {
+        destroy_mesh_state(*mesh, replacement);
+        throw;
+    }
+}
+
+std::uint32_t capi_mesh_uv_change(ctex::doc::MeshUvChange change) {
+    return static_cast<std::uint32_t>(change);
+}
+
+ctex::doc::MeshReplacementPolicy mesh_replacement_policy(std::uint32_t policy) {
+    if (policy > CTEX_MESH_REPLACEMENT_CLEAR) {
+        throw std::invalid_argument("mesh replacement policy is invalid");
+    }
+    return static_cast<ctex::doc::MeshReplacementPolicy>(policy);
+}
+
+std::vector<ctex::doc::MeshReplacementDecision> mesh_replacement_decisions(
+    const ctex_mesh_replacement_decision* decisions, std::size_t decision_count) {
+    std::vector<ctex::doc::MeshReplacementDecision> converted;
+    converted.reserve(decision_count);
+    for (std::size_t index = 0; index < decision_count; ++index) {
+        validate_structure_size(decisions[index].size, CTEX_MESH_REPLACEMENT_DECISION_V1_SIZE,
+                                CTEX_MESH_REPLACEMENT_DECISION_CURRENT_SIZE,
+                                "mesh replacement decision size");
+        if (decisions[index].texture_set_id == nullptr) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                           "mesh replacement decision texture_set_id is required");
+        }
+        converted.push_back(
+            {decisions[index].texture_set_id, mesh_replacement_policy(decisions[index].policy)});
+    }
+    return converted;
 }
 
 template <typename Operation>
@@ -14495,6 +14591,157 @@ extern "C" ctex_result ctex_mesh_analyze_uv_coverage(const ctex_mesh* mesh, cons
                            error.what());
         } catch (const std::out_of_range& error) {
             throw_boundary(CTEX_RESULT_MISSING_RESOURCE, CTEX_DIAGNOSTIC_MISSING_UV_SET,
+                           error.what());
+        }
+    });
+}
+
+extern "C" ctex_result ctex_mesh_replacement_plan_create(ctex_document* document, ctex_mesh* mesh,
+                                                         const ctex_mesh_descriptor* replacement,
+                                                         ctex_mesh_replacement_plan** out_plan) {
+    return call_boundary("ctex_mesh_replacement_plan_create", [&] {
+        if (document == nullptr || mesh == nullptr || replacement == nullptr ||
+            out_plan == nullptr) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                           "document, mesh, replacement and out_plan are required");
+        }
+        *out_plan = nullptr;
+        validate_mesh_descriptor(*replacement);
+        try {
+            *out_plan = prepare_mesh_replacement_plan(document, mesh, *replacement, nullptr);
+        } catch (const std::invalid_argument& error) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_INVALID_MESH,
+                           error.what());
+        }
+    });
+}
+
+extern "C" ctex_result ctex_mesh_replacement_plan_create_with_tangent_data(
+    ctex_document* document, ctex_mesh* mesh, const ctex_mesh_descriptor* replacement,
+    const ctex_mesh_tangent_data_descriptor* tangents, ctex_mesh_replacement_plan** out_plan) {
+    return call_boundary("ctex_mesh_replacement_plan_create_with_tangent_data", [&] {
+        if (document == nullptr || mesh == nullptr || replacement == nullptr ||
+            tangents == nullptr || out_plan == nullptr) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                           "document, mesh, replacement, tangents and out_plan are required");
+        }
+        *out_plan = nullptr;
+        validate_mesh_descriptor(*replacement);
+        validate_mesh_tangent_data(*tangents, *replacement);
+        try {
+            *out_plan = prepare_mesh_replacement_plan(document, mesh, *replacement, tangents);
+        } catch (const std::invalid_argument& error) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_INVALID_MESH,
+                           error.what());
+        }
+    });
+}
+
+extern "C" void ctex_mesh_replacement_plan_destroy(ctex_mesh_replacement_plan* plan) {
+    destroy_mesh_replacement_plan(plan);
+}
+
+extern "C" ctex_result ctex_mesh_replacement_plan_get_info(
+    const ctex_mesh_replacement_plan* plan, ctex_mesh_replacement_plan_info* out_info,
+    ctex_mesh_replacement_entry* entries, std::size_t entry_capacity, char* texture_set_ids,
+    std::size_t texture_set_id_size) {
+    return call_boundary("ctex_mesh_replacement_plan_get_info", [&] {
+        if (plan == nullptr || out_info == nullptr) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                           plan == nullptr ? "plan=null" : "out_info=null");
+        }
+        validate_structure_size(out_info->size, CTEX_MESH_REPLACEMENT_PLAN_INFO_V1_SIZE,
+                                CTEX_MESH_REPLACEMENT_PLAN_INFO_CURRENT_SIZE,
+                                "mesh replacement plan info size");
+        std::size_t required_string_size = 0;
+        std::size_t changed_count = 0;
+        for (const ctex::doc::TextureSetMeshReplacement& texture_set :
+             plan->analysis.texture_sets()) {
+            if (texture_set.texture_set_id.size() + 1 >
+                std::numeric_limits<std::size_t>::max() - required_string_size) {
+                throw std::overflow_error("mesh replacement texture-set ID buffer size overflow");
+            }
+            required_string_size += texture_set.texture_set_id.size() + 1;
+            changed_count += texture_set.change == ctex::doc::MeshUvChange::unchanged ? 0 : 1;
+        }
+        *out_info = {
+            .size = CTEX_MESH_REPLACEMENT_PLAN_INFO_CURRENT_SIZE,
+            .source_mesh_revision = plan->analysis.source_revision(),
+            .texture_set_count = plan->analysis.texture_sets().size(),
+            .changed_texture_set_count = changed_count,
+            .required_texture_set_id_size = required_string_size,
+        };
+        validate_output_array(entries, entry_capacity, plan->analysis.texture_sets().size(),
+                              "mesh replacement entries");
+        validate_string_buffer(texture_set_ids, texture_set_id_size, required_string_size);
+        std::size_t offset = 0;
+        for (std::size_t index = 0; index < plan->analysis.texture_sets().size(); ++index) {
+            const ctex::doc::TextureSetMeshReplacement& source =
+                plan->analysis.texture_sets()[index];
+            if (entries != nullptr) {
+                entries[index] = {
+                    .uv_change = capi_mesh_uv_change(source.change),
+                    .source_partition_index =
+                        source.source_partition_index.value_or(CTEX_MESH_REPLACEMENT_NO_PARTITION),
+                    .replacement_partition_index = source.replacement_partition_index.value_or(
+                        CTEX_MESH_REPLACEMENT_NO_PARTITION),
+                    .source_face_count = source.source_face_count,
+                    .replacement_face_count = source.replacement_face_count,
+                    .texture_set_id_offset = offset,
+                    .texture_set_id_size = source.texture_set_id.size() + 1,
+                };
+            }
+            if (texture_set_ids != nullptr) {
+                std::memcpy(texture_set_ids + offset, source.texture_set_id.c_str(),
+                            source.texture_set_id.size() + 1);
+            }
+            offset += source.texture_set_id.size() + 1;
+        }
+    });
+}
+
+extern "C" ctex_result ctex_mesh_replacement_plan_apply(
+    ctex_mesh_replacement_plan* plan, const ctex_mesh_replacement_decision* decisions,
+    std::size_t decision_count, ctex_mesh_replacement_apply_info* out_info) {
+    return call_boundary("ctex_mesh_replacement_plan_apply", [&] {
+        if (plan == nullptr || out_info == nullptr ||
+            (decisions == nullptr && decision_count != 0)) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                           "plan, decisions for a nonzero count and out_info are required");
+        }
+        validate_structure_size(out_info->size, CTEX_MESH_REPLACEMENT_APPLY_INFO_V1_SIZE,
+                                CTEX_MESH_REPLACEMENT_APPLY_INFO_CURRENT_SIZE,
+                                "mesh replacement apply info size");
+        if (plan->applied || plan->replacement == nullptr) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_INVALID_MESH,
+                           "mesh replacement plan was already applied");
+        }
+        try {
+            const std::vector<ctex::doc::MeshReplacementDecision> converted =
+                mesh_replacement_decisions(decisions, decision_count);
+            const ctex::doc::MeshReplacementApplyReport report =
+                ctex::doc::apply_mesh_replacement_policies(plan->document->value,
+                                                           plan->mesh->state->mesh_binding(),
+                                                           plan->analysis, converted);
+            std::uint64_t replacement_revision = 0;
+            if (report.replacement_ready) {
+                ctex_mesh_state* previous = std::exchange(plan->mesh->state, plan->replacement);
+                plan->replacement = nullptr;
+                plan->applied = true;
+                replacement_revision = plan->mesh->state->mesh_binding().revision();
+                destroy_mesh_state(*plan->mesh, previous);
+            }
+            *out_info = {
+                .size = CTEX_MESH_REPLACEMENT_APPLY_INFO_CURRENT_SIZE,
+                .replacement_applied = report.replacement_ready ? 1U : 0U,
+                .kept_texture_set_count = report.kept_texture_sets.size(),
+                .cleared_texture_set_count = report.cleared_texture_sets.size(),
+                .reprojection_pending_texture_set_count =
+                    report.reprojection_pending_texture_sets.size(),
+                .replacement_mesh_revision = replacement_revision,
+            };
+        } catch (const std::invalid_argument& error) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_INVALID_MESH,
                            error.what());
         }
     });

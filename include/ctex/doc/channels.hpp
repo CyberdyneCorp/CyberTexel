@@ -58,6 +58,8 @@ public:
     [[nodiscard]] TileRevision tile_revision(std::string_view semantic_id,
                                              image::TileCoordinate tile) const;
     [[nodiscard]] ChannelRevisionCursor reset_revision_history(std::string_view semantic_id);
+    [[nodiscard]] bool can_clear_enabled() const noexcept;
+    void clear_enabled();
 
     [[nodiscard]] std::size_t enabled_channel_count() const noexcept;
     [[nodiscard]] std::size_t resident_pixel_bytes() const noexcept;
