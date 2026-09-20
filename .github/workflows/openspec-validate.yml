@@ -56,8 +56,8 @@ jobs:
       run: just test-channels
     - name: Host transport scenarios
       run: just test-host-transport-scenarios
-    - name: Texture-set document
-      run: just test-document
+    - name: Texture-document scenarios
+      run: just test-texture-document-scenarios
     - name: Read-only mesh ingest
       run: just test-mesh
     - name: Picking scenarios

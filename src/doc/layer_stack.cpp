@@ -360,6 +360,12 @@ void LayerStack::record_paint(std::string_view identifier) {
     replace(identifier, std::move(replacement));
 }
 
+void LayerStack::set_display_name(std::string_view identifier, std::string display_name) {
+    LayerEntry replacement = entry(identifier);
+    replacement.display_name = std::move(display_name);
+    replace(identifier, std::move(replacement));
+}
+
 void LayerStack::set_opacity(std::string_view identifier, double opacity) {
     LayerEntry replacement = entry(identifier);
     replacement.opacity = opacity;

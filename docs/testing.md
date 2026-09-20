@@ -27,3 +27,8 @@ The project-save category writes a versioned sparse container twice and compares
 the complete binary output. The texture-export category likewise compares both
 an encoded texture and its machine-readable report. Empty categories are still
 rejected by name and owning task rather than counted as a pass.
+
+Capability scenario suites use CTest labels and checked Markdown matrices.
+For example, `just test-texture-document-scenarios` runs the complete document
+suite, while its matrix test refuses missing, renamed, duplicate, empty, or
+unknown executable evidence for any OpenSpec scenario.

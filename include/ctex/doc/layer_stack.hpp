@@ -121,6 +121,7 @@ public:
                     std::string target_identifier);
     void set_fill_graph(std::string_view identifier, graph::GraphDocument graph);
     void record_paint(std::string_view identifier);
+    void set_display_name(std::string_view identifier, std::string display_name);
     void set_opacity(std::string_view identifier, double opacity);
     void set_blend_mode(std::string_view identifier, std::string blend_mode);
     void set_channel_modulation(std::string_view identifier, LayerEntry::ChannelModulation channel);

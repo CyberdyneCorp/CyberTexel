@@ -63,6 +63,8 @@ const TextureChannels& TextureSetTransaction::channels() const {
     return require_active().staged.channels();
 }
 
+LayerStack& TextureSetTransaction::layer_stack() { return require_active().staged.layer_stack(); }
+
 const LayerStack& TextureSetTransaction::layer_stack() const {
     return require_active().staged.layer_stack();
 }

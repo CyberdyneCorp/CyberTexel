@@ -1042,6 +1042,15 @@ if(BUILD_TESTING)
     ctex_configure_cpp_target(ctex_transaction_test)
     target_link_libraries(ctex_transaction_test PRIVATE ctex_doc ctex_mesh ctex_graph ctex_image)
     add_test(NAME texture-document-transactions COMMAND ctex_transaction_test)
+    add_test(
+        NAME texture-document-scenario-matrix
+        COMMAND
+            "${CTEX_PYTHON3_EXECUTABLE}"
+            tests/tools/check_texture_document_scenario_matrix.py
+    )
+    set_tests_properties(
+        texture-document-scenario-matrix PROPERTIES WORKING_DIRECTORY "${PROJECT_SOURCE_DIR}"
+    )
 
     add_executable(ctex_mesh_test tests/mesh/mesh_test.cpp)
     ctex_configure_cpp_target(ctex_mesh_test)
@@ -1586,5 +1595,26 @@ if(BUILD_TESTING)
             mesh-map-generators
             smart-material-scenario-matrix
         APPEND PROPERTY LABELS smart-materials-scenario
+    )
+    set_property(
+        TEST
+            tiled-image
+            document-channels
+            project-container
+            texture-export-execution
+            texture-document
+            texture-document-layer-stack
+            texture-document-instances
+            texture-document-blend-modes
+            texture-document-channel-participation
+            texture-document-cpu-compositor
+            texture-document-composite-determinism
+            texture-document-layer-operations
+            texture-document-tile-history
+            texture-document-transactions
+            texture-document-scenario-matrix
+            mesh-ingest
+            executor-parity-gate
+        APPEND PROPERTY LABELS texture-document-scenario
     )
 endif()

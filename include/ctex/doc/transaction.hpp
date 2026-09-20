@@ -38,6 +38,7 @@ public:
 
     [[nodiscard]] bool active() const noexcept;
     [[nodiscard]] const TextureChannels& channels() const;
+    [[nodiscard]] LayerStack& layer_stack();
     [[nodiscard]] const LayerStack& layer_stack() const;
     void write_pixel(std::string_view semantic_id, std::uint32_t x, std::uint32_t y,
                      std::span<const std::byte> pixel);

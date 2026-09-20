@@ -86,6 +86,9 @@ test-channels: build
 test-document: build
     ctest --test-dir build/headless --output-on-failure -R '^texture-document$'
 
+test-texture-document-scenarios: build
+    ctest --test-dir build/headless --output-on-failure -L '^texture-document-scenario$'
+
 test-smart-material-serialization: build
     ctest --test-dir build/headless --output-on-failure -R '^smart-material-serialization$'
 

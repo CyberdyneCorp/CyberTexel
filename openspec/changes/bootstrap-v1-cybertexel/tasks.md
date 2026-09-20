@@ -1118,6 +1118,14 @@ history step. Cancel, destruction and stale commit discard the candidate with
 no live pixel, structure, revision or history change. Mixed undo/redo validates
 every target before restoring anything.
 
+Task 3.11 maps all 38 texture-document scenarios to a labeled headless suite
+and checks the matrix against OpenSpec and registered CTests. Scenario closure
+also adds transaction-scoped layer metadata editing: a rename now commits,
+undoes and redoes as a command delta while consuming zero pixel-history bytes.
+The suite includes mesh partitioning, sparse channels and tiles, the complete
+layer/compositor/operation/history surface, executor parity, project storage,
+and export integration where those are part of a document scenario.
+
 ## 1. Foundation
 
 - [x] 1.1 CMake project, C++20, warnings as errors, presets for headless, macOS, Linux, Windows, iOS, Android
@@ -1159,7 +1167,7 @@ every target before restoring anything.
 - [x] 3.8 Layer operations: create, duplicate, delete, reorder, reparent, clear, invert, merge, flatten, convert, apply mask — each atomic
 - [x] 3.9 Tile-scoped history, ownership-exchange restore, declared budget and its refusals
 - [x] 3.10 Transactions: grouping and byte-identical cancellation
-- [ ] 3.11 `texture-document` scenarios as tests
+- [x] 3.11 `texture-document` scenarios as tests
 
 ## 4. Geometry input
 

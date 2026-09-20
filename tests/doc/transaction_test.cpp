@@ -215,13 +215,36 @@ bool layer_only_transaction_uses_no_pixel_budget() {
                   "layer-only transaction consumed pixel budget or was not undoable");
 }
 
+bool metadata_edits_are_command_history() {
+    TextureSet set = texture_set();
+    set.layer_stack().append(group_entry("group"));
+    set.configure_tile_history_budget(0);
+    auto transaction = set.begin_transaction("rename");
+    transaction.layer_stack().set_display_name("group", "Renamed group");
+    const TileHistoryCommitResult committed = transaction.commit();
+    const TileHistoryBudgetReport after_commit = set.tile_history_budget_report();
+    const TileHistoryRestoreResult undone = set.undo_tiles();
+    const bool undo_ok =
+        expect(committed.committed && committed.layer_stack_changed &&
+                   committed.retained_bytes == 0 && after_commit.retained_bytes == 0 &&
+                   after_commit.undo_steps == 1 && undone.layer_stack_exchanged &&
+                   set.layer_stack().entry("group").display_name == "Group",
+               "renaming was not retained as a zero-pixel command history step");
+    const TileHistoryRestoreResult redone = set.redo_tiles();
+    return undo_ok && expect(redone.layer_stack_exchanged &&
+                                 set.layer_stack().entry("group").display_name == "Renamed group" &&
+                                 set.tile_history_budget_report().retained_bytes == 0,
+                             "redo did not restore the zero-pixel metadata edit");
+}
+
 }  // namespace
 
 int main() {
     return forty_writes_commit_as_one_step() && mixed_pixel_and_layer_transaction_is_one_step() &&
                    cancellation_and_destruction_leave_live_state_exact() &&
                    stale_and_undeclared_transactions_are_refused() &&
-                   layer_only_transaction_uses_no_pixel_budget()
+                   layer_only_transaction_uses_no_pixel_budget() &&
+                   metadata_edits_are_command_history()
                ? 0
                : 1;
 }

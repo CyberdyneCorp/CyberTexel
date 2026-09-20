@@ -7,7 +7,7 @@ decisions taken and questions still open.
 ## Status
 
 Implementation started. 24 capabilities, 332 requirements, 409 scenarios and
-222 tasks, 148 done. Foundation and the complete headless color-management
+222 tasks, 149 done. Foundation and the complete headless color-management
 scenario suite are green. Slice-A now has memory-buffer PNG input plus
 PNG/JPEG/TGA/TIFF/OpenEXR output, with 8/16-bit preservation and hostile-input
 ceilings; full decoder breadth remains scheduled for slice D. Extensible channel
@@ -29,6 +29,9 @@ layer operations from live state, publish them as one mixed undo step, and make
 cancel or abandonment an exact discard. Reversible layer-command deltas retain
 only changed entries, removals and changed ordering; tile, layer and history
 revision checks refuse stale commits or restores before partial publication.
+All 38 texture-document scenarios now map to a checked, labeled headless suite.
+Layer metadata edits made through a transaction are retained as reversible
+commands with zero pixel-history bytes.
 Read-only in-memory mesh ingest now
 validates attributes and total, non-overlapping face partitions, from which the
 document derives stable UV-bound texture sets with independent storage.
