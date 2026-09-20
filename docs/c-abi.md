@@ -177,6 +177,14 @@ and callbacks must not throw across the boundary. The immutable execution-result
 handle preserves status, processed count, exact memory request, actual worker
 count and diagnostic message for two-call readback without rerunning the work.
 
+`ctex_executor_parity_get_tolerance` publishes the numeric agreement contract:
+one normalized code value for direct 8-bit and 16-bit values, two code values
+after filtering, and explicit absolute-plus-relative bounds for floating-point
+values. `ctex_executor_compare_parity` applies that same contract to complete
+caller arrays, refuses empty inputs and treats every non-finite value as a
+mismatch. Its report includes the maximum absolute deviation and the first
+failure's index, values, measured deviation, allowed deviation and message.
+
 `ctex_host_execution_session` exposes the host-executed submission state
 machine without moving device handles or pixels across the boundary. Each
 resource handoff names a stable logical identity and generation, its owner,
@@ -590,6 +598,7 @@ The contract is stated per entry-point family:
 | `ctex_executor_registry_create`, `ctex_executor_registry_destroy`, `ctex_executor_registry_get_count`, `ctex_executor_registry_get_info`, `ctex_executor_registry_select`, `ctex_executor_registry_pin_default`, `ctex_executor_registry_clear_default` | Distinct registries are independent. Callers serialize selection/default changes and destruction of one registry; read-only count and descriptor queries may run concurrently when no operation mutates that registry |
 | `ctex_executor_make_fallback_report` | Stateless and safe to call concurrently; input strings are borrowed only for the call and the report buffer is caller-owned |
 | `ctex_cpu_execute_bounded`, `ctex_cpu_execution_result_destroy`, `ctex_cpu_execution_result_get_info` | Distinct executions and immutable result handles are independent. Work callbacks may run concurrently up to the declared worker bound; cancellation and progress callbacks are serialized; commit runs once on the calling thread. A result may be queried concurrently, but destruction requires that no query is active |
+| `ctex_executor_parity_get_tolerance`, `ctex_executor_compare_parity` | Stateless and safe to call concurrently; comparison inputs are borrowed only for the call and output storage is caller-owned |
 | `ctex_host_execution_session_*`, `ctex_host_completion_result_*`, `ctex_host_recovery_report_*` | Distinct sessions are independent. Callers serialize submission, completion, cancellation, recovery, queries and destruction on one session. Completion-result and recovery-report handles are immutable after creation; each may be queried concurrently, but destruction requires that no query is active |
 | `ctex_paint_dilation_session_create`, `ctex_paint_dilation_session_destroy`, `ctex_paint_dilation_session_stage_tile`, `ctex_paint_dilation_session_get_preview`, `ctex_paint_dilation_session_finish` | Distinct sessions are independent and may be used concurrently; callers serialize staging, preview, finish and destruction of the same session |
 | `ctex_paint_surface_map_cache_create`, `ctex_paint_surface_map_cache_destroy`, `ctex_paint_surface_map_cache_clear`, `ctex_paint_surface_map_cache_get_statistics`, `ctex_paint_surface_map_cache_lookup` | Distinct caches are independent and may be used concurrently; callers serialize lookup, statistics, clearing and destruction of the same cache, and keep each mesh alive for its lookup call |

@@ -781,6 +781,14 @@ execution while returning exact work, memory and worker counts through the
 caller-owned buffer contract. The exact remaining C ABI gap is 111 runtime
 requirements.
 
+The parity-tolerance continuation exposes one more execution-backend
+requirement. Hosts can query exact direct and filtered bounds for 8-bit, 16-bit
+and floating-point values, then compare complete arrays with the same native
+contract. Reports include maximum deviation and the first failing index, values,
+measured deviation and allowed deviation; non-finite inputs fail comparison.
+The broader committed-fixture gate remains separate. The exact remaining C ABI
+gap is 110 runtime requirements.
+
 ## 1. Foundation
 
 - [x] 1.1 CMake project, C++20, warnings as errors, presets for headless, macOS, Linux, Windows, iOS, Android

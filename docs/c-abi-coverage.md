@@ -56,7 +56,8 @@ logical resource identity through atomic caller-owned readback. Bounded CPU work
 now exposes staged parallel execution, serialized progress, cooperative
 cancellation, real worker limits and pre-allocation memory refusal through C
 callbacks. Immutable result handles preserve one-shot execution while
-supporting caller-owned message readback. Exactly 111 runtime requirements
-remain unmapped.
+supporting caller-owned message readback. Numeric executor parity tolerances and
+complete-array comparison are now public for direct and filtered 8-bit, 16-bit
+and floating-point values. Exactly 110 runtime requirements remain unmapped.
 The gate is not part of the aggregate `just check` until that count reaches zero;
 its unit tests run in the normal tooling suite throughout the migration.

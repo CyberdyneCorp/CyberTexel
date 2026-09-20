@@ -44,6 +44,7 @@
       {"requirement": "Asynchronous execution and cancellation", "symbols": ["ctex_cpu_execute_bounded", "ctex_cpu_execution_result_destroy", "ctex_cpu_execution_result_get_info"]},
       {"requirement": "Worker bound", "symbols": ["ctex_cpu_execute_bounded", "ctex_cpu_execution_result_get_info"]},
       {"requirement": "Memory ceiling", "symbols": ["ctex_cpu_execute_bounded", "ctex_cpu_execution_result_get_info"]},
+      {"requirement": "Declared parity tolerance", "symbols": ["ctex_executor_parity_get_tolerance", "ctex_executor_compare_parity"]},
       {"requirement": "Host-executed contract", "symbols": ["ctex_host_execution_session_create", "ctex_host_execution_session_destroy", "ctex_host_execution_session_submit", "ctex_host_execution_session_complete", "ctex_host_completion_result_destroy", "ctex_host_completion_result_get_info"]},
       {"requirement": "Host-resident authority and completion", "symbols": ["ctex_host_execution_session_get_info", "ctex_host_execution_session_submit", "ctex_host_execution_session_cancel", "ctex_host_execution_session_complete", "ctex_host_execution_session_get_committed_resource", "ctex_host_execution_session_resource_is_held", "ctex_host_completion_result_get_info"]},
       {"requirement": "Recovery is established before publication", "symbols": ["ctex_host_execution_session_complete", "ctex_host_execution_session_establish_recovery", "ctex_host_execution_session_report_device_loss", "ctex_host_recovery_report_destroy", "ctex_host_recovery_report_get_info"]}

@@ -10,6 +10,7 @@
 #include <ctex/doc/smart_material.hpp>
 #include <ctex/exec/cpu_reference.hpp>
 #include <ctex/exec/host_execution.hpp>
+#include <ctex/exec/parity.hpp>
 #include <ctex/exec/vulkan_executor.hpp>
 #include <ctex/image/color_policy.hpp>
 #include <ctex/io/image_io.hpp>
@@ -5170,6 +5171,14 @@ std::uint32_t cpu_execution_status(ctex::exec::ExecutionStatus status) {
     throw std::logic_error("unknown CPU execution status");
 }
 
+ctex::exec::ParityValueClass parity_value_class(std::uint32_t value) {
+    if (value > CTEX_PARITY_FLOATING_POINT) {
+        throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_INVALID_ENUM_VALUE,
+                       "parity value class=" + std::to_string(value));
+    }
+    return static_cast<ctex::exec::ParityValueClass>(value);
+}
+
 ctex::emit::ResourceVersion host_resource_version(const char* logical_id,
                                                   std::uint64_t generation) {
     return {.logical_id = require_executor_text(logical_id, "logical_id"),
@@ -8296,6 +8305,75 @@ extern "C" ctex_result ctex_cpu_execution_result_get_info(const ctex_cpu_executi
         };
         validate_executor_string(message, message_size, value.message);
         copy_executor_string(value.message, message);
+    });
+}
+
+extern "C" ctex_result ctex_executor_parity_get_tolerance(std::uint32_t value_class,
+                                                          std::uint32_t filtered,
+                                                          ctex_parity_tolerance_info* out_info) {
+    return call_boundary("ctex_executor_parity_get_tolerance", [&] {
+        if (out_info == nullptr) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                           "out_info=null");
+        }
+        validate_structure_size(out_info->size, CTEX_PARITY_TOLERANCE_INFO_V1_SIZE,
+                                CTEX_PARITY_TOLERANCE_INFO_CURRENT_SIZE,
+                                "parity tolerance info size");
+        require_executor_boolean(filtered, "filtered");
+        const ctex::exec::ParityTolerance tolerance =
+            ctex::exec::parity_tolerance(parity_value_class(value_class), filtered != 0);
+        *out_info = {
+            .size = CTEX_PARITY_TOLERANCE_INFO_CURRENT_SIZE,
+            .absolute = tolerance.absolute,
+            .relative = tolerance.relative,
+        };
+    });
+}
+
+extern "C" ctex_result ctex_executor_compare_parity(const double* reference, const double* measured,
+                                                    std::size_t value_count,
+                                                    std::uint32_t value_class,
+                                                    std::uint32_t filtered,
+                                                    ctex_parity_comparison_info* out_info,
+                                                    char* message, std::size_t message_size) {
+    return call_boundary("ctex_executor_compare_parity", [&] {
+        if (out_info == nullptr ||
+            ((reference == nullptr || measured == nullptr) && value_count != 0)) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                           out_info == nullptr ? "out_info=null"
+                                               : "parity input=null with nonzero value_count");
+        }
+        validate_structure_size(out_info->size, CTEX_PARITY_COMPARISON_INFO_V1_SIZE,
+                                CTEX_PARITY_COMPARISON_INFO_CURRENT_SIZE,
+                                "parity comparison info size");
+        require_executor_boolean(filtered, "filtered");
+        const auto reference_values = value_count == 0
+                                          ? std::span<const double>{}
+                                          : std::span<const double>(reference, value_count);
+        const auto measured_values = value_count == 0
+                                         ? std::span<const double>{}
+                                         : std::span<const double>(measured, value_count);
+        const ctex::exec::ParityComparison comparison = ctex::exec::compare_parity(
+            reference_values, measured_values, parity_value_class(value_class), filtered != 0);
+        const ctex::exec::ParityFailure* failure =
+            comparison.first_failure ? &*comparison.first_failure : nullptr;
+        const std::string success_message = "values are within declared parity tolerance";
+        const std::string& result_message = failure == nullptr ? success_message : failure->message;
+        *out_info = {
+            .size = CTEX_PARITY_COMPARISON_INFO_CURRENT_SIZE,
+            .matches = comparison.matches ? 1U : 0U,
+            .compared_value_count = comparison.compared_values,
+            .maximum_absolute_deviation = comparison.maximum_absolute_deviation,
+            .has_failure = failure == nullptr ? 0U : 1U,
+            .failure_value_index = failure == nullptr ? 0 : failure->value_index,
+            .failure_reference = failure == nullptr ? 0.0 : failure->reference,
+            .failure_measured = failure == nullptr ? 0.0 : failure->measured,
+            .failure_absolute_deviation = failure == nullptr ? 0.0 : failure->absolute_deviation,
+            .failure_allowed_deviation = failure == nullptr ? 0.0 : failure->allowed_deviation,
+            .required_message_size = result_message.size() + 1,
+        };
+        validate_executor_string(message, message_size, result_message);
+        copy_executor_string(result_message, message);
     });
 }
 

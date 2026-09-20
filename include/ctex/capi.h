@@ -1543,6 +1543,38 @@ typedef struct ctex_cpu_execution_info {
 #define CTEX_CPU_EXECUTION_INFO_V1_SIZE ((uint32_t)sizeof(ctex_cpu_execution_info))
 #define CTEX_CPU_EXECUTION_INFO_CURRENT_SIZE ((uint32_t)sizeof(ctex_cpu_execution_info))
 
+typedef enum ctex_parity_value_class {
+    CTEX_PARITY_UNORM8 = 0,
+    CTEX_PARITY_UNORM16 = 1,
+    CTEX_PARITY_FLOATING_POINT = 2
+} ctex_parity_value_class;
+
+typedef struct ctex_parity_tolerance_info {
+    uint32_t size;
+    double absolute;
+    double relative;
+} ctex_parity_tolerance_info;
+
+#define CTEX_PARITY_TOLERANCE_INFO_V1_SIZE ((uint32_t)sizeof(ctex_parity_tolerance_info))
+#define CTEX_PARITY_TOLERANCE_INFO_CURRENT_SIZE ((uint32_t)sizeof(ctex_parity_tolerance_info))
+
+typedef struct ctex_parity_comparison_info {
+    uint32_t size;
+    uint32_t matches;
+    size_t compared_value_count;
+    double maximum_absolute_deviation;
+    uint32_t has_failure;
+    size_t failure_value_index;
+    double failure_reference;
+    double failure_measured;
+    double failure_absolute_deviation;
+    double failure_allowed_deviation;
+    size_t required_message_size;
+} ctex_parity_comparison_info;
+
+#define CTEX_PARITY_COMPARISON_INFO_V1_SIZE ((uint32_t)sizeof(ctex_parity_comparison_info))
+#define CTEX_PARITY_COMPARISON_INFO_CURRENT_SIZE ((uint32_t)sizeof(ctex_parity_comparison_info))
+
 typedef enum ctex_host_resource_owner {
     CTEX_HOST_RESOURCE_LIBRARY = 0,
     CTEX_HOST_RESOURCE_HOST = 1
@@ -2848,6 +2880,15 @@ CTEX_API void ctex_cpu_execution_result_destroy(ctex_cpu_execution_result* resul
 CTEX_API ctex_result ctex_cpu_execution_result_get_info(const ctex_cpu_execution_result* result,
                                                         ctex_cpu_execution_info* out_info,
                                                         char* message, size_t message_size);
+
+/* Numeric executor agreement contract for direct and filtered channel values. */
+CTEX_API ctex_result ctex_executor_parity_get_tolerance(uint32_t value_class, uint32_t filtered,
+                                                        ctex_parity_tolerance_info* out_info);
+CTEX_API ctex_result ctex_executor_compare_parity(const double* reference, const double* measured,
+                                                  size_t value_count, uint32_t value_class,
+                                                  uint32_t filtered,
+                                                  ctex_parity_comparison_info* out_info,
+                                                  char* message, size_t message_size);
 
 /* Host-executed work names logical resources only; device handles stay outside the library. */
 CTEX_API ctex_result ctex_host_execution_session_create(uint64_t initial_revision,

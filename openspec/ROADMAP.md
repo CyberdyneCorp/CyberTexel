@@ -177,7 +177,8 @@ public. Host-executed submissions, logical resource ownership, validated
 completion, cancellation, recovery-gated publication and device-loss reporting
 are now public without exposing device handles. Staged CPU execution now exposes
 cooperative cancellation and progress, worker limits and pre-allocation memory
-ceilings through the C boundary. Exactly 111 runtime requirements
+ceilings through the C boundary. Numeric parity tolerances and detailed array
+comparison are also public. Exactly 110 runtime requirements
 still lack C ABI evidence;
 those gaps must be implemented before task 14.8 can close.
 
