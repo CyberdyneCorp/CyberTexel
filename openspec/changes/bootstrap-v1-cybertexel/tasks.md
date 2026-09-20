@@ -1090,6 +1090,14 @@ ambiguous requests, and the determinism registry byte-compares a nested output
 across independent runs. A recursive instance sourcing its enclosing group is
 now refused before it can create a content-evaluation cycle.
 
+Task 3.8 adds transactional layer operations over the authoritative stack and a
+complete resolved-content snapshot. Structural operations retain ownership
+subtrees; clear and invert rasterize destructive procedural edits; merge down,
+merge group, flatten, paint/fill conversion and apply mask validate candidate
+appearance by recompositing before publication. Typed failures separate invalid
+structure/content, byte ceilings and appearance mismatch, and every refusal
+leaves the stack unchanged.
+
 ## 1. Foundation
 
 - [x] 1.1 CMake project, C++20, warnings as errors, presets for headless, macOS, Linux, Windows, iOS, Android
@@ -1128,7 +1136,7 @@ now refused before it can create a content-evaluation cycle.
 - [x] 3.5 Blend modes, with the formula table and a test per mode
 - [x] 3.6 Per-channel participation and effective opacity including group and mask chains
 - [x] 3.7 Compositing on the CPU reference, with the determinism test
-- [ ] 3.8 Layer operations: create, duplicate, delete, reorder, reparent, clear, invert, merge, flatten, convert, apply mask — each atomic
+- [x] 3.8 Layer operations: create, duplicate, delete, reorder, reparent, clear, invert, merge, flatten, convert, apply mask — each atomic
 - [ ] 3.9 Tile-scoped history, ownership-exchange restore, declared budget and its refusals
 - [ ] 3.10 Transactions: grouping and byte-identical cancellation
 - [ ] 3.11 `texture-document` scenarios as tests

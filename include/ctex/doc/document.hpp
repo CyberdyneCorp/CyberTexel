@@ -5,6 +5,7 @@
 #include <cstdint>
 #include <ctex/doc/channels.hpp>
 #include <ctex/doc/layer_compositor.hpp>
+#include <ctex/doc/layer_operations.hpp>
 #include <ctex/doc/layer_stack.hpp>
 #include <ctex/doc/smart_mask.hpp>
 #include <map>
@@ -134,6 +135,7 @@ public:
         std::string_view entry_identifier, std::string_view semantic_id,
         std::span<const LayerMaskSample> mask_samples = {}) const;
     [[nodiscard]] LayerCompositeResult composite_cpu(const LayerCompositeRequest& request) const;
+    [[nodiscard]] LayerOperationResult apply_layer_operation(LayerOperationRequest request);
     [[nodiscard]] TextureSetMemoryAccount create_memory_account(
         TextureSetMemoryCategory category) const;
     [[nodiscard]] TextureSetMemoryReport memory_report() const;

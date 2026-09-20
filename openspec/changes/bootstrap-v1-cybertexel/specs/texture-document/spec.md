@@ -129,7 +129,13 @@ Colour channels SHALL use the selected blend formula. Scalar channels SHALL appl
 - **THEN** the two results SHALL be bit-identical
 
 ### Requirement: Layer operations
-The system SHALL provide create, duplicate, delete, reorder, reparent, clear, invert, merge down, merge group, flatten, convert between paint and fill, and apply mask. Every operation SHALL either complete or leave the document unchanged.
+The system SHALL provide create, duplicate, delete, reorder, reparent, clear, invert, merge down, merge group, flatten, convert between paint and fill, and apply mask. Every operation SHALL build and validate a complete candidate stack and resolved-content snapshot before publishing either part, and SHALL either complete or leave the document and caller-owned input snapshot unchanged. The operation SHALL enforce a caller-declared output-byte ceiling before publication and distinguish invalid structure, invalid content, allocation-limit, and appearance-mismatch errors.
+
+Duplicate and structural movement SHALL operate on an ownership subtree consisting of the selected entry, nested children, and masks and filters attached anywhere in that subtree. Duplicate SHALL assign deterministic new stable identities and retarget internal parent, attachment, and instance references. Delete SHALL apply the explicit live-instance refusal or make-independent policy, and SHALL refuse independent conversion when resolved source content required to preserve an instance is unavailable. Reorder SHALL remain in the current sibling scope; reparent SHALL select a root or group scope; both SHALL preserve the moved ownership subtree and refuse invalid evaluation order or cycles.
+
+Clear SHALL make selected channel content transparent. Invert SHALL map each active data component to `1-value` without changing independent coverage. A destructive edit of resolved procedural content SHALL rasterize it to authored paint content and advance its content revision. Convert SHALL support paint-to-fill only with a supplied graph and fill-to-paint only without one.
+
+Merge down SHALL replace a layer and its lower sibling with baked paint content under the lower identity. Merge group SHALL replace the group ownership subtree under the group identity. Flatten SHALL replace the stack with one root paint layer. Apply mask SHALL bake the identified mask into its target and remove the attachment, rasterizing a group target with its subtree. Merge, merge-group, flatten, convert, and apply-mask SHALL re-composite the complete candidate and refuse publication unless every enabled output component matches the pre-operation result within the finite non-negative declared tolerance.
 
 #### Scenario: Merge preserves appearance
 - **WHEN** two layers are merged down
@@ -138,6 +144,22 @@ The system SHALL provide create, duplicate, delete, reorder, reparent, clear, in
 #### Scenario: Failed operation is atomic
 - **WHEN** a merge fails because the target resolution cannot be allocated
 - **THEN** both source layers SHALL remain and the document SHALL be unchanged
+
+#### Scenario: Duplicate group ownership
+- **WHEN** a group with nested children and attached masks is duplicated
+- **THEN** the complete ownership subtree SHALL be cloned with deterministic new identities and retargeted internal relationships
+
+#### Scenario: Invalid baked result
+- **WHEN** a supplied merge, flatten, conversion or applied-mask raster changes the composited appearance beyond tolerance
+- **THEN** the operation SHALL report an appearance mismatch and publish neither the candidate stack nor raster snapshot
+
+#### Scenario: Destructive procedural edit
+- **WHEN** resolved procedural content is cleared or inverted
+- **THEN** it SHALL become authored paint content with a new content revision so later procedural evaluation cannot discard the edit
+
+#### Scenario: Bounded operation output
+- **WHEN** the candidate resolved snapshot exceeds the caller-declared byte ceiling
+- **THEN** the operation SHALL report an allocation-limit error and leave the document unchanged
 
 ### Requirement: Tiled storage
 Channel storage SHALL be tiled, with a documented tile size, and the system SHALL track which tiles of which channels a given operation dirtied.

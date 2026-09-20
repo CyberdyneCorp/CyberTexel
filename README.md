@@ -157,6 +157,10 @@ The current implementation provides:
   [CPU compositor](docs/layer-compositing.md) evaluates that stack bottom to top,
   including isolated/Pass Through groups, instances, resolved filters, channel
   blending policies and independent coverage, with byte-identical repeat output.
+  [Atomic layer operations](docs/layer-operations.md) cover create, subtree
+  duplicate/delete, reorder, reparent, clear, invert, merge down/group, flatten,
+  paint/fill conversion and mask application; destructive bakes are recomposited
+  and refused if they do not preserve the documented appearance.
 - Validated read-only [mesh ingest](docs/mesh-ingest.md), reusable flat CPU
   acceleration structures, overlap and coverage diagnostics, and two-phase mesh
   replacement that reports per-set UV changes before the host chooses to keep,

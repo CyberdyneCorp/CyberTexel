@@ -193,6 +193,10 @@ LayerCompositeResult TextureSet::composite_cpu(const LayerCompositeRequest& requ
     return composite_texture_set_cpu(*this, request);
 }
 
+LayerOperationResult TextureSet::apply_layer_operation(LayerOperationRequest request) {
+    return ctex::doc::apply_layer_operation(*this, std::move(request));
+}
+
 TextureSetMemoryReport TextureSet::memory_report() const {
     const std::size_t channel_bytes = channels_.resident_pixel_bytes();
     const std::size_t map_bytes = memory_state_->mesh_map_pixel_bytes;

@@ -309,6 +309,11 @@ void LayerStack::append(std::span<const LayerEntry> entries) {
     entries_ = std::move(candidate);
 }
 
+void LayerStack::assign(std::vector<LayerEntry> entries) {
+    validate(entries);
+    entries_ = std::move(entries);
+}
+
 void LayerStack::replace(std::string_view identifier, LayerEntry replacement) {
     if (replacement.identifier != identifier) {
         refuse(LayerStackRule::identity, "layer-stack replacement cannot change stable identity");
@@ -405,6 +410,11 @@ void LayerStack::remove(std::span<const std::string> identifiers,
             LayerEntry& instance = candidate[index_of(candidate, identifier)];
             const LayerEntry& content =
                 entries_[resolved_content_index(entries_, indices, indices.at(identifier))];
+            if (content.kind == LayerEntryKind::group) {
+                refuse(LayerStackRule::live_instances,
+                       "cannot make a group instance independent without baked resolved content",
+                       {identifier, content.identifier});
+            }
             instance.kind = content.kind;
             instance.source_identifier.clear();
             instance.graph = content.graph;

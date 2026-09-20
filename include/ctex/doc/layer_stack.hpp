@@ -114,6 +114,7 @@ public:
 
     void append(LayerEntry entry);
     void append(std::span<const LayerEntry> entries);
+    void assign(std::vector<LayerEntry> entries);
     void replace(std::string_view identifier, LayerEntry replacement);
     void set_layout(std::string_view identifier, std::string parent_identifier,
                     std::string target_identifier);

@@ -216,12 +216,31 @@ bool deletion_policy_is_explicit_and_transactional() {
                   "transitive instance was not made independent");
 }
 
+bool group_instance_independence_requires_baked_content() {
+    LayerStack stack;
+    LayerEntry group = paint("group");
+    group.kind = LayerEntryKind::group;
+    stack.append(std::move(group));
+    stack.append(instance("copy", "group"));
+    const LayerStack before = stack;
+    const std::vector<std::string> removed{"group"};
+    return expect_rule(
+               [&] {
+                   stack.remove(removed,
+                                ReferencedSourceDeletionPolicy::make_instances_independent);
+               },
+               LayerStackRule::live_instances,
+               "group instance became an empty independent group without baked content") &&
+           expect(stack == before, "refused group-instance independence changed the layer stack");
+}
+
 }  // namespace
 
 int main() {
     return source_edits_are_shared_without_copying() && modulation_and_masks_are_instance_owned() &&
                    direct_paint_and_invalid_references_are_refused() &&
-                   deletion_policy_is_explicit_and_transactional()
+                   deletion_policy_is_explicit_and_transactional() &&
+                   group_instance_independence_requires_baked_content()
                ? 0
                : 1;
 }

@@ -89,4 +89,7 @@ The [CPU layer compositor](layer-compositing.md) consumes these semantics for
 bottom-to-top channel evaluation, isolated and Pass Through groups, filters,
 instances, coverage and deterministic results.
 
-General layer operations and history are subsequent roadmap tasks.
+The [atomic layer-operation API](layer-operations.md) transforms the stack and a
+complete resolved-content snapshot together, including subtree ownership and
+appearance-checked destructive bakes. Tile-scoped history remains a subsequent
+roadmap task.
