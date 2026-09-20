@@ -40,7 +40,10 @@
     {"name": "execution-backends", "kind": "runtime", "requirements": [
       {"requirement": "Three execution routes", "symbols": ["ctex_executor_registry_create", "ctex_executor_registry_destroy", "ctex_executor_registry_get_count", "ctex_executor_registry_get_info"]},
       {"requirement": "Executor selection and fallback", "symbols": ["ctex_executor_registry_select", "ctex_executor_registry_pin_default", "ctex_executor_registry_clear_default", "ctex_executor_make_fallback_report"]},
-      {"requirement": "Device capability reporting", "symbols": ["ctex_executor_registry_get_info"]}
+      {"requirement": "Device capability reporting", "symbols": ["ctex_executor_registry_get_info"]},
+      {"requirement": "Host-executed contract", "symbols": ["ctex_host_execution_session_create", "ctex_host_execution_session_destroy", "ctex_host_execution_session_submit", "ctex_host_execution_session_complete", "ctex_host_completion_result_destroy", "ctex_host_completion_result_get_info"]},
+      {"requirement": "Host-resident authority and completion", "symbols": ["ctex_host_execution_session_get_info", "ctex_host_execution_session_submit", "ctex_host_execution_session_cancel", "ctex_host_execution_session_complete", "ctex_host_execution_session_get_committed_resource", "ctex_host_execution_session_resource_is_held", "ctex_host_completion_result_get_info"]},
+      {"requirement": "Recovery is established before publication", "symbols": ["ctex_host_execution_session_complete", "ctex_host_execution_session_establish_recovery", "ctex_host_execution_session_report_device_loss", "ctex_host_recovery_report_destroy", "ctex_host_recovery_report_get_info"]}
     ]},
     {"name": "host-transport", "kind": "runtime", "requirements": [
       {"requirement": "Revisions", "symbols": ["ctex_texture_set_query_channel_delta"]},
@@ -53,6 +56,7 @@
       {"requirement": "Synchronization is a snapshot", "symbols": ["ctex_transport_snapshot_pool_create", "ctex_texture_set_query_channel_snapshot", "ctex_transport_snapshot_get_tile_versions", "ctex_transport_snapshot_destroy"]},
       {"requirement": "Cost is proportional to the change", "symbols": ["ctex_texture_set_query_channel_delta"]},
       {"requirement": "Preview transport", "symbols": ["ctex_paint_preview_session_query_snapshot", "ctex_transport_snapshot_get_tile_versions", "ctex_transport_snapshot_get_tile_memory_layout", "ctex_transport_snapshot_read_tiles"]},
+      {"requirement": "Host-owned resources are tracked by identity", "symbols": ["ctex_host_execution_session_get_committed_resource", "ctex_host_execution_session_resource_is_held", "ctex_host_completion_result_get_info", "ctex_host_recovery_report_get_info"]},
       {"requirement": "Snapshot pressure is bounded", "symbols": ["ctex_transport_snapshot_pool_create", "ctex_transport_snapshot_pool_destroy", "ctex_transport_snapshot_pool_get_memory_report", "ctex_texture_set_query_channel_snapshot", "ctex_transport_snapshot_destroy"]}
     ]},
     {"name": "image-io", "kind": "runtime", "requirements": [

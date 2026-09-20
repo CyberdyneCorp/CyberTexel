@@ -761,6 +761,16 @@ features. Explicit, pinned, environment and automatic selection use stable
 identities, and CPU fallback reports require restored recovery state. The exact
 remaining C ABI gap is 118 runtime requirements.
 
+The host-execution continuation exposes three more execution-backend
+requirements and stable host-owned resource identity from host transport.
+Hosts submit logical resources with ownership, required state and generations;
+complete or cancel work by token; and publish only after output validation and
+recoverability are established. Late, duplicate and stale completions do not
+advance revisions. Device-loss reports retain the last recoverable commit,
+cancel uncommitted tokens and return released logical generations without
+passing device handles or pixels through the library. The exact remaining C ABI
+gap is 114 runtime requirements.
+
 ## 1. Foundation
 
 - [x] 1.1 CMake project, C++20, warnings as errors, presets for headless, macOS, Linux, Windows, iOS, Android

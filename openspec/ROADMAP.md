@@ -173,7 +173,10 @@ memory pressure, negotiate readback formats and publish stable direct-upload
 layouts before copying named CPU tiles into caller-owned buffers. In-flight
 paint previews now use that same versioned snapshot path. Executor discovery,
 device capabilities, selection and recovery-aware fallback reporting are also
-public. Exactly 118 runtime requirements still lack C ABI evidence;
+public. Host-executed submissions, logical resource ownership, validated
+completion, cancellation, recovery-gated publication and device-loss reporting
+are now public without exposing device handles. Exactly 114 runtime requirements
+still lack C ABI evidence;
 those gaps must be implemented before task 14.8 can close.
 
 ## Milestones

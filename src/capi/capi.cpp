@@ -241,6 +241,30 @@ struct ctex_executor_registry {
     ctex::exec::ExecutorRegistry value;
 };
 
+struct ctex_host_execution_session {
+    ctex_host_execution_session(ctex_allocator_state allocator_value, std::uint64_t revision)
+        : allocator(allocator_value), value(revision) {}
+
+    ctex_allocator_state allocator;
+    ctex::exec::HostExecutionSession value;
+};
+
+struct ctex_host_completion_result {
+    explicit ctex_host_completion_result(ctex_allocator_state allocator_value)
+        : allocator(allocator_value) {}
+
+    ctex_allocator_state allocator;
+    ctex::exec::HostCompletionResult value;
+};
+
+struct ctex_host_recovery_report {
+    explicit ctex_host_recovery_report(ctex_allocator_state allocator_value)
+        : allocator(allocator_value) {}
+
+    ctex_allocator_state allocator;
+    ctex::exec::HostRecoveryReport value;
+};
+
 namespace {
 
 struct DiagnosticState {
@@ -569,6 +593,53 @@ void destroy_executor_registry(ctex_executor_registry* registry) noexcept {
     registry->~ctex_executor_registry();
     deallocate_storage(allocator, registry, sizeof(ctex_executor_registry),
                        alignof(ctex_executor_registry));
+}
+
+ctex_host_execution_session* create_host_execution_session(const ctex_allocator_state& allocator,
+                                                           std::uint64_t initial_revision) {
+    void* storage = allocate_storage(allocator, sizeof(ctex_host_execution_session),
+                                     alignof(ctex_host_execution_session));
+    try {
+        return ::new (storage) ctex_host_execution_session(allocator, initial_revision);
+    } catch (...) {
+        deallocate_storage(allocator, storage, sizeof(ctex_host_execution_session),
+                           alignof(ctex_host_execution_session));
+        throw;
+    }
+}
+
+ctex_host_completion_result* create_host_completion_result(const ctex_allocator_state& allocator) {
+    void* storage = allocate_storage(allocator, sizeof(ctex_host_completion_result),
+                                     alignof(ctex_host_completion_result));
+    try {
+        return ::new (storage) ctex_host_completion_result(allocator);
+    } catch (...) {
+        deallocate_storage(allocator, storage, sizeof(ctex_host_completion_result),
+                           alignof(ctex_host_completion_result));
+        throw;
+    }
+}
+
+ctex_host_recovery_report* create_host_recovery_report(const ctex_allocator_state& allocator) {
+    void* storage = allocate_storage(allocator, sizeof(ctex_host_recovery_report),
+                                     alignof(ctex_host_recovery_report));
+    try {
+        return ::new (storage) ctex_host_recovery_report(allocator);
+    } catch (...) {
+        deallocate_storage(allocator, storage, sizeof(ctex_host_recovery_report),
+                           alignof(ctex_host_recovery_report));
+        throw;
+    }
+}
+
+template <typename Handle>
+void destroy_host_execution_handle(Handle* handle) noexcept {
+    if (handle == nullptr) {
+        return;
+    }
+    const ctex_allocator_state allocator = handle->allocator;
+    handle->~Handle();
+    deallocate_storage(allocator, handle, sizeof(Handle), alignof(Handle));
 }
 
 std::size_t texture_set_id_buffer_size(const std::vector<std::string>& identifiers) {
@@ -4918,6 +4989,170 @@ void copy_executor_string(const std::string& value, char* output) {
     }
 }
 
+const char* require_host_execution_text(const char* value, std::string_view field) {
+    if (value == nullptr) {
+        throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                       std::string(field) + "=null");
+    }
+    if (value[0] == '\0') {
+        throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_INVALID_EXECUTOR,
+                       std::string(field) + " is empty");
+    }
+    return value;
+}
+
+ctex::emit::ResourceVersion host_resource_version(const char* logical_id,
+                                                  std::uint64_t generation) {
+    return {.logical_id = require_host_execution_text(logical_id, "logical_id"),
+            .generation = generation};
+}
+
+ctex::exec::HostResourceHandoff host_resource(const ctex_host_resource_descriptor& descriptor) {
+    validate_structure_size(descriptor.size, CTEX_HOST_RESOURCE_DESCRIPTOR_V1_SIZE,
+                            CTEX_HOST_RESOURCE_DESCRIPTOR_CURRENT_SIZE,
+                            "host resource descriptor size");
+    if (descriptor.owner > CTEX_HOST_RESOURCE_HOST ||
+        descriptor.required_state > CTEX_HOST_RESOURCE_DEPTH_TARGET) {
+        throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_INVALID_ENUM_VALUE,
+                       "host resource enum is invalid");
+    }
+    require_executor_boolean(descriptor.externally_initialized, "externally_initialized");
+    require_executor_boolean(descriptor.output, "output");
+    return {
+        .texture = {.version = host_resource_version(descriptor.logical_id, descriptor.generation),
+                    .role = require_host_execution_text(descriptor.role, "resource role"),
+                    .format = executor_texture_format(descriptor.format),
+                    .extent = {.width = descriptor.width,
+                               .height = descriptor.height,
+                               .layers = descriptor.layers},
+                    .mip_levels = descriptor.mip_levels,
+                    .tile_shape = {.width = descriptor.tile_width,
+                                   .height = descriptor.tile_height},
+                    .externally_initialized = descriptor.externally_initialized != 0},
+        .owner = static_cast<ctex::exec::HostResourceOwner>(descriptor.owner),
+        .required_state = static_cast<ctex::exec::HostResourceState>(descriptor.required_state),
+        .output = descriptor.output != 0,
+    };
+}
+
+ctex::exec::HostSubmissionRequest host_submission_request(
+    const ctex_host_submission_descriptor& descriptor) {
+    validate_structure_size(descriptor.size, CTEX_HOST_SUBMISSION_DESCRIPTOR_V1_SIZE,
+                            CTEX_HOST_SUBMISSION_DESCRIPTOR_CURRENT_SIZE,
+                            "host submission descriptor size");
+    if (descriptor.resources == nullptr && descriptor.resource_count != 0) {
+        throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                       "resources=null with nonzero resource_count");
+    }
+    if (descriptor.replay_semantics > CTEX_HOST_REPLAY_CHECKPOINT_ONLY) {
+        throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_INVALID_ENUM_VALUE,
+                       "host replay semantics=" + std::to_string(descriptor.replay_semantics));
+    }
+    ctex::exec::HostSubmissionRequest converted{
+        .operation = require_host_execution_text(descriptor.operation, "operation"),
+        .base_revision = descriptor.base_revision,
+        .resources = {},
+        .replay_semantics =
+            static_cast<ctex::exec::HostReplaySemantics>(descriptor.replay_semantics),
+    };
+    converted.resources.reserve(descriptor.resource_count);
+    for (std::size_t index = 0; index < descriptor.resource_count; ++index) {
+        converted.resources.push_back(host_resource(descriptor.resources[index]));
+    }
+    return converted;
+}
+
+ctex::exec::RecoveryEvidence host_recovery(const ctex_host_recovery_descriptor& descriptor) {
+    validate_structure_size(descriptor.size, CTEX_HOST_RECOVERY_DESCRIPTOR_V1_SIZE,
+                            CTEX_HOST_RECOVERY_DESCRIPTOR_CURRENT_SIZE,
+                            "host recovery descriptor size");
+    if (descriptor.kind > CTEX_HOST_RECOVERY_DETERMINISTIC_RECORD) {
+        throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_INVALID_ENUM_VALUE,
+                       "host recovery kind=" + std::to_string(descriptor.kind));
+    }
+    require_executor_boolean(descriptor.checkpoint_complete, "checkpoint_complete");
+    require_executor_boolean(descriptor.inputs_pinned, "inputs_pinned");
+    return {
+        .kind = static_cast<ctex::exec::RecoveryEvidenceKind>(descriptor.kind),
+        .checkpoint_complete = descriptor.checkpoint_complete != 0,
+        .checkpoint_revision = descriptor.checkpoint_revision,
+        .operation_record_version = descriptor.operation_record_version == nullptr
+                                        ? ""
+                                        : descriptor.operation_record_version,
+        .inputs_pinned = descriptor.inputs_pinned != 0,
+        .retained_bytes = descriptor.retained_bytes,
+    };
+}
+
+ctex::exec::HostCompletedResource host_completed_resource(
+    const ctex_host_completed_resource_descriptor& descriptor) {
+    validate_structure_size(descriptor.size, CTEX_HOST_COMPLETED_RESOURCE_DESCRIPTOR_V1_SIZE,
+                            CTEX_HOST_COMPLETED_RESOURCE_DESCRIPTOR_CURRENT_SIZE,
+                            "host completed resource descriptor size");
+    return {
+        .version = host_resource_version(descriptor.logical_id, descriptor.generation),
+        .format = executor_texture_format(descriptor.format),
+        .extent = {.width = descriptor.width,
+                   .height = descriptor.height,
+                   .layers = descriptor.layers},
+    };
+}
+
+ctex::exec::HostCompletion host_completion(const ctex_host_completion_descriptor& descriptor) {
+    validate_structure_size(descriptor.size, CTEX_HOST_COMPLETION_DESCRIPTOR_V1_SIZE,
+                            CTEX_HOST_COMPLETION_DESCRIPTOR_CURRENT_SIZE,
+                            "host completion descriptor size");
+    if (descriptor.status > CTEX_HOST_EXECUTION_CANCELLED) {
+        throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_INVALID_ENUM_VALUE,
+                       "host execution status=" + std::to_string(descriptor.status));
+    }
+    if (descriptor.outputs == nullptr && descriptor.output_count != 0) {
+        throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                       "outputs=null with nonzero output_count");
+    }
+    ctex::exec::HostCompletion converted{
+        .token = descriptor.completion_token,
+        .status = static_cast<ctex::exec::HostExecutionStatus>(descriptor.status),
+        .outputs = {},
+        .recovery =
+            descriptor.recovery == nullptr
+                ? std::nullopt
+                : std::optional<ctex::exec::RecoveryEvidence>{host_recovery(*descriptor.recovery)},
+        .detail = descriptor.detail == nullptr ? "" : descriptor.detail,
+    };
+    converted.outputs.reserve(descriptor.output_count);
+    for (std::size_t index = 0; index < descriptor.output_count; ++index) {
+        converted.outputs.push_back(host_completed_resource(descriptor.outputs[index]));
+    }
+    return converted;
+}
+
+std::size_t host_resource_identity_size(std::span<const ctex::emit::ResourceVersion> resources) {
+    std::size_t required = 0;
+    for (const auto& resource : resources) {
+        if (resource.logical_id.size() == std::numeric_limits<std::size_t>::max() ||
+            resource.logical_id.size() + 1 > std::numeric_limits<std::size_t>::max() - required) {
+            throw std::overflow_error("host resource identity buffer size overflows");
+        }
+        required += resource.logical_id.size() + 1;
+    }
+    return required;
+}
+
+void copy_host_resource_versions(std::span<const ctex::emit::ResourceVersion> resources,
+                                 ctex_host_resource_version* output, char* identities) {
+    if (output == nullptr) {
+        return;
+    }
+    std::size_t offset = 0;
+    for (std::size_t index = 0; index < resources.size(); ++index) {
+        output[index] = {.logical_id_offset = offset, .generation = resources[index].generation};
+        const std::size_t size = resources[index].logical_id.size() + 1;
+        std::memcpy(identities + offset, resources[index].logical_id.c_str(), size);
+        offset += size;
+    }
+}
+
 void query_transport_snapshot(ctex_transport_snapshot_pool& pool,
                               const ctex::image::TiledImage& image,
                               ctex_transport_revision_cursor synchronized_cursor,
@@ -7839,6 +8074,268 @@ extern "C" ctex_result ctex_executor_make_fallback_report(
             throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_INVALID_EXECUTOR,
                            error.what());
         }
+    });
+}
+
+extern "C" ctex_result ctex_host_execution_session_create(
+    std::uint64_t initial_revision, ctex_host_execution_session** out_session) {
+    return call_boundary("ctex_host_execution_session_create", [&] {
+        if (out_session == nullptr) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                           "out_session=null");
+        }
+        *out_session = nullptr;
+        *out_session = create_host_execution_session(current_allocator(), initial_revision);
+    });
+}
+
+extern "C" void ctex_host_execution_session_destroy(ctex_host_execution_session* session) {
+    destroy_host_execution_handle(session);
+}
+
+extern "C" ctex_result ctex_host_execution_session_get_info(
+    const ctex_host_execution_session* session, ctex_host_execution_session_info* out_info) {
+    return call_boundary("ctex_host_execution_session_get_info", [&] {
+        if (session == nullptr || out_info == nullptr) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                           session == nullptr ? "session=null" : "out_info=null");
+        }
+        validate_structure_size(out_info->size, CTEX_HOST_EXECUTION_SESSION_INFO_V1_SIZE,
+                                CTEX_HOST_EXECUTION_SESSION_INFO_CURRENT_SIZE,
+                                "host execution session info size");
+        *out_info = {
+            .size = CTEX_HOST_EXECUTION_SESSION_INFO_CURRENT_SIZE,
+            .revision = session->value.revision(),
+            .active_submission_count = session->value.active_submission_count(),
+            .retained_recovery_bytes = session->value.retained_recovery_bytes(),
+        };
+    });
+}
+
+extern "C" ctex_result ctex_host_execution_session_submit(
+    ctex_host_execution_session* session, const ctex_host_submission_descriptor* descriptor,
+    ctex_host_submission_info* out_info) {
+    return call_boundary("ctex_host_execution_session_submit", [&] {
+        if (session == nullptr || descriptor == nullptr || out_info == nullptr) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                           "session, descriptor and out_info are required");
+        }
+        validate_structure_size(out_info->size, CTEX_HOST_SUBMISSION_INFO_V1_SIZE,
+                                CTEX_HOST_SUBMISSION_INFO_CURRENT_SIZE,
+                                "host submission info size");
+        try {
+            const ctex::exec::HostSubmission submission =
+                session->value.submit(host_submission_request(*descriptor));
+            *out_info = {
+                .size = CTEX_HOST_SUBMISSION_INFO_CURRENT_SIZE,
+                .completion_token = submission.token,
+                .base_revision = submission.base_revision,
+                .resource_count = submission.resources.size(),
+            };
+        } catch (const ctex::exec::HostExecutionError& error) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_INVALID_EXECUTOR,
+                           error.what());
+        }
+    });
+}
+
+extern "C" ctex_result ctex_host_execution_session_cancel(ctex_host_execution_session* session,
+                                                          std::uint64_t completion_token,
+                                                          std::uint32_t* out_cancelled) {
+    return call_boundary("ctex_host_execution_session_cancel", [&] {
+        if (session == nullptr || out_cancelled == nullptr) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                           session == nullptr ? "session=null" : "out_cancelled=null");
+        }
+        *out_cancelled = session->value.cancel(completion_token) ? 1U : 0U;
+    });
+}
+
+extern "C" ctex_result ctex_host_execution_session_complete(
+    ctex_host_execution_session* session, const ctex_host_completion_descriptor* descriptor,
+    ctex_host_completion_result** out_result) {
+    return call_boundary("ctex_host_execution_session_complete", [&] {
+        if (session == nullptr || descriptor == nullptr || out_result == nullptr) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                           "session, descriptor and out_result are required");
+        }
+        *out_result = nullptr;
+        ctex::exec::HostCompletion completion = host_completion(*descriptor);
+        ctex_host_completion_result* created = create_host_completion_result(session->allocator);
+        try {
+            created->value = session->value.complete(std::move(completion));
+            *out_result = created;
+        } catch (const ctex::exec::HostExecutionError& error) {
+            destroy_host_execution_handle(created);
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_INVALID_EXECUTOR,
+                           error.what());
+        } catch (...) {
+            destroy_host_execution_handle(created);
+            throw;
+        }
+    });
+}
+
+extern "C" ctex_result ctex_host_execution_session_establish_recovery(
+    ctex_host_execution_session* session, std::uint64_t completion_token,
+    const ctex_host_recovery_descriptor* recovery, ctex_host_completion_result** out_result) {
+    return call_boundary("ctex_host_execution_session_establish_recovery", [&] {
+        if (session == nullptr || recovery == nullptr || out_result == nullptr) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                           "session, recovery and out_result are required");
+        }
+        *out_result = nullptr;
+        ctex::exec::RecoveryEvidence converted = host_recovery(*recovery);
+        ctex_host_completion_result* created = create_host_completion_result(session->allocator);
+        try {
+            created->value =
+                session->value.establish_recovery(completion_token, std::move(converted));
+            *out_result = created;
+        } catch (const ctex::exec::HostExecutionError& error) {
+            destroy_host_execution_handle(created);
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_INVALID_EXECUTOR,
+                           error.what());
+        } catch (...) {
+            destroy_host_execution_handle(created);
+            throw;
+        }
+    });
+}
+
+extern "C" ctex_result ctex_host_execution_session_get_committed_resource(
+    const ctex_host_execution_session* session, const char* logical_id, std::uint32_t* out_found,
+    std::uint64_t* out_generation) {
+    return call_boundary("ctex_host_execution_session_get_committed_resource", [&] {
+        if (session == nullptr || out_found == nullptr || out_generation == nullptr) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                           "session, out_found and out_generation are required");
+        }
+        const auto resource = session->value.committed_resource(
+            require_host_execution_text(logical_id, "logical_id"));
+        *out_found = resource.has_value() ? 1U : 0U;
+        *out_generation = resource.has_value() ? resource->generation : 0;
+    });
+}
+
+extern "C" ctex_result ctex_host_execution_session_resource_is_held(
+    const ctex_host_execution_session* session, const char* logical_id, std::uint64_t generation,
+    std::uint32_t* out_held) {
+    return call_boundary("ctex_host_execution_session_resource_is_held", [&] {
+        if (session == nullptr || out_held == nullptr) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                           session == nullptr ? "session=null" : "out_held=null");
+        }
+        *out_held = session->value.resource_is_held(host_resource_version(logical_id, generation))
+                        ? 1U
+                        : 0U;
+    });
+}
+
+extern "C" ctex_result ctex_host_execution_session_report_device_loss(
+    ctex_host_execution_session* session, ctex_host_recovery_report** out_report) {
+    return call_boundary("ctex_host_execution_session_report_device_loss", [&] {
+        if (session == nullptr || out_report == nullptr) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                           session == nullptr ? "session=null" : "out_report=null");
+        }
+        *out_report = nullptr;
+        ctex_host_recovery_report* created = create_host_recovery_report(session->allocator);
+        try {
+            created->value = session->value.report_device_loss();
+            *out_report = created;
+        } catch (...) {
+            destroy_host_execution_handle(created);
+            throw;
+        }
+    });
+}
+
+extern "C" void ctex_host_completion_result_destroy(ctex_host_completion_result* result) {
+    destroy_host_execution_handle(result);
+}
+
+extern "C" ctex_result ctex_host_completion_result_get_info(
+    const ctex_host_completion_result* result, ctex_host_completion_result_info* out_info,
+    ctex_host_resource_version* released_resources, std::size_t released_resource_capacity,
+    char* released_identities, std::size_t released_identity_size, char* message,
+    std::size_t message_size) {
+    return call_boundary("ctex_host_completion_result_get_info", [&] {
+        if (result == nullptr || out_info == nullptr) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                           result == nullptr ? "result=null" : "out_info=null");
+        }
+        validate_structure_size(out_info->size, CTEX_HOST_COMPLETION_RESULT_INFO_V1_SIZE,
+                                CTEX_HOST_COMPLETION_RESULT_INFO_CURRENT_SIZE,
+                                "host completion result info size");
+        const auto& value = result->value;
+        const std::size_t identity_size = host_resource_identity_size(value.released_resources);
+        *out_info = {
+            .size = CTEX_HOST_COMPLETION_RESULT_INFO_CURRENT_SIZE,
+            .disposition = static_cast<std::uint32_t>(value.disposition),
+            .completion_token = value.token,
+            .has_published_revision = value.published_revision.has_value() ? 1U : 0U,
+            .published_revision = value.published_revision.value_or(0),
+            .released_resource_count = value.released_resources.size(),
+            .required_released_identity_size = identity_size,
+            .required_message_size = value.message.size() + 1,
+        };
+        validate_output_array(released_resources, released_resource_capacity,
+                              value.released_resources.size(), "released_resources");
+        validate_string_buffer(released_identities, released_identity_size, identity_size);
+        validate_executor_string(message, message_size, value.message);
+        if (released_resources != nullptr && released_identities == nullptr && identity_size != 0) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                           "released_identities=null while released_resources is provided");
+        }
+        copy_host_resource_versions(value.released_resources, released_resources,
+                                    released_identities);
+        copy_executor_string(value.message, message);
+    });
+}
+
+extern "C" void ctex_host_recovery_report_destroy(ctex_host_recovery_report* report) {
+    destroy_host_execution_handle(report);
+}
+
+extern "C" ctex_result ctex_host_recovery_report_get_info(
+    const ctex_host_recovery_report* report, ctex_host_device_loss_info* out_info,
+    std::uint64_t* cancelled_submissions, std::size_t cancelled_submission_capacity,
+    ctex_host_resource_version* released_resources, std::size_t released_resource_capacity,
+    char* released_identities, std::size_t released_identity_size) {
+    return call_boundary("ctex_host_recovery_report_get_info", [&] {
+        if (report == nullptr || out_info == nullptr) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                           report == nullptr ? "report=null" : "out_info=null");
+        }
+        validate_structure_size(out_info->size, CTEX_HOST_DEVICE_LOSS_INFO_V1_SIZE,
+                                CTEX_HOST_DEVICE_LOSS_INFO_CURRENT_SIZE,
+                                "host device loss info size");
+        const auto& value = report->value;
+        const std::size_t identity_size = host_resource_identity_size(value.released_resources);
+        *out_info = {
+            .size = CTEX_HOST_DEVICE_LOSS_INFO_CURRENT_SIZE,
+            .recovered_revision = value.recovered_revision,
+            .cancelled_submission_count = value.cancelled_submissions.size(),
+            .released_resource_count = value.released_resources.size(),
+            .required_released_identity_size = identity_size,
+            .retained_recovery_bytes = value.retained_recovery_bytes,
+            .restored = value.restored ? 1U : 0U,
+        };
+        validate_output_array(cancelled_submissions, cancelled_submission_capacity,
+                              value.cancelled_submissions.size(), "cancelled_submissions");
+        validate_output_array(released_resources, released_resource_capacity,
+                              value.released_resources.size(), "released_resources");
+        validate_string_buffer(released_identities, released_identity_size, identity_size);
+        if (released_resources != nullptr && released_identities == nullptr && identity_size != 0) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                           "released_identities=null while released_resources is provided");
+        }
+        if (cancelled_submissions != nullptr) {
+            std::copy(value.cancelled_submissions.begin(), value.cancelled_submissions.end(),
+                      cancelled_submissions);
+        }
+        copy_host_resource_versions(value.released_resources, released_resources,
+                                    released_identities);
     });
 }
 

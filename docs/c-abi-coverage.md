@@ -48,7 +48,11 @@ the same versioned snapshot path and remain pinned independently of their
 session. Executor registries now expose the CPU reference, an attached host route and the
 optional compiled owned-GPU route with complete device feature descriptors.
 Selection supports explicit, pinned and `CTEX_EXECUTOR` defaults, while fallback
-reports refuse CPU fallback until recovery is established. Exactly 118 runtime
-requirements remain unmapped.
+reports refuse CPU fallback until recovery is established. Host-execution
+sessions now expose logical resource handoff, output validation, completion and
+cancellation, recovery-gated publication and device-loss restoration without
+crossing device handles or pixels. Completion and recovery reports preserve
+logical resource identity through atomic caller-owned readback. Exactly 114
+runtime requirements remain unmapped.
 The gate is not part of the aggregate `just check` until that count reaches zero;
 its unit tests run in the normal tooling suite throughout the migration.

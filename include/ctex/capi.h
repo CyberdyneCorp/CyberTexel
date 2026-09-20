@@ -138,6 +138,9 @@ typedef struct ctex_uv_pick_index ctex_uv_pick_index;
 typedef struct ctex_transport_snapshot_pool ctex_transport_snapshot_pool;
 typedef struct ctex_transport_snapshot ctex_transport_snapshot;
 typedef struct ctex_executor_registry ctex_executor_registry;
+typedef struct ctex_host_execution_session ctex_host_execution_session;
+typedef struct ctex_host_completion_result ctex_host_completion_result;
+typedef struct ctex_host_recovery_report ctex_host_recovery_report;
 
 #define CTEX_MAX_MESH_VERTEX_COUNT ((size_t)100000000)
 #define CTEX_MAX_MESH_TRIANGLE_COUNT ((size_t)100000000)
@@ -1488,6 +1491,178 @@ typedef struct ctex_executor_fallback_info {
 #define CTEX_EXECUTOR_FALLBACK_INFO_V1_SIZE ((uint32_t)sizeof(ctex_executor_fallback_info))
 #define CTEX_EXECUTOR_FALLBACK_INFO_CURRENT_SIZE ((uint32_t)sizeof(ctex_executor_fallback_info))
 
+typedef enum ctex_host_resource_owner {
+    CTEX_HOST_RESOURCE_LIBRARY = 0,
+    CTEX_HOST_RESOURCE_HOST = 1
+} ctex_host_resource_owner;
+
+typedef enum ctex_host_resource_state {
+    CTEX_HOST_RESOURCE_SHADER_READ = 0,
+    CTEX_HOST_RESOURCE_STORAGE_READ = 1,
+    CTEX_HOST_RESOURCE_STORAGE_WRITE = 2,
+    CTEX_HOST_RESOURCE_RENDER_TARGET = 3,
+    CTEX_HOST_RESOURCE_DEPTH_TARGET = 4
+} ctex_host_resource_state;
+
+typedef enum ctex_host_replay_semantics {
+    CTEX_HOST_REPLAY_DETERMINISTIC = 0,
+    CTEX_HOST_REPLAY_CHECKPOINT_ONLY = 1
+} ctex_host_replay_semantics;
+
+typedef struct ctex_host_resource_descriptor {
+    uint32_t size;
+    const char* logical_id;
+    uint64_t generation;
+    const char* role;
+    uint32_t format;
+    uint32_t width;
+    uint32_t height;
+    uint32_t layers;
+    uint32_t mip_levels;
+    uint32_t tile_width;
+    uint32_t tile_height;
+    uint32_t externally_initialized;
+    uint32_t owner;
+    uint32_t required_state;
+    uint32_t output;
+} ctex_host_resource_descriptor;
+
+#define CTEX_HOST_RESOURCE_DESCRIPTOR_V1_SIZE ((uint32_t)sizeof(ctex_host_resource_descriptor))
+#define CTEX_HOST_RESOURCE_DESCRIPTOR_CURRENT_SIZE ((uint32_t)sizeof(ctex_host_resource_descriptor))
+
+typedef struct ctex_host_submission_descriptor {
+    uint32_t size;
+    const char* operation;
+    uint64_t base_revision;
+    const ctex_host_resource_descriptor* resources;
+    size_t resource_count;
+    uint32_t replay_semantics;
+} ctex_host_submission_descriptor;
+
+#define CTEX_HOST_SUBMISSION_DESCRIPTOR_V1_SIZE ((uint32_t)sizeof(ctex_host_submission_descriptor))
+#define CTEX_HOST_SUBMISSION_DESCRIPTOR_CURRENT_SIZE \
+    ((uint32_t)sizeof(ctex_host_submission_descriptor))
+
+typedef struct ctex_host_submission_info {
+    uint32_t size;
+    uint64_t completion_token;
+    uint64_t base_revision;
+    size_t resource_count;
+} ctex_host_submission_info;
+
+#define CTEX_HOST_SUBMISSION_INFO_V1_SIZE ((uint32_t)sizeof(ctex_host_submission_info))
+#define CTEX_HOST_SUBMISSION_INFO_CURRENT_SIZE ((uint32_t)sizeof(ctex_host_submission_info))
+
+typedef struct ctex_host_execution_session_info {
+    uint32_t size;
+    uint64_t revision;
+    size_t active_submission_count;
+    size_t retained_recovery_bytes;
+} ctex_host_execution_session_info;
+
+#define CTEX_HOST_EXECUTION_SESSION_INFO_V1_SIZE \
+    ((uint32_t)sizeof(ctex_host_execution_session_info))
+#define CTEX_HOST_EXECUTION_SESSION_INFO_CURRENT_SIZE \
+    ((uint32_t)sizeof(ctex_host_execution_session_info))
+
+typedef enum ctex_host_execution_status {
+    CTEX_HOST_EXECUTION_SUCCEEDED = 0,
+    CTEX_HOST_EXECUTION_FAILED = 1,
+    CTEX_HOST_EXECUTION_CANCELLED = 2
+} ctex_host_execution_status;
+
+typedef struct ctex_host_completed_resource_descriptor {
+    uint32_t size;
+    const char* logical_id;
+    uint64_t generation;
+    uint32_t format;
+    uint32_t width;
+    uint32_t height;
+    uint32_t layers;
+} ctex_host_completed_resource_descriptor;
+
+#define CTEX_HOST_COMPLETED_RESOURCE_DESCRIPTOR_V1_SIZE \
+    ((uint32_t)sizeof(ctex_host_completed_resource_descriptor))
+#define CTEX_HOST_COMPLETED_RESOURCE_DESCRIPTOR_CURRENT_SIZE \
+    ((uint32_t)sizeof(ctex_host_completed_resource_descriptor))
+
+typedef enum ctex_host_recovery_kind {
+    CTEX_HOST_RECOVERY_RESULT_CHECKPOINT = 0,
+    CTEX_HOST_RECOVERY_DETERMINISTIC_RECORD = 1
+} ctex_host_recovery_kind;
+
+typedef struct ctex_host_recovery_descriptor {
+    uint32_t size;
+    uint32_t kind;
+    uint32_t checkpoint_complete;
+    uint64_t checkpoint_revision;
+    const char* operation_record_version;
+    uint32_t inputs_pinned;
+    size_t retained_bytes;
+} ctex_host_recovery_descriptor;
+
+#define CTEX_HOST_RECOVERY_DESCRIPTOR_V1_SIZE ((uint32_t)sizeof(ctex_host_recovery_descriptor))
+#define CTEX_HOST_RECOVERY_DESCRIPTOR_CURRENT_SIZE ((uint32_t)sizeof(ctex_host_recovery_descriptor))
+
+typedef struct ctex_host_completion_descriptor {
+    uint32_t size;
+    uint64_t completion_token;
+    uint32_t status;
+    const ctex_host_completed_resource_descriptor* outputs;
+    size_t output_count;
+    const ctex_host_recovery_descriptor* recovery;
+    const char* detail;
+} ctex_host_completion_descriptor;
+
+#define CTEX_HOST_COMPLETION_DESCRIPTOR_V1_SIZE ((uint32_t)sizeof(ctex_host_completion_descriptor))
+#define CTEX_HOST_COMPLETION_DESCRIPTOR_CURRENT_SIZE \
+    ((uint32_t)sizeof(ctex_host_completion_descriptor))
+
+typedef enum ctex_host_completion_disposition {
+    CTEX_HOST_COMPLETION_PUBLISHED = 0,
+    CTEX_HOST_COMPLETION_AWAITING_RECOVERY = 1,
+    CTEX_HOST_COMPLETION_STALE = 2,
+    CTEX_HOST_COMPLETION_CANCELLED = 3,
+    CTEX_HOST_COMPLETION_FAILED = 4,
+    CTEX_HOST_COMPLETION_REJECTED = 5,
+    CTEX_HOST_COMPLETION_DUPLICATE = 6,
+    CTEX_HOST_COMPLETION_UNKNOWN_TOKEN = 7
+} ctex_host_completion_disposition;
+
+typedef struct ctex_host_resource_version {
+    size_t logical_id_offset;
+    uint64_t generation;
+} ctex_host_resource_version;
+
+typedef struct ctex_host_completion_result_info {
+    uint32_t size;
+    uint32_t disposition;
+    uint64_t completion_token;
+    uint32_t has_published_revision;
+    uint64_t published_revision;
+    size_t released_resource_count;
+    size_t required_released_identity_size;
+    size_t required_message_size;
+} ctex_host_completion_result_info;
+
+#define CTEX_HOST_COMPLETION_RESULT_INFO_V1_SIZE \
+    ((uint32_t)sizeof(ctex_host_completion_result_info))
+#define CTEX_HOST_COMPLETION_RESULT_INFO_CURRENT_SIZE \
+    ((uint32_t)sizeof(ctex_host_completion_result_info))
+
+typedef struct ctex_host_device_loss_info {
+    uint32_t size;
+    uint64_t recovered_revision;
+    size_t cancelled_submission_count;
+    size_t released_resource_count;
+    size_t required_released_identity_size;
+    size_t retained_recovery_bytes;
+    uint32_t restored;
+} ctex_host_device_loss_info;
+
+#define CTEX_HOST_DEVICE_LOSS_INFO_V1_SIZE ((uint32_t)sizeof(ctex_host_device_loss_info))
+#define CTEX_HOST_DEVICE_LOSS_INFO_CURRENT_SIZE ((uint32_t)sizeof(ctex_host_device_loss_info))
+
 typedef enum ctex_texture_export_texture_set_selection {
     CTEX_TEXTURE_EXPORT_TEXTURE_SET_ALL = 0,
     CTEX_TEXTURE_EXPORT_TEXTURE_SET_SELECTED = 1
@@ -2612,6 +2787,46 @@ CTEX_API ctex_result ctex_executor_registry_clear_default(ctex_executor_registry
 CTEX_API ctex_result ctex_executor_make_fallback_report(
     const ctex_executor_fallback_descriptor* descriptor, ctex_executor_fallback_info* out_info,
     char* message, size_t message_size);
+
+/* Host-executed work names logical resources only; device handles stay outside the library. */
+CTEX_API ctex_result ctex_host_execution_session_create(uint64_t initial_revision,
+                                                        ctex_host_execution_session** out_session);
+CTEX_API void ctex_host_execution_session_destroy(ctex_host_execution_session* session);
+CTEX_API ctex_result ctex_host_execution_session_get_info(
+    const ctex_host_execution_session* session, ctex_host_execution_session_info* out_info);
+CTEX_API ctex_result ctex_host_execution_session_submit(
+    ctex_host_execution_session* session, const ctex_host_submission_descriptor* descriptor,
+    ctex_host_submission_info* out_info);
+CTEX_API ctex_result ctex_host_execution_session_cancel(ctex_host_execution_session* session,
+                                                        uint64_t completion_token,
+                                                        uint32_t* out_cancelled);
+CTEX_API ctex_result ctex_host_execution_session_complete(
+    ctex_host_execution_session* session, const ctex_host_completion_descriptor* descriptor,
+    ctex_host_completion_result** out_result);
+CTEX_API ctex_result ctex_host_execution_session_establish_recovery(
+    ctex_host_execution_session* session, uint64_t completion_token,
+    const ctex_host_recovery_descriptor* recovery, ctex_host_completion_result** out_result);
+CTEX_API ctex_result ctex_host_execution_session_get_committed_resource(
+    const ctex_host_execution_session* session, const char* logical_id, uint32_t* out_found,
+    uint64_t* out_generation);
+CTEX_API ctex_result ctex_host_execution_session_resource_is_held(
+    const ctex_host_execution_session* session, const char* logical_id, uint64_t generation,
+    uint32_t* out_held);
+CTEX_API ctex_result ctex_host_execution_session_report_device_loss(
+    ctex_host_execution_session* session, ctex_host_recovery_report** out_report);
+
+/* Completion and device-loss handles provide atomic two-call result readback. */
+CTEX_API void ctex_host_completion_result_destroy(ctex_host_completion_result* result);
+CTEX_API ctex_result ctex_host_completion_result_get_info(
+    const ctex_host_completion_result* result, ctex_host_completion_result_info* out_info,
+    ctex_host_resource_version* released_resources, size_t released_resource_capacity,
+    char* released_identities, size_t released_identity_size, char* message, size_t message_size);
+CTEX_API void ctex_host_recovery_report_destroy(ctex_host_recovery_report* report);
+CTEX_API ctex_result ctex_host_recovery_report_get_info(
+    const ctex_host_recovery_report* report, ctex_host_device_loss_info* out_info,
+    uint64_t* cancelled_submissions, size_t cancelled_submission_capacity,
+    ctex_host_resource_version* released_resources, size_t released_resource_capacity,
+    char* released_identities, size_t released_identity_size);
 CTEX_API ctex_result ctex_texture_set_apply_smart_material(ctex_document* document,
                                                            const char* texture_set_id,
                                                            const void* serialized,
