@@ -78,7 +78,9 @@ through resolved surface frames with atomic sample, strength and channel output.
 Projection now exposes camera-visible, finite planar and repeating triplanar
 material application with weighted samples and atomic channel output. Text now
 accepts supplied glyph coverage and length-delimited UTF-8 with per-string size,
-tracking and alignment before atomic decal publication. Exactly 98
+tracking and alignment before atomic decal publication. Particle now exposes
+seeded mesh-collision simulation, ordered contacts and mapped atomic paint
+output through a reusable pick index. Exactly 97
 runtime requirements remain unmapped.
 The gate is not part of the aggregate `just check` until that count reaches zero;
 its unit tests run in the normal tooling suite throughout the migration.

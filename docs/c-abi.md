@@ -646,6 +646,14 @@ size, tracking and left, centre or right alignment. Font inputs are borrowed for
 the call; raster opacity, source samples, strength and enabled channels publish
 atomically into caller-owned storage.
 
+`ctex_paint_apply_particles` reuses a caller-owned pick index to simulate
+fixed-step mesh collisions from an explicit emitter and deterministic seed. It
+reports all resolved count, lifetime, speed, mass, gravity, friction,
+restitution and randomness controls, then atomically publishes ordered contacts,
+final states, texture-set identities, contact-to-texel mappings, composed
+strength and enabled channels. The surface-map revision must match the indexed
+mesh revision.
+
 ## ABI version and compatibility
 
 `ctex_get_abi_version` is safe before any handle exists and returns the major,
@@ -712,7 +720,7 @@ The contract is stated per entry-point family:
 | `ctex_mesh_destroy`, `ctex_mesh_replace`, `ctex_mesh_get_info`, `ctex_mesh_get_uv_set_names` | Calls on distinct mesh handles are safe concurrently; every call on the same mesh handle must be externally synchronized, including read-only calls |
 | `ctex_pick_ray_from_screen` | Stateless, process-safe and callable concurrently from any thread |
 | `ctex_pick_index_create`, `ctex_uv_pick_index_create` | Process-safe when no concurrent call mutates or destroys the supplied mesh; each successful call creates independent index state and captures the active allocator |
-| `ctex_pick_index_destroy`, `ctex_uv_pick_index_destroy`, `ctex_pick_index_get_info`, `ctex_uv_pick_index_get_info`, `ctex_pick_ray_query`, `ctex_pick_uv_query`, `ctex_pick_snap_to_surface`, `ctex_pick_query_*`, `ctex_pick_nearest_batch` | Calls on distinct indexes over idle or distinct meshes are safe concurrently. Every call on the same index or its mesh must be externally serialized; the mesh must outlive the index and callbacks must remain valid for the batch call |
+| `ctex_pick_index_destroy`, `ctex_uv_pick_index_destroy`, `ctex_pick_index_get_info`, `ctex_uv_pick_index_get_info`, `ctex_pick_ray_query`, `ctex_pick_uv_query`, `ctex_pick_snap_to_surface`, `ctex_pick_query_*`, `ctex_pick_nearest_batch`, `ctex_paint_apply_particles` | Calls on distinct indexes over idle or distinct meshes are safe concurrently. Every call on the same index or its mesh must be externally serialized; the mesh must outlive the index and callbacks must remain valid for the batch call |
 | `ctex_get_last_result`, `ctex_get_last_diagnostic_code`, `ctex_get_last_diagnostic` | Thread-local; concurrent threads never observe or replace one another's diagnostic state |
 
 A handle may move between threads while idle. CyberTexel does not attach thread

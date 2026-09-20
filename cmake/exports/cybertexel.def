@@ -139,6 +139,7 @@ EXPORTS
     ctex_paint_rasterize_decal
     ctex_paint_apply_projection
     ctex_paint_apply_text
+    ctex_paint_apply_particles
     ctex_paint_resolve_stencil_mask
     ctex_paint_seam_dilation_init
     ctex_paint_surface_map_cache_clear

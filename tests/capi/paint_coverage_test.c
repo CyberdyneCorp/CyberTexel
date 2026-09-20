@@ -1318,6 +1318,138 @@ static int text_rasterizes_supplied_utf8_font_and_applies_a_decal(void) {
     return passed;
 }
 
+static int particles_replay_deterministically_and_deposit_mapped_contacts(void) {
+    ctex_mesh* mesh = coverage_mesh();
+    ctex_pick_index* index = NULL;
+    ctex_mesh_info mesh_info = {.size = CTEX_MESH_INFO_CURRENT_SIZE};
+    int passed =
+        mesh != NULL && expect(ctex_mesh_get_info(mesh, &mesh_info) == CTEX_RESULT_SUCCESS) &&
+        expect(ctex_pick_index_create(mesh, &index) == CTEX_RESULT_SUCCESS) && index != NULL;
+    const ctex_paint_surface_texel surface[4] = {{{0, 0, 0}, {0, 0, 1}, {0, 0, 1}, {0, 0}, 1},
+                                                 {{0, 0, 0}, {0, 0, 1}, {0, 0, 1}, {0, 0}, 1},
+                                                 {{0, 0, 0}, {0, 0, 1}, {0, 0, 1}, {0, 0}, 1},
+                                                 {{0, 0, 0}, {0, 0, 1}, {0, 0, 1}, {0, 0}, 1}};
+    const uint8_t coverage[4] = {1, 1, 1, 1};
+    const uint32_t triangles[4] = {1, 1, 1, 1};
+    const ctex_pick_texture_set_binding_descriptor binding = {
+        CTEX_PICK_TEXTURE_SET_BINDING_DESCRIPTOR_CURRENT_SIZE, 0, "uv0"};
+    const ctex_vec4f layer_pixels[4] = {{0, 0, 0, 1}, {0, 0, 0, 1}, {0, 0, 0, 1}, {0, 0, 0, 1}};
+    const ctex_vec4f material_pixels[4] = {{1, 0, 0, 1}, {1, 0, 0, 1}, {1, 0, 0, 1}, {1, 0, 0, 1}};
+    const ctex_paint_tool_channel_descriptor layer = {
+        CTEX_PAINT_TOOL_CHANNEL_DESCRIPTOR_CURRENT_SIZE, "pbr.base_color", 3, layer_pixels, 4};
+    const ctex_paint_tool_channel_descriptor material = {
+        CTEX_PAINT_TOOL_CHANNEL_DESCRIPTOR_CURRENT_SIZE, "pbr.base_color", 3, material_pixels, 4};
+    ctex_paint_particle_descriptor descriptor = {
+        .size = CTEX_PAINT_PARTICLE_DESCRIPTOR_CURRENT_SIZE,
+        .width = 2,
+        .height = 2,
+        .tile_origin = {0, 0},
+        .texture_set_id = "material/10:material:0/uv/3:uv0",
+        .mesh_revision = mesh_info.revision,
+        .surface_texels = surface,
+        .surface_texel_count = 4,
+        .coverage = coverage,
+        .coverage_count = 4,
+        .triangle_identity = triangles,
+        .triangle_identity_count = 4,
+        .texture_sets = &binding,
+        .texture_set_count = 1,
+        .emitter_position = {1, 0.5, 1},
+        .emitter_direction = {0, 0, -1},
+        .simulation = {.count = 2,
+                       .lifetime_seconds = 1,
+                       .initial_speed = 2,
+                       .mass = 1,
+                       .gravity = {0, 0, 0},
+                       .friction = 0,
+                       .restitution = 0,
+                       .randomness = 0.1,
+                       .seed = 42},
+        .material = &material,
+        .material_channel_count = 1,
+        .enabled_layer_snapshot = &layer,
+        .enabled_layer_channel_count = 1,
+        .blend_mode = "normal"};
+    ctex_paint_particle_info info = {.size = CTEX_PAINT_PARTICLE_INFO_CURRENT_SIZE};
+    if (passed) {
+        passed = expect(ctex_paint_apply_particles(index, &descriptor, &info, NULL) ==
+                        CTEX_RESULT_SUCCESS) &&
+                 expect(info.emitted_count == 2 && info.required_final_state_count == 2 &&
+                        info.required_contact_count > 0 && info.mapped_contact_count > 0);
+    }
+    ctex_paint_particle_contact contacts[32] = {{0}};
+    ctex_paint_particle_state states[2] = {0};
+    char texture_set_ids[1024] = {0};
+    double strength[4] = {-1, -1, -1, -1};
+    ctex_vec4f pixels[4] = {{-1, -1, -1, -1}, {-1, -1, -1, -1}, {-1, -1, -1, -1}, {-1, -1, -1, -1}};
+    const ctex_paint_tool_channel_output channel = {CTEX_PAINT_TOOL_CHANNEL_OUTPUT_CURRENT_SIZE,
+                                                    pixels, 4};
+    ctex_paint_particle_outputs outputs = {.size = CTEX_PAINT_PARTICLE_OUTPUTS_CURRENT_SIZE,
+                                           .contacts = contacts,
+                                           .contact_capacity = info.required_contact_count - 1,
+                                           .final_states = states,
+                                           .final_state_capacity = 2,
+                                           .texture_set_ids = texture_set_ids,
+                                           .texture_set_id_size = sizeof(texture_set_ids),
+                                           .strength = strength,
+                                           .strength_capacity = 4,
+                                           .channels = &channel,
+                                           .channel_count = 1};
+    if (passed) {
+        contacts[0].particle_ordinal = 99;
+        passed = expect(ctex_paint_apply_particles(index, &descriptor, &info, &outputs) ==
+                        CTEX_RESULT_BUFFER_TOO_SMALL) &&
+                 expect(contacts[0].particle_ordinal == 99 && near(strength[0], -1) &&
+                        near_float(pixels[0].x, -1));
+    }
+    outputs.contact_capacity = 32;
+    outputs.texture_set_ids = NULL;
+    outputs.texture_set_id_size = 0;
+    contacts[0].particle_ordinal = 77;
+    if (passed) {
+        passed = expect(ctex_paint_apply_particles(index, &descriptor, &info, &outputs) ==
+                        CTEX_RESULT_SUCCESS) &&
+                 expect(contacts[0].particle_ordinal == 77 && near(strength[0], -1) &&
+                        near_float(pixels[0].x, -1));
+    }
+    outputs.texture_set_ids = texture_set_ids;
+    outputs.texture_set_id_size = sizeof(texture_set_ids);
+    if (passed) {
+        passed = expect(ctex_paint_apply_particles(index, &descriptor, &info, &outputs) ==
+                        CTEX_RESULT_SUCCESS) &&
+                 expect(strcmp(texture_set_ids + contacts[0].texture_set_id_offset,
+                               descriptor.texture_set_id) == 0) &&
+                 expect(contacts[0].mapped_texel < 4 && strength[contacts[0].mapped_texel] > 0 &&
+                        near_float(pixels[contacts[0].mapped_texel].x,
+                                   (float)strength[contacts[0].mapped_texel]));
+    }
+    const ctex_paint_particle_contact first_contact = contacts[0];
+    const ctex_paint_particle_state first_state = states[0];
+    if (passed) {
+        memset(contacts, 0, sizeof(contacts));
+        memset(states, 0, sizeof(states));
+        passed = expect(ctex_paint_apply_particles(index, &descriptor, &info, &outputs) ==
+                        CTEX_RESULT_SUCCESS) &&
+                 expect(contacts[0].particle_ordinal == first_contact.particle_ordinal &&
+                        near(contacts[0].time_seconds, first_contact.time_seconds) &&
+                        near(contacts[0].position.x, first_contact.position.x) &&
+                        near(contacts[0].impulse, first_contact.impulse) &&
+                        contacts[0].mapped_texel == first_contact.mapped_texel) &&
+                 expect(near(states[0].position.x, first_state.position.x) &&
+                        near(states[0].velocity.z, first_state.velocity.z) &&
+                        states[0].collision_count == first_state.collision_count);
+    }
+    descriptor.simulation.count = 0;
+    if (passed) {
+        passed = expect(ctex_paint_apply_particles(index, &descriptor, &info, NULL) ==
+                        CTEX_RESULT_SUCCESS) &&
+                 expect(info.count_clamped == 1 && info.resolved_settings.count == 1);
+    }
+    ctex_pick_index_destroy(index);
+    ctex_mesh_destroy(mesh);
+    return passed;
+}
+
 static int invalid_inputs_are_stable_diagnostics(void) {
     ctex_mesh* mesh = coverage_mesh();
     ctex_paint_tile_coverage_descriptor tile = {
@@ -1378,6 +1510,7 @@ int main(void) {
                    decal_rasterizes_a_retained_editable_placement() &&
                    projection_exposes_camera_planar_and_triplanar_mapping() &&
                    text_rasterizes_supplied_utf8_font_and_applies_a_decal() &&
+                   particles_replay_deterministically_and_deposit_mapped_contacts() &&
                    invalid_inputs_are_stable_diagnostics()
                ? 0
                : 1;

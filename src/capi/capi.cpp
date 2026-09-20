@@ -32,6 +32,7 @@
 #include <ctex/paint/deposition.hpp>
 #include <ctex/paint/fill.hpp>
 #include <ctex/paint/masking.hpp>
+#include <ctex/paint/particle.hpp>
 #include <ctex/paint/preview.hpp>
 #include <ctex/paint/projection.hpp>
 #include <ctex/paint/seam_dilation.hpp>
@@ -4087,6 +4088,218 @@ std::size_t validate_paint_text_call(const ctex_paint_text_descriptor* descripto
     if (descriptor->utf8_size > CTEX_MAX_PAINT_TILE_TEXEL_COUNT) {
         throw_boundary(CTEX_RESULT_OVER_BUDGET, CTEX_DIAGNOSTIC_PAINT_LIMIT_EXCEEDED,
                        "UTF-8 text size exceeds the paint limit");
+    }
+    return bounded_paint_pixel_count(descriptor->width, descriptor->height,
+                                     CTEX_DIAGNOSTIC_INVALID_PAINT_TOOL);
+}
+
+ctex::paint::CachedSurfaceMaps paint_particle_surface(
+    const ctex_paint_particle_descriptor& descriptor, std::size_t pixel_count) {
+    if (descriptor.texture_set_id == nullptr) {
+        throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                       "texture_set_id=null");
+    }
+    require_paint_tool_array(descriptor.surface_texels, descriptor.surface_texel_count,
+                             "surface_texels");
+    require_paint_tool_array(descriptor.coverage, descriptor.coverage_count, "coverage");
+    require_paint_tool_array(descriptor.triangle_identity, descriptor.triangle_identity_count,
+                             "triangle_identity");
+    if (descriptor.surface_texel_count != pixel_count || descriptor.coverage_count != pixel_count ||
+        descriptor.triangle_identity_count != pixel_count) {
+        throw std::invalid_argument("particle surface counts do not match its dimensions");
+    }
+    ctex::paint::CachedSurfaceMaps result{
+        .texture_set_id = descriptor.texture_set_id,
+        .uv_set = "capi.particle",
+        .mesh_revision = descriptor.mesh_revision,
+        .surface = {.width = descriptor.width,
+                    .height = descriptor.height,
+                    .tile_origin = {descriptor.tile_origin.x, descriptor.tile_origin.y},
+                    .texels = {}},
+        .coverage = {descriptor.coverage, descriptor.coverage + pixel_count},
+        .triangle_identity = {descriptor.triangle_identity,
+                              descriptor.triangle_identity + pixel_count},
+        .uv_island_identity = {},
+    };
+    result.surface.texels.reserve(pixel_count);
+    for (std::size_t index = 0; index < pixel_count; ++index) {
+        const ctex_paint_surface_texel& source = descriptor.surface_texels[index];
+        result.surface.texels.push_back({.position = stroke_vec(source.position),
+                                         .normal = stroke_vec(source.normal),
+                                         .geometric_normal = stroke_vec(source.geometric_normal),
+                                         .uv = {source.uv.x, source.uv.y},
+                                         .triangle = source.triangle});
+    }
+    return result;
+}
+
+ctex::paint::ParticleSettings paint_particle_settings(
+    const ctex_paint_particle_settings& settings) {
+    return {.count = settings.count,
+            .lifetime_seconds = settings.lifetime_seconds,
+            .initial_speed = settings.initial_speed,
+            .mass = settings.mass,
+            .gravity = stroke_vec(settings.gravity),
+            .friction = settings.friction,
+            .restitution = settings.restitution,
+            .randomness = settings.randomness,
+            .seed = settings.seed};
+}
+
+ctex_paint_particle_settings capi_particle_settings(const ctex::paint::ParticleSettings& settings) {
+    return {.count = settings.count,
+            .lifetime_seconds = settings.lifetime_seconds,
+            .initial_speed = settings.initial_speed,
+            .mass = settings.mass,
+            .gravity = {settings.gravity.x, settings.gravity.y, settings.gravity.z},
+            .friction = settings.friction,
+            .restitution = settings.restitution,
+            .randomness = settings.randomness,
+            .seed = settings.seed};
+}
+
+std::size_t paint_particle_texture_set_id_size(
+    std::span<const ctex::paint::ParticleContact> contacts) {
+    std::size_t result = 0;
+    for (const ctex::paint::ParticleContact& contact : contacts) {
+        if (contact.texture_set_id.size() + 1 > std::numeric_limits<std::size_t>::max() - result) {
+            throw std::overflow_error("particle texture-set ID buffer size overflow");
+        }
+        result += contact.texture_set_id.size() + 1;
+    }
+    return result;
+}
+
+void validate_paint_particle_outputs(const ctex_paint_particle_outputs* outputs,
+                                     const ctex::paint::ParticleResult& result,
+                                     std::size_t pixel_count, std::size_t texture_set_id_size) {
+    if (outputs == nullptr) {
+        return;
+    }
+    validate_structure_size(outputs->size, CTEX_PAINT_PARTICLE_OUTPUTS_V1_SIZE,
+                            CTEX_PAINT_PARTICLE_OUTPUTS_CURRENT_SIZE, "outputs.size");
+    validate_output_array(outputs->contacts, outputs->contact_capacity,
+                          result.simulation.contacts.size(), "outputs.contacts");
+    validate_output_array(outputs->final_states, outputs->final_state_capacity,
+                          result.simulation.final_states.size(), "outputs.final_states");
+    validate_output_array(outputs->texture_set_ids, outputs->texture_set_id_size,
+                          texture_set_id_size, "outputs.texture_set_ids");
+    validate_output_array(outputs->strength, outputs->strength_capacity, pixel_count,
+                          "outputs.strength");
+    validate_paint_tool_outputs(outputs->channels, outputs->channel_count, result.channels.size(),
+                                pixel_count);
+}
+
+bool paint_particle_outputs_ready(const ctex_paint_particle_outputs& outputs,
+                                  const ctex::paint::ParticleResult& result,
+                                  std::size_t texture_set_id_size) {
+    if ((!result.simulation.contacts.empty() && outputs.contacts == nullptr) ||
+        (!result.simulation.final_states.empty() && outputs.final_states == nullptr) ||
+        (texture_set_id_size != 0 && outputs.texture_set_ids == nullptr) ||
+        (!result.strength.empty() && outputs.strength == nullptr) ||
+        (!result.channels.empty() && outputs.channels == nullptr)) {
+        return false;
+    }
+    for (std::size_t channel = 0; channel < result.channels.size(); ++channel) {
+        if (outputs.channels[channel].pixels == nullptr) {
+            return false;
+        }
+    }
+    return true;
+}
+
+void copy_paint_particle_outputs(const ctex_paint_particle_outputs* outputs,
+                                 const ctex::paint::ParticleResult& result,
+                                 std::size_t texture_set_id_size) {
+    if (outputs == nullptr ||
+        !paint_particle_outputs_ready(*outputs, result, texture_set_id_size)) {
+        return;
+    }
+    std::size_t texture_set_offset = 0;
+    for (std::size_t index = 0; index < result.simulation.contacts.size(); ++index) {
+        const ctex::paint::ParticleContact& source = result.simulation.contacts[index];
+        outputs->contacts[index] = {
+            .particle_ordinal = source.particle_ordinal,
+            .collision_ordinal = source.collision_ordinal,
+            .time_seconds = source.time_seconds,
+            .position = {source.position.x, source.position.y, source.position.z},
+            .normal = {source.normal.x, source.normal.y, source.normal.z},
+            .uv = {source.uv.x, source.uv.y},
+            .triangle = source.triangle,
+            .impact_speed = source.impact_speed,
+            .impulse = source.impulse,
+            .strength = source.strength,
+            .texture_set_id_offset = texture_set_offset,
+            .texture_set_id_size = source.texture_set_id.size() + 1,
+            .mapped_texel = result.contact_texels[index],
+        };
+        std::memcpy(outputs->texture_set_ids + texture_set_offset, source.texture_set_id.c_str(),
+                    source.texture_set_id.size() + 1);
+        texture_set_offset += source.texture_set_id.size() + 1;
+    }
+    for (std::size_t index = 0; index < result.simulation.final_states.size(); ++index) {
+        const ctex::paint::ParticleState& source = result.simulation.final_states[index];
+        outputs->final_states[index] = {
+            .position = {source.position.x, source.position.y, source.position.z},
+            .velocity = {source.velocity.x, source.velocity.y, source.velocity.z},
+            .simulated_seconds = source.simulated_seconds,
+            .collision_count = source.collision_count,
+            .resting = source.resting,
+        };
+    }
+    std::copy(result.strength.begin(), result.strength.end(), outputs->strength);
+    copy_paint_tool_outputs(result.channels, outputs->channels);
+}
+
+void set_paint_particle_info(ctex_paint_particle_info& info,
+                             const ctex::paint::ParticleResult& result,
+                             std::size_t texture_set_id_size, std::size_t pixel_count) {
+    const ctex::paint::ToolParameterReport& report = result.simulation.parameter_report;
+    info = {
+        .size = CTEX_PAINT_PARTICLE_INFO_CURRENT_SIZE,
+        .resolved_settings = capi_particle_settings(result.simulation.resolved_settings),
+        .count_clamped = report.clamp_for(ctex::paint::particle_count_parameter.name).has_value(),
+        .lifetime_clamped =
+            report.clamp_for(ctex::paint::particle_lifetime_parameter.name).has_value(),
+        .initial_speed_clamped =
+            report.clamp_for(ctex::paint::particle_initial_speed_parameter.name).has_value(),
+        .mass_clamped = report.clamp_for(ctex::paint::particle_mass_parameter.name).has_value(),
+        .gravity_x_clamped =
+            report.clamp_for(ctex::paint::particle_gravity_x_parameter.name).has_value(),
+        .gravity_y_clamped =
+            report.clamp_for(ctex::paint::particle_gravity_y_parameter.name).has_value(),
+        .gravity_z_clamped =
+            report.clamp_for(ctex::paint::particle_gravity_z_parameter.name).has_value(),
+        .friction_clamped =
+            report.clamp_for(ctex::paint::particle_friction_parameter.name).has_value(),
+        .restitution_clamped =
+            report.clamp_for(ctex::paint::particle_restitution_parameter.name).has_value(),
+        .randomness_clamped =
+            report.clamp_for(ctex::paint::particle_randomness_parameter.name).has_value(),
+        .emitted_count = result.simulation.emitted_count,
+        .mapped_contact_count = result.mapped_contact_count,
+        .applied_channel_count = result.channels.size(),
+        .required_contact_count = result.simulation.contacts.size(),
+        .required_final_state_count = result.simulation.final_states.size(),
+        .required_texture_set_id_size = texture_set_id_size,
+        .required_pixels_per_channel = pixel_count,
+    };
+}
+
+std::size_t validate_paint_particle_call(ctex_pick_index* index,
+                                         const ctex_paint_particle_descriptor* descriptor,
+                                         const ctex_paint_particle_info* out_info) {
+    if (index == nullptr || descriptor == nullptr || out_info == nullptr) {
+        throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                       "index, descriptor and out_info are required");
+    }
+    validate_structure_size(descriptor->size, CTEX_PAINT_PARTICLE_DESCRIPTOR_V1_SIZE,
+                            CTEX_PAINT_PARTICLE_DESCRIPTOR_CURRENT_SIZE, "descriptor.size");
+    validate_structure_size(out_info->size, CTEX_PAINT_PARTICLE_INFO_V1_SIZE,
+                            CTEX_PAINT_PARTICLE_INFO_CURRENT_SIZE, "out_info.size");
+    if (descriptor->blend_mode == nullptr) {
+        throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                       "blend_mode=null");
     }
     return bounded_paint_pixel_count(descriptor->width, descriptor->height,
                                      CTEX_DIAGNOSTIC_INVALID_PAINT_TOOL);
@@ -8990,6 +9203,46 @@ extern "C" ctex_result ctex_paint_apply_text(const ctex_paint_text_descriptor* d
             };
             validate_paint_text_outputs(outputs, result, pixel_count);
             copy_paint_text_outputs(outputs, result);
+        } catch (const std::invalid_argument& error) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_INVALID_PAINT_TOOL,
+                           error.what());
+        }
+    });
+}
+
+extern "C" ctex_result ctex_paint_apply_particles(ctex_pick_index* index,
+                                                  const ctex_paint_particle_descriptor* descriptor,
+                                                  ctex_paint_particle_info* out_info,
+                                                  const ctex_paint_particle_outputs* outputs) {
+    return call_boundary("ctex_paint_apply_particles", [&] {
+        const std::size_t pixel_count = validate_paint_particle_call(index, descriptor, out_info);
+        try {
+            const auto texture_sets =
+                pick_bindings(descriptor->texture_sets, descriptor->texture_set_count);
+            const ctex::paint::CachedSurfaceMaps surface =
+                paint_particle_surface(*descriptor, pixel_count);
+            const auto layer = paint_tool_channels(descriptor->enabled_layer_snapshot,
+                                                   descriptor->enabled_layer_channel_count,
+                                                   pixel_count, "enabled_layer_snapshot");
+            const auto material = paint_tool_channels(
+                descriptor->material, descriptor->material_channel_count, pixel_count, "material");
+            const PaintMaskStorage masks = paint_mask_storage(descriptor->masks);
+            const ctex::paint::ParticleResult result = ctex::paint::apply_particles(
+                index->value, index->mesh->state->mesh_binding(), texture_sets, surface, layer,
+                material,
+                {.position = stroke_vec(descriptor->emitter_position),
+                 .direction = stroke_vec(descriptor->emitter_direction)},
+                paint_particle_settings(descriptor->simulation),
+                {.blend_mode = descriptor->blend_mode,
+                 .masks = masks.inputs(),
+                 .rejection_acceptance = paint_fill_optional_view(
+                     descriptor->rejection_acceptance, descriptor->rejection_acceptance_count,
+                     "rejection_acceptance")});
+            const std::size_t texture_set_id_size =
+                paint_particle_texture_set_id_size(result.simulation.contacts);
+            set_paint_particle_info(*out_info, result, texture_set_id_size, pixel_count);
+            validate_paint_particle_outputs(outputs, result, pixel_count, texture_set_id_size);
+            copy_paint_particle_outputs(outputs, result, texture_set_id_size);
         } catch (const std::invalid_argument& error) {
             throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_INVALID_PAINT_TOOL,
                            error.what());

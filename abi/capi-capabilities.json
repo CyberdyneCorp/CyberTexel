@@ -117,7 +117,8 @@
       {"requirement": "Stencil", "symbols": ["ctex_paint_resolve_stencil_mask", "ctex_paint_evaluate_tile_deposition", "ctex_paint_apply_brush"]},
       {"requirement": "Decal", "symbols": ["ctex_paint_rasterize_decal"]},
       {"requirement": "Projection", "symbols": ["ctex_paint_apply_projection"]},
-      {"requirement": "Text", "symbols": ["ctex_paint_apply_text"]}
+      {"requirement": "Text", "symbols": ["ctex_paint_apply_text"]},
+      {"requirement": "Particle", "symbols": ["ctex_paint_apply_particles"]}
     ]},
     {"name": "picking", "kind": "runtime", "requirements": [
       {"requirement": "Ray construction", "symbols": ["ctex_pick_ray_from_screen"]},

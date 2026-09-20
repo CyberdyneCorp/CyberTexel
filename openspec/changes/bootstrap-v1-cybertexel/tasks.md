@@ -858,6 +858,12 @@ returns decoded codepoints and the aligned raster beside atomic decal samples,
 strength and enabled channels. The exact remaining C ABI gap is 98 runtime
 requirements.
 
+The Particle continuation reuses the public pick index for fixed-step mesh
+collisions and exposes every configured physical control with deterministic seed
+replay. Ordered contacts, final states, texture-set identities, mapped texels,
+composed strength and enabled channels publish atomically. The exact remaining C
+ABI gap is 97 runtime requirements.
+
 ## 1. Foundation
 
 - [x] 1.1 CMake project, C++20, warnings as errors, presets for headless, macOS, Linux, Windows, iOS, Android

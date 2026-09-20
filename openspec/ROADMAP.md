@@ -194,8 +194,9 @@ deposition pipeline. Decal now explicitly rasterizes retained placements and pin
 resolved surface frames. Projection now applies pinned materials through camera,
 planar and triplanar mappings with explicit weighted samples. Text now exposes
 supplied fonts, length-delimited UTF-8, alignment, tracking and projected decal
-output. Exactly 98 runtime requirements still lack C ABI evidence; those gaps
-must be implemented before task 14.8 can close.
+output. Particle now exposes deterministic seeded mesh collisions, ordered
+contacts and mapped paint output. Exactly 97 runtime requirements still lack C
+ABI evidence; those gaps must be implemented before task 14.8 can close.
 
 ## Milestones
 

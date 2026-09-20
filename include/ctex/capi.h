@@ -1488,6 +1488,117 @@ typedef struct ctex_paint_text_outputs {
 #define CTEX_PAINT_TEXT_OUTPUTS_V1_SIZE ((uint32_t)sizeof(ctex_paint_text_outputs))
 #define CTEX_PAINT_TEXT_OUTPUTS_CURRENT_SIZE ((uint32_t)sizeof(ctex_paint_text_outputs))
 
+typedef struct ctex_paint_particle_settings {
+    uint32_t count;
+    double lifetime_seconds;
+    double initial_speed;
+    double mass;
+    ctex_vec3d gravity;
+    double friction;
+    double restitution;
+    double randomness;
+    uint64_t seed;
+} ctex_paint_particle_settings;
+
+typedef struct ctex_paint_particle_contact {
+    uint32_t particle_ordinal;
+    uint32_t collision_ordinal;
+    double time_seconds;
+    ctex_vec3d position;
+    ctex_vec3d normal;
+    ctex_vec2d uv;
+    uint32_t triangle;
+    double impact_speed;
+    double impulse;
+    double strength;
+    size_t texture_set_id_offset;
+    size_t texture_set_id_size;
+    size_t mapped_texel;
+} ctex_paint_particle_contact;
+
+typedef struct ctex_paint_particle_state {
+    ctex_vec3d position;
+    ctex_vec3d velocity;
+    double simulated_seconds;
+    uint32_t collision_count;
+    uint32_t resting;
+} ctex_paint_particle_state;
+
+typedef struct ctex_paint_particle_descriptor {
+    uint32_t size;
+    uint32_t width;
+    uint32_t height;
+    ctex_vec2d tile_origin;
+    const char* texture_set_id;
+    uint64_t mesh_revision;
+    const ctex_paint_surface_texel* surface_texels;
+    size_t surface_texel_count;
+    const uint8_t* coverage;
+    size_t coverage_count;
+    const uint32_t* triangle_identity;
+    size_t triangle_identity_count;
+    const struct ctex_pick_texture_set_binding_descriptor* texture_sets;
+    size_t texture_set_count;
+    ctex_vec3d emitter_position;
+    ctex_vec3d emitter_direction;
+    ctex_paint_particle_settings simulation;
+    const ctex_paint_tool_channel_descriptor* material;
+    size_t material_channel_count;
+    const ctex_paint_tool_channel_descriptor* enabled_layer_snapshot;
+    size_t enabled_layer_channel_count;
+    const ctex_paint_mask_inputs_descriptor* masks;
+    const double* rejection_acceptance;
+    size_t rejection_acceptance_count;
+    const char* blend_mode;
+} ctex_paint_particle_descriptor;
+
+#define CTEX_PAINT_PARTICLE_DESCRIPTOR_V1_SIZE ((uint32_t)sizeof(ctex_paint_particle_descriptor))
+#define CTEX_PAINT_PARTICLE_DESCRIPTOR_CURRENT_SIZE \
+    ((uint32_t)sizeof(ctex_paint_particle_descriptor))
+
+typedef struct ctex_paint_particle_info {
+    uint32_t size;
+    ctex_paint_particle_settings resolved_settings;
+    uint32_t count_clamped;
+    uint32_t lifetime_clamped;
+    uint32_t initial_speed_clamped;
+    uint32_t mass_clamped;
+    uint32_t gravity_x_clamped;
+    uint32_t gravity_y_clamped;
+    uint32_t gravity_z_clamped;
+    uint32_t friction_clamped;
+    uint32_t restitution_clamped;
+    uint32_t randomness_clamped;
+    uint32_t emitted_count;
+    size_t mapped_contact_count;
+    size_t applied_channel_count;
+    size_t required_contact_count;
+    size_t required_final_state_count;
+    size_t required_texture_set_id_size;
+    size_t required_pixels_per_channel;
+} ctex_paint_particle_info;
+
+#define CTEX_PAINT_PARTICLE_INFO_V1_SIZE ((uint32_t)sizeof(ctex_paint_particle_info))
+#define CTEX_PAINT_PARTICLE_INFO_CURRENT_SIZE ((uint32_t)sizeof(ctex_paint_particle_info))
+
+typedef struct ctex_paint_particle_outputs {
+    uint32_t size;
+    ctex_paint_particle_contact* contacts;
+    size_t contact_capacity;
+    ctex_paint_particle_state* final_states;
+    size_t final_state_capacity;
+    char* texture_set_ids;
+    size_t texture_set_id_size;
+    double* strength;
+    size_t strength_capacity;
+    const ctex_paint_tool_channel_output* channels;
+    size_t channel_count;
+} ctex_paint_particle_outputs;
+
+#define CTEX_PAINT_PARTICLE_OUTPUTS_V1_SIZE ((uint32_t)sizeof(ctex_paint_particle_outputs))
+#define CTEX_PAINT_PARTICLE_OUTPUTS_CURRENT_SIZE ((uint32_t)sizeof(ctex_paint_particle_outputs))
+#define CTEX_PAINT_NO_PARTICLE_TEXEL ((size_t)-1)
+
 typedef struct ctex_stroke_preset_info {
     uint32_t size;
     uint32_t schema_version;
@@ -3520,6 +3631,12 @@ CTEX_API ctex_result ctex_paint_apply_projection(const ctex_paint_projection_des
 CTEX_API ctex_result ctex_paint_apply_text(const ctex_paint_text_descriptor* descriptor,
                                            ctex_paint_text_info* out_info,
                                            const ctex_paint_text_outputs* outputs);
+
+/* Simulates deterministic mesh-colliding particles and shades mapped contacts. */
+CTEX_API ctex_result ctex_paint_apply_particles(ctex_pick_index* index,
+                                                const ctex_paint_particle_descriptor* descriptor,
+                                                ctex_paint_particle_info* out_info,
+                                                const ctex_paint_particle_outputs* outputs);
 
 /*
  * Installs one process-wide sink. Pass NULL to uninstall it. The callback can
