@@ -1,5 +1,6 @@
 #include <algorithm>
 #include <array>
+#include <ctex/doc/document.hpp>
 #include <ctex/io/export_plan.hpp>
 #include <map>
 #include <set>
@@ -15,6 +16,70 @@ namespace {
 
 using TextureSetLookup = std::map<std::string_view, const ExportTextureSetSource*, std::less<>>;
 using LayerLookup = std::map<std::string_view, const ExportLayerSource*, std::less<>>;
+
+bool atlas_regions_overlap(const ExportAtlasRegion& left, const ExportAtlasRegion& right) {
+    const std::uint64_t left_right = static_cast<std::uint64_t>(left.x) + left.width;
+    const std::uint64_t right_right = static_cast<std::uint64_t>(right.x) + right.width;
+    const std::uint64_t left_bottom = static_cast<std::uint64_t>(left.y) + left.height;
+    const std::uint64_t right_bottom = static_cast<std::uint64_t>(right.y) + right.height;
+    return left.x < right_right && right.x < left_right && left.y < right_bottom &&
+           right.y < left_bottom;
+}
+
+std::vector<std::string_view> validate_atlas_regions(const ExportAtlasSource& atlas,
+                                                     const TextureSetLookup& texture_sets) {
+    std::vector<std::string_view> members;
+    members.reserve(atlas.regions.size());
+    std::set<std::string_view> seen;
+    for (std::size_t index = 0; index < atlas.regions.size(); ++index) {
+        const ExportAtlasRegion& region = atlas.regions[index];
+        const std::uint64_t right = static_cast<std::uint64_t>(region.x) + region.width;
+        const std::uint64_t bottom = static_cast<std::uint64_t>(region.y) + region.height;
+        if (region.texture_set_identifier.empty() || region.width == 0 || region.height == 0 ||
+            right > atlas.width || bottom > atlas.height) {
+            plan_error(ExportPlanErrorCode::invalid_catalogue,
+                       "export atlas has an invalid region: " + region.texture_set_identifier);
+        }
+        if (!texture_sets.contains(region.texture_set_identifier)) {
+            plan_error(ExportPlanErrorCode::invalid_catalogue,
+                       "export atlas region names a missing texture set: " +
+                           region.texture_set_identifier);
+        }
+        if (!seen.insert(region.texture_set_identifier).second) {
+            plan_error(
+                ExportPlanErrorCode::invalid_catalogue,
+                "export atlas repeats a texture-set region: " + region.texture_set_identifier);
+        }
+        for (std::size_t previous = 0; previous < index; ++previous) {
+            if (atlas_regions_overlap(region, atlas.regions[previous])) {
+                plan_error(ExportPlanErrorCode::invalid_catalogue,
+                           "export atlas regions overlap: " + region.texture_set_identifier);
+            }
+        }
+        members.push_back(region.texture_set_identifier);
+    }
+    return members;
+}
+
+std::vector<std::string_view> atlas_members(const ExportAtlasSource& atlas,
+                                            const TextureSetLookup& texture_sets) {
+    if (!atlas.regions.empty()) {
+        std::vector<std::string_view> members = validate_atlas_regions(atlas, texture_sets);
+        if (!atlas.texture_set_identifiers.empty() &&
+            !std::equal(members.begin(), members.end(), atlas.texture_set_identifiers.begin(),
+                        atlas.texture_set_identifiers.end())) {
+            plan_error(ExportPlanErrorCode::invalid_catalogue,
+                       "export atlas membership and regions disagree: " + atlas.identifier);
+        }
+        return members;
+    }
+    std::vector<std::string_view> members;
+    members.reserve(atlas.texture_set_identifiers.size());
+    for (const std::string& identifier : atlas.texture_set_identifiers) {
+        members.push_back(identifier);
+    }
+    return members;
+}
 
 LayerLookup validate_layers(const ExportTextureSetSource& texture_set) {
     LayerLookup layers;
@@ -89,7 +154,7 @@ TextureSetLookup validate_catalogue(const ExportSourceCatalogue& catalogue) {
     std::set<std::string_view> assigned_texture_sets;
     for (const ExportAtlasSource& atlas : catalogue.atlases) {
         if (atlas.identifier.empty() || atlas.display_name.empty() || atlas.width == 0 ||
-            atlas.height == 0 || atlas.texture_set_identifiers.empty()) {
+            atlas.height == 0 || (atlas.texture_set_identifiers.empty() && atlas.regions.empty())) {
             plan_error(ExportPlanErrorCode::invalid_catalogue,
                        "export atlases require identity, name, dimensions, and texture sets");
         }
@@ -98,15 +163,16 @@ TextureSetLookup validate_catalogue(const ExportSourceCatalogue& catalogue) {
                        "duplicate export atlas identifier: " + atlas.identifier);
         }
         std::set<std::string_view> members;
-        for (const std::string& identifier : atlas.texture_set_identifiers) {
+        for (const std::string_view identifier : atlas_members(atlas, texture_sets)) {
             if (!texture_sets.contains(identifier)) {
                 plan_error(ExportPlanErrorCode::invalid_catalogue,
-                           "export atlas names a missing texture set: " + identifier);
+                           "export atlas names a missing texture set: " + std::string(identifier));
             }
             if (!members.insert(identifier).second ||
                 !assigned_texture_sets.insert(identifier).second) {
-                plan_error(ExportPlanErrorCode::invalid_catalogue,
-                           "texture set has a duplicate atlas assignment: " + identifier);
+                plan_error(
+                    ExportPlanErrorCode::invalid_catalogue,
+                    "texture set has a duplicate atlas assignment: " + std::string(identifier));
             }
         }
     }
@@ -163,6 +229,7 @@ struct ScopeUnit {
     const ExportAtlasSource* atlas{};
     std::uint32_t width{};
     std::uint32_t height{};
+    std::vector<ExportAtlasRegion> atlas_regions;
 };
 
 std::vector<ScopeUnit> texture_set_units(
@@ -175,7 +242,8 @@ std::vector<ScopeUnit> texture_set_units(
                           .udim_tile = std::nullopt,
                           .atlas = nullptr,
                           .width = texture_set->width,
-                          .height = texture_set->height});
+                          .height = texture_set->height,
+                          .atlas_regions = {}});
     }
     return result;
 }
@@ -191,7 +259,8 @@ std::vector<ScopeUnit> udim_units(const std::vector<const ExportTextureSetSource
                               .udim_tile = tile,
                               .atlas = nullptr,
                               .width = texture_set->width,
-                              .height = texture_set->height});
+                              .height = texture_set->height,
+                              .atlas_regions = {}});
         }
     }
     if (result.empty()) {
@@ -216,11 +285,21 @@ std::vector<ScopeUnit> atlas_units(const ExportSourceCatalogue& catalogue,
                        .udim_tile = std::nullopt,
                        .atlas = &atlas,
                        .width = atlas.width,
-                       .height = atlas.height};
-        for (const std::string& identifier : atlas.texture_set_identifiers) {
+                       .height = atlas.height,
+                       .atlas_regions = {}};
+        const std::vector<std::string_view> members = atlas_members(atlas, lookup);
+        for (const std::string_view identifier : members) {
             if (selected.contains(identifier)) {
                 unit.texture_sets.push_back(lookup.at(identifier));
                 assigned.insert(identifier);
+                const auto region =
+                    std::find_if(atlas.regions.begin(), atlas.regions.end(),
+                                 [&](const ExportAtlasRegion& value) {
+                                     return value.texture_set_identifier == identifier;
+                                 });
+                if (region != atlas.regions.end()) {
+                    unit.atlas_regions.push_back(*region);
+                }
             }
         }
         if (!unit.texture_sets.empty()) {
@@ -260,6 +339,26 @@ void apply_output_resolution(std::vector<ScopeUnit>& units, const ExportPlanRequ
                    "export resolution dimensions must both be non-zero");
     }
     for (ScopeUnit& unit : units) {
+        for (ExportAtlasRegion& region : unit.atlas_regions) {
+            const auto scale_edge = [](std::uint32_t edge, std::uint32_t output,
+                                       std::uint32_t source) {
+                return static_cast<std::uint32_t>(static_cast<std::uint64_t>(edge) * output /
+                                                  source);
+            };
+            const std::uint32_t right =
+                scale_edge(region.x + region.width, request.output_resolution->width, unit.width);
+            const std::uint32_t bottom = scale_edge(region.y + region.height,
+                                                    request.output_resolution->height, unit.height);
+            region.x = scale_edge(region.x, request.output_resolution->width, unit.width);
+            region.y = scale_edge(region.y, request.output_resolution->height, unit.height);
+            if (right == region.x || bottom == region.y) {
+                plan_error(ExportPlanErrorCode::invalid_scope,
+                           "export resolution collapses an atlas region: " +
+                               region.texture_set_identifier);
+            }
+            region.width = right - region.x;
+            region.height = bottom - region.y;
+        }
         unit.width = request.output_resolution->width;
         unit.height = request.output_resolution->height;
     }
@@ -650,6 +749,7 @@ std::vector<PlannedTextureExport> plan_texture_export(const ExportSourceCatalogu
                     .format = texture.format,
                     .bit_depth = texture.bit_depth,
                     .color_space = texture.color_space,
+                    .atlas_regions = unit.atlas_regions,
                 };
                 if (unit.atlas != nullptr) {
                     output.atlas_identifier = unit.atlas->identifier;
@@ -664,6 +764,65 @@ std::vector<PlannedTextureExport> plan_texture_export(const ExportSourceCatalogu
     if (result.empty()) {
         plan_error(ExportPlanErrorCode::invalid_scope,
                    "export scope and layer selection produced no outputs");
+    }
+    return result;
+}
+
+ExportSourceCatalogue export_source_catalogue(std::string project_name,
+                                              const doc::TextureDocument& document) {
+    if (project_name.empty()) {
+        plan_error(ExportPlanErrorCode::invalid_catalogue,
+                   "export catalogue requires a project name");
+    }
+    ExportSourceCatalogue result{
+        .project_name = std::move(project_name), .texture_sets = {}, .atlases = {}};
+    result.texture_sets.reserve(document.texture_set_count());
+    for (const std::string& identifier : document.texture_set_ids()) {
+        const doc::TextureSet& texture_set = document.texture_set(identifier);
+        const doc::TextureSetDescriptor descriptor = texture_set.descriptor();
+        ExportTextureSetSource source{
+            .identifier = identifier,
+            .display_name = descriptor.display_name,
+            .width = descriptor.width,
+            .height = descriptor.height,
+            .occupied_udim_tiles = texture_set.occupied_udim_tiles(),
+            .layers = {},
+        };
+        source.layers.reserve(texture_set.layer_stack().size());
+        for (const doc::LayerEntry& entry : texture_set.layer_stack().entries()) {
+            source.layers.push_back({
+                .identifier = entry.identifier,
+                .display_name = entry.display_name,
+                .parent_identifier = entry.parent_identifier,
+                .kind = entry.kind == doc::LayerEntryKind::group ? ExportLayerKind::group
+                                                                 : ExportLayerKind::content,
+                .visible = entry.enabled,
+            });
+        }
+        result.texture_sets.push_back(std::move(source));
+    }
+    result.atlases.reserve(document.atlas_count());
+    for (const std::string& identifier : document.atlas_ids()) {
+        const doc::AtlasDescriptor& descriptor = document.atlas(identifier);
+        ExportAtlasSource source{
+            .identifier = descriptor.identifier,
+            .display_name = descriptor.display_name,
+            .width = descriptor.width,
+            .height = descriptor.height,
+            .texture_set_identifiers = {},
+            .regions = {},
+        };
+        source.texture_set_identifiers.reserve(descriptor.regions.size());
+        source.regions.reserve(descriptor.regions.size());
+        for (const doc::AtlasRegion& region : descriptor.regions) {
+            source.texture_set_identifiers.push_back(region.texture_set_identifier);
+            source.regions.push_back({.texture_set_identifier = region.texture_set_identifier,
+                                      .x = region.x,
+                                      .y = region.y,
+                                      .width = region.width,
+                                      .height = region.height});
+        }
+        result.atlases.push_back(std::move(source));
     }
     return result;
 }

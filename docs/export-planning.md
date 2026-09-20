@@ -18,16 +18,20 @@ Texture-set selection and spatial scope are orthogonal:
   the `{udim}` filename token.
 - `atlas` emits one unit per atlas containing included sets. Every included set
   must have exactly one atlas assignment; an omitted or duplicate assignment is
-  refused rather than silently dropping content.
+  refused rather than silently dropping content. New atlas sources carry one
+  validated, non-overlapping [export region](atlas-regions.md) per member.
 
 The planner records all contributing stable texture-set identifiers. Atlas
-outputs use the atlas dimensions and identity; texture-set and UDIM outputs use
-the source set's dimensions.
+outputs use the atlas dimensions and identity and retain each contributing
+member's rectangle; texture-set and UDIM outputs use the source set's
+dimensions.
 
 An optional output resolution overrides those working or atlas dimensions for
 every scope unit before filenames are expanded. Both dimensions must be
-non-zero. The execution stage documents the pixel-centred bilinear resampling
-used to produce those dimensions.
+non-zero. Atlas rectangle edges scale deterministically with the output and a
+resolution that collapses a selected rectangle is refused. The execution stage
+documents the pixel-centred bilinear resampling used to produce those
+dimensions.
 
 ## Layer scopes
 

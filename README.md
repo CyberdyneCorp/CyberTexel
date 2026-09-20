@@ -172,7 +172,9 @@ The current implementation provides:
   replacement that reports per-set UV changes before the host chooses to keep,
   clear, or defer content for reprojection. Sparse [UDIM storage](docs/udim-tiles.md)
   provides checked standard addressing, UV-addressed cross-border batch writes,
-  on-demand physical allocation, and occupied-tile memory reporting.
+  on-demand physical allocation, and occupied-tile memory reporting. Validated
+  [atlas regions](docs/atlas-regions.md) group texture sets into deterministic,
+  region-aware export outputs.
 - Revision-aware [mesh-map sets](docs/mesh-maps.md) with named missing-map and
   staleness reports, asynchronous stale-safe bake tokens with coordinated undo,
   a host-supplied bake-provider seam, and transactional

@@ -1048,6 +1048,16 @@ writing. Hosts can declare the exact sorted logical occupancy found in mesh UVs
 without allocating default pixels; document memory reports separately count
 only physical authored storage.
 
+Task 4.4 adds document-owned atlas declarations and preserves their placement
+through export planning. Each member names an existing texture set and occupies
+a non-empty, in-bounds integer rectangle. Creation atomically refuses duplicate
+members, overlapping regions, missing sets and membership in a second atlas.
+The document-to-export catalogue bridge carries regions, layers and occupied
+UDIMs without host-side reconstruction. Atlas plans produce one output for all
+selected members, retain the contributing rectangles and scale their edges
+deterministically when output resolution changes; a collapsed region is a
+named refusal.
+
 Task 4.7 adds a two-phase painted-document mesh replacement transaction. Stable
 partition kind/key and named-UV matching ignores display, partition, vertex,
 winding and face order while reporting missing identities and changed layouts
@@ -1184,7 +1194,7 @@ and export integration where those are part of a document scenario.
 - [x] 4.1 Mesh ingest interface, read-only guarantee, attribute description
 - [x] 4.2 Multiple UV sets; texture set binding to a named set
 - [x] 4.3 UDIM tiles: on-demand allocation, addressing, cross-tile writes
-- [ ] 4.4 Atlases and their export-time regions
+- [x] 4.4 Atlases and their export-time regions
 - [x] 4.5 Overlap and coverage diagnostics
 - [x] 4.6 Mesh revision; every derived structure keyed by it
 - [x] 4.7 Mesh replacement: identity matching, UV-change reporting, host-chosen policy

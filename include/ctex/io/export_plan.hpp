@@ -11,6 +11,10 @@
 #include <string_view>
 #include <vector>
 
+namespace ctex::doc {
+class TextureDocument;
+}
+
 namespace ctex::io {
 
 inline constexpr std::string_view default_export_filename_pattern =
@@ -40,12 +44,22 @@ struct ExportTextureSetSource {
     friend bool operator==(const ExportTextureSetSource&, const ExportTextureSetSource&) = default;
 };
 
+struct ExportAtlasRegion {
+    std::string texture_set_identifier;
+    std::uint32_t x{};
+    std::uint32_t y{};
+    std::uint32_t width{};
+    std::uint32_t height{};
+    friend bool operator==(const ExportAtlasRegion&, const ExportAtlasRegion&) = default;
+};
+
 struct ExportAtlasSource {
     std::string identifier;
     std::string display_name;
     std::uint32_t width{};
     std::uint32_t height{};
     std::vector<std::string> texture_set_identifiers;
+    std::vector<ExportAtlasRegion> regions;
     friend bool operator==(const ExportAtlasSource&, const ExportAtlasSource&) = default;
 };
 
@@ -85,6 +99,7 @@ struct PlannedTextureExport {
     ExportImageFormat format{ExportImageFormat::png};
     ExportBitDepth bit_depth{ExportBitDepth::bits_8};
     image::ColorSpace color_space{image::ColorSpace::linear_rec709};
+    std::vector<ExportAtlasRegion> atlas_regions;
     friend bool operator==(const PlannedTextureExport&, const PlannedTextureExport&) = default;
 };
 
@@ -108,6 +123,9 @@ private:
 [[nodiscard]] std::vector<PlannedTextureExport> plan_texture_export(
     const ExportSourceCatalogue& catalogue, const ExportPreset& preset,
     const ExportPlanRequest& request = {});
+
+[[nodiscard]] ExportSourceCatalogue export_source_catalogue(std::string project_name,
+                                                            const doc::TextureDocument& document);
 
 }  // namespace ctex::io
 

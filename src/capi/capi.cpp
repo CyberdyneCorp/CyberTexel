@@ -5856,6 +5856,7 @@ ctex::io::ExportAtlasSource export_atlas_source(
         .texture_set_identifiers = export_string_array(descriptor.texture_set_identifiers,
                                                        descriptor.texture_set_identifier_count,
                                                        "atlas.texture_set_identifiers"),
+        .regions = {},
     };
 }
 

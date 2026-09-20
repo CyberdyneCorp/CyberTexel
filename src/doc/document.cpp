@@ -100,6 +100,28 @@ ResolvedUdimWrite resolve_udim_write(const TextureSetDescriptor& descriptor,
             .pixel = write.pixel};
 }
 
+bool atlas_regions_overlap(const AtlasRegion& left, const AtlasRegion& right) {
+    const std::uint64_t left_right = static_cast<std::uint64_t>(left.x) + left.width;
+    const std::uint64_t right_right = static_cast<std::uint64_t>(right.x) + right.width;
+    const std::uint64_t left_bottom = static_cast<std::uint64_t>(left.y) + left.height;
+    const std::uint64_t right_bottom = static_cast<std::uint64_t>(right.y) + right.height;
+    return left.x < right_right && right.x < left_right && left.y < right_bottom &&
+           right.y < left_bottom;
+}
+
+void validate_atlas_region(const AtlasDescriptor& atlas, const AtlasRegion& region) {
+    if (region.texture_set_identifier.empty() || region.width == 0 || region.height == 0) {
+        throw std::invalid_argument(
+            "atlas regions require a texture-set identity and non-zero dimensions");
+    }
+    const std::uint64_t right = static_cast<std::uint64_t>(region.x) + region.width;
+    const std::uint64_t bottom = static_cast<std::uint64_t>(region.y) + region.height;
+    if (right > atlas.width || bottom > atlas.height) {
+        throw std::out_of_range("atlas region is outside atlas bounds: " +
+                                region.texture_set_identifier);
+    }
+}
+
 PartitionSourceKind document_partition_kind(mesh::PartitionKind kind) {
     switch (kind) {
         case mesh::PartitionKind::material:
@@ -400,7 +422,7 @@ TextureSetMemoryReport TextureSet::memory_report() const {
 }
 
 TextureDocument::TextureDocument(std::pmr::memory_resource* memory_resource)
-    : memory_resource_(memory_resource), texture_sets_(memory_resource) {
+    : memory_resource_(memory_resource), texture_sets_(memory_resource), atlases_(memory_resource) {
     if (memory_resource == nullptr) {
         throw std::invalid_argument("texture document requires a memory resource");
     }
@@ -464,6 +486,71 @@ std::vector<std::string> TextureDocument::texture_set_ids() const {
     for (const auto& [id, unused] : texture_sets_) {
         static_cast<void>(unused);
         result.emplace_back(id.begin(), id.end());
+    }
+    return result;
+}
+
+const AtlasDescriptor& TextureDocument::create_atlas(AtlasDescriptor descriptor) {
+    if (descriptor.identifier.empty() || descriptor.display_name.empty() || descriptor.width == 0 ||
+        descriptor.height == 0 || descriptor.regions.empty()) {
+        throw std::invalid_argument(
+            "atlas requires identity, display name, dimensions, and at least one region");
+    }
+    if (atlases_.contains(std::string_view(descriptor.identifier))) {
+        throw std::invalid_argument("atlas identity is already present: " + descriptor.identifier);
+    }
+    std::set<std::string_view, std::less<>> members;
+    for (std::size_t index = 0; index < descriptor.regions.size(); ++index) {
+        const AtlasRegion& region = descriptor.regions[index];
+        validate_atlas_region(descriptor, region);
+        if (!contains_texture_set(region.texture_set_identifier)) {
+            throw std::invalid_argument("atlas region names a missing texture set: " +
+                                        region.texture_set_identifier);
+        }
+        if (!members.insert(region.texture_set_identifier).second) {
+            throw std::invalid_argument("atlas repeats a texture set: " +
+                                        region.texture_set_identifier);
+        }
+        for (std::size_t previous = 0; previous < index; ++previous) {
+            if (atlas_regions_overlap(region, descriptor.regions[previous])) {
+                throw std::invalid_argument(
+                    "atlas regions overlap: " + region.texture_set_identifier + " and " +
+                    descriptor.regions[previous].texture_set_identifier);
+            }
+        }
+        for (const auto& [unused, existing] : atlases_) {
+            static_cast<void>(unused);
+            if (std::ranges::any_of(existing.regions, [&](const AtlasRegion& existing_region) {
+                    return existing_region.texture_set_identifier == region.texture_set_identifier;
+                })) {
+                throw std::invalid_argument("texture set already belongs to an atlas: " +
+                                            region.texture_set_identifier);
+            }
+        }
+    }
+    const std::string identifier = descriptor.identifier;
+    return atlases_.emplace(std::pmr::string(identifier, memory_resource_), std::move(descriptor))
+        .first->second;
+}
+
+bool TextureDocument::contains_atlas(std::string_view identifier) const noexcept {
+    return atlases_.contains(identifier);
+}
+
+const AtlasDescriptor& TextureDocument::atlas(std::string_view identifier) const {
+    const auto found = atlases_.find(identifier);
+    if (found == atlases_.end()) {
+        throw std::out_of_range("atlas identity is not present: " + std::string(identifier));
+    }
+    return found->second;
+}
+
+std::vector<std::string> TextureDocument::atlas_ids() const {
+    std::vector<std::string> result;
+    result.reserve(atlases_.size());
+    for (const auto& [identifier, unused] : atlases_) {
+        static_cast<void>(unused);
+        result.emplace_back(identifier.begin(), identifier.end());
     }
     return result;
 }

@@ -1062,6 +1062,13 @@ if(BUILD_TESTING)
     target_link_libraries(ctex_udim_test PRIVATE ctex_doc ctex_mesh ctex_graph ctex_image)
     add_test(NAME texture-set-udim COMMAND ctex_udim_test)
 
+    add_executable(ctex_atlas_test tests/doc/atlas_test.cpp)
+    ctex_configure_cpp_target(ctex_atlas_test)
+    target_link_libraries(
+        ctex_atlas_test PRIVATE ctex_io ctex_doc ctex_mesh ctex_graph ctex_image
+    )
+    add_test(NAME texture-set-atlas COMMAND ctex_atlas_test)
+
     add_executable(ctex_mesh_uv_diagnostics_test tests/mesh/uv_diagnostics_test.cpp)
     ctex_configure_cpp_target(ctex_mesh_uv_diagnostics_test)
     target_link_libraries(ctex_mesh_uv_diagnostics_test PRIVATE ctex_mesh)
@@ -1551,6 +1558,7 @@ if(BUILD_TESTING)
     set_tests_properties(
         mesh-ingest
         texture-set-udim
+        texture-set-atlas
         mesh-uv-diagnostics
         mesh-replacement-policy
         c-abi-mesh-ingest
@@ -1559,6 +1567,10 @@ if(BUILD_TESTING)
     )
     set_tests_properties(
         mesh-ingest PROPERTIES LABELS "mesh-maps-scenario;mesh-and-texture-sets-scenario"
+    )
+    set_property(
+        TEST texture-set-atlas
+        APPEND PROPERTY LABELS texture-export-scenario
     )
     set_tests_properties(
         project-container

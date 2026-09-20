@@ -80,7 +80,8 @@ ExportSourceCatalogue catalogue() {
                  .display_name = "Character Atlas",
                  .width = 4096,
                  .height = 4096,
-                 .texture_set_identifiers = {"body", "head"}},
+                 .texture_set_identifiers = {"body", "head"},
+                 .regions = {}},
             },
     };
 }

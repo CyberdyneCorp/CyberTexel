@@ -141,6 +141,24 @@ struct UdimWriteResult {
     std::size_t changed_pixel_count{};
 };
 
+struct AtlasRegion {
+    std::string texture_set_identifier;
+    std::uint32_t x{};
+    std::uint32_t y{};
+    std::uint32_t width{};
+    std::uint32_t height{};
+    friend bool operator==(const AtlasRegion&, const AtlasRegion&) = default;
+};
+
+struct AtlasDescriptor {
+    std::string identifier;
+    std::string display_name;
+    std::uint32_t width{};
+    std::uint32_t height{};
+    std::vector<AtlasRegion> regions;
+    friend bool operator==(const AtlasDescriptor&, const AtlasDescriptor&) = default;
+};
+
 [[nodiscard]] std::uint32_t udim_number(UdimCoordinate coordinate);
 [[nodiscard]] UdimCoordinate udim_coordinate(std::uint32_t number);
 
@@ -256,11 +274,17 @@ public:
     [[nodiscard]] const TextureSet& texture_set(std::string_view stable_id) const;
     [[nodiscard]] std::vector<std::string> texture_set_ids() const;
     [[nodiscard]] std::size_t texture_set_count() const noexcept { return texture_sets_.size(); }
+    [[nodiscard]] const AtlasDescriptor& create_atlas(AtlasDescriptor descriptor);
+    [[nodiscard]] bool contains_atlas(std::string_view identifier) const noexcept;
+    [[nodiscard]] const AtlasDescriptor& atlas(std::string_view identifier) const;
+    [[nodiscard]] std::vector<std::string> atlas_ids() const;
+    [[nodiscard]] std::size_t atlas_count() const noexcept { return atlases_.size(); }
     [[nodiscard]] TextureDocumentMemoryReport memory_report() const;
 
 private:
     std::pmr::memory_resource* memory_resource_;
     std::pmr::map<std::pmr::string, TextureSet, std::less<>> texture_sets_;
+    std::pmr::map<std::pmr::string, AtlasDescriptor, std::less<>> atlases_;
 };
 
 [[nodiscard]] std::string texture_set_stable_id(const TextureSetDescriptor& descriptor);

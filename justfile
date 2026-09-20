@@ -89,6 +89,9 @@ test-document: build
 test-udim: build
     ctest --test-dir build/headless --output-on-failure -R '^texture-set-udim$'
 
+test-atlas: build
+    ctest --test-dir build/headless --output-on-failure -R '^texture-set-atlas$'
+
 test-texture-document-scenarios: build
     ctest --test-dir build/headless --output-on-failure -L '^texture-document-scenario$'
 

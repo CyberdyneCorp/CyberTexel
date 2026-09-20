@@ -7,7 +7,7 @@ decisions taken and questions still open.
 ## Status
 
 Implementation started. 24 capabilities, 332 requirements, 409 scenarios and
-222 tasks, 150 done. Foundation and the complete headless color-management
+222 tasks, 151 done. Foundation and the complete headless color-management
 scenario suite are green. Slice-A now has memory-buffer PNG input plus
 PNG/JPEG/TGA/TIFF/OpenEXR output, with 8/16-bit preservation and hostile-input
 ceilings; full decoder breadth remains scheduled for slice D. Extensible channel
@@ -38,6 +38,9 @@ document derives stable UV-bound texture sets with independent storage.
 Texture sets can now opt into sparse UDIM storage with standard checked
 addressing, UV-addressed cross-border writes, on-demand channel allocation and
 separate logical-occupancy and physical-memory reporting.
+Documents can group texture sets into validated, non-overlapping atlas regions;
+the export catalogue and planner retain and deterministically scale those
+regions while producing one output per atlas.
 Picking now reuses a flat CPU BVH and rebuilds it when its mesh revision changes.
 Perspective and orthographic screen positions also produce documented
 world-space rays without a GPU. Exact nearest intersections now return complete
