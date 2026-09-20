@@ -989,6 +989,16 @@ pinned committed or preview snapshot through public-handle destruction and
 releases it when the request is destroyed. The exact remaining C ABI gap is 56
 runtime requirements.
 
+The mesh-map continuation binds an allocator-owned C handle to one document
+texture set and mesh revision. It copies externally produced maps, reports
+resolution mismatch, missing and stale requirements, converts recorded DirectX
+normal maps on read, accepts and reports supplied signed per-corner tangents,
+validates the complete tangent-frame compatibility, and exposes exact resident
+allocation and release reports. A strict-C fixture covers imported buffer
+ownership, mirrored handedness, atomic tangent refusal, revision synchronization
+and selective release. Eight mesh-map requirements now have public evidence and
+the exact remaining C ABI gap is 48 runtime requirements.
+
 ## 1. Foundation
 
 - [x] 1.1 CMake project, C++20, warnings as errors, presets for headless, macOS, Linux, Windows, iOS, Android

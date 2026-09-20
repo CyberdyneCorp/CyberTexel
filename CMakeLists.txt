@@ -358,6 +358,10 @@ if(BUILD_TESTING)
         ctex_configure_c_target(ctex_capi_mesh_test)
         target_link_libraries(ctex_capi_mesh_test PRIVATE cybertexel_c)
         add_test(NAME c-abi-mesh-ingest COMMAND ctex_capi_mesh_test)
+        add_executable(ctex_capi_mesh_maps_test tests/capi/mesh_maps_test.c)
+        ctex_configure_c_target(ctex_capi_mesh_maps_test)
+        target_link_libraries(ctex_capi_mesh_maps_test PRIVATE cybertexel_c)
+        add_test(NAME c-abi-mesh-maps COMMAND ctex_capi_mesh_maps_test)
         add_executable(ctex_capi_picking_test tests/capi/picking_test.c)
         ctex_configure_c_target(ctex_capi_picking_test)
         target_link_libraries(ctex_capi_picking_test PRIVATE cybertexel_c)
@@ -1438,6 +1442,7 @@ if(BUILD_TESTING)
         mesh-map-generators
         mesh-map-generator-parity
         mesh-map-no-baker-dependency
+        c-abi-mesh-maps
         PROPERTIES LABELS mesh-maps-scenario
     )
     set_tests_properties(mesh-ingest PROPERTIES LABELS mesh-maps-scenario)

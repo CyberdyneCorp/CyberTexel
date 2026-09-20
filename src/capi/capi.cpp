@@ -29,6 +29,8 @@
 #include <ctex/io/standalone_asset.hpp>
 #include <ctex/io/texture_encode.hpp>
 #include <ctex/io/texture_export.hpp>
+#include <ctex/maps/external_import.hpp>
+#include <ctex/maps/mesh_maps.hpp>
 #include <ctex/paint/blending.hpp>
 #include <ctex/paint/blur_smear.hpp>
 #include <ctex/paint/brush.hpp>
@@ -268,6 +270,20 @@ struct ctex_transport_readback {
     ctex_allocator_state allocator;
     ctex::xport::TileReadback value;
     ctex_transport_snapshot* retained_snapshot;
+};
+
+struct ctex_mesh_map_set {
+    ctex_mesh_map_set(ctex_allocator_state allocator_value, ctex_document* document_value,
+                      const ctex_mesh* mesh_value, const ctex::doc::TextureSet& texture_set)
+        : allocator(allocator_value),
+          document(document_value),
+          mesh(mesh_value),
+          value(texture_set, mesh_value->state->mesh_binding()) {}
+
+    ctex_allocator_state allocator;
+    ctex_document* document;
+    const ctex_mesh* mesh;
+    ctex::maps::MeshMapSet value;
 };
 
 struct ctex_executor_registry {
@@ -732,6 +748,29 @@ void destroy_transport_readback(ctex_transport_readback* readback) noexcept {
     deallocate_storage(allocator, readback, sizeof(ctex_transport_readback),
                        alignof(ctex_transport_readback));
     release_transport_snapshot(snapshot);
+}
+
+ctex_mesh_map_set* create_mesh_map_set(const ctex_allocator_state& allocator,
+                                       ctex_document* document, const ctex_mesh* mesh,
+                                       const ctex::doc::TextureSet& texture_set) {
+    void* storage =
+        allocate_storage(allocator, sizeof(ctex_mesh_map_set), alignof(ctex_mesh_map_set));
+    try {
+        return ::new (storage) ctex_mesh_map_set(allocator, document, mesh, texture_set);
+    } catch (...) {
+        deallocate_storage(allocator, storage, sizeof(ctex_mesh_map_set),
+                           alignof(ctex_mesh_map_set));
+        throw;
+    }
+}
+
+void destroy_mesh_map_set(ctex_mesh_map_set* map_set) noexcept {
+    if (map_set == nullptr) {
+        return;
+    }
+    const ctex_allocator_state allocator = map_set->allocator;
+    map_set->~ctex_mesh_map_set();
+    deallocate_storage(allocator, map_set, sizeof(ctex_mesh_map_set), alignof(ctex_mesh_map_set));
 }
 
 ctex_executor_registry* create_executor_registry(const ctex_allocator_state& allocator) {
@@ -1609,21 +1648,23 @@ ctex::mesh::Vec3f mesh_vec(ctex_vec3f value) { return {value.x, value.y, value.z
 ctex::mesh::Vec4f mesh_vec(ctex_vec4f value) { return {value.x, value.y, value.z, value.w}; }
 
 ctex_mesh* create_mesh(const ctex_allocator_state& allocator,
-                       const ctex_mesh_descriptor& descriptor) {
+                       const ctex_mesh_descriptor& descriptor,
+                       const ctex_mesh_tangent_data_descriptor* tangents = nullptr) {
     void* storage = allocate_storage(allocator, sizeof(ctex_mesh), alignof(ctex_mesh));
     try {
-        return ::new (storage) ctex_mesh(allocator, descriptor);
+        return ::new (storage) ctex_mesh(allocator, descriptor, tangents);
     } catch (...) {
         deallocate_storage(allocator, storage, sizeof(ctex_mesh), alignof(ctex_mesh));
         throw;
     }
 }
 
-ctex_mesh_state* create_mesh_state(ctex_mesh& mesh, const ctex_mesh_descriptor& descriptor) {
+ctex_mesh_state* create_mesh_state(ctex_mesh& mesh, const ctex_mesh_descriptor& descriptor,
+                                   const ctex_mesh_tangent_data_descriptor* tangents = nullptr) {
     void* storage =
         mesh.memory_resource.allocate(sizeof(ctex_mesh_state), alignof(ctex_mesh_state));
     try {
-        return ::new (storage) ctex_mesh_state(descriptor, &mesh.memory_resource);
+        return ::new (storage) ctex_mesh_state(descriptor, tangents, &mesh.memory_resource);
     } catch (...) {
         mesh.memory_resource.deallocate(storage, sizeof(ctex_mesh_state), alignof(ctex_mesh_state));
         throw;
@@ -1633,6 +1674,196 @@ ctex_mesh_state* create_mesh_state(ctex_mesh& mesh, const ctex_mesh_descriptor& 
 void destroy_mesh_state(ctex_mesh& mesh, ctex_mesh_state* state) noexcept {
     state->~ctex_mesh_state();
     mesh.memory_resource.deallocate(state, sizeof(ctex_mesh_state), alignof(ctex_mesh_state));
+}
+
+template <typename Operation>
+ctex_result call_mesh_map_boundary(const char* name, Operation&& operation) noexcept {
+    return call_boundary(name, [&] {
+        try {
+            operation();
+        } catch (const ctex::maps::MissingMeshMapsError& error) {
+            throw_boundary(CTEX_RESULT_MISSING_RESOURCE, CTEX_DIAGNOSTIC_INVALID_MESH_MAP,
+                           error.what());
+        } catch (const std::invalid_argument& error) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_INVALID_MESH_MAP,
+                           error.what());
+        }
+    });
+}
+
+ctex::maps::MeshMapKind mesh_map_kind(std::uint32_t value) {
+    if (value > CTEX_MESH_MAP_VERTEX_COLOUR) {
+        throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_INVALID_ENUM_VALUE,
+                       "mesh_map_kind=" + std::to_string(value));
+    }
+    return static_cast<ctex::maps::MeshMapKind>(value);
+}
+
+ctex::maps::MeshMapChannelMeaning mesh_map_channel_meaning(std::uint32_t value) {
+    if (value > CTEX_MESH_MAP_COLOUR_RGBA) {
+        throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_INVALID_ENUM_VALUE,
+                       "mesh_map_channel_meaning=" + std::to_string(value));
+    }
+    return static_cast<ctex::maps::MeshMapChannelMeaning>(value);
+}
+
+ctex::maps::NormalMapConvention mesh_map_normal_convention(std::uint32_t value) {
+    if (value > CTEX_MESH_MAP_NORMAL_DIRECTX) {
+        throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_INVALID_ENUM_VALUE,
+                       "mesh_map_normal_convention=" + std::to_string(value));
+    }
+    return static_cast<ctex::maps::NormalMapConvention>(value);
+}
+
+ctex::image::ChannelType mesh_map_component_type(std::uint32_t value) {
+    if (value > CTEX_TRANSPORT_COMPONENT_FLOAT32) {
+        throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_INVALID_ENUM_VALUE,
+                       "mesh_map_component_type=" + std::to_string(value));
+    }
+    return static_cast<ctex::image::ChannelType>(value);
+}
+
+ctex::mesh::TangentFrameDescriptor tangent_frame_descriptor(
+    const ctex_tangent_frame_descriptor& descriptor) {
+    validate_structure_size(descriptor.size, CTEX_TANGENT_FRAME_DESCRIPTOR_V1_SIZE,
+                            CTEX_TANGENT_FRAME_DESCRIPTOR_CURRENT_SIZE,
+                            "tangent frame descriptor size");
+    if (descriptor.algorithm > CTEX_TANGENT_BASIS_MIKKTSPACE ||
+        descriptor.normal_orientation > CTEX_TANGENT_NORMAL_INVERTED_VERTEX ||
+        descriptor.coordinate_handedness > CTEX_COORDINATE_LEFT_HANDED ||
+        descriptor.uv_v_axis > CTEX_UV_V_AXIS_DOWNWARD ||
+        descriptor.handedness_encoding != CTEX_TANGENT_HANDEDNESS_W_SIGN) {
+        throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_INVALID_ENUM_VALUE,
+                       "tangent frame descriptor enum is invalid");
+    }
+    if (descriptor.uv_set == nullptr) {
+        throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                       "tangent_frame.uv_set=null");
+    }
+    return {
+        .algorithm = static_cast<ctex::mesh::TangentBasisAlgorithm>(descriptor.algorithm),
+        .algorithm_version = descriptor.algorithm_version,
+        .normal_orientation =
+            static_cast<ctex::mesh::NormalOrientation>(descriptor.normal_orientation),
+        .coordinate_handedness =
+            static_cast<ctex::mesh::CoordinateSystemHandedness>(descriptor.coordinate_handedness),
+        .uv_v_axis = static_cast<ctex::mesh::UvVAxis>(descriptor.uv_v_axis),
+        .handedness_encoding =
+            static_cast<ctex::mesh::TangentHandednessEncoding>(descriptor.handedness_encoding),
+        .uv_set = descriptor.uv_set,
+    };
+}
+
+void validate_mesh_tangent_data(const ctex_mesh_tangent_data_descriptor& tangents,
+                                const ctex_mesh_descriptor& mesh) {
+    validate_structure_size(tangents.size, CTEX_MESH_TANGENT_DATA_DESCRIPTOR_V1_SIZE,
+                            CTEX_MESH_TANGENT_DATA_DESCRIPTOR_CURRENT_SIZE,
+                            "mesh tangent data descriptor size");
+    if (tangents.corner_tangents == nullptr && tangents.corner_tangent_count != 0) {
+        throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                       "corner_tangents=null with nonzero count");
+    }
+    if (tangents.corner_tangent_count != mesh.triangle_index_count) {
+        throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_INVALID_MESH,
+                       "supplied tangents require one value per triangle corner");
+    }
+    static_cast<void>(tangent_frame_descriptor(tangents.frame));
+}
+
+ctex::maps::MeshMapPixelBufferView mesh_map_pixel_buffer(
+    const ctex_mesh_map_pixel_buffer_descriptor& descriptor) {
+    validate_structure_size(descriptor.size, CTEX_MESH_MAP_PIXEL_BUFFER_DESCRIPTOR_V1_SIZE,
+                            CTEX_MESH_MAP_PIXEL_BUFFER_DESCRIPTOR_CURRENT_SIZE,
+                            "mesh map pixel buffer size");
+    if (descriptor.pixels == nullptr && descriptor.pixel_bytes != 0) {
+        throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                       "mesh map pixels=null with nonzero byte size");
+    }
+    if (descriptor.component_count < 1U || descriptor.component_count > 4U) {
+        throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_INVALID_DESCRIPTOR_VALUE,
+                       "mesh map component_count must be between one and four");
+    }
+    return {
+        .width = descriptor.width,
+        .height = descriptor.height,
+        .format = {.channel_type = mesh_map_component_type(descriptor.component_type),
+                   .channel_count = static_cast<std::uint8_t>(descriptor.component_count)},
+        .row_stride_bytes = descriptor.row_stride_bytes,
+        .pixels = descriptor.pixels,
+        .pixel_bytes = descriptor.pixel_bytes,
+    };
+}
+
+ctex::maps::ExternalMeshMapImport mesh_map_import(
+    const ctex_mesh_map_set& map_set, const ctex_mesh_map_import_descriptor& descriptor) {
+    validate_structure_size(descriptor.size, CTEX_MESH_MAP_IMPORT_DESCRIPTOR_V1_SIZE,
+                            CTEX_MESH_MAP_IMPORT_DESCRIPTOR_CURRENT_SIZE,
+                            "mesh map import descriptor size");
+    if (descriptor.has_normal_convention > 1U) {
+        throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_INVALID_DESCRIPTOR_VALUE,
+                       "has_normal_convention must be zero or one");
+    }
+    std::optional<ctex::maps::NormalMapConvention> convention;
+    if (descriptor.has_normal_convention != 0U) {
+        convention = mesh_map_normal_convention(descriptor.normal_convention);
+    }
+    std::optional<ctex::mesh::TangentFrameDescriptor> tangent_frame;
+    if (descriptor.tangent_frame != nullptr) {
+        tangent_frame = tangent_frame_descriptor(*descriptor.tangent_frame);
+    }
+    return {
+        .kind = mesh_map_kind(descriptor.kind),
+        .channel_meaning = mesh_map_channel_meaning(descriptor.channel_meaning),
+        .color_space = color_space(descriptor.color_space),
+        .texture_set_id = map_set.value.texture_set_id(),
+        .uv_set = map_set.value.uv_set(),
+        .mesh_revision = map_set.value.mesh_revision(),
+        .normal_convention = convention,
+        .tangent_frame = std::move(tangent_frame),
+        .buffer = mesh_map_pixel_buffer(descriptor.buffer),
+    };
+}
+
+ctex_mesh_map_staleness mesh_map_staleness(const ctex::maps::MeshMapStaleness& stale) {
+    return {
+        .kind = static_cast<std::uint32_t>(stale.kind),
+        .produced_mesh_revision = stale.produced_mesh_revision,
+        .current_mesh_revision = stale.current_mesh_revision,
+    };
+}
+
+ctex_mesh_map_entry_info mesh_map_entry_info(const ctex::maps::MeshMapDescriptor& descriptor,
+                                             std::uint64_t current_mesh_revision) {
+    ctex_mesh_map_entry_info result{
+        .kind = static_cast<std::uint32_t>(descriptor.kind),
+        .width = descriptor.pixels->width(),
+        .height = descriptor.pixels->height(),
+        .resident_pixel_bytes = descriptor.pixels->resident_pixel_bytes(),
+        .produced_mesh_revision = descriptor.mesh_revision,
+        .stale = descriptor.mesh_revision == current_mesh_revision ? 0U : 1U,
+        .has_normal_convention = descriptor.normal_convention ? 1U : 0U,
+        .normal_convention = descriptor.normal_convention
+                                 ? static_cast<std::uint32_t>(*descriptor.normal_convention)
+                                 : 0U,
+        .has_tangent_frame = descriptor.tangent_frame ? 1U : 0U,
+        .tangent_algorithm = 0U,
+        .tangent_algorithm_version = 0U,
+        .tangent_normal_orientation = 0U,
+        .tangent_coordinate_handedness = 0U,
+        .tangent_uv_v_axis = 0U,
+        .tangent_handedness_encoding = 0U,
+    };
+    if (descriptor.tangent_frame) {
+        const auto& frame = *descriptor.tangent_frame;
+        result.tangent_algorithm = static_cast<std::uint32_t>(frame.algorithm);
+        result.tangent_algorithm_version = frame.algorithm_version;
+        result.tangent_normal_orientation = static_cast<std::uint32_t>(frame.normal_orientation);
+        result.tangent_coordinate_handedness =
+            static_cast<std::uint32_t>(frame.coordinate_handedness);
+        result.tangent_uv_v_axis = static_cast<std::uint32_t>(frame.uv_v_axis);
+        result.tangent_handedness_encoding = static_cast<std::uint32_t>(frame.handedness_encoding);
+    }
+    return result;
 }
 
 ctex::pick::BackfacePolicy pick_backface_policy(std::uint32_t value) {
@@ -9492,6 +9723,7 @@ ctex_cube_lut::ctex_cube_lut(ctex_allocator_state allocator_value, std::string_v
       value(ctex::image::CubeLut::from_cube(source, &memory_resource)) {}
 
 ctex_mesh_state::ctex_mesh_state(const ctex_mesh_descriptor& source,
+                                 const ctex_mesh_tangent_data_descriptor* tangents,
                                  std::pmr::memory_resource* memory_resource)
     : positions(memory_resource),
       normals(memory_resource),
@@ -9506,6 +9738,8 @@ ctex_mesh_state::ctex_mesh_state(const ctex_mesh_descriptor& source,
       partition_views(memory_resource),
       face_partition_indices(memory_resource),
       face_material_ids(memory_resource),
+      corner_tangents(memory_resource),
+      tangent_frame(std::nullopt),
       binding(std::nullopt) {
     positions.reserve(source.position_count);
     std::transform(source.positions, source.positions + source.position_count,
@@ -9552,6 +9786,24 @@ ctex_mesh_state::ctex_mesh_state(const ctex_mesh_descriptor& source,
         source.face_partition_indices + source.face_partition_index_count);
     face_material_ids.assign(source.face_material_ids,
                              source.face_material_ids + source.face_material_id_count);
+    if (tangents != nullptr) {
+        corner_tangents.reserve(tangents->corner_tangent_count);
+        std::transform(
+            tangents->corner_tangents, tangents->corner_tangents + tangents->corner_tangent_count,
+            std::back_inserter(corner_tangents), [](ctex_vec4f value) { return mesh_vec(value); });
+        tangent_frame = ctex::mesh::TangentFrameDescriptor{
+            .algorithm = static_cast<ctex::mesh::TangentBasisAlgorithm>(tangents->frame.algorithm),
+            .algorithm_version = tangents->frame.algorithm_version,
+            .normal_orientation =
+                static_cast<ctex::mesh::NormalOrientation>(tangents->frame.normal_orientation),
+            .coordinate_handedness = static_cast<ctex::mesh::CoordinateSystemHandedness>(
+                tangents->frame.coordinate_handedness),
+            .uv_v_axis = static_cast<ctex::mesh::UvVAxis>(tangents->frame.uv_v_axis),
+            .handedness_encoding = static_cast<ctex::mesh::TangentHandednessEncoding>(
+                tangents->frame.handedness_encoding),
+            .uv_set = std::pmr::string(tangents->frame.uv_set, memory_resource),
+        };
+    }
     binding.emplace(descriptor(), memory_resource);
 }
 
@@ -9566,14 +9818,17 @@ ctex::mesh::MeshDescriptor ctex_mesh_state::descriptor() const noexcept {
         .partitions = partition_views,
         .face_partition_indices = face_partition_indices,
         .face_material_ids = face_material_ids,
+        .corner_tangents = corner_tangents,
+        .tangent_frame = tangent_frame,
     };
 }
 
-ctex_mesh::ctex_mesh(ctex_allocator_state allocator_value, const ctex_mesh_descriptor& descriptor)
+ctex_mesh::ctex_mesh(ctex_allocator_state allocator_value, const ctex_mesh_descriptor& descriptor,
+                     const ctex_mesh_tangent_data_descriptor* tangents)
     : allocator(allocator_value), memory_resource(allocator_value), state(nullptr) {
     void* storage = memory_resource.allocate(sizeof(ctex_mesh_state), alignof(ctex_mesh_state));
     try {
-        state = ::new (storage) ctex_mesh_state(descriptor, &memory_resource);
+        state = ::new (storage) ctex_mesh_state(descriptor, tangents, &memory_resource);
     } catch (...) {
         memory_resource.deallocate(storage, sizeof(ctex_mesh_state), alignof(ctex_mesh_state));
         throw;
@@ -13308,6 +13563,26 @@ extern "C" ctex_result ctex_mesh_create(const ctex_mesh_descriptor* descriptor,
     });
 }
 
+extern "C" ctex_result ctex_mesh_create_with_tangent_data(
+    const ctex_mesh_descriptor* descriptor, const ctex_mesh_tangent_data_descriptor* tangents,
+    ctex_mesh** out_mesh) {
+    return call_boundary("ctex_mesh_create_with_tangent_data", [&] {
+        if (descriptor == nullptr || tangents == nullptr || out_mesh == nullptr) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                           "descriptor, tangents and out_mesh are required");
+        }
+        *out_mesh = nullptr;
+        validate_mesh_descriptor(*descriptor);
+        validate_mesh_tangent_data(*tangents, *descriptor);
+        try {
+            *out_mesh = create_mesh(current_allocator(), *descriptor, tangents);
+        } catch (const std::invalid_argument& error) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_INVALID_MESH,
+                           error.what());
+        }
+    });
+}
+
 extern "C" void ctex_mesh_destroy(ctex_mesh* mesh) {
     if (mesh == nullptr) {
         return;
@@ -13327,6 +13602,28 @@ extern "C" ctex_result ctex_mesh_replace(ctex_mesh* mesh, const ctex_mesh_descri
         ctex_mesh_state* replacement = nullptr;
         try {
             replacement = create_mesh_state(*mesh, *descriptor);
+        } catch (const std::invalid_argument& error) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_INVALID_MESH,
+                           error.what());
+        }
+        ctex_mesh_state* previous = std::exchange(mesh->state, replacement);
+        destroy_mesh_state(*mesh, previous);
+    });
+}
+
+extern "C" ctex_result ctex_mesh_replace_with_tangent_data(
+    ctex_mesh* mesh, const ctex_mesh_descriptor* descriptor,
+    const ctex_mesh_tangent_data_descriptor* tangents) {
+    return call_boundary("ctex_mesh_replace_with_tangent_data", [&] {
+        if (mesh == nullptr || descriptor == nullptr || tangents == nullptr) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                           "mesh, descriptor and tangents are required");
+        }
+        validate_mesh_descriptor(*descriptor);
+        validate_mesh_tangent_data(*tangents, *descriptor);
+        ctex_mesh_state* replacement = nullptr;
+        try {
+            replacement = create_mesh_state(*mesh, *descriptor, tangents);
         } catch (const std::invalid_argument& error) {
             throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_INVALID_MESH,
                            error.what());
@@ -13385,6 +13682,313 @@ extern "C" ctex_result ctex_mesh_get_uv_set_names(const ctex_mesh* mesh, char* b
                 offset += name.size() + 1;
             }
         }
+    });
+}
+
+extern "C" ctex_result ctex_mesh_get_tangent_frame(const ctex_mesh* mesh,
+                                                   ctex_mesh_tangent_frame_info* out_info,
+                                                   char* uv_set, std::size_t uv_set_size) {
+    return call_boundary("ctex_mesh_get_tangent_frame", [&] {
+        if (mesh == nullptr || out_info == nullptr) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                           mesh == nullptr ? "mesh=null" : "out_info=null");
+        }
+        validate_structure_size(out_info->size, CTEX_MESH_TANGENT_FRAME_INFO_V1_SIZE,
+                                CTEX_MESH_TANGENT_FRAME_INFO_CURRENT_SIZE,
+                                "mesh tangent frame info size");
+        const auto frame = mesh->state->mesh_binding().view().tangent_frames();
+        const std::size_t required_uv_set_size = frame.descriptor.uv_set.size() + 1;
+        *out_info = {
+            .size = CTEX_MESH_TANGENT_FRAME_INFO_CURRENT_SIZE,
+            .source = frame.source == ctex::mesh::TangentFrameSource::supplied
+                          ? CTEX_TANGENT_FRAME_SUPPLIED
+                          : CTEX_TANGENT_FRAME_GENERATED,
+            .algorithm = static_cast<std::uint32_t>(frame.descriptor.algorithm),
+            .algorithm_version = frame.descriptor.algorithm_version,
+            .normal_orientation = static_cast<std::uint32_t>(frame.descriptor.normal_orientation),
+            .coordinate_handedness =
+                static_cast<std::uint32_t>(frame.descriptor.coordinate_handedness),
+            .uv_v_axis = static_cast<std::uint32_t>(frame.descriptor.uv_v_axis),
+            .handedness_encoding = static_cast<std::uint32_t>(frame.descriptor.handedness_encoding),
+            .corner_tangent_count = frame.corner_tangents.size(),
+            .required_uv_set_size = required_uv_set_size,
+        };
+        validate_string_buffer(uv_set, uv_set_size, required_uv_set_size);
+        if (uv_set != nullptr) {
+            std::memcpy(uv_set, frame.descriptor.uv_set.c_str(), required_uv_set_size);
+        }
+    });
+}
+
+extern "C" ctex_result ctex_mesh_map_set_create(ctex_document* document, const char* texture_set_id,
+                                                const ctex_mesh* mesh,
+                                                ctex_mesh_map_set** out_map_set) {
+    return call_mesh_map_boundary("ctex_mesh_map_set_create", [&] {
+        if (document == nullptr || mesh == nullptr || out_map_set == nullptr) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                           "document, mesh and out_map_set are required");
+        }
+        *out_map_set = nullptr;
+        const ctex::doc::TextureSet& texture_set = require_texture_set(*document, texture_set_id);
+        *out_map_set = create_mesh_map_set(document->allocator, document, mesh, texture_set);
+    });
+}
+
+extern "C" void ctex_mesh_map_set_destroy(ctex_mesh_map_set* map_set) {
+    destroy_mesh_map_set(map_set);
+}
+
+extern "C" ctex_result ctex_mesh_map_kind_get_name(std::uint32_t kind, char* buffer,
+                                                   std::size_t buffer_size,
+                                                   std::size_t* out_required_size) {
+    return call_mesh_map_boundary("ctex_mesh_map_kind_get_name", [&] {
+        if (out_required_size == nullptr) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                           "out_required_size=null");
+        }
+        const std::string_view name = ctex::maps::mesh_map_name(mesh_map_kind(kind));
+        *out_required_size = name.size() + 1;
+        validate_string_buffer(buffer, buffer_size, *out_required_size);
+        if (buffer != nullptr) {
+            std::memcpy(buffer, name.data(), name.size());
+            buffer[name.size()] = '\0';
+        }
+    });
+}
+
+extern "C" ctex_result ctex_mesh_map_set_get_info(const ctex_mesh_map_set* map_set,
+                                                  ctex_mesh_map_set_info* out_info,
+                                                  char* texture_set_id,
+                                                  std::size_t texture_set_id_size, char* uv_set,
+                                                  std::size_t uv_set_size) {
+    return call_mesh_map_boundary("ctex_mesh_map_set_get_info", [&] {
+        if (map_set == nullptr || out_info == nullptr) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                           map_set == nullptr ? "map_set=null" : "out_info=null");
+        }
+        validate_structure_size(out_info->size, CTEX_MESH_MAP_SET_INFO_V1_SIZE,
+                                CTEX_MESH_MAP_SET_INFO_CURRENT_SIZE, "mesh map set info size");
+        const auto memory = map_set->value.memory_report();
+        const std::size_t required_texture_set_id_size = map_set->value.texture_set_id().size() + 1;
+        const std::size_t required_uv_set_size = map_set->value.uv_set().size() + 1;
+        *out_info = {
+            .size = CTEX_MESH_MAP_SET_INFO_CURRENT_SIZE,
+            .texture_set_width = map_set->value.texture_set_width(),
+            .texture_set_height = map_set->value.texture_set_height(),
+            .mesh_revision = map_set->value.mesh_revision(),
+            .bound_map_count = map_set->value.size(),
+            .resident_pixel_bytes = memory.resident_pixel_bytes,
+            .required_texture_set_id_size = required_texture_set_id_size,
+            .required_uv_set_size = required_uv_set_size,
+        };
+        validate_string_buffer(texture_set_id, texture_set_id_size, required_texture_set_id_size);
+        validate_string_buffer(uv_set, uv_set_size, required_uv_set_size);
+        if (texture_set_id != nullptr) {
+            std::memcpy(texture_set_id, map_set->value.texture_set_id().c_str(),
+                        required_texture_set_id_size);
+        }
+        if (uv_set != nullptr) {
+            std::memcpy(uv_set, map_set->value.uv_set().c_str(), required_uv_set_size);
+        }
+    });
+}
+
+extern "C" ctex_result ctex_mesh_map_set_get_entries(const ctex_mesh_map_set* map_set,
+                                                     ctex_mesh_map_entry_info* entries,
+                                                     std::size_t entry_capacity,
+                                                     std::size_t* out_entry_count) {
+    return call_mesh_map_boundary("ctex_mesh_map_set_get_entries", [&] {
+        if (map_set == nullptr || out_entry_count == nullptr) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                           map_set == nullptr ? "map_set=null" : "out_entry_count=null");
+        }
+        const auto kinds = map_set->value.bound_maps();
+        *out_entry_count = kinds.size();
+        validate_output_array(entries, entry_capacity, kinds.size(), "mesh map entries");
+        if (entries != nullptr) {
+            std::transform(kinds.begin(), kinds.end(), entries, [&](const auto kind) {
+                return mesh_map_entry_info(map_set->value.map(kind),
+                                           map_set->value.mesh_revision());
+            });
+        }
+    });
+}
+
+extern "C" ctex_result ctex_mesh_map_set_import_external(
+    ctex_mesh_map_set* map_set, const ctex_mesh_map_import_descriptor* descriptor,
+    ctex_mesh_map_import_info* out_info) {
+    return call_mesh_map_boundary("ctex_mesh_map_set_import_external", [&] {
+        if (map_set == nullptr || descriptor == nullptr || out_info == nullptr) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                           "map_set, descriptor and out_info are required");
+        }
+        validate_structure_size(out_info->size, CTEX_MESH_MAP_IMPORT_INFO_V1_SIZE,
+                                CTEX_MESH_MAP_IMPORT_INFO_CURRENT_SIZE,
+                                "mesh map import info size");
+        const auto request = mesh_map_import(*map_set, *descriptor);
+        const auto result = ctex::maps::import_external_mesh_map(map_set->value, request);
+        const auto& mismatch = result.binding.resolution_mismatch;
+        const auto& stale = result.binding.staleness;
+        *out_info = {
+            .size = CTEX_MESH_MAP_IMPORT_INFO_CURRENT_SIZE,
+            .replaced_existing = result.binding.replaced_existing ? 1U : 0U,
+            .resolution_mismatch = mismatch ? 1U : 0U,
+            .stale = stale ? 1U : 0U,
+            .converted_to_working_space = result.converted_to_working_space ? 1U : 0U,
+            .storage_color_space = static_cast<std::uint32_t>(result.storage_color_space),
+            .channel_meaning = static_cast<std::uint32_t>(result.channel_meaning),
+            .map_width = request.buffer.width,
+            .map_height = request.buffer.height,
+            .texture_set_width = map_set->value.texture_set_width(),
+            .texture_set_height = map_set->value.texture_set_height(),
+            .produced_mesh_revision =
+                stale ? stale->produced_mesh_revision : map_set->value.mesh_revision(),
+            .current_mesh_revision = map_set->value.mesh_revision(),
+        };
+    });
+}
+
+extern "C" ctex_result ctex_mesh_map_set_sample(const ctex_mesh_map_set* map_set,
+                                                std::uint32_t kind, double u, double v,
+                                                ctex_mesh_map_sample_info* out_sample) {
+    return call_mesh_map_boundary("ctex_mesh_map_set_sample", [&] {
+        if (map_set == nullptr || out_sample == nullptr) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                           map_set == nullptr ? "map_set=null" : "out_sample=null");
+        }
+        validate_structure_size(out_sample->size, CTEX_MESH_MAP_SAMPLE_INFO_V1_SIZE,
+                                CTEX_MESH_MAP_SAMPLE_INFO_CURRENT_SIZE,
+                                "mesh map sample info size");
+        const auto result = map_set->value.sample(mesh_map_kind(kind), u, v);
+        *out_sample = {
+            .size = CTEX_MESH_MAP_SAMPLE_INFO_CURRENT_SIZE,
+            .component_count = result.sample.component_count,
+            .values = {result.sample.values[0], result.sample.values[1], result.sample.values[2],
+                       result.sample.values[3]},
+            .stale = result.staleness ? 1U : 0U,
+            .produced_mesh_revision = result.staleness ? result.staleness->produced_mesh_revision
+                                                       : map_set->value.mesh_revision(),
+            .current_mesh_revision = map_set->value.mesh_revision(),
+        };
+    });
+}
+
+extern "C" ctex_result ctex_mesh_map_set_check_requirements(
+    const ctex_mesh_map_set* map_set, const char* consumer, const std::uint32_t* required_maps,
+    std::size_t required_map_count, std::uint32_t* missing_maps, std::size_t missing_map_capacity,
+    ctex_mesh_map_staleness* stale_maps, std::size_t stale_map_capacity,
+    ctex_mesh_map_requirement_info* out_info, char* message, std::size_t message_size) {
+    return call_mesh_map_boundary("ctex_mesh_map_set_check_requirements", [&] {
+        if (map_set == nullptr || consumer == nullptr || out_info == nullptr ||
+            (required_maps == nullptr && required_map_count != 0)) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                           "map_set, consumer, required maps and out_info are required");
+        }
+        validate_structure_size(out_info->size, CTEX_MESH_MAP_REQUIREMENT_INFO_V1_SIZE,
+                                CTEX_MESH_MAP_REQUIREMENT_INFO_CURRENT_SIZE,
+                                "mesh map requirement info size");
+        std::vector<ctex::maps::MeshMapKind> required;
+        required.reserve(required_map_count);
+        for (std::size_t index = 0; index < required_map_count; ++index) {
+            required.push_back(mesh_map_kind(required_maps[index]));
+        }
+        const auto report = map_set->value.check_required_maps(consumer, required);
+        *out_info = {
+            .size = CTEX_MESH_MAP_REQUIREMENT_INFO_CURRENT_SIZE,
+            .required_missing_map_count = report.missing_maps.size(),
+            .required_stale_map_count = report.stale_maps.size(),
+            .required_message_size = report.message.size() + 1,
+        };
+        validate_output_array(missing_maps, missing_map_capacity, report.missing_maps.size(),
+                              "missing mesh maps");
+        validate_output_array(stale_maps, stale_map_capacity, report.stale_maps.size(),
+                              "stale mesh maps");
+        validate_string_buffer(message, message_size, out_info->required_message_size);
+        if (missing_maps != nullptr) {
+            std::transform(report.missing_maps.begin(), report.missing_maps.end(), missing_maps,
+                           [](const auto value) { return static_cast<std::uint32_t>(value); });
+        }
+        if (stale_maps != nullptr) {
+            std::transform(report.stale_maps.begin(), report.stale_maps.end(), stale_maps,
+                           mesh_map_staleness);
+        }
+        if (message != nullptr) {
+            std::memcpy(message, report.message.c_str(), out_info->required_message_size);
+        }
+    });
+}
+
+extern "C" ctex_result ctex_mesh_map_set_synchronize_mesh(ctex_mesh_map_set* map_set,
+                                                          const ctex_mesh* mesh,
+                                                          ctex_mesh_map_staleness* stale_maps,
+                                                          std::size_t stale_map_capacity,
+                                                          std::size_t* out_stale_map_count) {
+    return call_mesh_map_boundary("ctex_mesh_map_set_synchronize_mesh", [&] {
+        if (map_set == nullptr || mesh == nullptr || out_stale_map_count == nullptr) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                           "map_set, mesh and out_stale_map_count are required");
+        }
+        if (mesh != map_set->mesh) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_INVALID_MESH_MAP,
+                           "mesh-map set cannot synchronize from a different mesh handle");
+        }
+        std::vector<ctex::maps::MeshMapStaleness> prospective;
+        for (const auto kind : map_set->value.bound_maps()) {
+            const auto& descriptor = map_set->value.map(kind);
+            if (descriptor.mesh_revision != mesh->state->mesh_binding().revision()) {
+                prospective.push_back(
+                    {.kind = kind,
+                     .produced_mesh_revision = descriptor.mesh_revision,
+                     .current_mesh_revision = mesh->state->mesh_binding().revision()});
+            }
+        }
+        *out_stale_map_count = prospective.size();
+        validate_output_array(stale_maps, stale_map_capacity, prospective.size(),
+                              "stale mesh maps");
+        if (stale_maps == nullptr) {
+            return;
+        }
+        const auto synchronized =
+            map_set->value.synchronize_mesh_revision(mesh->state->mesh_binding());
+        std::transform(synchronized.begin(), synchronized.end(), stale_maps, mesh_map_staleness);
+    });
+}
+
+extern "C" ctex_result ctex_mesh_map_set_release(ctex_mesh_map_set* map_set, std::uint32_t kind,
+                                                 ctex_mesh_map_release_info* out_info) {
+    return call_mesh_map_boundary("ctex_mesh_map_set_release", [&] {
+        if (map_set == nullptr || out_info == nullptr) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                           map_set == nullptr ? "map_set=null" : "out_info=null");
+        }
+        validate_structure_size(out_info->size, CTEX_MESH_MAP_RELEASE_INFO_V1_SIZE,
+                                CTEX_MESH_MAP_RELEASE_INFO_CURRENT_SIZE,
+                                "mesh map release info size");
+        const auto result = map_set->value.release_map(mesh_map_kind(kind));
+        *out_info = {
+            .size = CTEX_MESH_MAP_RELEASE_INFO_CURRENT_SIZE,
+            .released_map_count = result.released_maps.size(),
+            .resident_pixel_bytes_released = result.resident_pixel_bytes_released,
+        };
+    });
+}
+
+extern "C" ctex_result ctex_mesh_map_set_release_all(ctex_mesh_map_set* map_set,
+                                                     ctex_mesh_map_release_info* out_info) {
+    return call_mesh_map_boundary("ctex_mesh_map_set_release_all", [&] {
+        if (map_set == nullptr || out_info == nullptr) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                           map_set == nullptr ? "map_set=null" : "out_info=null");
+        }
+        validate_structure_size(out_info->size, CTEX_MESH_MAP_RELEASE_INFO_V1_SIZE,
+                                CTEX_MESH_MAP_RELEASE_INFO_CURRENT_SIZE,
+                                "mesh map release info size");
+        const auto result = map_set->value.release_all_maps();
+        *out_info = {
+            .size = CTEX_MESH_MAP_RELEASE_INFO_CURRENT_SIZE,
+            .released_map_count = result.released_maps.size(),
+            .resident_pixel_bytes_released = result.resident_pixel_bytes_released,
+        };
     });
 }
 

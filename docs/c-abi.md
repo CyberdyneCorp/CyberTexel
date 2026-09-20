@@ -113,6 +113,37 @@ channel count and resident channel, mesh-map and total bytes. Enabled constant
 channels remain sparse and therefore report zero resident pixel bytes until a
 write materializes a tile.
 
+## Mesh maps
+
+`ctex_mesh_map_set_create` binds an explicit map set to one document texture set
+and the current revision and tangent frame of one mesh. The document and mesh
+must outlive the map-set handle. Stable map names, texture-set identity, UV set,
+dimensions, revision, bound entries, conventions and resident pixel bytes are
+available through caller-owned two-call queries.
+
+Hosts may use `ctex_mesh_create_with_tangent_data` and
+`ctex_mesh_replace_with_tangent_data` to supply one signed tangent per triangle
+corner with the full basis version and coordinate conventions. Ordinary mesh
+creation uses the documented generated frame. `ctex_mesh_get_tangent_frame`
+reports which route produced the frame and its complete descriptor, including
+the UV set; mirrored handedness remains carried by each supplied tangent's
+signed `w` component.
+
+`ctex_mesh_map_set_import_external` validates declared channel meaning, colour
+space, pixel layout, normal convention and tangent frame before copying the
+source pixels. Resolution differences are accepted but reported. Sampling uses
+filtered normalized UVs, converts DirectX tangent normals to the canonical
+OpenGL convention, and returns the producing and current mesh revisions. A
+missing map returns `CTEX_RESULT_MISSING_RESOURCE`; requirement preflight names
+every missing or stale input rather than substituting neutral values.
+
+After `ctex_mesh_replace`, `ctex_mesh_map_set_synchronize_mesh` first supports a
+non-mutating sizing call and then advances the set revision while returning the
+bindings made stale by that change. Selective and bulk release report the actual
+resident tile bytes removed. The library has no implicit baking behavior in
+this surface; bake providers, generators, and asynchronous bake requests remain
+separate C ABI work.
+
 ## Host transport
 
 `ctex_texture_set_query_channel_delta` reports epoch-qualified channel cursors
@@ -886,6 +917,8 @@ The contract is stated per entry-point family:
 | `ctex_smart_material_inspect`, `ctex_smart_material_set_parameter`, `ctex_smart_material_set_anchor`, `ctex_smart_material_add_anchor_reference`, `ctex_smart_material_plan_anchor_evaluation`, `ctex_smart_material_package`, `ctex_smart_material_import` | Stateless and safe to call concurrently; all returned storage is caller-owned |
 | `ctex_preset_library_enumerate`, `ctex_preset_library_resolve` | Stateless and safe to call concurrently; descriptors and encoded shelf contents are borrowed only for the call and outputs are caller-owned |
 | `ctex_texture_set_apply_smart_material`, `ctex_texture_set_apply_smart_mask`, `ctex_texture_set_get_preset_applications`, `ctex_texture_set_set_applied_entry_state`, `ctex_texture_set_undo_last_preset_application` | Distinct documents are independent; callers serialize these operations with every other operation on the same document |
+| `ctex_mesh_create_with_tangent_data`, `ctex_mesh_replace_with_tangent_data`, `ctex_mesh_get_tangent_frame`, `ctex_mesh_map_set_create`, `ctex_mesh_map_set_destroy`, `ctex_mesh_map_set_get_info`, `ctex_mesh_map_set_get_entries`, `ctex_mesh_map_set_import_external`, `ctex_mesh_map_set_sample`, `ctex_mesh_map_set_check_requirements`, `ctex_mesh_map_set_synchronize_mesh`, `ctex_mesh_map_set_release`, `ctex_mesh_map_set_release_all` | Distinct meshes and map sets on distinct documents are independent. Callers serialize every operation and destruction on one mesh or map set with mutations of its document, and keep both source handles alive until the map set is destroyed |
+| `ctex_mesh_map_kind_get_name` | Stateless, process-safe and callable concurrently from any thread; the name buffer is caller-owned |
 | `ctex_texture_set_query_channel_delta`, `ctex_texture_set_reset_channel_revision_history` | Distinct documents are independent; callers serialize these operations with every other operation on the same document. Query output contains metadata only and performs no pixel readback |
 | `ctex_transport_snapshot_pool_create`, `ctex_transport_snapshot_pool_destroy`, `ctex_transport_snapshot_pool_get_memory_report`, `ctex_texture_set_query_channel_snapshot`, `ctex_paint_preview_session_query_snapshot`, `ctex_transport_snapshot_destroy`, `ctex_transport_snapshot_get_tile_versions`, `ctex_transport_snapshot_negotiate_format`, `ctex_transport_snapshot_get_tile_memory_layout`, `ctex_transport_snapshot_read_tiles`, `ctex_transport_snapshot_begin_readback`, `ctex_transport_snapshot_begin_host_readback`, `ctex_transport_readback_destroy`, `ctex_transport_readback_get_info`, `ctex_transport_readback_complete_host`, `ctex_transport_readback_cancel`, `ctex_transport_readback_fail` | Distinct pools, snapshots and readbacks are independent. Callers serialize query/report operations on one pool, calls that use one public snapshot handle, and all operations or destruction on one readback. A document or preview session is required only during its snapshot query. An admitted snapshot owns its pinned versions and may outlive the source handle and pool; a readback retains that pin and may outlive destruction of the public snapshot handle |
 | `ctex_executor_registry_create`, `ctex_executor_registry_destroy`, `ctex_executor_registry_get_count`, `ctex_executor_registry_get_info`, `ctex_executor_registry_select`, `ctex_executor_registry_pin_default`, `ctex_executor_registry_clear_default` | Distinct registries are independent. Callers serialize selection/default changes and destruction of one registry; read-only count and descriptor queries may run concurrently when no operation mutates that registry |

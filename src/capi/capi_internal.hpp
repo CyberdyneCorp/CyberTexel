@@ -45,6 +45,7 @@ struct ctex_cube_lut {
 
 struct ctex_mesh_state {
     explicit ctex_mesh_state(const ctex_mesh_descriptor& descriptor,
+                             const ctex_mesh_tangent_data_descriptor* tangents,
                              std::pmr::memory_resource* memory_resource);
 
     std::pmr::vector<ctex::mesh::Vec3f> positions;
@@ -60,6 +61,8 @@ struct ctex_mesh_state {
     std::pmr::vector<ctex::mesh::MeshPartition> partition_views;
     std::pmr::vector<std::uint32_t> face_partition_indices;
     std::pmr::vector<std::uint32_t> face_material_ids;
+    std::pmr::vector<ctex::mesh::Vec4f> corner_tangents;
+    std::optional<ctex::mesh::TangentFrameDescriptor> tangent_frame;
     std::optional<ctex::mesh::MeshBinding> binding;
 
     [[nodiscard]] ctex::mesh::MeshDescriptor descriptor() const noexcept;
@@ -67,8 +70,8 @@ struct ctex_mesh_state {
 };
 
 struct ctex_mesh {
-    explicit ctex_mesh(ctex_allocator_state allocator_value,
-                       const ctex_mesh_descriptor& descriptor);
+    explicit ctex_mesh(ctex_allocator_state allocator_value, const ctex_mesh_descriptor& descriptor,
+                       const ctex_mesh_tangent_data_descriptor* tangents = nullptr);
     ~ctex_mesh();
 
     ctex_allocator_state allocator;

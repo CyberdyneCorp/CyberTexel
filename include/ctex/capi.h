@@ -91,7 +91,8 @@ typedef enum ctex_diagnostic_code {
     CTEX_DIAGNOSTIC_INVALID_EXECUTOR = 55,
     CTEX_DIAGNOSTIC_INVALID_PAINT_TOOL = 56,
     CTEX_DIAGNOSTIC_INVALID_MATERIAL_GRAPH = 57,
-    CTEX_DIAGNOSTIC_INVALID_SHADER_EMISSION = 58
+    CTEX_DIAGNOSTIC_INVALID_SHADER_EMISSION = 58,
+    CTEX_DIAGNOSTIC_INVALID_MESH_MAP = 59
 } ctex_diagnostic_code;
 
 typedef enum ctex_log_severity {
@@ -141,6 +142,7 @@ typedef struct ctex_uv_pick_index ctex_uv_pick_index;
 typedef struct ctex_transport_snapshot_pool ctex_transport_snapshot_pool;
 typedef struct ctex_transport_snapshot ctex_transport_snapshot;
 typedef struct ctex_transport_readback ctex_transport_readback;
+typedef struct ctex_mesh_map_set ctex_mesh_map_set;
 typedef struct ctex_executor_registry ctex_executor_registry;
 typedef struct ctex_cpu_execution_result ctex_cpu_execution_result;
 typedef struct ctex_parity_gate_result ctex_parity_gate_result;
@@ -2439,6 +2441,229 @@ typedef struct ctex_transport_readback_info {
 
 #define CTEX_TRANSPORT_READBACK_INFO_V1_SIZE ((uint32_t)sizeof(ctex_transport_readback_info))
 #define CTEX_TRANSPORT_READBACK_INFO_CURRENT_SIZE ((uint32_t)sizeof(ctex_transport_readback_info))
+
+typedef enum ctex_mesh_map_kind {
+    CTEX_MESH_MAP_TANGENT_SPACE_NORMAL = 0,
+    CTEX_MESH_MAP_OBJECT_SPACE_NORMAL = 1,
+    CTEX_MESH_MAP_WORLD_SPACE_DIRECTION = 2,
+    CTEX_MESH_MAP_AMBIENT_OCCLUSION = 3,
+    CTEX_MESH_MAP_CURVATURE = 4,
+    CTEX_MESH_MAP_THICKNESS = 5,
+    CTEX_MESH_MAP_POSITION = 6,
+    CTEX_MESH_MAP_HEIGHT = 7,
+    CTEX_MESH_MAP_BENT_NORMAL = 8,
+    CTEX_MESH_MAP_MATERIAL_ID = 9,
+    CTEX_MESH_MAP_OBJECT_ID = 10,
+    CTEX_MESH_MAP_UV_DENSITY = 11,
+    CTEX_MESH_MAP_VERTEX_COLOUR = 12
+} ctex_mesh_map_kind;
+
+typedef enum ctex_mesh_map_channel_meaning {
+    CTEX_MESH_MAP_SCALAR_DATA = 0,
+    CTEX_MESH_MAP_NORMAL_XYZ = 1,
+    CTEX_MESH_MAP_DIRECTION_XYZ = 2,
+    CTEX_MESH_MAP_POSITION_XYZ = 3,
+    CTEX_MESH_MAP_IDENTIFIER = 4,
+    CTEX_MESH_MAP_COLOUR_RGB = 5,
+    CTEX_MESH_MAP_COLOUR_RGBA = 6
+} ctex_mesh_map_channel_meaning;
+
+typedef enum ctex_mesh_map_normal_convention {
+    CTEX_MESH_MAP_NORMAL_OPENGL = 0,
+    CTEX_MESH_MAP_NORMAL_DIRECTX = 1
+} ctex_mesh_map_normal_convention;
+
+typedef enum ctex_tangent_basis_algorithm {
+    CTEX_TANGENT_BASIS_UV_DERIVATIVE = 0,
+    CTEX_TANGENT_BASIS_LENGYEL_ORTHONORMALIZED = 1,
+    CTEX_TANGENT_BASIS_MIKKTSPACE = 2
+} ctex_tangent_basis_algorithm;
+
+typedef enum ctex_tangent_normal_orientation {
+    CTEX_TANGENT_NORMAL_VERTEX = 0,
+    CTEX_TANGENT_NORMAL_INVERTED_VERTEX = 1
+} ctex_tangent_normal_orientation;
+
+typedef enum ctex_coordinate_handedness {
+    CTEX_COORDINATE_RIGHT_HANDED = 0,
+    CTEX_COORDINATE_LEFT_HANDED = 1
+} ctex_coordinate_handedness;
+
+typedef enum ctex_uv_v_axis {
+    CTEX_UV_V_AXIS_UPWARD = 0,
+    CTEX_UV_V_AXIS_DOWNWARD = 1
+} ctex_uv_v_axis;
+
+typedef enum ctex_tangent_handedness_encoding {
+    CTEX_TANGENT_HANDEDNESS_W_SIGN = 0
+} ctex_tangent_handedness_encoding;
+
+typedef enum ctex_tangent_frame_source {
+    CTEX_TANGENT_FRAME_SUPPLIED = 0,
+    CTEX_TANGENT_FRAME_GENERATED = 1
+} ctex_tangent_frame_source;
+
+typedef struct ctex_tangent_frame_descriptor {
+    uint32_t size;
+    uint32_t algorithm;
+    uint32_t algorithm_version;
+    uint32_t normal_orientation;
+    uint32_t coordinate_handedness;
+    uint32_t uv_v_axis;
+    uint32_t handedness_encoding;
+    const char* uv_set;
+} ctex_tangent_frame_descriptor;
+
+#define CTEX_TANGENT_FRAME_DESCRIPTOR_V1_SIZE ((uint32_t)sizeof(ctex_tangent_frame_descriptor))
+#define CTEX_TANGENT_FRAME_DESCRIPTOR_CURRENT_SIZE ((uint32_t)sizeof(ctex_tangent_frame_descriptor))
+
+typedef struct ctex_mesh_tangent_data_descriptor {
+    uint32_t size;
+    ctex_tangent_frame_descriptor frame;
+    const ctex_vec4f* corner_tangents;
+    size_t corner_tangent_count;
+} ctex_mesh_tangent_data_descriptor;
+
+#define CTEX_MESH_TANGENT_DATA_DESCRIPTOR_V1_SIZE \
+    ((uint32_t)sizeof(ctex_mesh_tangent_data_descriptor))
+#define CTEX_MESH_TANGENT_DATA_DESCRIPTOR_CURRENT_SIZE \
+    ((uint32_t)sizeof(ctex_mesh_tangent_data_descriptor))
+
+typedef struct ctex_mesh_tangent_frame_info {
+    uint32_t size;
+    uint32_t source;
+    uint32_t algorithm;
+    uint32_t algorithm_version;
+    uint32_t normal_orientation;
+    uint32_t coordinate_handedness;
+    uint32_t uv_v_axis;
+    uint32_t handedness_encoding;
+    size_t corner_tangent_count;
+    size_t required_uv_set_size;
+} ctex_mesh_tangent_frame_info;
+
+#define CTEX_MESH_TANGENT_FRAME_INFO_V1_SIZE ((uint32_t)sizeof(ctex_mesh_tangent_frame_info))
+#define CTEX_MESH_TANGENT_FRAME_INFO_CURRENT_SIZE ((uint32_t)sizeof(ctex_mesh_tangent_frame_info))
+
+typedef struct ctex_mesh_map_pixel_buffer_descriptor {
+    uint32_t size;
+    uint32_t width;
+    uint32_t height;
+    uint32_t component_type;
+    uint32_t component_count;
+    size_t row_stride_bytes;
+    const void* pixels;
+    size_t pixel_bytes;
+} ctex_mesh_map_pixel_buffer_descriptor;
+
+#define CTEX_MESH_MAP_PIXEL_BUFFER_DESCRIPTOR_V1_SIZE \
+    ((uint32_t)sizeof(ctex_mesh_map_pixel_buffer_descriptor))
+#define CTEX_MESH_MAP_PIXEL_BUFFER_DESCRIPTOR_CURRENT_SIZE \
+    ((uint32_t)sizeof(ctex_mesh_map_pixel_buffer_descriptor))
+
+typedef struct ctex_mesh_map_import_descriptor {
+    uint32_t size;
+    uint32_t kind;
+    uint32_t channel_meaning;
+    uint32_t color_space;
+    uint32_t has_normal_convention;
+    uint32_t normal_convention;
+    const ctex_tangent_frame_descriptor* tangent_frame;
+    ctex_mesh_map_pixel_buffer_descriptor buffer;
+} ctex_mesh_map_import_descriptor;
+
+#define CTEX_MESH_MAP_IMPORT_DESCRIPTOR_V1_SIZE ((uint32_t)sizeof(ctex_mesh_map_import_descriptor))
+#define CTEX_MESH_MAP_IMPORT_DESCRIPTOR_CURRENT_SIZE \
+    ((uint32_t)sizeof(ctex_mesh_map_import_descriptor))
+
+typedef struct ctex_mesh_map_import_info {
+    uint32_t size;
+    uint32_t replaced_existing;
+    uint32_t resolution_mismatch;
+    uint32_t stale;
+    uint32_t converted_to_working_space;
+    uint32_t storage_color_space;
+    uint32_t channel_meaning;
+    uint32_t map_width;
+    uint32_t map_height;
+    uint32_t texture_set_width;
+    uint32_t texture_set_height;
+    uint64_t produced_mesh_revision;
+    uint64_t current_mesh_revision;
+} ctex_mesh_map_import_info;
+
+#define CTEX_MESH_MAP_IMPORT_INFO_V1_SIZE ((uint32_t)sizeof(ctex_mesh_map_import_info))
+#define CTEX_MESH_MAP_IMPORT_INFO_CURRENT_SIZE ((uint32_t)sizeof(ctex_mesh_map_import_info))
+
+typedef struct ctex_mesh_map_set_info {
+    uint32_t size;
+    uint32_t texture_set_width;
+    uint32_t texture_set_height;
+    uint64_t mesh_revision;
+    size_t bound_map_count;
+    size_t resident_pixel_bytes;
+    size_t required_texture_set_id_size;
+    size_t required_uv_set_size;
+} ctex_mesh_map_set_info;
+
+#define CTEX_MESH_MAP_SET_INFO_V1_SIZE ((uint32_t)sizeof(ctex_mesh_map_set_info))
+#define CTEX_MESH_MAP_SET_INFO_CURRENT_SIZE ((uint32_t)sizeof(ctex_mesh_map_set_info))
+
+typedef struct ctex_mesh_map_entry_info {
+    uint32_t kind;
+    uint32_t width;
+    uint32_t height;
+    size_t resident_pixel_bytes;
+    uint64_t produced_mesh_revision;
+    uint32_t stale;
+    uint32_t has_normal_convention;
+    uint32_t normal_convention;
+    uint32_t has_tangent_frame;
+    uint32_t tangent_algorithm;
+    uint32_t tangent_algorithm_version;
+    uint32_t tangent_normal_orientation;
+    uint32_t tangent_coordinate_handedness;
+    uint32_t tangent_uv_v_axis;
+    uint32_t tangent_handedness_encoding;
+} ctex_mesh_map_entry_info;
+
+typedef struct ctex_mesh_map_sample_info {
+    uint32_t size;
+    uint32_t component_count;
+    double values[4];
+    uint32_t stale;
+    uint64_t produced_mesh_revision;
+    uint64_t current_mesh_revision;
+} ctex_mesh_map_sample_info;
+
+#define CTEX_MESH_MAP_SAMPLE_INFO_V1_SIZE ((uint32_t)sizeof(ctex_mesh_map_sample_info))
+#define CTEX_MESH_MAP_SAMPLE_INFO_CURRENT_SIZE ((uint32_t)sizeof(ctex_mesh_map_sample_info))
+
+typedef struct ctex_mesh_map_staleness {
+    uint32_t kind;
+    uint64_t produced_mesh_revision;
+    uint64_t current_mesh_revision;
+} ctex_mesh_map_staleness;
+
+typedef struct ctex_mesh_map_requirement_info {
+    uint32_t size;
+    size_t required_missing_map_count;
+    size_t required_stale_map_count;
+    size_t required_message_size;
+} ctex_mesh_map_requirement_info;
+
+#define CTEX_MESH_MAP_REQUIREMENT_INFO_V1_SIZE ((uint32_t)sizeof(ctex_mesh_map_requirement_info))
+#define CTEX_MESH_MAP_REQUIREMENT_INFO_CURRENT_SIZE \
+    ((uint32_t)sizeof(ctex_mesh_map_requirement_info))
+
+typedef struct ctex_mesh_map_release_info {
+    uint32_t size;
+    size_t released_map_count;
+    size_t resident_pixel_bytes_released;
+} ctex_mesh_map_release_info;
+
+#define CTEX_MESH_MAP_RELEASE_INFO_V1_SIZE ((uint32_t)sizeof(ctex_mesh_map_release_info))
+#define CTEX_MESH_MAP_RELEASE_INFO_CURRENT_SIZE ((uint32_t)sizeof(ctex_mesh_map_release_info))
 
 typedef enum ctex_executor_route {
     CTEX_EXECUTOR_ROUTE_HOST_EXECUTED = 0,
@@ -4870,6 +5095,59 @@ CTEX_API ctex_result ctex_mesh_get_info(const ctex_mesh* mesh, ctex_mesh_info* o
 CTEX_API ctex_result ctex_mesh_get_uv_set_names(const ctex_mesh* mesh, char* buffer,
                                                 size_t buffer_size, size_t* out_required_size,
                                                 size_t* out_count);
+
+/*
+ * These variants copy one tangent per triangle corner and retain the complete
+ * declared frame. Ordinary mesh creation generates the pinned default frame.
+ */
+CTEX_API ctex_result ctex_mesh_create_with_tangent_data(
+    const ctex_mesh_descriptor* descriptor, const ctex_mesh_tangent_data_descriptor* tangents,
+    ctex_mesh** out_mesh);
+CTEX_API ctex_result
+ctex_mesh_replace_with_tangent_data(ctex_mesh* mesh, const ctex_mesh_descriptor* descriptor,
+                                    const ctex_mesh_tangent_data_descriptor* tangents);
+CTEX_API ctex_result ctex_mesh_get_tangent_frame(const ctex_mesh* mesh,
+                                                 ctex_mesh_tangent_frame_info* out_info,
+                                                 char* uv_set, size_t uv_set_size);
+
+/*
+ * Mesh-map sets are bound to one document texture set and one mesh revision.
+ * The document and mesh must outlive the set. Imported pixel buffers are copied;
+ * all other caller storage is borrowed only for the call.
+ */
+CTEX_API ctex_result ctex_mesh_map_set_create(ctex_document* document, const char* texture_set_id,
+                                              const ctex_mesh* mesh,
+                                              ctex_mesh_map_set** out_map_set);
+CTEX_API void ctex_mesh_map_set_destroy(ctex_mesh_map_set* map_set);
+CTEX_API ctex_result ctex_mesh_map_kind_get_name(uint32_t kind, char* buffer, size_t buffer_size,
+                                                 size_t* out_required_size);
+CTEX_API ctex_result ctex_mesh_map_set_get_info(const ctex_mesh_map_set* map_set,
+                                                ctex_mesh_map_set_info* out_info,
+                                                char* texture_set_id, size_t texture_set_id_size,
+                                                char* uv_set, size_t uv_set_size);
+CTEX_API ctex_result ctex_mesh_map_set_get_entries(const ctex_mesh_map_set* map_set,
+                                                   ctex_mesh_map_entry_info* entries,
+                                                   size_t entry_capacity, size_t* out_entry_count);
+CTEX_API ctex_result ctex_mesh_map_set_import_external(
+    ctex_mesh_map_set* map_set, const ctex_mesh_map_import_descriptor* descriptor,
+    ctex_mesh_map_import_info* out_info);
+CTEX_API ctex_result ctex_mesh_map_set_sample(const ctex_mesh_map_set* map_set, uint32_t kind,
+                                              double u, double v,
+                                              ctex_mesh_map_sample_info* out_sample);
+CTEX_API ctex_result ctex_mesh_map_set_check_requirements(
+    const ctex_mesh_map_set* map_set, const char* consumer, const uint32_t* required_maps,
+    size_t required_map_count, uint32_t* missing_maps, size_t missing_map_capacity,
+    ctex_mesh_map_staleness* stale_maps, size_t stale_map_capacity,
+    ctex_mesh_map_requirement_info* out_info, char* message, size_t message_size);
+CTEX_API ctex_result ctex_mesh_map_set_synchronize_mesh(ctex_mesh_map_set* map_set,
+                                                        const ctex_mesh* mesh,
+                                                        ctex_mesh_map_staleness* stale_maps,
+                                                        size_t stale_map_capacity,
+                                                        size_t* out_stale_map_count);
+CTEX_API ctex_result ctex_mesh_map_set_release(ctex_mesh_map_set* map_set, uint32_t kind,
+                                               ctex_mesh_map_release_info* out_info);
+CTEX_API ctex_result ctex_mesh_map_set_release_all(ctex_mesh_map_set* map_set,
+                                                   ctex_mesh_map_release_info* out_info);
 
 /*
  * Picking indexes retain a non-owning mesh reference; destroy them before the

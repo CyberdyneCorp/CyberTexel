@@ -237,8 +237,11 @@ execution-backends is fully mapped. Pinned committed and preview snapshots now
 start opaque asynchronous CPU or host-device readbacks through C. Pending host
 requests retain their snapshot, validate the whole completion batch before
 publishing caller buffers, and expose complete, cancelled and failed terminal
-states. Exactly 56 runtime requirements remain without C ABI evidence; those
-gaps must be implemented before task 14.8 can close.
+states. Public mesh-map sets now expose external import, per-texture-set
+identity, missing and stale input reporting, supplied/generated tangent frames,
+normal conventions, sampling, memory accounting and host-driven release. Exactly
+48 runtime requirements remain without C ABI evidence; those gaps must be
+implemented before task 14.8 can close.
 
 ## Milestones
 

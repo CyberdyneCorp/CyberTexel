@@ -127,7 +127,10 @@ has an unlit inspection route and missing environments use defined fallback
 lighting. Inspectable material emission now exposes stable reused variables,
 qualified group paths and node attribution for text and binary targets, while
 the pinned Kongruent backend identity and licence are queryable at runtime.
-Shader emission is therefore fully mapped. Exactly 56 runtime requirements
-remain unmapped overall.
+Shader emission is therefore fully mapped. Public mesh-map sets now bind one
+texture set and mesh revision, copy externally produced pixels, expose
+resolution mismatch, normal convention and tangent-frame metadata, reject
+missing inputs explicitly, report revision staleness, and account and release
+resident map bytes. Exactly 48 runtime requirements remain unmapped overall.
 The gate is not part of the aggregate `just check` until that count reaches zero;
 its unit tests run in the normal tooling suite throughout the migration.

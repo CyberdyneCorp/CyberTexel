@@ -166,6 +166,18 @@ of a released map receives the normal structured missing-map error rather than
 a dangling read or neutral value. Pixel storage is treated as immutable while
 bound, matching the `shared_ptr<const TiledImage>` binding contract.
 
+The public C boundary exposes the same external-import, sampling, requirement
+preflight, revision synchronization, inventory, memory accounting and release
+contract through `ctex_mesh_map_set_*`. Imported strided buffers are copied
+before return. The document and mesh are non-owning parents of the opaque map
+set and therefore outlive it; separate map sets may be used concurrently only
+when their parent documents and meshes are also distinct.
+
+The C mesh boundary also accepts a declared tangent frame plus one signed
+tangent per triangle corner and reports whether a mesh retained supplied data
+or generated the pinned default. Normal-map import compares the whole reported
+frame, so a green-channel convention cannot conceal an incompatible basis.
+
 ## Bake-provider seam
 
 `BakeProvider` is an optional synchronous callback table with an opaque context,

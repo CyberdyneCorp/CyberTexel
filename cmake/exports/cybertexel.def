@@ -4,6 +4,20 @@ EXPORTS
     ctex_document_create_texture_sets_from_mesh
     ctex_document_destroy
     ctex_document_get_texture_set_ids
+    ctex_mesh_create_with_tangent_data
+    ctex_mesh_replace_with_tangent_data
+    ctex_mesh_get_tangent_frame
+    ctex_mesh_map_set_create
+    ctex_mesh_map_set_destroy
+    ctex_mesh_map_kind_get_name
+    ctex_mesh_map_set_get_info
+    ctex_mesh_map_set_get_entries
+    ctex_mesh_map_set_import_external
+    ctex_mesh_map_set_sample
+    ctex_mesh_map_set_check_requirements
+    ctex_mesh_map_set_synchronize_mesh
+    ctex_mesh_map_set_release
+    ctex_mesh_map_set_release_all
     ctex_texture_set_query_channel_delta
     ctex_texture_set_reset_channel_revision_history
     ctex_transport_snapshot_pool_create
