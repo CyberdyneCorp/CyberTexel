@@ -1532,6 +1532,57 @@ static int picker_reads_channels_and_optional_material_provenance(void) {
     return passed;
 }
 
+static int colour_id_selects_exact_regions_and_reports_empty_results(void) {
+    const ctex_vec4f pixels[4] = {{1.0F, 0.0F, 0.0F, 1.0F},
+                                  {0.98F, 0.01F, 0.0F, 0.25F},
+                                  {0.0F, 1.0F, 0.0F, 1.0F},
+                                  {0.95F, 0.05F, 0.0F, 1.0F}};
+    ctex_paint_colour_id_descriptor descriptor = {
+        .size = CTEX_PAINT_COLOUR_ID_DESCRIPTOR_CURRENT_SIZE,
+        .width = 4,
+        .height = 1,
+        .pixels = pixels,
+        .pixel_count = 4,
+        .picked_colour = {1.0F, 0.0F, 0.0F, 0.0F},
+        .tolerance = 0.03};
+    ctex_paint_colour_id_info info = {.size = CTEX_PAINT_COLOUR_ID_INFO_CURRENT_SIZE};
+    int passed =
+        expect(ctex_paint_select_colour_id(&descriptor, &info, NULL, 0) == CTEX_RESULT_SUCCESS) &&
+        expect(info.status == CTEX_PAINT_COLOUR_ID_SELECTION_MATCHED &&
+               info.selected_texel_count == 2 && info.required_value_count == 4 &&
+               info.tolerance_clamped == 0);
+    double values[4] = {-1, -1, -1, -1};
+    if (passed) {
+        passed = expect(ctex_paint_select_colour_id(&descriptor, &info, values, 3) ==
+                        CTEX_RESULT_BUFFER_TOO_SMALL) &&
+                 expect(near(values[0], -1));
+    }
+    if (passed) {
+        passed = expect(ctex_paint_select_colour_id(&descriptor, &info, values, 4) ==
+                        CTEX_RESULT_SUCCESS) &&
+                 expect(near(values[0], 1) && near(values[1], 1) && near(values[2], 0) &&
+                        near(values[3], 0));
+    }
+    descriptor.picked_colour = (ctex_vec4f){0.9F, 0.0F, 0.0F, 1.0F};
+    descriptor.tolerance = 0.0;
+    if (passed) {
+        passed = expect(ctex_paint_select_colour_id(&descriptor, &info, NULL, 0) ==
+                        CTEX_RESULT_SUCCESS) &&
+                 expect(info.status == CTEX_PAINT_COLOUR_ID_SELECTION_EMPTY &&
+                        info.selected_texel_count == 0 && near(info.resolved_tolerance, 0));
+    }
+    descriptor.picked_colour = (ctex_vec4f){0.0F, 0.0F, 0.0F, 1.0F};
+    descriptor.tolerance = 2.0;
+    if (passed) {
+        passed = expect(ctex_paint_select_colour_id(&descriptor, &info, NULL, 0) ==
+                        CTEX_RESULT_SUCCESS) &&
+                 expect(info.status == CTEX_PAINT_COLOUR_ID_SELECTION_MATCHED &&
+                        info.selected_texel_count == 4 && info.tolerance_clamped == 1 &&
+                        info.resolved_tolerance < 2.0);
+    }
+    return passed;
+}
+
 static int invalid_inputs_are_stable_diagnostics(void) {
     ctex_mesh* mesh = coverage_mesh();
     ctex_paint_tile_coverage_descriptor tile = {
@@ -1594,6 +1645,7 @@ int main(void) {
                    text_rasterizes_supplied_utf8_font_and_applies_a_decal() &&
                    particles_replay_deterministically_and_deposit_mapped_contacts() &&
                    picker_reads_channels_and_optional_material_provenance() &&
+                   colour_id_selects_exact_regions_and_reports_empty_results() &&
                    invalid_inputs_are_stable_diagnostics()
                ? 0
                : 1;

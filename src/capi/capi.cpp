@@ -27,6 +27,7 @@
 #include <ctex/paint/blur_smear.hpp>
 #include <ctex/paint/brush.hpp>
 #include <ctex/paint/clone.hpp>
+#include <ctex/paint/colour_id.hpp>
 #include <ctex/paint/coverage.hpp>
 #include <ctex/paint/decal_stencil.hpp>
 #include <ctex/paint/deposition.hpp>
@@ -4455,6 +4456,36 @@ void copy_paint_picker_outputs(const ctex::paint::PickerResult& result,
                            .semantic_id_size = strings[string_index].size() + 1};
         string_offset += strings[string_index].size() + 1;
     }
+}
+
+std::vector<ctex::graph::ColourValue> paint_colour_id_pixels(
+    const ctex_paint_colour_id_descriptor& descriptor, std::size_t pixel_count) {
+    require_paint_tool_array(descriptor.pixels, descriptor.pixel_count, "pixels");
+    if (descriptor.pixel_count != pixel_count) {
+        throw std::invalid_argument("colour-ID pixel count does not match its dimensions");
+    }
+    std::vector<ctex::graph::ColourValue> result;
+    result.reserve(pixel_count);
+    for (std::size_t index = 0; index < pixel_count; ++index) {
+        result.push_back(paint_colour(descriptor.pixels[index]));
+    }
+    return result;
+}
+
+void set_paint_colour_id_info(ctex_paint_colour_id_info& info,
+                              const ctex::paint::ColourIdSelection& selection) {
+    info = {
+        .size = CTEX_PAINT_COLOUR_ID_INFO_CURRENT_SIZE,
+        .resolved_tolerance = selection.tolerance,
+        .tolerance_clamped =
+            selection.parameter_report.clamp_for(ctex::paint::colour_id_tolerance_parameter.name)
+                .has_value(),
+        .status = selection.status == ctex::paint::ColourIdSelectionStatus::matched
+                      ? CTEX_PAINT_COLOUR_ID_SELECTION_MATCHED
+                      : CTEX_PAINT_COLOUR_ID_SELECTION_EMPTY,
+        .selected_texel_count = selection.selected_texel_count,
+        .required_value_count = selection.values.size(),
+    };
 }
 
 void validate_paint_tool_outputs(const ctex_paint_tool_channel_output* outputs,
@@ -9426,6 +9457,37 @@ extern "C" ctex_result ctex_paint_pick_enabled_channels(
             validate_output_array(channels, channel_capacity, result.channels.size(), "channels");
             validate_string_buffer(strings, string_capacity, required_string_size);
             copy_paint_picker_outputs(result, packed_strings, channels, strings);
+        } catch (const std::invalid_argument& error) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_INVALID_PAINT_TOOL,
+                           error.what());
+        }
+    });
+}
+
+extern "C" ctex_result ctex_paint_select_colour_id(
+    const ctex_paint_colour_id_descriptor* descriptor, ctex_paint_colour_id_info* out_info,
+    double* values, std::size_t value_capacity) {
+    return call_boundary("ctex_paint_select_colour_id", [&] {
+        if (descriptor == nullptr || out_info == nullptr) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                           descriptor == nullptr ? "descriptor=null" : "out_info=null");
+        }
+        validate_structure_size(descriptor->size, CTEX_PAINT_COLOUR_ID_DESCRIPTOR_V1_SIZE,
+                                CTEX_PAINT_COLOUR_ID_DESCRIPTOR_CURRENT_SIZE, "descriptor.size");
+        validate_structure_size(out_info->size, CTEX_PAINT_COLOUR_ID_INFO_V1_SIZE,
+                                CTEX_PAINT_COLOUR_ID_INFO_CURRENT_SIZE, "out_info.size");
+        try {
+            const std::size_t pixel_count = bounded_paint_pixel_count(
+                descriptor->width, descriptor->height, CTEX_DIAGNOSTIC_INVALID_PAINT_TOOL);
+            const std::vector pixels = paint_colour_id_pixels(*descriptor, pixel_count);
+            const ctex::paint::ColourIdSelection selection = ctex::paint::select_colour_id(
+                {.width = descriptor->width, .height = descriptor->height, .pixels = pixels},
+                paint_colour(descriptor->picked_colour), descriptor->tolerance);
+            set_paint_colour_id_info(*out_info, selection);
+            validate_output_array(values, value_capacity, selection.values.size(), "values");
+            if (values != nullptr) {
+                std::copy(selection.values.begin(), selection.values.end(), values);
+            }
         } catch (const std::invalid_argument& error) {
             throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_INVALID_PAINT_TOOL,
                            error.what());

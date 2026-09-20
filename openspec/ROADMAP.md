@@ -196,8 +196,10 @@ planar and triplanar mappings with explicit weighted samples. Text now exposes
 supplied fonts, length-delimited UTF-8, alignment, tracking and projected decal
 output. Particle now exposes deterministic seeded mesh collisions, ordered
 contacts and mapped paint output. Picker now exposes ordered enabled-channel
-sampling and optional material provenance for one matching texture view. Exactly
-96 runtime requirements still lack C ABI evidence; those gaps must be
+sampling and optional material provenance for one matching texture view.
+Colour-ID selection now exposes explicit tolerance, clamp and matched-or-empty
+reporting beside its reusable selection mask. Exactly 95 runtime requirements
+still lack C ABI evidence; those gaps must be
 implemented before task 14.8 can close.
 
 ## Milestones

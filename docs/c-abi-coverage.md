@@ -82,7 +82,8 @@ tracking and alignment before atomic decal publication. Particle now exposes
 seeded mesh-collision simulation, ordered contacts and mapped atomic paint
 output through a reusable pick index. Picker now resolves one matching
 texture-set and UDIM view, returning every enabled channel in caller order and
-material provenance only when supplied. Exactly 96 runtime requirements remain
-unmapped.
+material provenance only when supplied. Colour-ID selection now produces a
+caller-owned mask using an explicit linear-RGB tolerance, including distinct
+matched and empty outcomes. Exactly 95 runtime requirements remain unmapped.
 The gate is not part of the aggregate `just check` until that count reaches zero;
 its unit tests run in the normal tooling suite throughout the migration.

@@ -1836,6 +1836,34 @@ typedef struct ctex_paint_picker_info {
 #define CTEX_PAINT_PICKER_INFO_V1_SIZE ((uint32_t)sizeof(ctex_paint_picker_info))
 #define CTEX_PAINT_PICKER_INFO_CURRENT_SIZE ((uint32_t)sizeof(ctex_paint_picker_info))
 
+enum { CTEX_PAINT_COLOUR_ID_SELECTION_EMPTY = 0, CTEX_PAINT_COLOUR_ID_SELECTION_MATCHED = 1 };
+
+typedef struct ctex_paint_colour_id_descriptor {
+    uint32_t size;
+    uint32_t width;
+    uint32_t height;
+    const ctex_vec4f* pixels;
+    size_t pixel_count;
+    ctex_vec4f picked_colour;
+    double tolerance;
+} ctex_paint_colour_id_descriptor;
+
+#define CTEX_PAINT_COLOUR_ID_DESCRIPTOR_V1_SIZE ((uint32_t)sizeof(ctex_paint_colour_id_descriptor))
+#define CTEX_PAINT_COLOUR_ID_DESCRIPTOR_CURRENT_SIZE \
+    ((uint32_t)sizeof(ctex_paint_colour_id_descriptor))
+
+typedef struct ctex_paint_colour_id_info {
+    uint32_t size;
+    double resolved_tolerance;
+    uint32_t tolerance_clamped;
+    uint32_t status;
+    size_t selected_texel_count;
+    size_t required_value_count;
+} ctex_paint_colour_id_info;
+
+#define CTEX_PAINT_COLOUR_ID_INFO_V1_SIZE ((uint32_t)sizeof(ctex_paint_colour_id_info))
+#define CTEX_PAINT_COLOUR_ID_INFO_CURRENT_SIZE ((uint32_t)sizeof(ctex_paint_colour_id_info))
+
 typedef uint32_t (*ctex_pick_cancel_callback)(void* user_data);
 typedef void (*ctex_pick_progress_callback)(size_t completed_rays, size_t total_rays,
                                             void* user_data);
@@ -3695,6 +3723,11 @@ CTEX_API ctex_result ctex_paint_pick_enabled_channels(
     const ctex_paint_picker_descriptor* descriptor, ctex_paint_picker_info* out_info,
     ctex_paint_picker_channel_value* channels, size_t channel_capacity, char* strings,
     size_t string_capacity);
+
+/* Selects a linear-RGB colour-ID region for paint, masking or visibility use. */
+CTEX_API ctex_result ctex_paint_select_colour_id(const ctex_paint_colour_id_descriptor* descriptor,
+                                                 ctex_paint_colour_id_info* out_info,
+                                                 double* values, size_t value_capacity);
 
 /*
  * Installs one process-wide sink. Pass NULL to uninstall it. The callback can

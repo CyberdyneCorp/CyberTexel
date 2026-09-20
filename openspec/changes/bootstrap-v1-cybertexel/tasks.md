@@ -870,6 +870,12 @@ enabled-channel values and optional caller-supplied material provenance publish
 atomically through caller-owned buffers. The exact remaining C ABI gap is 96
 runtime requirements.
 
+The Colour-ID continuation validates normalized linear-RGB maps, preserves an
+exact zero tolerance and reports both clamped tolerance and matched-or-empty
+status. Its caller-owned scalar selection is directly reusable by existing
+paint restriction, mask-source and visibility inputs. The exact remaining C ABI
+gap is 95 runtime requirements.
+
 ## 1. Foundation
 
 - [x] 1.1 CMake project, C++20, warnings as errors, presets for headless, macOS, Linux, Windows, iOS, Android
