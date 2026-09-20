@@ -121,7 +121,10 @@
       {"requirement": "Particle", "symbols": ["ctex_paint_apply_particles"]},
       {"requirement": "Picker", "symbols": ["ctex_paint_pick_enabled_channels"]},
       {"requirement": "Colour ID selection", "symbols": ["ctex_paint_select_colour_id"]},
-      {"requirement": "Selection tool", "symbols": ["ctex_paint_select_screen", "ctex_paint_select_polygon"]}
+      {"requirement": "Selection tool", "symbols": ["ctex_paint_select_screen", "ctex_paint_select_polygon"]},
+      {"requirement": "Parameter defaults and ranges", "symbols": ["ctex_paint_get_parameter_catalogue", "ctex_paint_validate_parameter"]},
+      {"requirement": "No inert parameters", "symbols": ["ctex_paint_get_parameter_catalogue", "ctex_paint_validate_parameter"]},
+      {"requirement": "Tool inventory", "symbols": ["ctex_paint_apply_brush", "ctex_paint_apply_eraser", "ctex_paint_apply_fill", "ctex_paint_apply_clone", "ctex_paint_apply_blur", "ctex_paint_apply_smear", "ctex_paint_rasterize_decal", "ctex_paint_resolve_stencil_mask", "ctex_paint_apply_projection", "ctex_paint_apply_text", "ctex_paint_apply_particles", "ctex_paint_pick_enabled_channels", "ctex_paint_select_colour_id", "ctex_paint_select_screen", "ctex_paint_select_polygon"]}
     ]},
     {"name": "picking", "kind": "runtime", "requirements": [
       {"requirement": "Ray construction", "symbols": ["ctex_pick_ray_from_screen"]},

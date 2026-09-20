@@ -4493,6 +4493,232 @@ void set_paint_colour_id_info(ctex_paint_colour_id_info& info,
     };
 }
 
+struct PaintParameterCatalogueEntry {
+    ctex::paint::ToolParameterDescriptor descriptor;
+    std::uint32_t context;
+    bool integral{};
+};
+
+std::span<const PaintParameterCatalogueEntry> paint_parameter_catalogue() {
+    using ctex::paint::ToolParameterDescriptor;
+    static constexpr std::array entries{
+        PaintParameterCatalogueEntry{ctex::paint::stroke_spacing_parameter,
+                                     CTEX_PAINT_PARAMETER_CONTEXT_GENERAL},
+        PaintParameterCatalogueEntry{ctex::paint::stroke_radius_parameter,
+                                     CTEX_PAINT_PARAMETER_CONTEXT_GENERAL},
+        PaintParameterCatalogueEntry{ctex::paint::stroke_opacity_parameter,
+                                     CTEX_PAINT_PARAMETER_CONTEXT_GENERAL},
+        PaintParameterCatalogueEntry{ctex::paint::stroke_hardness_parameter,
+                                     CTEX_PAINT_PARAMETER_CONTEXT_GENERAL},
+        PaintParameterCatalogueEntry{ctex::paint::stroke_rotation_parameter,
+                                     CTEX_PAINT_PARAMETER_CONTEXT_GENERAL},
+        PaintParameterCatalogueEntry{ctex::paint::stroke_elongation_parameter,
+                                     CTEX_PAINT_PARAMETER_CONTEXT_GENERAL},
+        PaintParameterCatalogueEntry{ctex::paint::stroke_flow_parameter,
+                                     CTEX_PAINT_PARAMETER_CONTEXT_GENERAL},
+        PaintParameterCatalogueEntry{ctex::paint::stroke_stabilizer_radius_parameter,
+                                     CTEX_PAINT_PARAMETER_CONTEXT_GENERAL},
+        PaintParameterCatalogueEntry{ctex::paint::stroke_stabilizer_time_parameter,
+                                     CTEX_PAINT_PARAMETER_CONTEXT_GENERAL},
+        PaintParameterCatalogueEntry{ctex::paint::stroke_jitter_position_parameter,
+                                     CTEX_PAINT_PARAMETER_CONTEXT_GENERAL},
+        PaintParameterCatalogueEntry{ctex::paint::stroke_jitter_radius_parameter,
+                                     CTEX_PAINT_PARAMETER_CONTEXT_GENERAL},
+        PaintParameterCatalogueEntry{ctex::paint::stroke_jitter_rotation_parameter,
+                                     CTEX_PAINT_PARAMETER_CONTEXT_GENERAL},
+        PaintParameterCatalogueEntry{ctex::paint::stroke_jitter_opacity_parameter,
+                                     CTEX_PAINT_PARAMETER_CONTEXT_GENERAL},
+        PaintParameterCatalogueEntry{ctex::paint::stroke_jitter_flow_parameter,
+                                     CTEX_PAINT_PARAMETER_CONTEXT_GENERAL},
+        PaintParameterCatalogueEntry{ctex::paint::stroke_taper_floor_parameter,
+                                     CTEX_PAINT_PARAMETER_CONTEXT_GENERAL},
+        PaintParameterCatalogueEntry{ctex::paint::stroke_grid_step_parameter,
+                                     CTEX_PAINT_PARAMETER_CONTEXT_GENERAL},
+        PaintParameterCatalogueEntry{ctex::paint::stroke_radial_count_parameter,
+                                     CTEX_PAINT_PARAMETER_CONTEXT_GENERAL, true},
+        PaintParameterCatalogueEntry{ctex::paint::stroke_pressure_radius_minimum_parameter,
+                                     CTEX_PAINT_PARAMETER_CONTEXT_GENERAL},
+        PaintParameterCatalogueEntry{ctex::paint::stroke_pressure_radius_maximum_parameter,
+                                     CTEX_PAINT_PARAMETER_CONTEXT_GENERAL},
+        PaintParameterCatalogueEntry{ctex::paint::stroke_pressure_opacity_minimum_parameter,
+                                     CTEX_PAINT_PARAMETER_CONTEXT_GENERAL},
+        PaintParameterCatalogueEntry{ctex::paint::stroke_pressure_opacity_maximum_parameter,
+                                     CTEX_PAINT_PARAMETER_CONTEXT_GENERAL},
+        PaintParameterCatalogueEntry{ctex::paint::stroke_pressure_hardness_minimum_parameter,
+                                     CTEX_PAINT_PARAMETER_CONTEXT_GENERAL},
+        PaintParameterCatalogueEntry{ctex::paint::stroke_pressure_hardness_maximum_parameter,
+                                     CTEX_PAINT_PARAMETER_CONTEXT_GENERAL},
+        PaintParameterCatalogueEntry{ctex::paint::stroke_pressure_flow_minimum_parameter,
+                                     CTEX_PAINT_PARAMETER_CONTEXT_GENERAL},
+        PaintParameterCatalogueEntry{ctex::paint::stroke_pressure_flow_maximum_parameter,
+                                     CTEX_PAINT_PARAMETER_CONTEXT_GENERAL},
+        PaintParameterCatalogueEntry{ctex::paint::stroke_pressure_rotation_minimum_parameter,
+                                     CTEX_PAINT_PARAMETER_CONTEXT_GENERAL},
+        PaintParameterCatalogueEntry{ctex::paint::stroke_pressure_rotation_maximum_parameter,
+                                     CTEX_PAINT_PARAMETER_CONTEXT_GENERAL},
+        PaintParameterCatalogueEntry{ctex::paint::stroke_tilt_rotation_minimum_parameter,
+                                     CTEX_PAINT_PARAMETER_CONTEXT_GENERAL},
+        PaintParameterCatalogueEntry{ctex::paint::stroke_tilt_rotation_maximum_parameter,
+                                     CTEX_PAINT_PARAMETER_CONTEXT_GENERAL},
+        PaintParameterCatalogueEntry{ctex::paint::stroke_tilt_elongation_minimum_parameter,
+                                     CTEX_PAINT_PARAMETER_CONTEXT_GENERAL},
+        PaintParameterCatalogueEntry{ctex::paint::stroke_tilt_elongation_maximum_parameter,
+                                     CTEX_PAINT_PARAMETER_CONTEXT_GENERAL},
+        PaintParameterCatalogueEntry{ctex::paint::blur_radius_parameter,
+                                     CTEX_PAINT_PARAMETER_CONTEXT_GENERAL, true},
+        PaintParameterCatalogueEntry{ctex::paint::smear_strength_parameter,
+                                     CTEX_PAINT_PARAMETER_CONTEXT_GENERAL},
+        PaintParameterCatalogueEntry{ctex::paint::smear_footprint_radius_x_parameter,
+                                     CTEX_PAINT_PARAMETER_CONTEXT_GENERAL, true},
+        PaintParameterCatalogueEntry{ctex::paint::smear_footprint_radius_y_parameter,
+                                     CTEX_PAINT_PARAMETER_CONTEXT_GENERAL, true},
+        PaintParameterCatalogueEntry{ctex::paint::connected_angle_parameter,
+                                     CTEX_PAINT_PARAMETER_CONTEXT_GENERAL},
+        PaintParameterCatalogueEntry{ctex::paint::colour_id_tolerance_parameter,
+                                     CTEX_PAINT_PARAMETER_CONTEXT_GENERAL},
+        PaintParameterCatalogueEntry{ctex::paint::text_tracking_parameter,
+                                     CTEX_PAINT_PARAMETER_CONTEXT_GENERAL},
+        PaintParameterCatalogueEntry{ctex::paint::text_size_parameter,
+                                     CTEX_PAINT_PARAMETER_CONTEXT_GENERAL},
+        PaintParameterCatalogueEntry{ctex::paint::particle_count_parameter,
+                                     CTEX_PAINT_PARAMETER_CONTEXT_GENERAL, true},
+        PaintParameterCatalogueEntry{ctex::paint::particle_lifetime_parameter,
+                                     CTEX_PAINT_PARAMETER_CONTEXT_GENERAL},
+        PaintParameterCatalogueEntry{ctex::paint::particle_initial_speed_parameter,
+                                     CTEX_PAINT_PARAMETER_CONTEXT_GENERAL},
+        PaintParameterCatalogueEntry{ctex::paint::particle_mass_parameter,
+                                     CTEX_PAINT_PARAMETER_CONTEXT_GENERAL},
+        PaintParameterCatalogueEntry{ctex::paint::particle_gravity_x_parameter,
+                                     CTEX_PAINT_PARAMETER_CONTEXT_GENERAL},
+        PaintParameterCatalogueEntry{ctex::paint::particle_gravity_y_parameter,
+                                     CTEX_PAINT_PARAMETER_CONTEXT_GENERAL},
+        PaintParameterCatalogueEntry{ctex::paint::particle_gravity_z_parameter,
+                                     CTEX_PAINT_PARAMETER_CONTEXT_GENERAL},
+        PaintParameterCatalogueEntry{ctex::paint::particle_friction_parameter,
+                                     CTEX_PAINT_PARAMETER_CONTEXT_GENERAL},
+        PaintParameterCatalogueEntry{ctex::paint::particle_restitution_parameter,
+                                     CTEX_PAINT_PARAMETER_CONTEXT_GENERAL},
+        PaintParameterCatalogueEntry{ctex::paint::particle_randomness_parameter,
+                                     CTEX_PAINT_PARAMETER_CONTEXT_GENERAL},
+        PaintParameterCatalogueEntry{ctex::paint::decal_rotation_parameter,
+                                     CTEX_PAINT_PARAMETER_CONTEXT_GENERAL},
+        PaintParameterCatalogueEntry{ctex::paint::decal_uniform_scale_parameter,
+                                     CTEX_PAINT_PARAMETER_CONTEXT_GENERAL},
+        PaintParameterCatalogueEntry{ctex::paint::decal_axis_scale_x_parameter,
+                                     CTEX_PAINT_PARAMETER_CONTEXT_GENERAL},
+        PaintParameterCatalogueEntry{ctex::paint::decal_axis_scale_y_parameter,
+                                     CTEX_PAINT_PARAMETER_CONTEXT_GENERAL},
+        PaintParameterCatalogueEntry{ctex::paint::stencil_position_x_parameter,
+                                     CTEX_PAINT_PARAMETER_CONTEXT_GENERAL},
+        PaintParameterCatalogueEntry{ctex::paint::stencil_position_y_parameter,
+                                     CTEX_PAINT_PARAMETER_CONTEXT_GENERAL},
+        PaintParameterCatalogueEntry{ctex::paint::stencil_rotation_parameter,
+                                     CTEX_PAINT_PARAMETER_CONTEXT_GENERAL},
+        PaintParameterCatalogueEntry{ctex::paint::stencil_scale_x_parameter,
+                                     CTEX_PAINT_PARAMETER_CONTEXT_GENERAL},
+        PaintParameterCatalogueEntry{ctex::paint::stencil_scale_y_parameter,
+                                     CTEX_PAINT_PARAMETER_CONTEXT_GENERAL},
+        PaintParameterCatalogueEntry{ctex::paint::projection_planar_extent_x_parameter,
+                                     CTEX_PAINT_PARAMETER_CONTEXT_GENERAL},
+        PaintParameterCatalogueEntry{ctex::paint::projection_planar_extent_y_parameter,
+                                     CTEX_PAINT_PARAMETER_CONTEXT_GENERAL},
+        PaintParameterCatalogueEntry{ctex::paint::projection_triplanar_scale_parameter,
+                                     CTEX_PAINT_PARAMETER_CONTEXT_GENERAL},
+        PaintParameterCatalogueEntry{ctex::paint::projection_triplanar_offset_x_parameter,
+                                     CTEX_PAINT_PARAMETER_CONTEXT_GENERAL},
+        PaintParameterCatalogueEntry{ctex::paint::projection_triplanar_offset_y_parameter,
+                                     CTEX_PAINT_PARAMETER_CONTEXT_GENERAL},
+        PaintParameterCatalogueEntry{ctex::paint::rejection_depth_bias_parameter,
+                                     CTEX_PAINT_PARAMETER_CONTEXT_GENERAL},
+        PaintParameterCatalogueEntry{ctex::paint::rejection_minimum_normal_dot_parameter,
+                                     CTEX_PAINT_PARAMETER_CONTEXT_GENERAL},
+        PaintParameterCatalogueEntry{ctex::paint::seam_dilation_radius_parameter,
+                                     CTEX_PAINT_PARAMETER_CONTEXT_GENERAL, true},
+        PaintParameterCatalogueEntry{
+            ToolParameterDescriptor{"stroke.taper.entry.extent", 0.0, 0.0, 0.0},
+            CTEX_PAINT_PARAMETER_CONTEXT_TAPER_DISABLED},
+        PaintParameterCatalogueEntry{
+            ToolParameterDescriptor{
+                "stroke.taper.entry.extent", ctex::paint::minimum_taper_stamp_count,
+                ctex::paint::minimum_taper_stamp_count, ctex::paint::maximum_taper_stamp_count},
+            CTEX_PAINT_PARAMETER_CONTEXT_TAPER_STAMP_COUNT, true},
+        PaintParameterCatalogueEntry{ToolParameterDescriptor{"stroke.taper.entry.extent",
+                                                             ctex::paint::minimum_taper_distance,
+                                                             ctex::paint::minimum_taper_distance,
+                                                             ctex::paint::maximum_taper_distance},
+                                     CTEX_PAINT_PARAMETER_CONTEXT_TAPER_DISTANCE},
+        PaintParameterCatalogueEntry{
+            ToolParameterDescriptor{"stroke.taper.exit.extent", 0.0, 0.0, 0.0},
+            CTEX_PAINT_PARAMETER_CONTEXT_TAPER_DISABLED},
+        PaintParameterCatalogueEntry{
+            ToolParameterDescriptor{
+                "stroke.taper.exit.extent", ctex::paint::minimum_taper_stamp_count,
+                ctex::paint::minimum_taper_stamp_count, ctex::paint::maximum_taper_stamp_count},
+            CTEX_PAINT_PARAMETER_CONTEXT_TAPER_STAMP_COUNT, true},
+        PaintParameterCatalogueEntry{
+            ToolParameterDescriptor{"stroke.taper.exit.extent", ctex::paint::minimum_taper_distance,
+                                    ctex::paint::minimum_taper_distance,
+                                    ctex::paint::maximum_taper_distance},
+            CTEX_PAINT_PARAMETER_CONTEXT_TAPER_DISTANCE},
+        PaintParameterCatalogueEntry{
+            ToolParameterDescriptor{"alpha_discard.threshold",
+                                    ctex::paint::default_alpha_discard_8_bit, 0.0, 1.0},
+            CTEX_PAINT_PARAMETER_CONTEXT_ALPHA_UNORM8},
+        PaintParameterCatalogueEntry{
+            ToolParameterDescriptor{"alpha_discard.threshold",
+                                    ctex::paint::default_alpha_discard_high_precision, 0.0, 1.0},
+            CTEX_PAINT_PARAMETER_CONTEXT_ALPHA_HIGH_PRECISION},
+    };
+    return entries;
+}
+
+std::size_t paint_parameter_name_size(std::span<const PaintParameterCatalogueEntry> entries) {
+    std::size_t result = 0;
+    for (const PaintParameterCatalogueEntry& entry : entries) {
+        if (entry.descriptor.name.size() + 1 > std::numeric_limits<std::size_t>::max() - result) {
+            throw std::overflow_error("paint parameter name buffer size overflow");
+        }
+        result += entry.descriptor.name.size() + 1;
+    }
+    return result;
+}
+
+const PaintParameterCatalogueEntry& paint_parameter_entry(std::string_view name,
+                                                          std::uint32_t context) {
+    const std::span entries = paint_parameter_catalogue();
+    const auto found = std::find_if(entries.begin(), entries.end(), [&](const auto& entry) {
+        return entry.descriptor.name == name && entry.context == context;
+    });
+    if (found == entries.end()) {
+        throw std::invalid_argument("paint parameter name or context is not in the catalogue");
+    }
+    return *found;
+}
+
+void copy_paint_parameter_catalogue(std::span<const PaintParameterCatalogueEntry> source,
+                                    ctex_paint_parameter_descriptor* parameters, char* names) {
+    if (parameters == nullptr || names == nullptr) {
+        return;
+    }
+    std::size_t offset = 0;
+    for (std::size_t index = 0; index < source.size(); ++index) {
+        const PaintParameterCatalogueEntry& entry = source[index];
+        const std::size_t name_size = entry.descriptor.name.size() + 1;
+        parameters[index] = {.size = CTEX_PAINT_PARAMETER_DESCRIPTOR_CURRENT_SIZE,
+                             .context = entry.context,
+                             .value_kind = entry.integral ? CTEX_PAINT_PARAMETER_INTEGER
+                                                          : CTEX_PAINT_PARAMETER_CONTINUOUS,
+                             .default_value = entry.descriptor.default_value,
+                             .minimum = entry.descriptor.minimum,
+                             .maximum = entry.descriptor.maximum,
+                             .name_offset = offset,
+                             .name_size = name_size};
+        std::memcpy(names + offset, entry.descriptor.name.data(), entry.descriptor.name.size());
+        names[offset + entry.descriptor.name.size()] = '\0';
+        offset += name_size;
+    }
+}
+
 ctex::paint::CachedSurfaceMaps paint_selection_surface(
     const ctex_paint_selection_surface_descriptor& descriptor) {
     validate_structure_size(descriptor.size, CTEX_PAINT_SELECTION_SURFACE_DESCRIPTOR_V1_SIZE,
@@ -9619,6 +9845,56 @@ extern "C" ctex_result ctex_paint_select_colour_id(
             if (values != nullptr) {
                 std::copy(selection.values.begin(), selection.values.end(), values);
             }
+        } catch (const std::invalid_argument& error) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_INVALID_PAINT_TOOL,
+                           error.what());
+        }
+    });
+}
+
+extern "C" ctex_result ctex_paint_get_parameter_catalogue(
+    ctex_paint_parameter_descriptor* parameters, std::size_t parameter_capacity, char* names,
+    std::size_t name_capacity, ctex_paint_parameter_catalogue_info* out_info) {
+    return call_boundary("ctex_paint_get_parameter_catalogue", [&] {
+        if (out_info == nullptr) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                           "out_info=null");
+        }
+        validate_structure_size(out_info->size, CTEX_PAINT_PARAMETER_CATALOGUE_INFO_V1_SIZE,
+                                CTEX_PAINT_PARAMETER_CATALOGUE_INFO_CURRENT_SIZE, "out_info.size");
+        const std::span catalogue = paint_parameter_catalogue();
+        const std::size_t required_name_size = paint_parameter_name_size(catalogue);
+        *out_info = {.size = CTEX_PAINT_PARAMETER_CATALOGUE_INFO_CURRENT_SIZE,
+                     .required_parameter_count = catalogue.size(),
+                     .required_name_size = required_name_size};
+        validate_output_array(parameters, parameter_capacity, catalogue.size(), "parameters");
+        validate_string_buffer(names, name_capacity, required_name_size);
+        copy_paint_parameter_catalogue(catalogue, parameters, names);
+    });
+}
+
+extern "C" ctex_result ctex_paint_validate_parameter(
+    const char* name, std::uint32_t context, double supplied,
+    ctex_paint_parameter_validation_info* out_info) {
+    return call_boundary("ctex_paint_validate_parameter", [&] {
+        if (name == nullptr || out_info == nullptr) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                           name == nullptr ? "name=null" : "out_info=null");
+        }
+        validate_structure_size(out_info->size, CTEX_PAINT_PARAMETER_VALIDATION_INFO_V1_SIZE,
+                                CTEX_PAINT_PARAMETER_VALIDATION_INFO_CURRENT_SIZE, "out_info.size");
+        try {
+            const PaintParameterCatalogueEntry& entry = paint_parameter_entry(name, context);
+            if (entry.integral && std::isfinite(supplied) && std::trunc(supplied) != supplied) {
+                throw std::invalid_argument("integer paint parameter requires an integral value");
+            }
+            ctex::paint::ToolParameterReport report;
+            const double resolved =
+                ctex::paint::validate_tool_parameter(entry.descriptor, supplied, report);
+            *out_info = {.size = CTEX_PAINT_PARAMETER_VALIDATION_INFO_CURRENT_SIZE,
+                         .supplied = supplied,
+                         .resolved = resolved,
+                         .clamped = !report.clamps.empty()};
         } catch (const std::invalid_argument& error) {
             throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_INVALID_PAINT_TOOL,
                            error.what());

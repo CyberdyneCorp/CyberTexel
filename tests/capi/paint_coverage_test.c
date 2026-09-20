@@ -1777,6 +1777,94 @@ static int selection_exposes_screen_polygon_and_stored_mask_regions(void) {
     return passed;
 }
 
+static int parameter_catalogue_exposes_ranges_and_shared_clamping(void) {
+    ctex_paint_parameter_catalogue_info catalogue_info = {
+        .size = CTEX_PAINT_PARAMETER_CATALOGUE_INFO_CURRENT_SIZE};
+    int passed =
+        expect(ctex_paint_get_parameter_catalogue(NULL, 0, NULL, 0, &catalogue_info) ==
+               CTEX_RESULT_SUCCESS) &&
+        expect(catalogue_info.required_parameter_count == 74 &&
+               catalogue_info.required_name_size > 0 && catalogue_info.required_name_size < 4096);
+    ctex_paint_parameter_descriptor parameters[80] = {{.context = 99}};
+    char names[4096] = {'x', '\0'};
+    if (passed) {
+        passed = expect(ctex_paint_get_parameter_catalogue(
+                            parameters, catalogue_info.required_parameter_count - 1, names,
+                            sizeof(names), &catalogue_info) == CTEX_RESULT_BUFFER_TOO_SMALL) &&
+                 expect(parameters[0].context == 99 && names[0] == 'x');
+    }
+    if (passed) {
+        passed = expect(ctex_paint_get_parameter_catalogue(parameters, 80, names, sizeof(names),
+                                                           &catalogue_info) == CTEX_RESULT_SUCCESS);
+    }
+    const ctex_paint_parameter_descriptor* radius = NULL;
+    const ctex_paint_parameter_descriptor* taper_stamps = NULL;
+    const ctex_paint_parameter_descriptor* alpha_8 = NULL;
+    const ctex_paint_parameter_descriptor* alpha_high = NULL;
+    for (size_t index = 0; index < catalogue_info.required_parameter_count; ++index) {
+        const char* name = names + parameters[index].name_offset;
+        if (strcmp(name, "stroke.radius") == 0 &&
+            parameters[index].context == CTEX_PAINT_PARAMETER_CONTEXT_GENERAL) {
+            radius = &parameters[index];
+        } else if (strcmp(name, "stroke.taper.entry.extent") == 0 &&
+                   parameters[index].context == CTEX_PAINT_PARAMETER_CONTEXT_TAPER_STAMP_COUNT) {
+            taper_stamps = &parameters[index];
+        } else if (strcmp(name, "alpha_discard.threshold") == 0 &&
+                   parameters[index].context == CTEX_PAINT_PARAMETER_CONTEXT_ALPHA_UNORM8) {
+            alpha_8 = &parameters[index];
+        } else if (strcmp(name, "alpha_discard.threshold") == 0 &&
+                   parameters[index].context == CTEX_PAINT_PARAMETER_CONTEXT_ALPHA_HIGH_PRECISION) {
+            alpha_high = &parameters[index];
+        }
+    }
+    if (passed) {
+        passed =
+            expect(radius != NULL && radius->value_kind == CTEX_PAINT_PARAMETER_CONTINUOUS &&
+                   near(radius->default_value, 1) && near(radius->minimum, 0.000001) &&
+                   near(radius->maximum, 1000000)) &&
+            expect(taper_stamps != NULL &&
+                   taper_stamps->value_kind == CTEX_PAINT_PARAMETER_INTEGER &&
+                   near(taper_stamps->default_value, 2) && near(taper_stamps->minimum, 2) &&
+                   near(taper_stamps->maximum, 1000000)) &&
+            expect(alpha_8 != NULL && alpha_high != NULL && near(alpha_8->default_value, 0.1) &&
+                   near(alpha_high->default_value, 0.004));
+    }
+    ctex_paint_parameter_validation_info validation = {
+        .size = CTEX_PAINT_PARAMETER_VALIDATION_INFO_CURRENT_SIZE};
+    if (passed) {
+        passed = expect(ctex_paint_validate_parameter("stroke.radius",
+                                                      CTEX_PAINT_PARAMETER_CONTEXT_GENERAL, 2000000,
+                                                      &validation) == CTEX_RESULT_SUCCESS) &&
+                 expect(near(validation.supplied, 2000000) && near(validation.resolved, 1000000) &&
+                        validation.clamped == 1);
+    }
+    if (passed) {
+        passed = expect(ctex_paint_validate_parameter("stroke.radius",
+                                                      CTEX_PAINT_PARAMETER_CONTEXT_GENERAL, 0.5,
+                                                      &validation) == CTEX_RESULT_SUCCESS) &&
+                 expect(near(validation.resolved, 0.5) && validation.clamped == 0);
+    }
+    if (passed) {
+        passed =
+            expect(ctex_paint_validate_parameter("stroke.taper.entry.extent",
+                                                 CTEX_PAINT_PARAMETER_CONTEXT_TAPER_STAMP_COUNT, 1,
+                                                 &validation) == CTEX_RESULT_SUCCESS) &&
+            expect(near(validation.resolved, 2) && validation.clamped == 1);
+    }
+    if (passed) {
+        passed =
+            expect(ctex_paint_validate_parameter("stroke.taper.entry.extent",
+                                                 CTEX_PAINT_PARAMETER_CONTEXT_TAPER_STAMP_COUNT,
+                                                 2.5, &validation) == CTEX_RESULT_INVALID_ARGUMENT);
+    }
+    if (passed) {
+        passed =
+            expect(ctex_paint_validate_parameter("missing", CTEX_PAINT_PARAMETER_CONTEXT_GENERAL, 0,
+                                                 &validation) == CTEX_RESULT_INVALID_ARGUMENT);
+    }
+    return passed;
+}
+
 static int invalid_inputs_are_stable_diagnostics(void) {
     ctex_mesh* mesh = coverage_mesh();
     ctex_paint_tile_coverage_descriptor tile = {
@@ -1841,6 +1929,7 @@ int main(void) {
                    picker_reads_channels_and_optional_material_provenance() &&
                    colour_id_selects_exact_regions_and_reports_empty_results() &&
                    selection_exposes_screen_polygon_and_stored_mask_regions() &&
+                   parameter_catalogue_exposes_ranges_and_shared_clamping() &&
                    invalid_inputs_are_stable_diagnostics()
                ? 0
                : 1;

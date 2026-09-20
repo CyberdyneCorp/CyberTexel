@@ -199,9 +199,11 @@ contacts and mapped paint output. Picker now exposes ordered enabled-channel
 sampling and optional material provenance for one matching texture view.
 Colour-ID selection now exposes explicit tolerance, clamp and matched-or-empty
 reporting beside its reusable selection mask. Selection now exposes clipped
-screen regions and all polygon expansion modes as caller-owned masks. Exactly 94
-runtime requirements still lack C ABI evidence; those gaps must be implemented
-before task 14.8 can close.
+screen regions and all polygon expansion modes as caller-owned masks. The full
+tool inventory and all 69 audited numeric controls now expose discoverable
+contextual defaults, bounds and shared clamp results. Exactly 91 runtime
+requirements still lack C ABI evidence; those gaps must be implemented before
+task 14.8 can close.
 
 ## Milestones
 

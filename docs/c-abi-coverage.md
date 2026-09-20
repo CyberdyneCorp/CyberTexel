@@ -85,7 +85,10 @@ texture-set and UDIM view, returning every enabled channel in caller order and
 material provenance only when supplied. Colour-ID selection now produces a
 caller-owned mask using an explicit linear-RGB tolerance, including distinct
 matched and empty outcomes. Selection now exposes clipped rectangle and lasso
-queries plus triangle, UV-island and connected-by-angle polygon masks. Exactly
-94 runtime requirements remain unmapped.
+queries plus triangle, UV-island and connected-by-angle polygon masks. The 74
+contextual catalogue entries now expose all 69 audited numeric paint
+parameters, and the shared validator returns the same bounds and clamp outcome
+used by tool execution. The complete named tool inventory is now public. Exactly
+91 runtime requirements remain unmapped.
 The gate is not part of the aggregate `just check` until that count reaches zero;
 its unit tests run in the normal tooling suite throughout the migration.

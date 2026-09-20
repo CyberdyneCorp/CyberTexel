@@ -1864,6 +1864,58 @@ typedef struct ctex_paint_colour_id_info {
 #define CTEX_PAINT_COLOUR_ID_INFO_V1_SIZE ((uint32_t)sizeof(ctex_paint_colour_id_info))
 #define CTEX_PAINT_COLOUR_ID_INFO_CURRENT_SIZE ((uint32_t)sizeof(ctex_paint_colour_id_info))
 
+typedef enum ctex_paint_parameter_context {
+    CTEX_PAINT_PARAMETER_CONTEXT_GENERAL = 0,
+    CTEX_PAINT_PARAMETER_CONTEXT_TAPER_DISABLED = 1,
+    CTEX_PAINT_PARAMETER_CONTEXT_TAPER_STAMP_COUNT = 2,
+    CTEX_PAINT_PARAMETER_CONTEXT_TAPER_DISTANCE = 3,
+    CTEX_PAINT_PARAMETER_CONTEXT_ALPHA_UNORM8 = 4,
+    CTEX_PAINT_PARAMETER_CONTEXT_ALPHA_HIGH_PRECISION = 5
+} ctex_paint_parameter_context;
+
+typedef enum ctex_paint_parameter_value_kind {
+    CTEX_PAINT_PARAMETER_CONTINUOUS = 0,
+    CTEX_PAINT_PARAMETER_INTEGER = 1
+} ctex_paint_parameter_value_kind;
+
+typedef struct ctex_paint_parameter_descriptor {
+    uint32_t size;
+    uint32_t context;
+    uint32_t value_kind;
+    double default_value;
+    double minimum;
+    double maximum;
+    size_t name_offset;
+    size_t name_size;
+} ctex_paint_parameter_descriptor;
+
+#define CTEX_PAINT_PARAMETER_DESCRIPTOR_V1_SIZE ((uint32_t)sizeof(ctex_paint_parameter_descriptor))
+#define CTEX_PAINT_PARAMETER_DESCRIPTOR_CURRENT_SIZE \
+    ((uint32_t)sizeof(ctex_paint_parameter_descriptor))
+
+typedef struct ctex_paint_parameter_catalogue_info {
+    uint32_t size;
+    size_t required_parameter_count;
+    size_t required_name_size;
+} ctex_paint_parameter_catalogue_info;
+
+#define CTEX_PAINT_PARAMETER_CATALOGUE_INFO_V1_SIZE \
+    ((uint32_t)sizeof(ctex_paint_parameter_catalogue_info))
+#define CTEX_PAINT_PARAMETER_CATALOGUE_INFO_CURRENT_SIZE \
+    ((uint32_t)sizeof(ctex_paint_parameter_catalogue_info))
+
+typedef struct ctex_paint_parameter_validation_info {
+    uint32_t size;
+    double supplied;
+    double resolved;
+    uint32_t clamped;
+} ctex_paint_parameter_validation_info;
+
+#define CTEX_PAINT_PARAMETER_VALIDATION_INFO_V1_SIZE \
+    ((uint32_t)sizeof(ctex_paint_parameter_validation_info))
+#define CTEX_PAINT_PARAMETER_VALIDATION_INFO_CURRENT_SIZE \
+    ((uint32_t)sizeof(ctex_paint_parameter_validation_info))
+
 typedef enum ctex_paint_selection_kind {
     CTEX_PAINT_SELECTION_SCREEN_RECTANGLE = 0,
     CTEX_PAINT_SELECTION_SCREEN_LASSO = 1,
@@ -3816,6 +3868,16 @@ CTEX_API ctex_result ctex_paint_pick_enabled_channels(
 CTEX_API ctex_result ctex_paint_select_colour_id(const ctex_paint_colour_id_descriptor* descriptor,
                                                  ctex_paint_colour_id_info* out_info,
                                                  double* values, size_t value_capacity);
+
+/* Enumerates every numeric paint parameter and its contextual finite range. */
+CTEX_API ctex_result ctex_paint_get_parameter_catalogue(
+    ctex_paint_parameter_descriptor* parameters, size_t parameter_capacity, char* names,
+    size_t name_capacity, ctex_paint_parameter_catalogue_info* out_info);
+
+/* Resolves one supplied parameter through the same validator used by paint tools. */
+CTEX_API ctex_result ctex_paint_validate_parameter(const char* name, uint32_t context,
+                                                   double supplied,
+                                                   ctex_paint_parameter_validation_info* out_info);
 
 /* Selects surface texels through a clipped screen rectangle or lasso. */
 CTEX_API ctex_result ctex_paint_select_screen(

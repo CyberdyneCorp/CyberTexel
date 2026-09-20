@@ -882,6 +882,13 @@ polygon expansion. Traversal and clamp reporting accompany caller-owned masks
 and represented triangle IDs. The exact remaining C ABI gap is 94 runtime
 requirements.
 
+The paint-parameter continuation exposes 74 contextual catalogue entries for
+all 69 documented numeric controls, including conditional taper and alpha
+discard defaults. A public resolver uses the same core validator and reports
+clamps. Together with the behavior audit and now-complete named tool surface,
+this closes tool inventory, defaults/ranges and no-inert-parameter coverage. The
+exact remaining C ABI gap is 91 runtime requirements.
+
 ## 1. Foundation
 
 - [x] 1.1 CMake project, C++20, warnings as errors, presets for headless, macOS, Linux, Windows, iOS, Android
