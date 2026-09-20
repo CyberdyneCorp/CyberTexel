@@ -139,6 +139,7 @@ typedef struct ctex_transport_snapshot_pool ctex_transport_snapshot_pool;
 typedef struct ctex_transport_snapshot ctex_transport_snapshot;
 typedef struct ctex_executor_registry ctex_executor_registry;
 typedef struct ctex_cpu_execution_result ctex_cpu_execution_result;
+typedef struct ctex_parity_gate_result ctex_parity_gate_result;
 typedef struct ctex_host_execution_session ctex_host_execution_session;
 typedef struct ctex_host_completion_result ctex_host_completion_result;
 typedef struct ctex_host_recovery_report ctex_host_recovery_report;
@@ -1575,6 +1576,89 @@ typedef struct ctex_parity_comparison_info {
 #define CTEX_PARITY_COMPARISON_INFO_V1_SIZE ((uint32_t)sizeof(ctex_parity_comparison_info))
 #define CTEX_PARITY_COMPARISON_INFO_CURRENT_SIZE ((uint32_t)sizeof(ctex_parity_comparison_info))
 
+typedef struct ctex_parity_fixture_channel_descriptor {
+    uint32_t size;
+    const char* semantic;
+    uint32_t value_class;
+    uint32_t filtered;
+    uint32_t component_count;
+} ctex_parity_fixture_channel_descriptor;
+
+#define CTEX_PARITY_FIXTURE_CHANNEL_DESCRIPTOR_V1_SIZE \
+    ((uint32_t)sizeof(ctex_parity_fixture_channel_descriptor))
+#define CTEX_PARITY_FIXTURE_CHANNEL_DESCRIPTOR_CURRENT_SIZE \
+    ((uint32_t)sizeof(ctex_parity_fixture_channel_descriptor))
+
+typedef struct ctex_parity_fixture_descriptor {
+    uint32_t size;
+    const char* identifier;
+    const char* document;
+    const char* stroke;
+    const char* camera;
+    const char* material;
+    const ctex_parity_fixture_channel_descriptor* channels;
+    size_t channel_count;
+} ctex_parity_fixture_descriptor;
+
+#define CTEX_PARITY_FIXTURE_DESCRIPTOR_V1_SIZE ((uint32_t)sizeof(ctex_parity_fixture_descriptor))
+#define CTEX_PARITY_FIXTURE_DESCRIPTOR_CURRENT_SIZE \
+    ((uint32_t)sizeof(ctex_parity_fixture_descriptor))
+
+typedef struct ctex_parity_rendered_channel_descriptor {
+    uint32_t size;
+    const char* semantic;
+    const double* values;
+    size_t value_count;
+} ctex_parity_rendered_channel_descriptor;
+
+#define CTEX_PARITY_RENDERED_CHANNEL_DESCRIPTOR_V1_SIZE \
+    ((uint32_t)sizeof(ctex_parity_rendered_channel_descriptor))
+#define CTEX_PARITY_RENDERED_CHANNEL_DESCRIPTOR_CURRENT_SIZE \
+    ((uint32_t)sizeof(ctex_parity_rendered_channel_descriptor))
+
+typedef struct ctex_parity_rendered_fixture_descriptor {
+    uint32_t size;
+    uint32_t width;
+    uint32_t height;
+    const ctex_parity_rendered_channel_descriptor* channels;
+    size_t channel_count;
+} ctex_parity_rendered_fixture_descriptor;
+
+#define CTEX_PARITY_RENDERED_FIXTURE_DESCRIPTOR_V1_SIZE \
+    ((uint32_t)sizeof(ctex_parity_rendered_fixture_descriptor))
+#define CTEX_PARITY_RENDERED_FIXTURE_DESCRIPTOR_CURRENT_SIZE \
+    ((uint32_t)sizeof(ctex_parity_rendered_fixture_descriptor))
+
+typedef ctex_result (*ctex_parity_render_callback)(
+    const ctex_parity_fixture_descriptor* fixture,
+    ctex_parity_rendered_fixture_descriptor* out_rendered, void* user_data);
+
+typedef struct ctex_parity_executor_binding_descriptor {
+    uint32_t size;
+    size_t executor_index;
+    ctex_parity_render_callback render;
+    void* user_data;
+} ctex_parity_executor_binding_descriptor;
+
+#define CTEX_PARITY_EXECUTOR_BINDING_DESCRIPTOR_V1_SIZE \
+    ((uint32_t)sizeof(ctex_parity_executor_binding_descriptor))
+#define CTEX_PARITY_EXECUTOR_BINDING_DESCRIPTOR_CURRENT_SIZE \
+    ((uint32_t)sizeof(ctex_parity_executor_binding_descriptor))
+
+typedef struct ctex_parity_gate_info {
+    uint32_t size;
+    uint32_t passed;
+    size_t executor_count;
+    size_t reference_count;
+    size_t passed_count;
+    size_t failed_count;
+    size_t unmeasured_count;
+    size_t required_report_size;
+} ctex_parity_gate_info;
+
+#define CTEX_PARITY_GATE_INFO_V1_SIZE ((uint32_t)sizeof(ctex_parity_gate_info))
+#define CTEX_PARITY_GATE_INFO_CURRENT_SIZE ((uint32_t)sizeof(ctex_parity_gate_info))
+
 typedef enum ctex_host_resource_owner {
     CTEX_HOST_RESOURCE_LIBRARY = 0,
     CTEX_HOST_RESOURCE_HOST = 1
@@ -2889,6 +2973,15 @@ CTEX_API ctex_result ctex_executor_compare_parity(const double* reference, const
                                                   uint32_t filtered,
                                                   ctex_parity_comparison_info* out_info,
                                                   char* message, size_t message_size);
+/* Render callback output arrays remain valid until this synchronous call returns. */
+CTEX_API ctex_result ctex_executor_run_parity_gate(
+    const ctex_executor_registry* registry, const ctex_parity_fixture_descriptor* fixtures,
+    size_t fixture_count, const ctex_parity_executor_binding_descriptor* executors,
+    size_t executor_count, ctex_parity_gate_result** out_result);
+CTEX_API void ctex_parity_gate_result_destroy(ctex_parity_gate_result* result);
+CTEX_API ctex_result ctex_parity_gate_result_get_info(const ctex_parity_gate_result* result,
+                                                      ctex_parity_gate_info* out_info, char* report,
+                                                      size_t report_size);
 
 /* Host-executed work names logical resources only; device handles stay outside the library. */
 CTEX_API ctex_result ctex_host_execution_session_create(uint64_t initial_revision,

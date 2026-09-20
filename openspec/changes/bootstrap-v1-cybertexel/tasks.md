@@ -789,6 +789,14 @@ measured deviation and allowed deviation; non-finite inputs fail comparison.
 The broader committed-fixture gate remains separate. The exact remaining C ABI
 gap is 110 runtime requirements.
 
+The parity-gate continuation exposes one more execution-backend requirement.
+Hosts bind a committed corpus to registry executors through render callbacks;
+the gate requires one available CPU reference, compares every available route
+per channel, records unavailable devices as unmeasured and returns immutable
+JSON failure details naming the fixture, channel and deviation. Malformed
+reference output and callback failure publish no partial handle. The exact
+remaining C ABI gap is 109 runtime requirements.
+
 ## 1. Foundation
 
 - [x] 1.1 CMake project, C++20, warnings as errors, presets for headless, macOS, Linux, Windows, iOS, Android

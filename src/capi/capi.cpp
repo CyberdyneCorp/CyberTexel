@@ -11,6 +11,7 @@
 #include <ctex/exec/cpu_reference.hpp>
 #include <ctex/exec/host_execution.hpp>
 #include <ctex/exec/parity.hpp>
+#include <ctex/exec/parity_gate.hpp>
 #include <ctex/exec/vulkan_executor.hpp>
 #include <ctex/image/color_policy.hpp>
 #include <ctex/io/image_io.hpp>
@@ -249,6 +250,15 @@ struct ctex_cpu_execution_result {
 
     ctex_allocator_state allocator;
     ctex::exec::ExecutionOutcome value;
+};
+
+struct ctex_parity_gate_result {
+    explicit ctex_parity_gate_result(ctex_allocator_state allocator_value)
+        : allocator(allocator_value) {}
+
+    ctex_allocator_state allocator;
+    ctex::exec::ParityGateReport value;
+    std::string report;
 };
 
 struct ctex_host_execution_session {
@@ -625,6 +635,28 @@ void destroy_cpu_execution_result(ctex_cpu_execution_result* result) noexcept {
     result->~ctex_cpu_execution_result();
     deallocate_storage(allocator, result, sizeof(ctex_cpu_execution_result),
                        alignof(ctex_cpu_execution_result));
+}
+
+ctex_parity_gate_result* create_parity_gate_result(const ctex_allocator_state& allocator) {
+    void* storage = allocate_storage(allocator, sizeof(ctex_parity_gate_result),
+                                     alignof(ctex_parity_gate_result));
+    try {
+        return ::new (storage) ctex_parity_gate_result(allocator);
+    } catch (...) {
+        deallocate_storage(allocator, storage, sizeof(ctex_parity_gate_result),
+                           alignof(ctex_parity_gate_result));
+        throw;
+    }
+}
+
+void destroy_parity_gate_result(ctex_parity_gate_result* result) noexcept {
+    if (result == nullptr) {
+        return;
+    }
+    const ctex_allocator_state allocator = result->allocator;
+    result->~ctex_parity_gate_result();
+    deallocate_storage(allocator, result, sizeof(ctex_parity_gate_result),
+                       alignof(ctex_parity_gate_result));
 }
 
 ctex_host_execution_session* create_host_execution_session(const ctex_allocator_state& allocator,
@@ -5037,7 +5069,7 @@ bool valid_callback_result(ctex_result result) {
     return result >= CTEX_RESULT_SUCCESS && result <= CTEX_RESULT_BUFFER_TOO_SMALL;
 }
 
-void require_successful_cpu_callback(ctex_result result, std::string_view callback) {
+void require_successful_executor_callback(ctex_result result, std::string_view callback) {
     if (result == CTEX_RESULT_SUCCESS) {
         return;
     }
@@ -5078,7 +5110,7 @@ public:
             throw_boundary(CTEX_RESULT_INTERNAL_ERROR, CTEX_DIAGNOSTIC_INVALID_EXECUTOR,
                            "execute_work_item callback threw an exception");
         }
-        require_successful_cpu_callback(result, "execute_work_item");
+        require_successful_executor_callback(result, "execute_work_item");
     }
 
     void commit(std::span<const std::byte> shared) noexcept override {
@@ -5107,7 +5139,8 @@ public:
             throw_boundary(CTEX_RESULT_INTERNAL_ERROR, CTEX_DIAGNOSTIC_INVALID_EXECUTOR,
                            "CPU execution callback threw an exception");
         }
-        require_successful_cpu_callback(commit_result_.load(std::memory_order_relaxed), "commit");
+        require_successful_executor_callback(commit_result_.load(std::memory_order_relaxed),
+                                             "commit");
     }
 
 private:
@@ -5177,6 +5210,237 @@ ctex::exec::ParityValueClass parity_value_class(std::uint32_t value) {
                        "parity value class=" + std::to_string(value));
     }
     return static_cast<ctex::exec::ParityValueClass>(value);
+}
+
+ctex::exec::ParityFixtureChannel parity_fixture_channel(
+    const ctex_parity_fixture_channel_descriptor& descriptor) {
+    validate_structure_size(descriptor.size, CTEX_PARITY_FIXTURE_CHANNEL_DESCRIPTOR_V1_SIZE,
+                            CTEX_PARITY_FIXTURE_CHANNEL_DESCRIPTOR_CURRENT_SIZE,
+                            "parity fixture channel descriptor size");
+    require_executor_boolean(descriptor.filtered, "filtered");
+    if (descriptor.component_count == 0 || descriptor.component_count > UINT8_MAX) {
+        throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_INVALID_DESCRIPTOR_VALUE,
+                       "parity fixture component_count must be from 1 through 255");
+    }
+    return {
+        .semantic = require_executor_text(descriptor.semantic, "channel semantic"),
+        .value_class = parity_value_class(descriptor.value_class),
+        .filtered = descriptor.filtered != 0,
+        .component_count = static_cast<std::uint8_t>(descriptor.component_count),
+    };
+}
+
+ctex::exec::ParityFixture parity_fixture(const ctex_parity_fixture_descriptor& descriptor) {
+    validate_structure_size(descriptor.size, CTEX_PARITY_FIXTURE_DESCRIPTOR_V1_SIZE,
+                            CTEX_PARITY_FIXTURE_DESCRIPTOR_CURRENT_SIZE,
+                            "parity fixture descriptor size");
+    if (descriptor.channels == nullptr && descriptor.channel_count != 0) {
+        throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                       "fixture channels=null with nonzero channel_count");
+    }
+    ctex::exec::ParityFixture fixture{
+        .identifier = require_executor_text(descriptor.identifier, "fixture identifier"),
+        .document = require_executor_text(descriptor.document, "fixture document"),
+        .stroke = require_executor_text(descriptor.stroke, "fixture stroke"),
+        .camera = require_executor_text(descriptor.camera, "fixture camera"),
+        .material = require_executor_text(descriptor.material, "fixture material"),
+        .channels = {},
+    };
+    fixture.channels.reserve(descriptor.channel_count);
+    for (std::size_t index = 0; index < descriptor.channel_count; ++index) {
+        fixture.channels.push_back(parity_fixture_channel(descriptor.channels[index]));
+    }
+    return fixture;
+}
+
+ctex::exec::ParityRenderedChannel parity_rendered_channel(
+    const ctex_parity_rendered_channel_descriptor& descriptor) {
+    validate_structure_size(descriptor.size, CTEX_PARITY_RENDERED_CHANNEL_DESCRIPTOR_V1_SIZE,
+                            CTEX_PARITY_RENDERED_CHANNEL_DESCRIPTOR_CURRENT_SIZE,
+                            "rendered parity channel descriptor size");
+    if (descriptor.values == nullptr && descriptor.value_count != 0) {
+        throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                       "rendered parity values=null with nonzero value_count");
+    }
+    const auto values = descriptor.value_count == 0
+                            ? std::span<const double>{}
+                            : std::span<const double>(descriptor.values, descriptor.value_count);
+    return {
+        .semantic = require_executor_text(descriptor.semantic, "rendered channel semantic"),
+        .values = std::vector<double>(values.begin(), values.end()),
+    };
+}
+
+ctex::exec::ParityRenderedFixture parity_rendered_fixture(
+    const ctex_parity_rendered_fixture_descriptor& descriptor) {
+    validate_structure_size(descriptor.size, CTEX_PARITY_RENDERED_FIXTURE_DESCRIPTOR_V1_SIZE,
+                            CTEX_PARITY_RENDERED_FIXTURE_DESCRIPTOR_CURRENT_SIZE,
+                            "rendered parity fixture descriptor size");
+    if (descriptor.channels == nullptr && descriptor.channel_count != 0) {
+        throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                       "rendered channels=null with nonzero channel_count");
+    }
+    ctex::exec::ParityRenderedFixture rendered{
+        .width = descriptor.width,
+        .height = descriptor.height,
+        .channels = {},
+    };
+    rendered.channels.reserve(descriptor.channel_count);
+    for (std::size_t index = 0; index < descriptor.channel_count; ++index) {
+        rendered.channels.push_back(parity_rendered_channel(descriptor.channels[index]));
+    }
+    return rendered;
+}
+
+class CapiParityExecutor final : public ctex::exec::Executor {
+public:
+    explicit CapiParityExecutor(ctex::exec::ExecutorDescriptor descriptor)
+        : descriptor_(std::move(descriptor)) {}
+
+    [[nodiscard]] const ctex::exec::ExecutorDescriptor& descriptor() const noexcept override {
+        return descriptor_;
+    }
+
+private:
+    ctex::exec::ExecutorDescriptor descriptor_;
+};
+
+struct CapiParityRenderContext {
+    std::span<const ctex_parity_fixture_descriptor> input_fixtures;
+    std::span<const ctex::exec::ParityFixture> fixtures;
+
+    [[nodiscard]] ctex::exec::ParityRenderedFixture render(
+        const ctex::exec::ParityFixture& fixture,
+        const ctex_parity_executor_binding_descriptor& binding) const {
+        const auto found =
+            std::ranges::find(fixtures, fixture.identifier, &ctex::exec::ParityFixture::identifier);
+        if (found == fixtures.end()) {
+            throw std::logic_error("parity callback fixture could not be resolved");
+        }
+        const std::size_t index = static_cast<std::size_t>(found - fixtures.begin());
+        ctex_parity_rendered_fixture_descriptor rendered{
+            .size = CTEX_PARITY_RENDERED_FIXTURE_DESCRIPTOR_CURRENT_SIZE,
+            .width = 0,
+            .height = 0,
+            .channels = nullptr,
+            .channel_count = 0,
+        };
+        ctex_result callback_result = CTEX_RESULT_INTERNAL_ERROR;
+        try {
+            callback_result = binding.render(&input_fixtures[index], &rendered, binding.user_data);
+        } catch (...) {
+            throw ctex::exec::ParityGateError("parity render callback threw an exception");
+        }
+        require_successful_executor_callback(callback_result, "parity render");
+        return parity_rendered_fixture(rendered);
+    }
+};
+
+void validate_parity_gate_arguments(const ctex_executor_registry* registry,
+                                    const ctex_parity_fixture_descriptor* fixtures,
+                                    std::size_t fixture_count,
+                                    const ctex_parity_executor_binding_descriptor* executors,
+                                    std::size_t executor_count,
+                                    const ctex_parity_gate_result* const* out_result) {
+    if (registry == nullptr || out_result == nullptr ||
+        (fixtures == nullptr && fixture_count != 0) ||
+        (executors == nullptr && executor_count != 0)) {
+        throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                       "parity gate argument is null with a nonzero count");
+    }
+}
+
+std::vector<ctex::exec::ParityFixture> parity_fixtures(
+    std::span<const ctex_parity_fixture_descriptor> descriptors) {
+    std::vector<ctex::exec::ParityFixture> fixtures;
+    fixtures.reserve(descriptors.size());
+    std::ranges::transform(descriptors, std::back_inserter(fixtures), parity_fixture);
+    return fixtures;
+}
+
+std::vector<CapiParityExecutor> parity_executors(
+    const ctex_executor_registry& registry,
+    std::span<const ctex_parity_executor_binding_descriptor> descriptors) {
+    std::vector<CapiParityExecutor> executors;
+    executors.reserve(descriptors.size());
+    for (const auto& descriptor : descriptors) {
+        validate_structure_size(descriptor.size, CTEX_PARITY_EXECUTOR_BINDING_DESCRIPTOR_V1_SIZE,
+                                CTEX_PARITY_EXECUTOR_BINDING_DESCRIPTOR_CURRENT_SIZE,
+                                "parity executor binding descriptor size");
+        executors.emplace_back(executor_at(registry, descriptor.executor_index));
+    }
+    return executors;
+}
+
+std::vector<ctex::exec::ParityExecutorBinding> parity_bindings(
+    std::span<const ctex_parity_executor_binding_descriptor> descriptors,
+    std::span<const CapiParityExecutor> executors, const CapiParityRenderContext& context) {
+    std::vector<ctex::exec::ParityExecutorBinding> bindings;
+    bindings.reserve(descriptors.size());
+    for (std::size_t index = 0; index < descriptors.size(); ++index) {
+        const auto* descriptor = &descriptors[index];
+        ctex::exec::ParityRenderCallback render;
+        if (descriptor->render != nullptr) {
+            render = [&context, descriptor](const ctex::exec::ParityFixture& fixture) {
+                return context.render(fixture, *descriptor);
+            };
+        }
+        bindings.push_back({.executor = &executors[index], .render = std::move(render)});
+    }
+    return bindings;
+}
+
+void append_parity_json_number(std::string& output, double value) {
+    if (std::isfinite(value)) {
+        output += std::to_string(value);
+    } else {
+        append_json_text(output, std::isnan(value) ? "nan" : "infinity");
+    }
+}
+
+std::string parity_gate_report_json(const ctex::exec::ParityGateReport& report) {
+    std::string output = "{\"passed\":";
+    output += report.passed() ? "true" : "false";
+    output += ",\"executors\":[";
+    for (std::size_t executor_index = 0; executor_index < report.executors.size();
+         ++executor_index) {
+        const auto& executor = report.executors[executor_index];
+        if (executor_index != 0) {
+            output.push_back(',');
+        }
+        output += "{\"executor\":";
+        append_json_text(output, executor.executor);
+        output += ",\"device\":";
+        append_json_text(output, executor.device);
+        output += ",\"status\":";
+        append_json_text(output, ctex::exec::parity_measurement_status_name(executor.status));
+        output +=
+            ",\"measuredFixtures\":" + std::to_string(executor.measured_fixtures) + ",\"message\":";
+        append_json_text(output, executor.message);
+        output += ",\"failures\":[";
+        for (std::size_t failure_index = 0; failure_index < executor.failures.size();
+             ++failure_index) {
+            const auto& failure = executor.failures[failure_index];
+            if (failure_index != 0) {
+                output.push_back(',');
+            }
+            output += "{\"fixture\":";
+            append_json_text(output, failure.fixture);
+            output += ",\"channel\":";
+            append_json_text(output, failure.channel);
+            output += ",\"valueIndex\":" + std::to_string(failure.value_index) +
+                      ",\"measuredDeviation\":";
+            append_parity_json_number(output, failure.measured_deviation);
+            output += ",\"allowedDeviation\":";
+            append_parity_json_number(output, failure.allowed_deviation);
+            output += ",\"message\":";
+            append_json_text(output, failure.message);
+            output.push_back('}');
+        }
+        output += "]}";
+    }
+    output += "]}";
+    return output;
 }
 
 ctex::emit::ResourceVersion host_resource_version(const char* logical_id,
@@ -8374,6 +8638,89 @@ extern "C" ctex_result ctex_executor_compare_parity(const double* reference, con
         };
         validate_executor_string(message, message_size, result_message);
         copy_executor_string(result_message, message);
+    });
+}
+
+extern "C" ctex_result ctex_executor_run_parity_gate(
+    const ctex_executor_registry* registry, const ctex_parity_fixture_descriptor* fixtures,
+    std::size_t fixture_count, const ctex_parity_executor_binding_descriptor* executors,
+    std::size_t executor_count, ctex_parity_gate_result** out_result) {
+    return call_boundary("ctex_executor_run_parity_gate", [&] {
+        validate_parity_gate_arguments(registry, fixtures, fixture_count, executors, executor_count,
+                                       out_result);
+        *out_result = nullptr;
+        const auto fixture_descriptors = fixture_count == 0
+                                             ? std::span<const ctex_parity_fixture_descriptor>{}
+                                             : std::span(fixtures, fixture_count);
+        const auto executor_descriptors =
+            executor_count == 0 ? std::span<const ctex_parity_executor_binding_descriptor>{}
+                                : std::span(executors, executor_count);
+        const auto converted_fixtures = parity_fixtures(fixture_descriptors);
+        const auto proxy_executors = parity_executors(*registry, executor_descriptors);
+        const CapiParityRenderContext context{fixture_descriptors, converted_fixtures};
+        const auto bindings = parity_bindings(executor_descriptors, proxy_executors, context);
+        ctex_parity_gate_result* created = create_parity_gate_result(current_allocator());
+        try {
+            created->value = ctex::exec::run_parity_gate(converted_fixtures, bindings);
+            created->report = parity_gate_report_json(created->value);
+            *out_result = created;
+        } catch (const ctex::exec::ParityGateError& error) {
+            destroy_parity_gate_result(created);
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_INVALID_EXECUTOR,
+                           error.what());
+        } catch (...) {
+            destroy_parity_gate_result(created);
+            throw;
+        }
+    });
+}
+
+extern "C" void ctex_parity_gate_result_destroy(ctex_parity_gate_result* result) {
+    destroy_parity_gate_result(result);
+}
+
+extern "C" ctex_result ctex_parity_gate_result_get_info(const ctex_parity_gate_result* result,
+                                                        ctex_parity_gate_info* out_info,
+                                                        char* report, std::size_t report_size) {
+    return call_boundary("ctex_parity_gate_result_get_info", [&] {
+        if (result == nullptr || out_info == nullptr) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                           result == nullptr ? "result=null" : "out_info=null");
+        }
+        validate_structure_size(out_info->size, CTEX_PARITY_GATE_INFO_V1_SIZE,
+                                CTEX_PARITY_GATE_INFO_CURRENT_SIZE, "parity gate info size");
+        std::size_t reference_count = 0;
+        std::size_t passed_count = 0;
+        std::size_t failed_count = 0;
+        std::size_t unmeasured_count = 0;
+        for (const auto& measurement : result->value.executors) {
+            switch (measurement.status) {
+                case ctex::exec::ParityMeasurementStatus::reference:
+                    ++reference_count;
+                    break;
+                case ctex::exec::ParityMeasurementStatus::passed:
+                    ++passed_count;
+                    break;
+                case ctex::exec::ParityMeasurementStatus::failed:
+                    ++failed_count;
+                    break;
+                case ctex::exec::ParityMeasurementStatus::unmeasured:
+                    ++unmeasured_count;
+                    break;
+            }
+        }
+        *out_info = {
+            .size = CTEX_PARITY_GATE_INFO_CURRENT_SIZE,
+            .passed = result->value.passed() ? 1U : 0U,
+            .executor_count = result->value.executors.size(),
+            .reference_count = reference_count,
+            .passed_count = passed_count,
+            .failed_count = failed_count,
+            .unmeasured_count = unmeasured_count,
+            .required_report_size = result->report.size() + 1,
+        };
+        validate_executor_string(report, report_size, result->report);
+        copy_executor_string(result->report, report);
     });
 }
 

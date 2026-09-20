@@ -185,6 +185,23 @@ caller arrays, refuses empty inputs and treats every non-finite value as a
 mismatch. Its report includes the maximum absolute deviation and the first
 failure's index, values, measured deviation, allowed deviation and message.
 
+`ctex_executor_run_parity_gate` applies that comparison contract to a corpus of
+documents, strokes, cameras, materials and channel declarations. Executor
+bindings refer to registry indices and supply host render callbacks. Exactly one
+available CPU-reference binding is required. Every other available executor is
+compared per channel against it; a compiled route whose device is unavailable
+is reported as `unmeasured`, while an available route without a renderer fails
+the report. Callback-produced arrays are borrowed and must remain valid until
+the synchronous gate call returns; the returned result does not retain them.
+
+The returned immutable handle reports reference, passed, failed and unmeasured
+counts through `ctex_parity_gate_result_get_info`. Its caller-owned report buffer
+contains JSON naming each executor and device, measured fixture count, status,
+message, and any first-value failures with fixture, channel, measured deviation
+and allowed deviation. A parity mismatch is a successful gate execution whose
+`passed` field is false; invalid fixtures or CPU-reference output fail the call
+without publishing a partial handle.
+
 `ctex_host_execution_session` exposes the host-executed submission state
 machine without moving device handles or pixels across the boundary. Each
 resource handoff names a stable logical identity and generation, its owner,
@@ -599,6 +616,7 @@ The contract is stated per entry-point family:
 | `ctex_executor_make_fallback_report` | Stateless and safe to call concurrently; input strings are borrowed only for the call and the report buffer is caller-owned |
 | `ctex_cpu_execute_bounded`, `ctex_cpu_execution_result_destroy`, `ctex_cpu_execution_result_get_info` | Distinct executions and immutable result handles are independent. Work callbacks may run concurrently up to the declared worker bound; cancellation and progress callbacks are serialized; commit runs once on the calling thread. A result may be queried concurrently, but destruction requires that no query is active |
 | `ctex_executor_parity_get_tolerance`, `ctex_executor_compare_parity` | Stateless and safe to call concurrently; comparison inputs are borrowed only for the call and output storage is caller-owned |
+| `ctex_executor_run_parity_gate`, `ctex_parity_gate_result_destroy`, `ctex_parity_gate_result_get_info` | Distinct runs and immutable result handles are independent. The registry, fixture descriptors and callback state must remain valid for the run; callbacks execute serially on the calling thread. A result may be queried concurrently, but destruction requires that no query is active |
 | `ctex_host_execution_session_*`, `ctex_host_completion_result_*`, `ctex_host_recovery_report_*` | Distinct sessions are independent. Callers serialize submission, completion, cancellation, recovery, queries and destruction on one session. Completion-result and recovery-report handles are immutable after creation; each may be queried concurrently, but destruction requires that no query is active |
 | `ctex_paint_dilation_session_create`, `ctex_paint_dilation_session_destroy`, `ctex_paint_dilation_session_stage_tile`, `ctex_paint_dilation_session_get_preview`, `ctex_paint_dilation_session_finish` | Distinct sessions are independent and may be used concurrently; callers serialize staging, preview, finish and destruction of the same session |
 | `ctex_paint_surface_map_cache_create`, `ctex_paint_surface_map_cache_destroy`, `ctex_paint_surface_map_cache_clear`, `ctex_paint_surface_map_cache_get_statistics`, `ctex_paint_surface_map_cache_lookup` | Distinct caches are independent and may be used concurrently; callers serialize lookup, statistics, clearing and destruction of the same cache, and keep each mesh alive for its lookup call |
