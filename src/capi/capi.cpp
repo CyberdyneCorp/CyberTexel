@@ -14447,6 +14447,59 @@ extern "C" ctex_result ctex_mesh_analyze_uv_overlaps(const ctex_mesh* mesh, cons
     });
 }
 
+extern "C" ctex_result ctex_mesh_analyze_uv_coverage(const ctex_mesh* mesh, const char* uv_set,
+                                                     std::uint32_t partition_index,
+                                                     std::uint32_t width, std::uint32_t height,
+                                                     ctex_mesh_uv_coverage_info* out_info,
+                                                     std::uint32_t* outside_face_indices,
+                                                     std::size_t outside_face_index_capacity) {
+    return call_boundary("ctex_mesh_analyze_uv_coverage", [&] {
+        if (mesh == nullptr || uv_set == nullptr || out_info == nullptr) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                           "mesh, uv_set and out_info are required");
+        }
+        validate_structure_size(out_info->size, CTEX_MESH_UV_COVERAGE_INFO_V1_SIZE,
+                                CTEX_MESH_UV_COVERAGE_INFO_CURRENT_SIZE,
+                                "mesh UV coverage info size");
+        if (partition_index >= mesh->state->partition_views.size()) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_INVALID_MESH,
+                           "UV coverage partition index is outside the mesh partition table");
+        }
+        try {
+            const ctex::mesh::UvCoverageReport report = ctex::mesh::analyze_uv_coverage(
+                mesh->state->mesh_binding().view(), uv_set, partition_index,
+                {.width = width, .height = height});
+            *out_info = {
+                .size = CTEX_MESH_UV_COVERAGE_INFO_CURRENT_SIZE,
+                .width = width,
+                .height = height,
+                .selected_face_count = report.selected_face_count,
+                .covered_texel_count = report.covered_sample_count,
+                .uncovered_texel_count = report.uncovered_sample_count,
+                .tested_texel_count = report.tested_sample_count,
+                .required_outside_face_count = report.outside_face_indices.size(),
+                .uncovered_fraction = report.uncovered_fraction,
+            };
+            validate_output_array(outside_face_indices, outside_face_index_capacity,
+                                  report.outside_face_indices.size(),
+                                  "outside unit-square UV face indices");
+            if (outside_face_indices != nullptr) {
+                std::copy(report.outside_face_indices.begin(), report.outside_face_indices.end(),
+                          outside_face_indices);
+            }
+        } catch (const std::length_error& error) {
+            throw_boundary(CTEX_RESULT_OVER_BUDGET, CTEX_DIAGNOSTIC_MESH_LIMIT_EXCEEDED,
+                           error.what());
+        } catch (const std::invalid_argument& error) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_INVALID_MESH,
+                           error.what());
+        } catch (const std::out_of_range& error) {
+            throw_boundary(CTEX_RESULT_MISSING_RESOURCE, CTEX_DIAGNOSTIC_MISSING_UV_SET,
+                           error.what());
+        }
+    });
+}
+
 extern "C" ctex_result ctex_mesh_get_tangent_frame(const ctex_mesh* mesh,
                                                    ctex_mesh_tangent_frame_info* out_info,
                                                    char* uv_set, std::size_t uv_set_size) {

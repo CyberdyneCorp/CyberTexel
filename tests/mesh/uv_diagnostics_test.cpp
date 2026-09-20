@@ -138,11 +138,64 @@ bool rejects_missing_inputs() {
                   "UV diagnostics accepted a missing UV set or partition");
 }
 
+bool reports_non_udim_coverage_and_outside_faces() {
+    DiagnosticMesh source;
+    source.uv = {
+        Vec2f{0.0F, 0.0F}, Vec2f{0.5F, 0.0F}, Vec2f{0.0F, 0.5F},
+        Vec2f{1.1F, 0.0F}, Vec2f{1.2F, 0.0F}, Vec2f{1.1F, 0.1F},
+    };
+    const MeshView mesh(source.descriptor());
+    const ctex::mesh::UvCoverageReport report =
+        ctex::mesh::analyze_uv_coverage(mesh, "paint", 0, {.width = 4, .height = 4});
+    return expect(report.selected_face_count == 2,
+                  "coverage report omitted selected partition faces") &&
+           expect(report.covered_sample_count == 3 && report.uncovered_sample_count == 13 &&
+                      report.uncovered_fraction == 13.0 / 16.0,
+                  "coverage report did not measure uncovered unit-square texels") &&
+           expect(report.outside_face_indices == std::vector<std::uint32_t>{1},
+                  "coverage report omitted the out-of-range face") &&
+           expect(report.tested_sample_count >= report.covered_sample_count,
+                  "coverage report omitted sample-test work");
+}
+
+bool coverage_is_partition_scoped_and_bounded() {
+    DiagnosticMesh source;
+    source.uv = {
+        Vec2f{0.0F, 0.0F}, Vec2f{1.0F, 0.0F}, Vec2f{0.0F, 1.0F},
+        Vec2f{0.0F, 0.0F}, Vec2f{1.0F, 0.0F}, Vec2f{0.0F, 1.0F},
+    };
+    source.face_partitions = {0, 1};
+    const MeshView mesh(source.descriptor());
+    const auto body = ctex::mesh::analyze_uv_coverage(mesh, "paint", 0, {.width = 4, .height = 4});
+    const auto trim = ctex::mesh::analyze_uv_coverage(mesh, "paint", 1, {.width = 4, .height = 4});
+    bool zero_refused = false;
+    bool ceiling_refused = false;
+    try {
+        static_cast<void>(
+            ctex::mesh::analyze_uv_coverage(mesh, "paint", 0, {.width = 0, .height = 4}));
+    } catch (const std::invalid_argument&) {
+        zero_refused = true;
+    }
+    try {
+        static_cast<void>(
+            ctex::mesh::analyze_uv_coverage(mesh, "paint", 0, {.width = 16'385, .height = 16'384}));
+    } catch (const std::length_error&) {
+        ceiling_refused = true;
+    }
+    return expect(body.selected_face_count == 1 && trim.selected_face_count == 1 &&
+                      body.covered_sample_count == 10 && trim.covered_sample_count == 10,
+                  "coverage mixed faces between texture-set partitions") &&
+           expect(zero_refused && ceiling_refused,
+                  "coverage accepted zero dimensions or an excessive sample count");
+}
+
 }  // namespace
 
 int main() {
     return reports_positive_area_overlap() &&
-                   ignores_boundaries_degenerates_and_other_partitions() && rejects_missing_inputs()
+                   ignores_boundaries_degenerates_and_other_partitions() &&
+                   rejects_missing_inputs() && reports_non_udim_coverage_and_outside_faces() &&
+                   coverage_is_partition_scoped_and_bounded()
                ? 0
                : 1;
 }

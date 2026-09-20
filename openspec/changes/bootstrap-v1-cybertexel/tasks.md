@@ -1028,6 +1028,15 @@ affected face indices, two-call sizing, missing-input refusals and deterministic
 broad-phase work counts. Coverage-gap reporting remains outstanding, so task
 4.5 stays open. The exact remaining C ABI gap is 39 runtime requirements.
 
+The coverage-diagnostics continuation samples the selected non-UDIM partition
+at its requested texture resolution, reports exact covered/uncovered
+texel-centre counts and normalized uncovered area, and names every face leaving
+the unit square. Work and allocation are bounded by the published 16K-square
+sample ceiling. C++ and strict-C fixtures cover partial gaps, partition
+isolation, out-of-range faces, zero dimensions and ceiling refusal. Together
+with overlap diagnostics this completes task 4.5, and the exact remaining C ABI
+gap is 38 runtime requirements.
+
 ## 1. Foundation
 
 - [x] 1.1 CMake project, C++20, warnings as errors, presets for headless, macOS, Linux, Windows, iOS, Android
@@ -1077,7 +1086,7 @@ broad-phase work counts. Coverage-gap reporting remains outstanding, so task
 - [x] 4.2 Multiple UV sets; texture set binding to a named set
 - [ ] 4.3 UDIM tiles: on-demand allocation, addressing, cross-tile writes
 - [ ] 4.4 Atlases and their export-time regions
-- [ ] 4.5 Overlap and coverage diagnostics
+- [x] 4.5 Overlap and coverage diagnostics
 - [x] 4.6 Mesh revision; every derived structure keyed by it
 - [ ] 4.7 Mesh replacement: identity matching, UV-change reporting, host-chosen policy
 - [x] 4.8 Declared mesh limits and their named refusals

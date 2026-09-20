@@ -158,6 +158,7 @@ typedef struct ctex_shader_emission_cache ctex_shader_emission_cache;
 
 #define CTEX_MAX_MESH_VERTEX_COUNT ((size_t)100000000)
 #define CTEX_MAX_MESH_TRIANGLE_COUNT ((size_t)100000000)
+#define CTEX_MAX_MESH_UV_COVERAGE_SAMPLES UINT64_C(268435456)
 #define CTEX_DEFAULT_TILE_SIZE ((uint32_t)64)
 #define CTEX_NO_SURFACE_TRIANGLE UINT32_MAX
 #define CTEX_NO_UV_ISLAND UINT32_MAX
@@ -1705,6 +1706,21 @@ typedef struct ctex_mesh_uv_overlap_info {
 
 #define CTEX_MESH_UV_OVERLAP_INFO_V1_SIZE ((uint32_t)sizeof(ctex_mesh_uv_overlap_info))
 #define CTEX_MESH_UV_OVERLAP_INFO_CURRENT_SIZE ((uint32_t)sizeof(ctex_mesh_uv_overlap_info))
+
+typedef struct ctex_mesh_uv_coverage_info {
+    uint32_t size;
+    uint32_t width;
+    uint32_t height;
+    size_t selected_face_count;
+    size_t covered_texel_count;
+    size_t uncovered_texel_count;
+    size_t tested_texel_count;
+    size_t required_outside_face_count;
+    double uncovered_fraction;
+} ctex_mesh_uv_coverage_info;
+
+#define CTEX_MESH_UV_COVERAGE_INFO_V1_SIZE ((uint32_t)sizeof(ctex_mesh_uv_coverage_info))
+#define CTEX_MESH_UV_COVERAGE_INFO_CURRENT_SIZE ((uint32_t)sizeof(ctex_mesh_uv_coverage_info))
 
 typedef enum ctex_pick_occlusion_policy {
     CTEX_PICK_OCCLUSION_NEAREST = 0,
@@ -5474,6 +5490,13 @@ CTEX_API ctex_result ctex_mesh_analyze_uv_overlaps(const ctex_mesh* mesh, const 
                                                    ctex_mesh_uv_overlap_info* out_info,
                                                    uint32_t* face_indices,
                                                    size_t face_index_capacity);
+/* Samples non-UDIM unit-square coverage at texture-texel centres. */
+CTEX_API ctex_result ctex_mesh_analyze_uv_coverage(const ctex_mesh* mesh, const char* uv_set,
+                                                   uint32_t partition_index, uint32_t width,
+                                                   uint32_t height,
+                                                   ctex_mesh_uv_coverage_info* out_info,
+                                                   uint32_t* outside_face_indices,
+                                                   size_t outside_face_index_capacity);
 
 /*
  * These variants copy one tangent per triangle corner and retain the complete

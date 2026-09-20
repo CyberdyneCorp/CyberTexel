@@ -141,5 +141,8 @@ reads now cross C as well. Exactly 40 runtime requirements remain unmapped
 overall. Partition-scoped positive-area UV overlap diagnostics now return
 affected face indices and inspectable work counts through C, reducing the exact
 remaining gap to 39 runtime requirements.
+Resolution-aware non-UDIM coverage now reports exact covered and uncovered
+texel-centre counts, normalized uncovered area, bounded work and sorted
+out-of-range faces. The exact remaining gap is 38 runtime requirements.
 The gate is not part of the aggregate `just check` until that count reaches zero;
 its unit tests run in the normal tooling suite throughout the migration.

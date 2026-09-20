@@ -248,8 +248,11 @@ autosave sessions now expose revision coalescing, worker status, explicit flush,
 recovery discovery and bounded recovery reads through C. Exactly 40 runtime
 requirements remained without C ABI evidence at that point. Partition-scoped
 UV overlap diagnostics now expose sorted affected faces and deterministic work
-counts through C. Exactly 39 runtime requirements remain without C ABI evidence;
-those gaps must be
+counts through C. Exactly 39 runtime requirements remained without C ABI
+evidence at that point. Resolution-aware unit-square diagnostics now expose
+covered and uncovered texels, normalized uncovered area, bounded work and
+out-of-range faces. Exactly 38 runtime requirements remain without C ABI
+evidence; those gaps must be
 implemented before task 14.8 can close.
 
 ## Milestones

@@ -53,6 +53,12 @@ contact and degenerate UV triangles are excluded. Candidate and confirmed-pair
 counts expose the deterministic broad-phase work rather than hiding a scan
 behind the result.
 
+`ctex_mesh_analyze_uv_coverage` samples a non-UDIM partition at the requested
+texture-set resolution. It returns covered and uncovered texel counts, the
+normalized uncovered area, actual texel tests and sorted faces leaving the unit
+square. Outside-face output uses the two-call array contract. The public
+`CTEX_MAX_MESH_UV_COVERAGE_SAMPLES` ceiling is checked before allocation.
+
 `ctex_mesh_replace` validates and copies a complete replacement before publishing
 it. Success advances the globally unique revision; failure preserves both the
 prior mesh and revision. The maximum supported mesh has 100,000,000 vertices and
@@ -1000,7 +1006,7 @@ The contract is stated per entry-point family:
 | `ctex_shader_emission_cache_destroy`, `ctex_shader_emission_cache_get_info`, `ctex_shader_emission_cache_clear`, `ctex_shader_emit_material_cached`, `ctex_shader_emit_material_inspectable`, `ctex_shader_emit_layer_stack`, `ctex_shader_emit_lit_preview`, `ctex_shader_emit_channel_inspection` with a cache | Emission and statistics queries may run concurrently on one cache. Clearing or destruction requires exclusive access. Registries, callback state, and inspectable workspace sources follow their contracts above; all request storage is borrowed only for the call and outputs are caller-owned |
 | `ctex_document_create_texture_set`, `ctex_document_create_texture_sets_from_mesh`, `ctex_document_get_texture_set_ids`, `ctex_texture_set_*` | Calls on distinct document handles are safe concurrently; every call on the same document handle must be externally synchronized, including read-only calls. Mesh-derived creation also requires no concurrent use of that mesh handle |
 | `ctex_mesh_create` | Process-safe; each successful call creates independent owned state and captures the active allocator |
-| `ctex_mesh_destroy`, `ctex_mesh_replace`, `ctex_mesh_get_info`, `ctex_mesh_get_uv_set_names`, `ctex_mesh_analyze_uv_overlaps` | Calls on distinct mesh handles are safe concurrently; every call on the same mesh handle must be externally synchronized, including read-only calls |
+| `ctex_mesh_destroy`, `ctex_mesh_replace`, `ctex_mesh_get_info`, `ctex_mesh_get_uv_set_names`, `ctex_mesh_analyze_uv_overlaps`, `ctex_mesh_analyze_uv_coverage` | Calls on distinct mesh handles are safe concurrently; every call on the same mesh handle must be externally synchronized, including read-only calls |
 | `ctex_pick_ray_from_screen` | Stateless, process-safe and callable concurrently from any thread |
 | `ctex_pick_index_create`, `ctex_uv_pick_index_create` | Process-safe when no concurrent call mutates or destroys the supplied mesh; each successful call creates independent index state and captures the active allocator |
 | `ctex_pick_index_destroy`, `ctex_uv_pick_index_destroy`, `ctex_pick_index_get_info`, `ctex_uv_pick_index_get_info`, `ctex_pick_ray_query`, `ctex_pick_uv_query`, `ctex_pick_snap_to_surface`, `ctex_pick_query_*`, `ctex_pick_nearest_batch`, `ctex_paint_apply_particles`, `ctex_paint_select_screen` | Calls on distinct indexes over idle or distinct meshes are safe concurrently. Every call on the same index or its mesh must be externally serialized; the mesh must outlive the index and callbacks must remain valid for the batch call |

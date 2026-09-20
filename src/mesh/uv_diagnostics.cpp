@@ -1,9 +1,12 @@
 #include <algorithm>
 #include <array>
+#include <bit>
 #include <cmath>
 #include <ctex/mesh/uv_diagnostics.hpp>
 #include <limits>
+#include <optional>
 #include <stdexcept>
+#include <utility>
 #include <vector>
 
 namespace ctex::mesh {
@@ -21,6 +24,13 @@ struct Triangle {
     double maximum_x{};
     double minimum_y{};
     double maximum_y{};
+};
+
+struct SampleBounds {
+    std::uint32_t minimum_x{};
+    std::uint32_t maximum_x{};
+    std::uint32_t minimum_y{};
+    std::uint32_t maximum_y{};
 };
 
 double cross(Point first, Point second, Point third) {
@@ -129,6 +139,111 @@ void increment(std::size_t& value, const char* subject) {
     ++value;
 }
 
+std::size_t coverage_sample_count(UvCoverageRequest request) {
+    if (request.width == 0 || request.height == 0) {
+        throw std::invalid_argument("UV coverage dimensions must be non-zero");
+    }
+    const std::uint64_t samples =
+        static_cast<std::uint64_t>(request.width) * static_cast<std::uint64_t>(request.height);
+    if (samples > maximum_uv_coverage_samples ||
+        samples > std::numeric_limits<std::size_t>::max()) {
+        throw std::length_error("UV coverage sample count exceeds the 268435456 sample limit");
+    }
+    return static_cast<std::size_t>(samples);
+}
+
+std::optional<std::pair<std::uint32_t, std::uint32_t>> sample_axis_bounds(double minimum,
+                                                                          double maximum,
+                                                                          std::uint32_t size) {
+    const double first = std::ceil(minimum * size - 0.5);
+    const double last = std::floor(maximum * size - 0.5);
+    if (last < 0.0 || first > static_cast<double>(size - 1) || first > last) {
+        return std::nullopt;
+    }
+    return std::pair{
+        static_cast<std::uint32_t>(std::max(0.0, first)),
+        static_cast<std::uint32_t>(std::min(static_cast<double>(size - 1), last)),
+    };
+}
+
+std::optional<SampleBounds> sample_bounds(const Triangle& triangle, UvCoverageRequest request) {
+    const auto x = sample_axis_bounds(triangle.minimum_x, triangle.maximum_x, request.width);
+    const auto y = sample_axis_bounds(triangle.minimum_y, triangle.maximum_y, request.height);
+    if (!x || !y) {
+        return std::nullopt;
+    }
+    return SampleBounds{.minimum_x = x->first,
+                        .maximum_x = x->second,
+                        .minimum_y = y->first,
+                        .maximum_y = y->second};
+}
+
+double triangle_tolerance(const Triangle& triangle) {
+    double scale = 1.0;
+    for (const Point point : triangle.points) {
+        scale = std::max({scale, std::abs(point.x), std::abs(point.y)});
+    }
+    return 64.0 * std::numeric_limits<double>::epsilon() * scale * scale;
+}
+
+bool contains_sample(const Triangle& triangle, Point sample, double orientation, double tolerance) {
+    for (std::size_t edge = 0; edge < triangle.points.size(); ++edge) {
+        if (orientation * cross(triangle.points[edge],
+                                triangle.points[(edge + 1) % triangle.points.size()], sample) <
+            -tolerance) {
+            return false;
+        }
+    }
+    return true;
+}
+
+bool outside_unit_square(const Triangle& triangle) {
+    return std::ranges::any_of(triangle.points, [](Point point) {
+        return point.x < 0.0 || point.x > 1.0 || point.y < 0.0 || point.y > 1.0;
+    });
+}
+
+bool sample_is_covered(const std::vector<std::uint64_t>& covered, std::size_t sample) {
+    return (covered[sample / 64] & (std::uint64_t{1} << (sample % 64))) != 0;
+}
+
+void mark_sample_covered(std::vector<std::uint64_t>& covered, std::size_t sample) {
+    covered[sample / 64] |= std::uint64_t{1} << (sample % 64);
+}
+
+void rasterize_coverage(const Triangle& triangle, UvCoverageRequest request,
+                        std::vector<std::uint64_t>& covered, std::size_t& tested_samples) {
+    const double area = cross(triangle.points[0], triangle.points[1], triangle.points[2]);
+    const double tolerance = triangle_tolerance(triangle);
+    const auto bounds = sample_bounds(triangle, request);
+    if (std::abs(area) <= tolerance || !bounds) {
+        return;
+    }
+    const double orientation = area < 0.0 ? -1.0 : 1.0;
+    for (std::uint32_t y = bounds->minimum_y; y <= bounds->maximum_y; ++y) {
+        for (std::uint32_t x = bounds->minimum_x; x <= bounds->maximum_x; ++x) {
+            const std::size_t sample = static_cast<std::size_t>(y) * request.width + x;
+            if (sample_is_covered(covered, sample)) {
+                continue;
+            }
+            increment(tested_samples, "UV coverage tested sample count overflow");
+            const Point coordinate{(static_cast<double>(x) + 0.5) / request.width,
+                                   (static_cast<double>(y) + 0.5) / request.height};
+            if (contains_sample(triangle, coordinate, orientation, tolerance)) {
+                mark_sample_covered(covered, sample);
+            }
+        }
+    }
+}
+
+std::size_t covered_sample_count(const std::vector<std::uint64_t>& covered) {
+    std::size_t result = 0;
+    for (const std::uint64_t word : covered) {
+        result += std::popcount(word);
+    }
+    return result;
+}
+
 }  // namespace
 
 UvOverlapReport analyze_uv_overlaps(const MeshView& mesh, std::string_view uv_set_name,
@@ -177,6 +292,35 @@ UvOverlapReport analyze_uv_overlaps(const MeshView& mesh, std::string_view uv_se
             report.face_indices.push_back(static_cast<std::uint32_t>(face));
         }
     }
+    return report;
+}
+
+UvCoverageReport analyze_uv_coverage(const MeshView& mesh, std::string_view uv_set_name,
+                                     std::uint32_t partition_index, UvCoverageRequest request) {
+    const MeshDescriptor& descriptor = mesh.descriptor();
+    if (partition_index >= descriptor.partitions.size()) {
+        throw std::out_of_range("UV coverage partition index is outside the mesh partition table");
+    }
+    const std::size_t sample_count = coverage_sample_count(request);
+    const UvSetView& uv_set = mesh.uv_set(uv_set_name);
+    std::vector<std::uint64_t> covered((sample_count + 63) / 64);
+    UvCoverageReport report;
+    for (std::size_t face = 0; face < mesh.triangle_count(); ++face) {
+        if (descriptor.face_partition_indices[face] != partition_index) {
+            continue;
+        }
+        increment(report.selected_face_count, "UV coverage selected face count overflow");
+        const Triangle triangle =
+            make_triangle(descriptor, uv_set, static_cast<std::uint32_t>(face));
+        if (outside_unit_square(triangle)) {
+            report.outside_face_indices.push_back(static_cast<std::uint32_t>(face));
+        }
+        rasterize_coverage(triangle, request, covered, report.tested_sample_count);
+    }
+    report.covered_sample_count = covered_sample_count(covered);
+    report.uncovered_sample_count = sample_count - report.covered_sample_count;
+    report.uncovered_fraction =
+        static_cast<double>(report.uncovered_sample_count) / static_cast<double>(sample_count);
     return report;
 }
 

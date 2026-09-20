@@ -29,6 +29,14 @@ not count as overlaps. The sweep broad phase is deterministic and avoids
 narrow-phase intersection work for faces whose UV bounds cannot intersect;
 faces assigned to other partitions are never compared.
 
+`analyze_uv_coverage` measures a non-UDIM partition over the unit square at the
+requested texture-set resolution. Each texel centre is tested against the
+partition's UV triangles, producing exact covered and uncovered texel counts at
+that resolution, a normalized uncovered fraction and the number of actual
+sample tests. Faces with any vertex outside `[0,1]` are returned by ascending
+face index instead of being wrapped. Zero-sized requests and requests above
+268,435,456 samples (a 16K-square diagnostic) are refused before allocation.
+
 ## Tangent frames
 
 Every validated mesh exposes one tangent frame per triangle corner through
