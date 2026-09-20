@@ -136,34 +136,19 @@ and an append-only machine-readable code. Host allocator callbacks validate
 callback pairs, preserve allocator provenance per opaque document, and report
 failure or misalignment by stable code. A core PMR boundary routes every
 persistent allocation reachable through the current C surface, including the
-document index, texture-set identity and descriptor fields, shared state and
-channel metadata. Full-surface coverage (14.8) now has a requirement-granular
-manifest and tested checker over all 24 capabilities. The first full-surface
-slice exposes texture-set channel enumeration, extensible descriptors,
-enablement, per-channel precision and memory reporting to C hosts while routing
-persistent tiled storage through the captured allocator. A second slice exposes
-the complete headless colour-management policy, transforms, precision
-operations, deterministic dithering and preview-only `.cube` LUTs. The gate
-correctly remains red. A third slice adds allocator-owned, read-only in-memory
-mesh handles with four-or-more named UV sets, atomic revisioned replacement and
-declared 100,000,000-vertex/triangle refusals, completing task 4.8. The gate now
-names the 222 runtime requirements that still lack C entry points; those gaps
-must be implemented before task 14.8 can close.
-Four simultaneous named mesh UV sets are now exercised, and the C boundary can
-derive partitioned document texture sets from a selected UV parameterization;
-this completes task 4.2.
-The next 14.8 slice exposes content-detected in-memory PNG decoding, exact
-caller-buffer sizing, native 8/16-bit pixels, colour-source metadata and hostile
-input ceilings. The gate now names 219 runtime requirements without C evidence.
-The encoder follow-up exposes caller-buffer PNG, JPEG, TGA, TIFF and OpenEXR
-output with validated row strides, explicit input/output precision, JPEG quality
-and named impossible format/depth refusals. This completes task 2.7 and reduces
-the exact C ABI gap to 218 runtime requirements.
-Flat OpenEXR and Radiance HDR decoding now validates declared float storage
-against caller limits before allocation and preserves values above one through
-the C ABI. Automatic HDR input is linear Rec. 709; multipart and deep EXR remain
-explicitly deferred to the layered-source API. This completes task 2.5 and
-leaves 217 runtime C ABI gaps.
+document index, texture-set identity and descriptor fields, shared state,
+channel metadata, mesh bindings and picking indexes. Full-surface coverage
+(14.8) has a requirement-granular manifest and tested checker over all 24
+capabilities. Implemented slices now cover texture-set channels, headless colour
+management, read-only revisioned meshes, partition-derived texture sets,
+bounded image decode/encode, canonical strokes, paint-engine primitives and
+copy-on-write paint previews. The latest slice exposes the complete CPU picking
+family: allocator-owned acceleration structures that rebuild after mesh
+replacement, perspective and orthographic rays, full hit records, nearest and
+all-hit occlusion, backface policy, UV picking, surface snapping, four region
+queries, and bounded cancellable batches with progress and traversal cost. The
+gate correctly remains red with 168 runtime requirements still lacking C ABI
+evidence; those gaps must be implemented before task 14.8 can close.
 
 ## Milestones
 

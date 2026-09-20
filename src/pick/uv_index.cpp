@@ -56,8 +56,9 @@ void validate_coordinate(mesh::Vec2f coordinate) {
 
 }  // namespace
 
-UvSpatialIndex::UvSpatialIndex(const mesh::MeshBinding& mesh, std::string_view uv_set)
-    : uv_set_(uv_set) {
+UvSpatialIndex::UvSpatialIndex(const mesh::MeshBinding& mesh, std::string_view uv_set,
+                               std::pmr::memory_resource* memory_resource)
+    : uv_set_(uv_set, memory_resource), nodes_(memory_resource), triangle_order_(memory_resource) {
     if (uv_set_.empty()) {
         throw std::invalid_argument("UV spatial index requires a named UV set");
     }
@@ -69,7 +70,7 @@ bool UvSpatialIndex::synchronize(const mesh::MeshBinding& mesh) {
     if (mesh_revision_ == mesh.revision()) {
         return false;
     }
-    UvSpatialIndex replacement(mesh, uv_set_);
+    UvSpatialIndex replacement(mesh, uv_set_, nodes_.get_allocator().resource());
     replacement.build_count_ = build_count_ + 1;
     *this = std::move(replacement);
     return true;

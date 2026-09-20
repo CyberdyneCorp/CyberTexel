@@ -20,6 +20,10 @@
 #include <ctex/paint/stroke_preset.hpp>
 #include <ctex/paint/surface_cache.hpp>
 #include <ctex/paint/work.hpp>
+#include <ctex/pick/batch.hpp>
+#include <ctex/pick/region.hpp>
+#include <ctex/pick/spatial_index.hpp>
+#include <ctex/pick/uv_index.hpp>
 #include <exception>
 #include <iterator>
 #include <limits>
@@ -166,6 +170,33 @@ struct ctex_paint_preview_session {
     ctex::image::RevisionCursor committed;
     double maximum_component_error{};
     ctex::paint::PaintPreviewSession preview;
+};
+
+struct ctex_pick_index {
+    ctex_pick_index(ctex_allocator_state allocator_value, ctex_mesh* mesh_value)
+        : allocator(allocator_value),
+          memory_resource(allocator_value),
+          mesh(mesh_value),
+          value(mesh_value->state->mesh_binding(), &memory_resource) {}
+
+    ctex_allocator_state allocator;
+    ctex_host_memory_resource memory_resource;
+    ctex_mesh* mesh;
+    ctex::pick::SpatialIndex value;
+};
+
+struct ctex_uv_pick_index {
+    ctex_uv_pick_index(ctex_allocator_state allocator_value, ctex_mesh* mesh_value,
+                       std::string_view uv_set)
+        : allocator(allocator_value),
+          memory_resource(allocator_value),
+          mesh(mesh_value),
+          value(mesh_value->state->mesh_binding(), uv_set, &memory_resource) {}
+
+    ctex_allocator_state allocator;
+    ctex_host_memory_resource memory_resource;
+    ctex_mesh* mesh;
+    ctex::pick::UvSpatialIndex value;
 };
 
 namespace {
@@ -421,6 +452,29 @@ ctex_paint_preview_session* create_paint_preview_session(const ctex_allocator_st
     } catch (...) {
         deallocate_storage(allocator, storage, sizeof(ctex_paint_preview_session),
                            alignof(ctex_paint_preview_session));
+        throw;
+    }
+}
+
+ctex_pick_index* create_pick_index(const ctex_allocator_state& allocator, ctex_mesh* mesh) {
+    void* storage = allocate_storage(allocator, sizeof(ctex_pick_index), alignof(ctex_pick_index));
+    try {
+        return ::new (storage) ctex_pick_index(allocator, mesh);
+    } catch (...) {
+        deallocate_storage(allocator, storage, sizeof(ctex_pick_index), alignof(ctex_pick_index));
+        throw;
+    }
+}
+
+ctex_uv_pick_index* create_uv_pick_index(const ctex_allocator_state& allocator, ctex_mesh* mesh,
+                                         std::string_view uv_set) {
+    void* storage =
+        allocate_storage(allocator, sizeof(ctex_uv_pick_index), alignof(ctex_uv_pick_index));
+    try {
+        return ::new (storage) ctex_uv_pick_index(allocator, mesh, uv_set);
+    } catch (...) {
+        deallocate_storage(allocator, storage, sizeof(ctex_uv_pick_index),
+                           alignof(ctex_uv_pick_index));
         throw;
     }
 }
@@ -1184,6 +1238,360 @@ ctex_mesh_state* create_mesh_state(ctex_mesh& mesh, const ctex_mesh_descriptor& 
 void destroy_mesh_state(ctex_mesh& mesh, ctex_mesh_state* state) noexcept {
     state->~ctex_mesh_state();
     mesh.memory_resource.deallocate(state, sizeof(ctex_mesh_state), alignof(ctex_mesh_state));
+}
+
+ctex::pick::BackfacePolicy pick_backface_policy(std::uint32_t value) {
+    switch (value) {
+        case CTEX_PICK_BACKFACE_ACCEPT:
+            return ctex::pick::BackfacePolicy::accept;
+        case CTEX_PICK_BACKFACE_REJECT:
+            return ctex::pick::BackfacePolicy::reject;
+    }
+    throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_INVALID_ENUM_VALUE,
+                   "backface_policy=" + std::to_string(value));
+}
+
+template <typename Operation>
+ctex_result call_pick_boundary(const char* name, Operation&& operation) noexcept {
+    return call_boundary(name, [&] {
+        try {
+            operation();
+        } catch (const std::invalid_argument& error) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_INVALID_PICK_QUERY,
+                           error.what());
+        } catch (const std::out_of_range& error) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_INVALID_PICK_QUERY,
+                           error.what());
+        }
+    });
+}
+
+ctex::pick::OcclusionPolicy pick_occlusion_policy(std::uint32_t value) {
+    switch (value) {
+        case CTEX_PICK_OCCLUSION_NEAREST:
+            return ctex::pick::OcclusionPolicy::nearest;
+        case CTEX_PICK_OCCLUSION_ALL_HITS:
+            return ctex::pick::OcclusionPolicy::all_hits;
+    }
+    throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_INVALID_ENUM_VALUE,
+                   "occlusion_policy=" + std::to_string(value));
+}
+
+ctex::pick::ProjectionKind pick_projection_kind(std::uint32_t value) {
+    switch (value) {
+        case CTEX_PICK_PROJECTION_PERSPECTIVE:
+            return ctex::pick::ProjectionKind::perspective;
+        case CTEX_PICK_PROJECTION_ORTHOGRAPHIC:
+            return ctex::pick::ProjectionKind::orthographic;
+    }
+    throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_INVALID_ENUM_VALUE,
+                   "projection_kind=" + std::to_string(value));
+}
+
+ctex::pick::Ray capi_pick_ray(ctex_pick_ray ray) {
+    return {.origin = mesh_vec(ray.origin), .direction = mesh_vec(ray.direction)};
+}
+
+ctex_pick_ray capi_pick_ray(ctex::pick::Ray ray) {
+    return {{ray.origin.x, ray.origin.y, ray.origin.z},
+            {ray.direction.x, ray.direction.y, ray.direction.z}};
+}
+
+ctex::pick::TextureSetBindingView pick_binding(
+    const ctex_pick_texture_set_binding_descriptor& descriptor) {
+    validate_structure_size(descriptor.size, CTEX_PICK_TEXTURE_SET_BINDING_DESCRIPTOR_V1_SIZE,
+                            CTEX_PICK_TEXTURE_SET_BINDING_DESCRIPTOR_CURRENT_SIZE,
+                            "texture_set.size");
+    if (descriptor.uv_set == nullptr) {
+        throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                       "texture_set.uv_set=null");
+    }
+    if (descriptor.uv_set[0] == '\0') {
+        throw_boundary(CTEX_RESULT_MISSING_RESOURCE, CTEX_DIAGNOSTIC_MISSING_UV_SET,
+                       "texture_set.uv_set is empty");
+    }
+    return {descriptor.partition_index, descriptor.uv_set};
+}
+
+std::vector<ctex::pick::TextureSetBindingView> pick_bindings(
+    const ctex_pick_texture_set_binding_descriptor* descriptors, std::size_t count) {
+    if (descriptors == nullptr && count != 0) {
+        throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                       "texture_sets=null with nonzero texture_set_count");
+    }
+    std::vector<ctex::pick::TextureSetBindingView> result;
+    result.reserve(count);
+    for (std::size_t index = 0; index < count; ++index) {
+        result.push_back(pick_binding(descriptors[index]));
+    }
+    return result;
+}
+
+ctex::pick::RayPickOptions pick_options(const ctex_pick_options_descriptor& descriptor) {
+    validate_structure_size(descriptor.size, CTEX_PICK_OPTIONS_DESCRIPTOR_V1_SIZE,
+                            CTEX_PICK_OPTIONS_DESCRIPTOR_CURRENT_SIZE, "options.size");
+    return {.maximum_distance = descriptor.maximum_distance,
+            .occlusion = pick_occlusion_policy(descriptor.occlusion_policy),
+            .backfaces = pick_backface_policy(descriptor.backface_policy)};
+}
+
+ctex::pick::Mat4f pick_matrix(const float (&values)[16]) {
+    ctex::pick::Mat4f result{};
+    std::copy(std::begin(values), std::end(values), result.values.begin());
+    return result;
+}
+
+ctex::pick::ScreenRegionView pick_screen_view(const ctex_pick_screen_view_descriptor& descriptor) {
+    validate_structure_size(descriptor.size, CTEX_PICK_SCREEN_VIEW_DESCRIPTOR_V1_SIZE,
+                            CTEX_PICK_SCREEN_VIEW_DESCRIPTOR_CURRENT_SIZE, "view.size");
+    return {{descriptor.viewport_width, descriptor.viewport_height},
+            pick_matrix(descriptor.view),
+            pick_matrix(descriptor.projection)};
+}
+
+template <typename Hit>
+std::size_t pick_texture_set_id_size(std::span<const Hit> hits) {
+    std::size_t required_size = 0;
+    for (const Hit& hit : hits) {
+        if (hit.texture_set_id.size() + 1 >
+            std::numeric_limits<std::size_t>::max() - required_size) {
+            throw std::overflow_error("pick texture-set ID buffer size overflow");
+        }
+        required_size += hit.texture_set_id.size() + 1;
+    }
+    return required_size;
+}
+
+void validate_pick_output_buffers(ctex_pick_hit* hits, std::size_t hit_capacity,
+                                  std::size_t required_hits, char* texture_set_ids,
+                                  std::size_t texture_set_id_buffer_size,
+                                  std::size_t required_id_size) {
+    if ((hits == nullptr && hit_capacity != 0) ||
+        (texture_set_ids == nullptr && texture_set_id_buffer_size != 0)) {
+        throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                       "pick output buffer is null with nonzero capacity");
+    }
+    if ((hits != nullptr && hit_capacity < required_hits) ||
+        (texture_set_ids != nullptr && texture_set_id_buffer_size < required_id_size)) {
+        throw_boundary(CTEX_RESULT_BUFFER_TOO_SMALL, CTEX_DIAGNOSTIC_BUFFER_TOO_SMALL,
+                       "pick output buffer is smaller than the reported requirement");
+    }
+}
+
+template <typename Hit>
+ctex_pick_hit capi_pick_hit(const Hit& hit, std::size_t texture_set_id_offset) {
+    return {
+        .has_hit = 1,
+        .position = {hit.position.x, hit.position.y, hit.position.z},
+        .interpolated_normal = {hit.interpolated_normal.x, hit.interpolated_normal.y,
+                                hit.interpolated_normal.z},
+        .geometric_normal = {hit.geometric_normal.x, hit.geometric_normal.y,
+                             hit.geometric_normal.z},
+        .uv = {hit.uv.x, hit.uv.y},
+        .udim_u = hit.udim_tile.u,
+        .udim_v = hit.udim_tile.v,
+        .udim_number = hit.udim_tile.number,
+        .triangle_index = hit.triangle_index,
+        .barycentric = {hit.barycentric.x, hit.barycentric.y, hit.barycentric.z},
+        .material_id = hit.material_id,
+        .distance = 0.0F,
+        .texture_set_id_offset = texture_set_id_offset,
+        .texture_set_id_size = hit.texture_set_id.size() + 1,
+    };
+}
+
+ctex_pick_hit capi_pick_hit(const ctex::pick::HitRecord& hit, std::size_t texture_set_id_offset) {
+    ctex_pick_hit result = capi_pick_hit<ctex::pick::HitRecord>(hit, texture_set_id_offset);
+    result.distance = hit.distance;
+    return result;
+}
+
+template <typename Hit>
+void copy_pick_hits(std::span<const Hit> source, ctex_pick_hit* hits, char* texture_set_ids) {
+    if (hits == nullptr && texture_set_ids == nullptr) {
+        return;
+    }
+    std::size_t offset = 0;
+    for (std::size_t index = 0; index < source.size(); ++index) {
+        if (hits != nullptr) {
+            hits[index] = capi_pick_hit(source[index], offset);
+        }
+        if (texture_set_ids != nullptr) {
+            std::memcpy(texture_set_ids + offset, source[index].texture_set_id.c_str(),
+                        source[index].texture_set_id.size() + 1);
+        }
+        offset += source[index].texture_set_id.size() + 1;
+    }
+}
+
+void set_pick_query_info(ctex_pick_query_info& info, std::size_t result_count,
+                         std::size_t required_id_size, ctex::pick::PickQueryCost cost,
+                         std::size_t build_count, std::uint64_t mesh_revision) {
+    validate_structure_size(info.size, CTEX_PICK_QUERY_INFO_V1_SIZE,
+                            CTEX_PICK_QUERY_INFO_CURRENT_SIZE, "out_info.size");
+    info = {.size = CTEX_PICK_QUERY_INFO_CURRENT_SIZE,
+            .result_count = result_count,
+            .required_texture_set_id_size = required_id_size,
+            .visited_nodes = cost.visited_nodes,
+            .tested_leaf_triangles = cost.tested_leaf_triangles,
+            .index_build_count = build_count,
+            .mesh_revision = mesh_revision};
+}
+
+void validate_triangle_output(uint32_t* triangles, std::size_t capacity,
+                              std::size_t required_count) {
+    if (triangles == nullptr && capacity != 0) {
+        throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                       "triangle_indices=null with nonzero triangle_capacity");
+    }
+    if (triangles != nullptr && capacity < required_count) {
+        throw_boundary(CTEX_RESULT_BUFFER_TOO_SMALL, CTEX_DIAGNOSTIC_BUFFER_TOO_SMALL,
+                       "triangle_capacity=" + std::to_string(capacity) +
+                           " required_count=" + std::to_string(required_count));
+    }
+}
+
+void copy_region_result(const ctex::pick::RegionQueryResult& result, ctex_pick_index& index,
+                        std::uint32_t* triangle_indices, std::size_t triangle_capacity,
+                        ctex_pick_query_info& info) {
+    set_pick_query_info(info, result.triangle_indices.size(), 0,
+                        {result.visited_nodes, result.tested_leaf_triangles},
+                        index.value.build_count(), index.value.mesh_revision());
+    validate_triangle_output(triangle_indices, triangle_capacity, result.triangle_indices.size());
+    if (triangle_indices != nullptr) {
+        std::copy(result.triangle_indices.begin(), result.triangle_indices.end(), triangle_indices);
+    }
+}
+
+template <typename Index>
+void set_pick_index_info(const Index& index, ctex_pick_index_info& info) {
+    validate_structure_size(info.size, CTEX_PICK_INDEX_INFO_V1_SIZE,
+                            CTEX_PICK_INDEX_INFO_CURRENT_SIZE, "out_info.size");
+    info = {.size = CTEX_PICK_INDEX_INFO_CURRENT_SIZE,
+            .mesh_revision = index.mesh_revision(),
+            .build_count = index.build_count(),
+            .node_count = index.node_count(),
+            .triangle_count = index.triangle_count()};
+}
+
+struct CapiBatchCallbacks {
+    const ctex_pick_batch_control_descriptor* control;
+};
+
+bool capi_batch_cancelled(void* user_data) noexcept {
+    const auto& callbacks = *static_cast<CapiBatchCallbacks*>(user_data);
+    if (callbacks.control->is_cancelled == nullptr) {
+        return false;
+    }
+    try {
+        return callbacks.control->is_cancelled(callbacks.control->user_data) != 0;
+    } catch (...) {
+        return true;
+    }
+}
+
+void capi_batch_progress(void* user_data, ctex::pick::BatchPickProgress progress) noexcept {
+    const auto& callbacks = *static_cast<CapiBatchCallbacks*>(user_data);
+    if (callbacks.control->report_progress == nullptr) {
+        return;
+    }
+    try {
+        callbacks.control->report_progress(progress.completed_rays, progress.total_rays,
+                                           callbacks.control->user_data);
+    } catch (...) {
+    }
+}
+
+std::vector<ctex::pick::Ray> capi_batch_rays(const ctex_pick_ray* rays, std::size_t ray_count) {
+    std::vector<ctex::pick::Ray> result;
+    result.reserve(ray_count);
+    for (std::size_t index = 0; index < ray_count; ++index) {
+        result.push_back(capi_pick_ray(rays[index]));
+    }
+    return result;
+}
+
+ctex::pick::BatchPickControl capi_batch_control(const ctex_pick_batch_control_descriptor* control,
+                                                CapiBatchCallbacks& callbacks) {
+    if (control == nullptr) {
+        return {};
+    }
+    validate_structure_size(control->size, CTEX_PICK_BATCH_CONTROL_DESCRIPTOR_V1_SIZE,
+                            CTEX_PICK_BATCH_CONTROL_DESCRIPTOR_CURRENT_SIZE, "control.size");
+    callbacks.control = control;
+    return {.memory_ceiling_bytes = control->memory_ceiling_bytes,
+            .progress_interval = control->progress_interval,
+            .user_data = &callbacks,
+            .is_cancelled = capi_batch_cancelled,
+            .report_progress = capi_batch_progress};
+}
+
+std::size_t capi_batch_texture_set_id_size(const ctex::pick::BatchPickResult& result) {
+    if (result.status != ctex::pick::BatchPickStatus::complete) {
+        return 0;
+    }
+    std::size_t required_size = 0;
+    for (const auto& hit : result.hits) {
+        if (!hit) {
+            continue;
+        }
+        if (hit->texture_set_id.size() + 1 >
+            std::numeric_limits<std::size_t>::max() - required_size) {
+            throw std::overflow_error("batch pick texture-set ID buffer size overflow");
+        }
+        required_size += hit->texture_set_id.size() + 1;
+    }
+    return required_size;
+}
+
+void set_capi_batch_info(ctex_pick_batch_info& info, const ctex::pick::BatchPickResult& result,
+                         std::size_t ray_count, std::size_t required_id_size) {
+    info = {
+        .size = CTEX_PICK_BATCH_INFO_CURRENT_SIZE,
+        .status = static_cast<std::uint32_t>(result.status),
+        .processed_rays = result.processed_rays,
+        .required_memory_bytes = result.required_memory_bytes,
+        .required_hit_count = ray_count,
+        .required_texture_set_id_size = required_id_size,
+        .visited_nodes = result.visited_nodes,
+        .tested_leaf_triangles = result.tested_leaf_triangles,
+    };
+}
+
+void require_complete_batch(const ctex::pick::BatchPickResult& result) {
+    if (result.status == ctex::pick::BatchPickStatus::cancelled) {
+        throw_boundary(CTEX_RESULT_CANCELLED, CTEX_DIAGNOSTIC_INVALID_PICK_QUERY,
+                       "batch pick was cancelled");
+    }
+    if (result.status == ctex::pick::BatchPickStatus::memory_ceiling_exceeded) {
+        throw_boundary(CTEX_RESULT_OVER_BUDGET, CTEX_DIAGNOSTIC_INVALID_PICK_QUERY,
+                       "batch pick memory ceiling was exceeded");
+    }
+}
+
+void copy_capi_batch_hits(const ctex::pick::BatchPickResult& result, ctex_pick_hit* hits,
+                          char* texture_set_ids) {
+    if (hits == nullptr && texture_set_ids == nullptr) {
+        return;
+    }
+    std::size_t offset = 0;
+    for (std::size_t index = 0; index < result.hits.size(); ++index) {
+        const auto& hit = result.hits[index];
+        if (!hit) {
+            if (hits != nullptr) {
+                hits[index] = {};
+            }
+            continue;
+        }
+        if (hits != nullptr) {
+            hits[index] = capi_pick_hit(*hit, offset);
+        }
+        if (texture_set_ids != nullptr) {
+            std::memcpy(texture_set_ids + offset, hit->texture_set_id.c_str(),
+                        hit->texture_set_id.size() + 1);
+        }
+        offset += hit->texture_set_id.size() + 1;
+    }
 }
 
 void validate_descriptor_size(const ctex_texture_set_descriptor& descriptor) {
@@ -2402,7 +2810,7 @@ CapiSurfaceMapLookup lookup_capi_surface_maps(ctex_paint_surface_map_cache& cach
         capi_surface_map_request(mesh, request);
     const ctex::mesh::MeshPartition& partition =
         mesh.state->partition_views[request.partition_index];
-    if (cache.mesh_revision == mesh.state->revision) {
+    if (cache.mesh_revision == mesh.state->mesh_binding().revision()) {
         const auto found = std::ranges::find_if(cache.entries, [&](const auto& entry) {
             return capi_surface_map_key_matches(entry, partition.kind, partition.stable_key,
                                                 request);
@@ -2414,13 +2822,13 @@ CapiSurfaceMapLookup lookup_capi_surface_maps(ctex_paint_surface_map_cache& cach
     }
 
     const ctex::mesh::MeshView mesh_view(mesh.state->descriptor());
-    const ctex::paint::CachedSurfaceMaps built =
-        ctex::paint::build_surface_maps(mesh_view, mesh.state->revision, converted_request);
+    const ctex::paint::CachedSurfaceMaps built = ctex::paint::build_surface_maps(
+        mesh_view, mesh.state->mesh_binding().revision(), converted_request);
     ctex_paint_surface_map_cache_entry prepared(&cache.memory_resource, partition.kind,
                                                 partition.stable_key, request, built);
     cache.entries.reserve(cache.entries.size() + 1);
 
-    if (cache.mesh_revision != 0 && cache.mesh_revision != mesh.state->revision) {
+    if (cache.mesh_revision != 0 && cache.mesh_revision != mesh.state->mesh_binding().revision()) {
         cache.invalidated_entries += cache.entries.size();
         cache.entries.clear();
     } else {
@@ -2434,7 +2842,7 @@ CapiSurfaceMapLookup lookup_capi_surface_maps(ctex_paint_surface_map_cache& cach
             }
         }
     }
-    cache.mesh_revision = mesh.state->revision;
+    cache.mesh_revision = mesh.state->mesh_binding().revision();
     cache.entries.push_back(std::move(prepared));
     ++cache.misses;
     return {.entry = &cache.entries.back(), .cache_hit = false};
@@ -2719,7 +3127,8 @@ ctex_mesh_state::ctex_mesh_state(const ctex_mesh_descriptor& source,
       partition_names(memory_resource),
       partition_views(memory_resource),
       face_partition_indices(memory_resource),
-      face_material_ids(memory_resource) {
+      face_material_ids(memory_resource),
+      binding(std::nullopt) {
     positions.reserve(source.position_count);
     std::transform(source.positions, source.positions + source.position_count,
                    std::back_inserter(positions), [](ctex_vec3f value) { return mesh_vec(value); });
@@ -2765,8 +3174,7 @@ ctex_mesh_state::ctex_mesh_state(const ctex_mesh_descriptor& source,
         source.face_partition_indices + source.face_partition_index_count);
     face_material_ids.assign(source.face_material_ids,
                              source.face_material_ids + source.face_material_id_count);
-    const ctex::mesh::MeshBinding validated(descriptor());
-    revision = validated.revision();
+    binding.emplace(descriptor(), memory_resource);
 }
 
 ctex::mesh::MeshDescriptor ctex_mesh_state::descriptor() const noexcept {
@@ -3836,8 +4244,8 @@ extern "C" ctex_result ctex_paint_surface_map_cache_lookup(
                                 CTEX_PAINT_SURFACE_MAP_INFO_CURRENT_SIZE, "out_info.size");
         try {
             const CapiSurfaceMapLookup lookup = lookup_capi_surface_maps(*cache, *mesh, *request);
-            const ctex_paint_surface_map_info info =
-                capi_surface_map_info(*lookup.entry, lookup.cache_hit, mesh->state->revision);
+            const ctex_paint_surface_map_info info = capi_surface_map_info(
+                *lookup.entry, lookup.cache_hit, mesh->state->mesh_binding().revision());
             *out_info = info;
             if (buffers != nullptr) {
                 validate_capi_surface_map_buffers(*buffers, info);
@@ -4056,7 +4464,7 @@ extern "C" ctex_result ctex_mesh_get_info(const ctex_mesh* mesh, ctex_mesh_info*
             .uv_set_count = descriptor.uv_sets.size(),
             .partition_count = descriptor.partitions.size(),
             .has_vertex_colors = descriptor.vertex_colors.empty() ? 0U : 1U,
-            .revision = mesh->state->revision,
+            .revision = mesh->state->mesh_binding().revision(),
         };
     });
 }
@@ -4089,6 +4497,270 @@ extern "C" ctex_result ctex_mesh_get_uv_set_names(const ctex_mesh* mesh, char* b
                 offset += name.size() + 1;
             }
         }
+    });
+}
+
+extern "C" ctex_result ctex_pick_index_create(ctex_mesh* mesh, ctex_pick_index** out_index) {
+    return call_pick_boundary("ctex_pick_index_create", [&] {
+        if (mesh == nullptr || out_index == nullptr) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                           mesh == nullptr ? "mesh=null" : "out_index=null");
+        }
+        *out_index = nullptr;
+        *out_index = create_pick_index(current_allocator(), mesh);
+    });
+}
+
+extern "C" void ctex_pick_index_destroy(ctex_pick_index* index) {
+    if (index == nullptr) {
+        return;
+    }
+    const ctex_allocator_state allocator = index->allocator;
+    index->~ctex_pick_index();
+    deallocate_storage(allocator, index, sizeof(ctex_pick_index), alignof(ctex_pick_index));
+}
+
+extern "C" ctex_result ctex_pick_index_get_info(const ctex_pick_index* index,
+                                                ctex_pick_index_info* out_info) {
+    return call_pick_boundary("ctex_pick_index_get_info", [&] {
+        if (index == nullptr || out_info == nullptr) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                           index == nullptr ? "index=null" : "out_info=null");
+        }
+        set_pick_index_info(index->value, *out_info);
+    });
+}
+
+extern "C" ctex_result ctex_uv_pick_index_create(ctex_mesh* mesh, const char* uv_set,
+                                                 ctex_uv_pick_index** out_index) {
+    return call_pick_boundary("ctex_uv_pick_index_create", [&] {
+        if (mesh == nullptr || uv_set == nullptr || out_index == nullptr) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                           "mesh, uv_set, and out_index are required");
+        }
+        *out_index = nullptr;
+        *out_index = create_uv_pick_index(current_allocator(), mesh, uv_set);
+    });
+}
+
+extern "C" void ctex_uv_pick_index_destroy(ctex_uv_pick_index* index) {
+    if (index == nullptr) {
+        return;
+    }
+    const ctex_allocator_state allocator = index->allocator;
+    index->~ctex_uv_pick_index();
+    deallocate_storage(allocator, index, sizeof(ctex_uv_pick_index), alignof(ctex_uv_pick_index));
+}
+
+extern "C" ctex_result ctex_uv_pick_index_get_info(const ctex_uv_pick_index* index,
+                                                   ctex_pick_index_info* out_info) {
+    return call_pick_boundary("ctex_uv_pick_index_get_info", [&] {
+        if (index == nullptr || out_info == nullptr) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                           index == nullptr ? "index=null" : "out_info=null");
+        }
+        set_pick_index_info(index->value, *out_info);
+    });
+}
+
+extern "C" ctex_result ctex_pick_ray_from_screen(ctex_vec2f position,
+                                                 const ctex_pick_screen_view_descriptor* view,
+                                                 std::uint32_t projection_kind,
+                                                 ctex_pick_ray* out_ray) {
+    return call_pick_boundary("ctex_pick_ray_from_screen", [&] {
+        if (view == nullptr || out_ray == nullptr) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                           view == nullptr ? "view=null" : "out_ray=null");
+        }
+        const ctex::pick::ScreenRegionView converted = pick_screen_view(*view);
+        *out_ray = capi_pick_ray(ctex::pick::ray_from_screen(
+            {position.x, position.y}, converted.viewport, converted.view, converted.projection,
+            pick_projection_kind(projection_kind)));
+    });
+}
+
+extern "C" ctex_result ctex_pick_ray_query(
+    ctex_pick_index* index, ctex_pick_ray ray, const ctex_pick_options_descriptor* options,
+    const ctex_pick_texture_set_binding_descriptor* texture_sets, std::size_t texture_set_count,
+    ctex_pick_hit* hits, std::size_t hit_capacity, char* texture_set_ids,
+    std::size_t texture_set_id_buffer_size, ctex_pick_query_info* out_info) {
+    return call_pick_boundary("ctex_pick_ray_query", [&] {
+        if (index == nullptr || options == nullptr || out_info == nullptr) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                           "index, options, and out_info are required");
+        }
+        const auto bindings = pick_bindings(texture_sets, texture_set_count);
+        ctex::pick::PickQueryCost cost;
+        const auto result =
+            ctex::pick::pick_ray(index->value, index->mesh->state->mesh_binding(),
+                                 capi_pick_ray(ray), pick_options(*options), bindings, &cost);
+        const std::size_t required_ids = pick_texture_set_id_size(std::span(result));
+        set_pick_query_info(*out_info, result.size(), required_ids, cost,
+                            index->value.build_count(), index->value.mesh_revision());
+        validate_pick_output_buffers(hits, hit_capacity, result.size(), texture_set_ids,
+                                     texture_set_id_buffer_size, required_ids);
+        copy_pick_hits(std::span(result), hits, texture_set_ids);
+    });
+}
+
+extern "C" ctex_result ctex_pick_uv_query(
+    ctex_uv_pick_index* index, ctex_vec2f coordinate,
+    const ctex_pick_texture_set_binding_descriptor* texture_set, ctex_pick_hit* hit,
+    char* texture_set_id, std::size_t texture_set_id_buffer_size, ctex_pick_query_info* out_info) {
+    return call_pick_boundary("ctex_pick_uv_query", [&] {
+        if (index == nullptr || texture_set == nullptr || out_info == nullptr) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                           "index, texture_set, and out_info are required");
+        }
+        ctex::pick::PickQueryCost cost;
+        const auto result =
+            ctex::pick::pick_uv(index->value, index->mesh->state->mesh_binding(),
+                                mesh_vec(coordinate), pick_binding(*texture_set), &cost);
+        std::vector<ctex::pick::UvHitRecord> hits;
+        if (result) {
+            hits.push_back(*result);
+        }
+        const std::size_t required_ids =
+            pick_texture_set_id_size(std::span<const ctex::pick::UvHitRecord>(hits));
+        set_pick_query_info(*out_info, hits.size(), required_ids, cost, index->value.build_count(),
+                            index->value.mesh_revision());
+        validate_pick_output_buffers(hit, hit == nullptr ? 0 : 1, hits.size(), texture_set_id,
+                                     texture_set_id_buffer_size, required_ids);
+        if (hits.empty() && hit != nullptr) {
+            *hit = {};
+        }
+        copy_pick_hits(std::span<const ctex::pick::UvHitRecord>(hits), hit, texture_set_id);
+    });
+}
+
+extern "C" ctex_result ctex_pick_snap_to_surface(
+    ctex_pick_index* index, ctex_vec3f point, float maximum_distance,
+    const ctex_pick_texture_set_binding_descriptor* texture_sets, std::size_t texture_set_count,
+    ctex_pick_hit* hit, char* texture_set_id, std::size_t texture_set_id_buffer_size,
+    ctex_pick_query_info* out_info) {
+    return call_pick_boundary("ctex_pick_snap_to_surface", [&] {
+        if (index == nullptr || out_info == nullptr) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                           index == nullptr ? "index=null" : "out_info=null");
+        }
+        const auto bindings = pick_bindings(texture_sets, texture_set_count);
+        ctex::pick::PickQueryCost cost;
+        const auto result =
+            ctex::pick::snap_to_surface(index->value, index->mesh->state->mesh_binding(),
+                                        mesh_vec(point), maximum_distance, bindings, &cost);
+        std::vector<ctex::pick::HitRecord> hits;
+        if (result) {
+            hits.push_back(*result);
+        }
+        const std::size_t required_ids =
+            pick_texture_set_id_size(std::span<const ctex::pick::HitRecord>(hits));
+        set_pick_query_info(*out_info, hits.size(), required_ids, cost, index->value.build_count(),
+                            index->value.mesh_revision());
+        validate_pick_output_buffers(hit, hit == nullptr ? 0 : 1, hits.size(), texture_set_id,
+                                     texture_set_id_buffer_size, required_ids);
+        if (hits.empty() && hit != nullptr) {
+            *hit = {};
+        }
+        copy_pick_hits(std::span<const ctex::pick::HitRecord>(hits), hit, texture_set_id);
+    });
+}
+
+extern "C" ctex_result ctex_pick_query_screen_rectangle(
+    ctex_pick_index* index, ctex_vec2f minimum, ctex_vec2f maximum,
+    const ctex_pick_screen_view_descriptor* view, std::uint32_t* triangle_indices,
+    std::size_t triangle_capacity, ctex_pick_query_info* out_info) {
+    return call_pick_boundary("ctex_pick_query_screen_rectangle", [&] {
+        if (index == nullptr || view == nullptr || out_info == nullptr) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                           "index, view, and out_info are required");
+        }
+        const auto result = ctex::pick::query_screen_rectangle(
+            index->value, index->mesh->state->mesh_binding(),
+            {{minimum.x, minimum.y}, {maximum.x, maximum.y}}, pick_screen_view(*view));
+        copy_region_result(result, *index, triangle_indices, triangle_capacity, *out_info);
+    });
+}
+
+extern "C" ctex_result ctex_pick_query_screen_lasso(
+    ctex_pick_index* index, const ctex_vec2f* points, std::size_t point_count,
+    const ctex_pick_screen_view_descriptor* view, std::uint32_t* triangle_indices,
+    std::size_t triangle_capacity, ctex_pick_query_info* out_info) {
+    return call_pick_boundary("ctex_pick_query_screen_lasso", [&] {
+        if (index == nullptr || view == nullptr || out_info == nullptr ||
+            (points == nullptr && point_count != 0)) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                           "index, points, view, and out_info are required");
+        }
+        std::vector<ctex::pick::ScreenPosition> converted;
+        converted.reserve(point_count);
+        for (std::size_t point = 0; point < point_count; ++point) {
+            converted.push_back({points[point].x, points[point].y});
+        }
+        const auto result = ctex::pick::query_screen_lasso(
+            index->value, index->mesh->state->mesh_binding(), converted, pick_screen_view(*view));
+        copy_region_result(result, *index, triangle_indices, triangle_capacity, *out_info);
+    });
+}
+
+extern "C" ctex_result ctex_pick_query_world_sphere(ctex_pick_index* index, ctex_vec3f center,
+                                                    float radius, std::uint32_t* triangle_indices,
+                                                    std::size_t triangle_capacity,
+                                                    ctex_pick_query_info* out_info) {
+    return call_pick_boundary("ctex_pick_query_world_sphere", [&] {
+        if (index == nullptr || out_info == nullptr) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                           index == nullptr ? "index=null" : "out_info=null");
+        }
+        const auto result = ctex::pick::query_world_sphere(
+            index->value, index->mesh->state->mesh_binding(), {mesh_vec(center), radius});
+        copy_region_result(result, *index, triangle_indices, triangle_capacity, *out_info);
+    });
+}
+
+extern "C" ctex_result ctex_pick_query_world_box(ctex_pick_index* index, ctex_vec3f minimum,
+                                                 ctex_vec3f maximum,
+                                                 std::uint32_t* triangle_indices,
+                                                 std::size_t triangle_capacity,
+                                                 ctex_pick_query_info* out_info) {
+    return call_pick_boundary("ctex_pick_query_world_box", [&] {
+        if (index == nullptr || out_info == nullptr) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                           index == nullptr ? "index=null" : "out_info=null");
+        }
+        const auto result =
+            ctex::pick::query_world_box(index->value, index->mesh->state->mesh_binding(),
+                                        {mesh_vec(minimum), mesh_vec(maximum)});
+        copy_region_result(result, *index, triangle_indices, triangle_capacity, *out_info);
+    });
+}
+
+extern "C" ctex_result ctex_pick_nearest_batch(
+    ctex_pick_index* index, const ctex_pick_ray* rays, std::size_t ray_count,
+    float maximum_distance, std::uint32_t backface_policy,
+    const ctex_pick_texture_set_binding_descriptor* texture_sets, std::size_t texture_set_count,
+    const ctex_pick_batch_control_descriptor* control, ctex_pick_hit* hits,
+    std::size_t hit_capacity, char* texture_set_ids, std::size_t texture_set_id_buffer_size,
+    ctex_pick_batch_info* out_info) {
+    return call_pick_boundary("ctex_pick_nearest_batch", [&] {
+        if (index == nullptr || out_info == nullptr || (rays == nullptr && ray_count != 0)) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                           "index, rays, and out_info are required");
+        }
+        validate_structure_size(out_info->size, CTEX_PICK_BATCH_INFO_V1_SIZE,
+                                CTEX_PICK_BATCH_INFO_CURRENT_SIZE, "out_info.size");
+        const auto bindings = pick_bindings(texture_sets, texture_set_count);
+        const auto converted_rays = capi_batch_rays(rays, ray_count);
+        CapiBatchCallbacks callbacks{control};
+        const auto converted_control = capi_batch_control(control, callbacks);
+        const auto result = ctex::pick::pick_nearest_batch(
+            index->value, index->mesh->state->mesh_binding(), converted_rays, maximum_distance,
+            bindings, converted_control, pick_backface_policy(backface_policy));
+        const std::size_t required_ids = capi_batch_texture_set_id_size(result);
+        set_capi_batch_info(*out_info, result, ray_count, required_ids);
+        require_complete_batch(result);
+        validate_pick_output_buffers(hits, hit_capacity, ray_count, texture_set_ids,
+                                     texture_set_id_buffer_size, required_ids);
+        copy_capi_batch_hits(result, hits, texture_set_ids);
     });
 }
 

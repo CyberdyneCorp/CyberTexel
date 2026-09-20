@@ -43,7 +43,7 @@ bool is_identifier_map(MeshMapKind kind) {
 
 void validate_tangent_frame(const mesh::TangentFrameDescriptor& frame, std::string_view uv_set) {
     static_cast<void>(mesh::tangent_basis_algorithm_name(frame.algorithm));
-    if (frame.algorithm_version == 0 || frame.uv_set != uv_set) {
+    if (frame.algorithm_version == 0 || std::string_view(frame.uv_set) != uv_set) {
         throw std::invalid_argument("tangent frame requires a version and the texture-set UV set");
     }
     if (frame.normal_orientation != mesh::NormalOrientation::vertex_normals &&
@@ -344,7 +344,8 @@ MeshMapSet::MeshMapSet(const doc::TextureSet& texture_set, mesh::MeshRevision me
 
 MeshMapSet::MeshMapSet(const doc::TextureSet& texture_set, const mesh::MeshBinding& mesh)
     : MeshMapSet(texture_set, mesh.revision(),
-                 mesh.view().tangent_frames().descriptor.uv_set == texture_set.descriptor().uv_set
+                 std::string_view(mesh.view().tangent_frames().descriptor.uv_set) ==
+                         texture_set.descriptor().uv_set
                      ? std::optional(mesh.view().tangent_frames().descriptor)
                      : std::nullopt) {}
 
@@ -446,7 +447,8 @@ std::vector<MeshMapStaleness> MeshMapSet::synchronize_mesh_revision(mesh::MeshRe
 
 std::vector<MeshMapStaleness> MeshMapSet::synchronize_mesh_revision(const mesh::MeshBinding& mesh) {
     const mesh::TangentFrameDescriptor frame = mesh.view().tangent_frames().descriptor;
-    tangent_frame_ = frame.uv_set == uv_set_ ? std::optional(std::move(frame)) : std::nullopt;
+    tangent_frame_ =
+        std::string_view(frame.uv_set) == uv_set_ ? std::optional(std::move(frame)) : std::nullopt;
     return synchronize_mesh_revision(mesh.revision());
 }
 

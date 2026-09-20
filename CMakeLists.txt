@@ -356,6 +356,10 @@ if(BUILD_TESTING)
         ctex_configure_c_target(ctex_capi_mesh_test)
         target_link_libraries(ctex_capi_mesh_test PRIVATE cybertexel_c)
         add_test(NAME c-abi-mesh-ingest COMMAND ctex_capi_mesh_test)
+        add_executable(ctex_capi_picking_test tests/capi/picking_test.c)
+        ctex_configure_c_target(ctex_capi_picking_test)
+        target_link_libraries(ctex_capi_picking_test PRIVATE cybertexel_c)
+        add_test(NAME c-abi-picking COMMAND ctex_capi_picking_test)
         add_executable(ctex_capi_image_io_test tests/capi/image_io_test.c)
         ctex_configure_c_target(ctex_capi_image_io_test)
         target_link_libraries(ctex_capi_image_io_test PRIVATE cybertexel_c)
@@ -883,6 +887,7 @@ if(BUILD_TESTING)
     add_test(NAME picking-batch COMMAND ctex_batch_pick_test)
 
     set_tests_properties(
+        c-abi-picking
         picking-spatial-index
         picking-ray-construction
         picking-hit-record

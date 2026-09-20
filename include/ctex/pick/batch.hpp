@@ -37,6 +37,8 @@ struct BatchPickResult {
     std::size_t processed_rays;
     // Conservative logical heap payload required before processing starts.
     std::size_t required_memory_bytes;
+    std::size_t visited_nodes;
+    std::size_t tested_leaf_triangles;
 };
 
 [[nodiscard]] BatchPickResult pick_nearest_batch(

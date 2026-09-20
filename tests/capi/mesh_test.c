@@ -71,6 +71,8 @@ int main(void) {
     ctex_allocator_descriptor allocator = {CTEX_ALLOCATOR_DESCRIPTOR_CURRENT_SIZE, count_allocate,
                                            count_deallocate, &counts};
     ctex_mesh* mesh = NULL;
+    ctex_pick_index* pick_index = NULL;
+    ctex_uv_pick_index* uv_pick_index = NULL;
     ctex_document* document = NULL;
     ctex_mesh_info initial = {.size = CTEX_MESH_INFO_CURRENT_SIZE};
     ctex_mesh_info replaced = {.size = CTEX_MESH_INFO_CURRENT_SIZE};
@@ -84,6 +86,10 @@ int main(void) {
 
     if (!expect(ctex_set_allocator(&allocator) == CTEX_RESULT_SUCCESS) ||
         !expect(ctex_mesh_create(&descriptor, &mesh) == CTEX_RESULT_SUCCESS && mesh != NULL) ||
+        !expect(ctex_pick_index_create(mesh, &pick_index) == CTEX_RESULT_SUCCESS &&
+                pick_index != NULL) ||
+        !expect(ctex_uv_pick_index_create(mesh, "uv0", &uv_pick_index) == CTEX_RESULT_SUCCESS &&
+                uv_pick_index != NULL) ||
         !expect(ctex_document_create(&document) == CTEX_RESULT_SUCCESS && document != NULL) ||
         !expect(memcmp(positions, positions_before, sizeof(positions)) == 0) ||
         !expect(ctex_mesh_get_info(mesh, &initial) == CTEX_RESULT_SUCCESS) ||
@@ -148,6 +154,8 @@ int main(void) {
         return 7;
     }
     ctex_document_destroy(document);
+    ctex_uv_pick_index_destroy(uv_pick_index);
+    ctex_pick_index_destroy(pick_index);
     ctex_mesh_destroy(mesh);
     if (!expect(counts.allocations > 1 && counts.allocations == counts.deallocations)) {
         return 8;

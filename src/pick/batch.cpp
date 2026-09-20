@@ -143,33 +143,40 @@ BatchPickResult pick_nearest_batch(SpatialIndex& index, const mesh::MeshBinding&
     const MemoryBound memory =
         batch_memory_bound(rays.size(), mesh.view().triangle_count(), maximum_id_size);
     if (memory.overflowed || memory.bytes > control.memory_ceiling_bytes) {
-        return {BatchPickStatus::memory_ceiling_exceeded, {}, 0, memory.bytes};
+        return {BatchPickStatus::memory_ceiling_exceeded, {}, 0, memory.bytes, 0, 0};
     }
     if (cancelled(control)) {
         report_progress(control, 0, rays.size());
-        return {BatchPickStatus::cancelled, {}, 0, memory.bytes};
+        return {BatchPickStatus::cancelled, {}, 0, memory.bytes, 0, 0};
     }
 
     std::vector<std::optional<HitRecord>> hits(rays.size());
     std::size_t completed = 0;
     std::size_t last_reported = 0;
+    std::size_t visited_nodes = 0;
+    std::size_t tested_leaf_triangles = 0;
     report_progress(control, 0, rays.size());
     for (std::size_t index_in_batch = 0; index_in_batch < rays.size(); ++index_in_batch) {
         if (cancelled(control)) {
             if (last_reported != completed) {
                 report_progress(control, completed, rays.size());
             }
-            return {BatchPickStatus::cancelled, {}, completed, memory.bytes};
+            return {BatchPickStatus::cancelled, {}, completed, memory.bytes, visited_nodes,
+                    tested_leaf_triangles};
         }
+        PickQueryCost cost;
         hits[index_in_batch] = pick_nearest(index, mesh, rays[index_in_batch], maximum_distance,
-                                            texture_sets, backfaces);
+                                            texture_sets, backfaces, &cost);
+        visited_nodes += cost.visited_nodes;
+        tested_leaf_triangles += cost.tested_leaf_triangles;
         completed = index_in_batch + 1;
         if (completed % control.progress_interval == 0 || completed == rays.size()) {
             report_progress(control, completed, rays.size());
             last_reported = completed;
         }
     }
-    return {BatchPickStatus::complete, std::move(hits), completed, memory.bytes};
+    return {BatchPickStatus::complete, std::move(hits), completed, memory.bytes, visited_nodes,
+            tested_leaf_triangles};
 }
 
 }  // namespace ctex::pick

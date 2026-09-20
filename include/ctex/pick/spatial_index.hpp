@@ -5,6 +5,7 @@
 #include <cstdint>
 #include <ctex/mesh/mesh.hpp>
 #include <ctex/pick/ray.hpp>
+#include <memory_resource>
 #include <span>
 #include <vector>
 
@@ -48,7 +49,9 @@ struct TriangleBuildData {
 
 class SpatialIndex {
 public:
-    explicit SpatialIndex(const mesh::MeshBinding& mesh);
+    explicit SpatialIndex(
+        const mesh::MeshBinding& mesh,
+        std::pmr::memory_resource* memory_resource = std::pmr::get_default_resource());
 
     // Returns true only when a changed mesh revision caused a rebuild.
     bool synchronize(const mesh::MeshBinding& mesh);
@@ -73,8 +76,8 @@ private:
     std::uint32_t build_node(std::uint32_t first, std::uint32_t count,
                              const std::vector<detail::TriangleBuildData>& triangles);
 
-    std::vector<detail::SpatialNode> nodes_;
-    std::vector<std::uint32_t> triangle_order_;
+    std::pmr::vector<detail::SpatialNode> nodes_;
+    std::pmr::vector<std::uint32_t> triangle_order_;
     mesh::MeshRevision mesh_revision_{};
     std::size_t build_count_{};
 };

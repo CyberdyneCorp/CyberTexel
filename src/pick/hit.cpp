@@ -439,9 +439,13 @@ UvHitRecord make_uv_hit_record(const mesh::MeshBinding& mesh, std::uint32_t tria
 
 std::vector<HitRecord> pick_ray(SpatialIndex& index, const mesh::MeshBinding& mesh, Ray ray,
                                 RayPickOptions options,
-                                std::span<const TextureSetBindingView> texture_sets) {
+                                std::span<const TextureSetBindingView> texture_sets,
+                                PickQueryCost* cost) {
     ray = normalized_ray(ray);
     const auto broad_phase = index.query_ray_candidates(mesh, ray, options.maximum_distance);
+    if (cost != nullptr) {
+        *cost = {broad_phase.visited_nodes, broad_phase.tested_leaf_triangles};
+    }
     const auto& descriptor = mesh.view().descriptor();
     const auto exact = exact_candidates(broad_phase, descriptor, ray, options);
     std::vector<HitRecord> result;
@@ -463,12 +467,12 @@ std::vector<HitRecord> pick_ray(SpatialIndex& index, const mesh::MeshBinding& me
 std::optional<HitRecord> pick_nearest(SpatialIndex& index, const mesh::MeshBinding& mesh, Ray ray,
                                       float maximum_distance,
                                       std::span<const TextureSetBindingView> texture_sets,
-                                      BackfacePolicy backfaces) {
+                                      BackfacePolicy backfaces, PickQueryCost* cost) {
     auto hits = pick_ray(index, mesh, ray,
                          {.maximum_distance = maximum_distance,
                           .occlusion = OcclusionPolicy::nearest,
                           .backfaces = backfaces},
-                         texture_sets);
+                         texture_sets, cost);
     if (hits.empty()) {
         return std::nullopt;
     }
@@ -476,7 +480,8 @@ std::optional<HitRecord> pick_nearest(SpatialIndex& index, const mesh::MeshBindi
 }
 
 std::optional<UvHitRecord> pick_uv(UvSpatialIndex& index, const mesh::MeshBinding& mesh,
-                                   mesh::Vec2f coordinate, TextureSetBindingView texture_set) {
+                                   mesh::Vec2f coordinate, TextureSetBindingView texture_set,
+                                   PickQueryCost* cost) {
     const auto& descriptor = mesh.view().descriptor();
     if (texture_set.partition_index >= descriptor.partitions.size()) {
         throw std::invalid_argument("UV pick texture-set partition is not present in the mesh");
@@ -486,6 +491,9 @@ std::optional<UvHitRecord> pick_uv(UvSpatialIndex& index, const mesh::MeshBindin
     }
     const auto& uv = mesh.view().uv_set(texture_set.uv_set).values;
     const auto candidates = index.query_candidates(mesh, coordinate);
+    if (cost != nullptr) {
+        *cost = {candidates.visited_nodes, candidates.tested_leaf_triangles};
+    }
     std::optional<Vec3d> selected_barycentric;
     std::uint32_t selected_triangle = 0;
     for (std::uint32_t triangle : candidates.triangle_indices) {
@@ -510,8 +518,12 @@ std::optional<UvHitRecord> pick_uv(UvSpatialIndex& index, const mesh::MeshBindin
 
 std::optional<HitRecord> snap_to_surface(SpatialIndex& index, const mesh::MeshBinding& mesh,
                                          mesh::Vec3f point, float maximum_distance,
-                                         std::span<const TextureSetBindingView> texture_sets) {
+                                         std::span<const TextureSetBindingView> texture_sets,
+                                         PickQueryCost* cost) {
     const auto broad_phase = index.query_point_candidates(mesh, point, maximum_distance);
+    if (cost != nullptr) {
+        *cost = {broad_phase.visited_nodes, broad_phase.tested_leaf_triangles};
+    }
     const auto& descriptor = mesh.view().descriptor();
     const Vec3d point_d = as_double(point);
     const double limit_squared = static_cast<double>(maximum_distance) * maximum_distance;

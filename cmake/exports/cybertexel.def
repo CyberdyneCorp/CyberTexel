@@ -26,6 +26,21 @@ EXPORTS
     ctex_mesh_get_info
     ctex_mesh_get_uv_set_names
     ctex_mesh_replace
+    ctex_pick_index_create
+    ctex_pick_index_destroy
+    ctex_pick_index_get_info
+    ctex_pick_nearest_batch
+    ctex_pick_query_screen_lasso
+    ctex_pick_query_screen_rectangle
+    ctex_pick_query_world_box
+    ctex_pick_query_world_sphere
+    ctex_pick_ray_from_screen
+    ctex_pick_ray_query
+    ctex_pick_snap_to_surface
+    ctex_pick_uv_query
+    ctex_uv_pick_index_create
+    ctex_uv_pick_index_destroy
+    ctex_uv_pick_index_get_info
     ctex_paint_blend_snapshot
     ctex_paint_combine_masks
     ctex_paint_dilate_uv_seams

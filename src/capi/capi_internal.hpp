@@ -7,6 +7,7 @@
 #include <ctex/image/cube_lut.hpp>
 #include <ctex/mesh/mesh.hpp>
 #include <memory_resource>
+#include <optional>
 
 struct ctex_allocator_state {
     ctex_allocate_callback allocate{};
@@ -59,9 +60,10 @@ struct ctex_mesh_state {
     std::pmr::vector<ctex::mesh::MeshPartition> partition_views;
     std::pmr::vector<std::uint32_t> face_partition_indices;
     std::pmr::vector<std::uint32_t> face_material_ids;
-    std::uint64_t revision{};
+    std::optional<ctex::mesh::MeshBinding> binding;
 
     [[nodiscard]] ctex::mesh::MeshDescriptor descriptor() const noexcept;
+    [[nodiscard]] const ctex::mesh::MeshBinding& mesh_binding() const noexcept { return *binding; }
 };
 
 struct ctex_mesh {

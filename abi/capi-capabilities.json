@@ -82,7 +82,21 @@
       {"requirement": "Masking inputs", "symbols": ["ctex_paint_combine_masks", "ctex_paint_evaluate_tile_deposition"]}
     ]},
     {"name": "paint-tools", "kind": "runtime", "requirements": []},
-    {"name": "picking", "kind": "runtime", "requirements": []},
+    {"name": "picking", "kind": "runtime", "requirements": [
+      {"requirement": "Ray construction", "symbols": ["ctex_pick_ray_from_screen"]},
+      {"requirement": "Hit record", "symbols": ["ctex_pick_ray_query", "ctex_pick_uv_query", "ctex_pick_snap_to_surface"]},
+      {"requirement": "Miss is a distinct outcome", "symbols": ["ctex_pick_ray_query", "ctex_pick_uv_query", "ctex_pick_snap_to_surface"]},
+      {"requirement": "Occlusion policy", "symbols": ["ctex_pick_ray_query"]},
+      {"requirement": "Backface policy", "symbols": ["ctex_pick_ray_query", "ctex_pick_nearest_batch"]},
+      {"requirement": "UV-space picking", "symbols": ["ctex_uv_pick_index_create", "ctex_pick_uv_query"]},
+      {"requirement": "Surface snapping", "symbols": ["ctex_pick_snap_to_surface"]},
+      {"requirement": "Region queries", "symbols": ["ctex_pick_query_screen_rectangle", "ctex_pick_query_screen_lasso", "ctex_pick_query_world_sphere", "ctex_pick_query_world_box"]},
+      {"requirement": "Acceleration structure", "symbols": ["ctex_pick_index_create", "ctex_pick_index_destroy", "ctex_pick_index_get_info", "ctex_uv_pick_index_create", "ctex_uv_pick_index_destroy", "ctex_uv_pick_index_get_info"]},
+      {"requirement": "Determinism at shared boundaries", "symbols": ["ctex_pick_ray_query", "ctex_pick_uv_query"]},
+      {"requirement": "Picking runs without a GPU", "symbols": ["ctex_pick_ray_query", "ctex_pick_uv_query", "ctex_pick_snap_to_surface", "ctex_pick_query_screen_rectangle", "ctex_pick_query_screen_lasso", "ctex_pick_query_world_sphere", "ctex_pick_query_world_box"]},
+      {"requirement": "Batched picking", "symbols": ["ctex_pick_nearest_batch"]},
+      {"requirement": "Picking is bounded and reports its cost", "symbols": ["ctex_pick_nearest_batch", "ctex_pick_index_get_info"]}
+    ]},
     {"name": "project-io", "kind": "runtime", "requirements": []},
     {"name": "resource-residency", "kind": "runtime", "requirements": []},
     {"name": "shader-emission", "kind": "runtime", "requirements": []},

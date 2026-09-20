@@ -3,6 +3,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <memory_resource>
 #include <optional>
 #include <span>
 #include <string>
@@ -60,7 +61,7 @@ struct TangentFrameDescriptor {
     CoordinateSystemHandedness coordinate_handedness{CoordinateSystemHandedness::right_handed};
     UvVAxis uv_v_axis{UvVAxis::upward};
     TangentHandednessEncoding handedness_encoding{TangentHandednessEncoding::tangent_w_sign};
-    std::string uv_set;
+    std::pmr::string uv_set;
 
     friend bool operator==(const TangentFrameDescriptor&, const TangentFrameDescriptor&) = default;
 };
@@ -110,7 +111,8 @@ struct MeshAttributeDescription {
 
 class MeshView {
 public:
-    explicit MeshView(MeshDescriptor descriptor);
+    explicit MeshView(MeshDescriptor descriptor, std::pmr::memory_resource* memory_resource =
+                                                     std::pmr::get_default_resource());
 
     [[nodiscard]] const MeshDescriptor& descriptor() const noexcept { return descriptor_; }
     [[nodiscard]] MeshAttributeDescription attributes() const noexcept;
@@ -123,20 +125,22 @@ private:
     MeshDescriptor descriptor_;
     TangentFrameDescriptor tangent_frame_descriptor_;
     TangentFrameSource tangent_frame_source_{};
-    std::vector<Vec4f> corner_tangents_;
+    std::pmr::vector<Vec4f> corner_tangents_;
 };
 
 using MeshRevision = std::uint64_t;
 
 class MeshBinding {
 public:
-    explicit MeshBinding(MeshDescriptor descriptor);
+    explicit MeshBinding(MeshDescriptor descriptor, std::pmr::memory_resource* memory_resource =
+                                                        std::pmr::get_default_resource());
 
     void replace(MeshDescriptor descriptor);
     [[nodiscard]] const MeshView& view() const noexcept { return view_; }
     [[nodiscard]] MeshRevision revision() const noexcept { return revision_; }
 
 private:
+    std::pmr::memory_resource* memory_resource_;
     MeshView view_;
     MeshRevision revision_;
 };

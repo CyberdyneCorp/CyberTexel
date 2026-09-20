@@ -60,23 +60,30 @@ struct RayPickOptions {
     BackfacePolicy backfaces{BackfacePolicy::accept};
 };
 
+struct PickQueryCost {
+    std::size_t visited_nodes{};
+    std::size_t tested_leaf_triangles{};
+};
+
 [[nodiscard]] std::vector<HitRecord> pick_ray(SpatialIndex& index, const mesh::MeshBinding& mesh,
                                               Ray ray, RayPickOptions options,
-                                              std::span<const TextureSetBindingView> texture_sets);
+                                              std::span<const TextureSetBindingView> texture_sets,
+                                              PickQueryCost* cost = nullptr);
 
 [[nodiscard]] std::optional<HitRecord> pick_nearest(
     SpatialIndex& index, const mesh::MeshBinding& mesh, Ray ray, float maximum_distance,
     std::span<const TextureSetBindingView> texture_sets,
-    BackfacePolicy backfaces = BackfacePolicy::accept);
+    BackfacePolicy backfaces = BackfacePolicy::accept, PickQueryCost* cost = nullptr);
 
 [[nodiscard]] std::optional<UvHitRecord> pick_uv(UvSpatialIndex& index,
                                                  const mesh::MeshBinding& mesh,
                                                  mesh::Vec2f coordinate,
-                                                 TextureSetBindingView texture_set);
+                                                 TextureSetBindingView texture_set,
+                                                 PickQueryCost* cost = nullptr);
 
 [[nodiscard]] std::optional<HitRecord> snap_to_surface(
     SpatialIndex& index, const mesh::MeshBinding& mesh, mesh::Vec3f point, float maximum_distance,
-    std::span<const TextureSetBindingView> texture_sets);
+    std::span<const TextureSetBindingView> texture_sets, PickQueryCost* cost = nullptr);
 
 }  // namespace ctex::pick
 

@@ -90,7 +90,8 @@ void validate_tangent_frame_descriptor(const TangentFrameDescriptor& frame,
         descriptor.uv_sets,
         [&](const UvSetView& candidate) { return candidate.name == frame.uv_set; });
     if (!has_uv_set) {
-        throw std::invalid_argument("tangent frame names a missing UV set: " + frame.uv_set);
+        throw std::invalid_argument("tangent frame names a missing UV set: " +
+                                    std::string(frame.uv_set));
     }
 }
 
@@ -135,10 +136,11 @@ Vec4f generated_corner_tangent(Vec3f raw_tangent, Vec3f raw_bitangent, Vec3f sou
     return {tangent.x, tangent.y, tangent.z, handedness};
 }
 
-std::vector<Vec4f> generate_tangents(const MeshDescriptor& descriptor,
-                                     const TangentFrameDescriptor& frame) {
+std::pmr::vector<Vec4f> generate_tangents(const MeshDescriptor& descriptor,
+                                          const TangentFrameDescriptor& frame,
+                                          std::pmr::memory_resource* memory_resource) {
     const UvSetView& uv_set = find_uv_set(descriptor, frame.uv_set);
-    std::vector<Vec4f> result(descriptor.triangle_indices.size());
+    std::pmr::vector<Vec4f> result(descriptor.triangle_indices.size(), memory_resource);
     for (std::size_t triangle = 0; triangle < descriptor.triangle_indices.size(); triangle += 3) {
         const std::uint32_t i0 = descriptor.triangle_indices[triangle];
         const std::uint32_t i1 = descriptor.triangle_indices[triangle + 1];
@@ -320,7 +322,10 @@ Vec3f tangent_space_to_object(Vec3f tangent_space_normal, Vec3f surface_normal, 
                      "transformed tangent-space normal");
 }
 
-MeshView::MeshView(MeshDescriptor descriptor) : descriptor_(descriptor) {
+MeshView::MeshView(MeshDescriptor descriptor, std::pmr::memory_resource* memory_resource)
+    : descriptor_(descriptor),
+      tangent_frame_descriptor_{.uv_set = std::pmr::string(memory_resource)},
+      corner_tangents_(memory_resource) {
     validate_mesh_limits(descriptor_);
     validate_vertex_attributes(descriptor_);
     validate_indices(descriptor_);
@@ -332,7 +337,8 @@ MeshView::MeshView(MeshDescriptor descriptor) : descriptor_(descriptor) {
         }
         tangent_frame_descriptor_.uv_set = std::string(descriptor_.default_uv_set);
         tangent_frame_source_ = TangentFrameSource::generated;
-        corner_tangents_ = generate_tangents(descriptor_, tangent_frame_descriptor_);
+        corner_tangents_ =
+            generate_tangents(descriptor_, tangent_frame_descriptor_, memory_resource);
     } else {
         if (!descriptor_.tangent_frame) {
             throw std::invalid_argument("supplied tangents require a tangent-frame declaration");
@@ -379,11 +385,13 @@ const MeshPartition& MeshView::partition_for_face(std::size_t face_index) const 
     return descriptor_.partitions[descriptor_.face_partition_indices[face_index]];
 }
 
-MeshBinding::MeshBinding(MeshDescriptor descriptor)
-    : view_(descriptor), revision_(issue_mesh_revision()) {}
+MeshBinding::MeshBinding(MeshDescriptor descriptor, std::pmr::memory_resource* memory_resource)
+    : memory_resource_(memory_resource),
+      view_(descriptor, memory_resource),
+      revision_(issue_mesh_revision()) {}
 
 void MeshBinding::replace(MeshDescriptor descriptor) {
-    MeshView replacement(descriptor);
+    MeshView replacement(descriptor, memory_resource_);
     const MeshRevision replacement_revision = issue_mesh_revision();
     view_ = replacement;
     revision_ = replacement_revision;

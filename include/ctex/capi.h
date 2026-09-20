@@ -81,7 +81,8 @@ typedef enum ctex_diagnostic_code {
     CTEX_DIAGNOSTIC_INVALID_PAINT_DILATION = 45,
     CTEX_DIAGNOSTIC_INVALID_PAINT_FILTER = 46,
     CTEX_DIAGNOSTIC_INVALID_PAINT_SURFACE_CACHE = 47,
-    CTEX_DIAGNOSTIC_INVALID_PAINT_PREVIEW = 48
+    CTEX_DIAGNOSTIC_INVALID_PAINT_PREVIEW = 48,
+    CTEX_DIAGNOSTIC_INVALID_PICK_QUERY = 49
 } ctex_diagnostic_code;
 
 typedef enum ctex_log_severity {
@@ -126,6 +127,8 @@ typedef struct ctex_mesh ctex_mesh;
 typedef struct ctex_paint_dilation_session ctex_paint_dilation_session;
 typedef struct ctex_paint_surface_map_cache ctex_paint_surface_map_cache;
 typedef struct ctex_paint_preview_session ctex_paint_preview_session;
+typedef struct ctex_pick_index ctex_pick_index;
+typedef struct ctex_uv_pick_index ctex_uv_pick_index;
 
 #define CTEX_MAX_MESH_VERTEX_COUNT ((size_t)100000000)
 #define CTEX_MAX_MESH_TRIANGLE_COUNT ((size_t)100000000)
@@ -939,6 +942,139 @@ typedef struct ctex_mesh_info {
 #define CTEX_MESH_INFO_V1_SIZE ((uint32_t)sizeof(ctex_mesh_info))
 #define CTEX_MESH_INFO_CURRENT_SIZE ((uint32_t)sizeof(ctex_mesh_info))
 
+typedef enum ctex_pick_occlusion_policy {
+    CTEX_PICK_OCCLUSION_NEAREST = 0,
+    CTEX_PICK_OCCLUSION_ALL_HITS = 1
+} ctex_pick_occlusion_policy;
+
+typedef enum ctex_pick_backface_policy {
+    CTEX_PICK_BACKFACE_ACCEPT = 0,
+    CTEX_PICK_BACKFACE_REJECT = 1
+} ctex_pick_backface_policy;
+
+typedef enum ctex_pick_projection_kind {
+    CTEX_PICK_PROJECTION_PERSPECTIVE = 0,
+    CTEX_PICK_PROJECTION_ORTHOGRAPHIC = 1
+} ctex_pick_projection_kind;
+
+typedef enum ctex_pick_batch_status {
+    CTEX_PICK_BATCH_COMPLETE = 0,
+    CTEX_PICK_BATCH_CANCELLED = 1,
+    CTEX_PICK_BATCH_MEMORY_CEILING_EXCEEDED = 2
+} ctex_pick_batch_status;
+
+typedef struct ctex_pick_ray {
+    ctex_vec3f origin;
+    ctex_vec3f direction;
+} ctex_pick_ray;
+
+typedef struct ctex_pick_texture_set_binding_descriptor {
+    uint32_t size;
+    uint32_t partition_index;
+    const char* uv_set;
+} ctex_pick_texture_set_binding_descriptor;
+
+#define CTEX_PICK_TEXTURE_SET_BINDING_DESCRIPTOR_V1_SIZE \
+    ((uint32_t)sizeof(ctex_pick_texture_set_binding_descriptor))
+#define CTEX_PICK_TEXTURE_SET_BINDING_DESCRIPTOR_CURRENT_SIZE \
+    ((uint32_t)sizeof(ctex_pick_texture_set_binding_descriptor))
+
+typedef struct ctex_pick_options_descriptor {
+    uint32_t size;
+    float maximum_distance;
+    uint32_t occlusion_policy;
+    uint32_t backface_policy;
+} ctex_pick_options_descriptor;
+
+#define CTEX_PICK_OPTIONS_DESCRIPTOR_V1_SIZE ((uint32_t)sizeof(ctex_pick_options_descriptor))
+#define CTEX_PICK_OPTIONS_DESCRIPTOR_CURRENT_SIZE ((uint32_t)sizeof(ctex_pick_options_descriptor))
+
+typedef struct ctex_pick_screen_view_descriptor {
+    uint32_t size;
+    uint32_t viewport_width;
+    uint32_t viewport_height;
+    float view[16];
+    float projection[16];
+} ctex_pick_screen_view_descriptor;
+
+#define CTEX_PICK_SCREEN_VIEW_DESCRIPTOR_V1_SIZE \
+    ((uint32_t)sizeof(ctex_pick_screen_view_descriptor))
+#define CTEX_PICK_SCREEN_VIEW_DESCRIPTOR_CURRENT_SIZE \
+    ((uint32_t)sizeof(ctex_pick_screen_view_descriptor))
+
+typedef struct ctex_pick_hit {
+    uint32_t has_hit;
+    ctex_vec3f position;
+    ctex_vec3f interpolated_normal;
+    ctex_vec3f geometric_normal;
+    ctex_vec2f uv;
+    int32_t udim_u;
+    int32_t udim_v;
+    int64_t udim_number;
+    uint32_t triangle_index;
+    ctex_vec3f barycentric;
+    uint32_t material_id;
+    float distance;
+    size_t texture_set_id_offset;
+    size_t texture_set_id_size;
+} ctex_pick_hit;
+
+typedef struct ctex_pick_index_info {
+    uint32_t size;
+    uint64_t mesh_revision;
+    size_t build_count;
+    size_t node_count;
+    size_t triangle_count;
+} ctex_pick_index_info;
+
+#define CTEX_PICK_INDEX_INFO_V1_SIZE ((uint32_t)sizeof(ctex_pick_index_info))
+#define CTEX_PICK_INDEX_INFO_CURRENT_SIZE ((uint32_t)sizeof(ctex_pick_index_info))
+
+typedef struct ctex_pick_query_info {
+    uint32_t size;
+    size_t result_count;
+    size_t required_texture_set_id_size;
+    size_t visited_nodes;
+    size_t tested_leaf_triangles;
+    size_t index_build_count;
+    uint64_t mesh_revision;
+} ctex_pick_query_info;
+
+#define CTEX_PICK_QUERY_INFO_V1_SIZE ((uint32_t)sizeof(ctex_pick_query_info))
+#define CTEX_PICK_QUERY_INFO_CURRENT_SIZE ((uint32_t)sizeof(ctex_pick_query_info))
+
+typedef uint32_t (*ctex_pick_cancel_callback)(void* user_data);
+typedef void (*ctex_pick_progress_callback)(size_t completed_rays, size_t total_rays,
+                                            void* user_data);
+
+typedef struct ctex_pick_batch_control_descriptor {
+    uint32_t size;
+    size_t memory_ceiling_bytes;
+    size_t progress_interval;
+    void* user_data;
+    ctex_pick_cancel_callback is_cancelled;
+    ctex_pick_progress_callback report_progress;
+} ctex_pick_batch_control_descriptor;
+
+#define CTEX_PICK_BATCH_CONTROL_DESCRIPTOR_V1_SIZE \
+    ((uint32_t)sizeof(ctex_pick_batch_control_descriptor))
+#define CTEX_PICK_BATCH_CONTROL_DESCRIPTOR_CURRENT_SIZE \
+    ((uint32_t)sizeof(ctex_pick_batch_control_descriptor))
+
+typedef struct ctex_pick_batch_info {
+    uint32_t size;
+    uint32_t status;
+    size_t processed_rays;
+    size_t required_memory_bytes;
+    size_t required_hit_count;
+    size_t required_texture_set_id_size;
+    size_t visited_nodes;
+    size_t tested_leaf_triangles;
+} ctex_pick_batch_info;
+
+#define CTEX_PICK_BATCH_INFO_V1_SIZE ((uint32_t)sizeof(ctex_pick_batch_info))
+#define CTEX_PICK_BATCH_INFO_CURRENT_SIZE ((uint32_t)sizeof(ctex_pick_batch_info))
+
 typedef struct ctex_texture_set_descriptor {
     uint32_t size;
     const char* display_name;
@@ -1388,6 +1524,72 @@ CTEX_API ctex_result ctex_mesh_get_info(const ctex_mesh* mesh, ctex_mesh_info* o
 CTEX_API ctex_result ctex_mesh_get_uv_set_names(const ctex_mesh* mesh, char* buffer,
                                                 size_t buffer_size, size_t* out_required_size,
                                                 size_t* out_count);
+
+/*
+ * Picking indexes retain a non-owning mesh reference; destroy them before the
+ * mesh. Queries synchronize automatically after ctex_mesh_replace. All result
+ * arrays and packed texture-set strings are caller-owned and copied atomically.
+ * Counter-clockwise triangles are front-facing when viewed from the side their
+ * geometric normal points toward. Shared edges resolve to the lowest triangle
+ * index at an equivalent distance. out_info is required and its size field must
+ * be initialized. Null result buffers query exact counts; provided short
+ * buffers fail without a partial write. Texture-set identifiers are packed as
+ * NUL-terminated UTF-8 strings addressed by each hit's offset and size. Batch
+ * output contains one entry per ray and marks misses with has_hit == 0.
+ */
+CTEX_API ctex_result ctex_pick_index_create(ctex_mesh* mesh, ctex_pick_index** out_index);
+CTEX_API void ctex_pick_index_destroy(ctex_pick_index* index);
+CTEX_API ctex_result ctex_pick_index_get_info(const ctex_pick_index* index,
+                                              ctex_pick_index_info* out_info);
+CTEX_API ctex_result ctex_uv_pick_index_create(ctex_mesh* mesh, const char* uv_set,
+                                               ctex_uv_pick_index** out_index);
+CTEX_API void ctex_uv_pick_index_destroy(ctex_uv_pick_index* index);
+CTEX_API ctex_result ctex_uv_pick_index_get_info(const ctex_uv_pick_index* index,
+                                                 ctex_pick_index_info* out_info);
+CTEX_API ctex_result ctex_pick_ray_from_screen(ctex_vec2f position,
+                                               const ctex_pick_screen_view_descriptor* view,
+                                               uint32_t projection_kind, ctex_pick_ray* out_ray);
+CTEX_API ctex_result ctex_pick_ray_query(
+    ctex_pick_index* index, ctex_pick_ray ray, const ctex_pick_options_descriptor* options,
+    const ctex_pick_texture_set_binding_descriptor* texture_sets, size_t texture_set_count,
+    ctex_pick_hit* hits, size_t hit_capacity, char* texture_set_ids,
+    size_t texture_set_id_buffer_size, ctex_pick_query_info* out_info);
+CTEX_API ctex_result ctex_pick_uv_query(ctex_uv_pick_index* index, ctex_vec2f coordinate,
+                                        const ctex_pick_texture_set_binding_descriptor* texture_set,
+                                        ctex_pick_hit* hit, char* texture_set_id,
+                                        size_t texture_set_id_buffer_size,
+                                        ctex_pick_query_info* out_info);
+CTEX_API ctex_result
+ctex_pick_snap_to_surface(ctex_pick_index* index, ctex_vec3f point, float maximum_distance,
+                          const ctex_pick_texture_set_binding_descriptor* texture_sets,
+                          size_t texture_set_count, ctex_pick_hit* hit, char* texture_set_id,
+                          size_t texture_set_id_buffer_size, ctex_pick_query_info* out_info);
+CTEX_API ctex_result ctex_pick_query_screen_rectangle(ctex_pick_index* index, ctex_vec2f minimum,
+                                                      ctex_vec2f maximum,
+                                                      const ctex_pick_screen_view_descriptor* view,
+                                                      uint32_t* triangle_indices,
+                                                      size_t triangle_capacity,
+                                                      ctex_pick_query_info* out_info);
+CTEX_API ctex_result ctex_pick_query_screen_lasso(ctex_pick_index* index, const ctex_vec2f* points,
+                                                  size_t point_count,
+                                                  const ctex_pick_screen_view_descriptor* view,
+                                                  uint32_t* triangle_indices,
+                                                  size_t triangle_capacity,
+                                                  ctex_pick_query_info* out_info);
+CTEX_API ctex_result ctex_pick_query_world_sphere(ctex_pick_index* index, ctex_vec3f center,
+                                                  float radius, uint32_t* triangle_indices,
+                                                  size_t triangle_capacity,
+                                                  ctex_pick_query_info* out_info);
+CTEX_API ctex_result ctex_pick_query_world_box(ctex_pick_index* index, ctex_vec3f minimum,
+                                               ctex_vec3f maximum, uint32_t* triangle_indices,
+                                               size_t triangle_capacity,
+                                               ctex_pick_query_info* out_info);
+CTEX_API ctex_result ctex_pick_nearest_batch(
+    ctex_pick_index* index, const ctex_pick_ray* rays, size_t ray_count, float maximum_distance,
+    uint32_t backface_policy, const ctex_pick_texture_set_binding_descriptor* texture_sets,
+    size_t texture_set_count, const ctex_pick_batch_control_descriptor* control,
+    ctex_pick_hit* hits, size_t hit_capacity, char* texture_set_ids,
+    size_t texture_set_id_buffer_size, ctex_pick_batch_info* out_info);
 
 CTEX_API ctex_result ctex_document_create(ctex_document** out_document);
 CTEX_API void ctex_document_destroy(ctex_document* document);

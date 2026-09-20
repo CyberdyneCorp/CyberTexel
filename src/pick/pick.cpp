@@ -183,7 +183,9 @@ bool bounds_inside_half_spaces(const Bounds& bounds, std::span<const HalfSpace> 
 
 }  // namespace
 
-SpatialIndex::SpatialIndex(const mesh::MeshBinding& mesh) {
+SpatialIndex::SpatialIndex(const mesh::MeshBinding& mesh,
+                           std::pmr::memory_resource* memory_resource)
+    : nodes_(memory_resource), triangle_order_(memory_resource) {
     build(mesh);
     build_count_ = 1;
 }
@@ -192,7 +194,7 @@ bool SpatialIndex::synchronize(const mesh::MeshBinding& mesh) {
     if (mesh_revision_ == mesh.revision()) {
         return false;
     }
-    SpatialIndex replacement(mesh);
+    SpatialIndex replacement(mesh, nodes_.get_allocator().resource());
     replacement.build_count_ = build_count_ + 1;
     *this = std::move(replacement);
     return true;

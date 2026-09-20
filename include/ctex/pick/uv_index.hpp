@@ -4,6 +4,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <ctex/mesh/mesh.hpp>
+#include <memory_resource>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -39,7 +40,8 @@ struct UvTriangleBuildData {
 
 class UvSpatialIndex {
 public:
-    UvSpatialIndex(const mesh::MeshBinding& mesh, std::string_view uv_set);
+    UvSpatialIndex(const mesh::MeshBinding& mesh, std::string_view uv_set,
+                   std::pmr::memory_resource* memory_resource = std::pmr::get_default_resource());
 
     bool synchronize(const mesh::MeshBinding& mesh);
     [[nodiscard]] UvCandidateQuery query_candidates(const mesh::MeshBinding& mesh,
@@ -49,15 +51,16 @@ public:
     [[nodiscard]] mesh::MeshRevision mesh_revision() const noexcept { return mesh_revision_; }
     [[nodiscard]] std::size_t build_count() const noexcept { return build_count_; }
     [[nodiscard]] std::size_t node_count() const noexcept { return nodes_.size(); }
+    [[nodiscard]] std::size_t triangle_count() const noexcept { return triangle_order_.size(); }
 
 private:
     void build(const mesh::MeshBinding& mesh);
     std::uint32_t build_node(std::uint32_t first, std::uint32_t count,
                              const std::vector<detail::UvTriangleBuildData>& triangles);
 
-    std::string uv_set_;
-    std::vector<detail::UvNode> nodes_;
-    std::vector<std::uint32_t> triangle_order_;
+    std::pmr::string uv_set_;
+    std::pmr::vector<detail::UvNode> nodes_;
+    std::pmr::vector<std::uint32_t> triangle_order_;
     mesh::MeshRevision mesh_revision_{};
     std::size_t build_count_{};
 };

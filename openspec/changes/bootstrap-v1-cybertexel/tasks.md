@@ -660,43 +660,25 @@ map to out-of-memory, and misaligned returns are rejected by stable code. A core
 the current C surface: the document index, stable keys, texture-set descriptor
 and identity strings, shared state, preset-vector capacity, and channel metadata.
 Future C entry points must propagate the owning document resource.
-Task 14.8 has begun with a manifest containing every one of the 24 OpenSpec
-capabilities and a checker that compares exact requirement titles with declared
-`ctex_*` symbols. Non-runtime capabilities require a rationale and repository
-evidence, while runtime capabilities require symbols for every requirement. The
-first implementation slice makes the complete texture-set channel contract
-reachable from C: built-in and extensible descriptors, enumeration, enablement,
-precision overrides, descriptor inspection and memory reporting. Its persistent
-tiled metadata and pixel storage preserve the document allocator. The next
-slice exposes the complete colour-management contract: declared spaces,
-per-channel policy, automatic input resolution, headless transforms, bit-depth
-warnings, higher-precision accumulation, deterministic dithering and
-preview-only `.cube` LUTs. LUT allocations preserve the captured host allocator.
-A third slice exposes read-only in-memory mesh ingest through allocator-owned
-handles, including four-or-more named UV sets, attribute and partition counts,
-atomic replacement, revisions and the declared 100,000,000-vertex/triangle
-refusals. This also completes task 4.8. The gate refuses 222 unmapped runtime
-requirements by name and remains outside the green aggregate until those entry
-points exist.
-The mesh follow-up proves four simultaneous named UV sets and lets C hosts derive
-partitioned document texture sets from any selected mesh UV set. Missing names
-are refused before document mutation. This completes task 4.2.
-The next 14.8 slice exposes content-detected in-memory PNG decoding with
-caller-owned output, native 8/16-bit preservation, colour-source and extension
-metadata, configurable pre-allocation ceilings, and named malformed,
-unsupported-format and over-limit refusals. The exact remaining C ABI gap is
-219 runtime requirements.
-The encoder follow-up exposes all five specified output formats through a
-versioned raw-pixel descriptor and caller-owned byte buffer. It validates input
-row strides and scalar precision, honours JPEG quality, and names both format
-and bit depth when a combination is impossible. Together with the existing
-export-report evidence, this completes 2.7 and leaves 218 runtime C ABI gaps.
-The HDR decoder follow-up accepts flat OpenEXR and Radiance HDR from memory,
-checks declared dimensions and RGBA/RGB float storage against the caller's
-limits before allocation, and preserves values above one through the C ABI.
-Automatic HDR interpretation is linear Rec. 709, multipart/deep EXR remains a
-named layered-source refusal, and task 2.5 is complete. The exact C ABI gap is
-217 runtime requirements.
+Task 14.8 has a manifest containing every one of the 24 OpenSpec capabilities
+and a checker that compares exact requirement titles with declared `ctex_*`
+symbols. Non-runtime capabilities require a rationale and repository evidence,
+while runtime capabilities require symbols for every requirement. Implemented
+slices cover texture-set channels, colour management, allocator-owned revisioned
+meshes, partition-derived texture sets, bounded image decode/encode, canonical
+strokes, paint-engine primitives and copy-on-write paint previews. Persistent
+state in each slice preserves the captured host allocator.
+
+The latest slice exposes all thirteen picking requirements through the C ABI.
+Persistent CPU spatial and UV indexes reuse a real mesh binding and rebuild on
+mesh replacement. Hosts can construct perspective or orthographic rays, request
+nearest or ordered all-hit records with a per-call backface policy, pick in UV
+space, snap world points, query screen rectangles/lassos and world spheres/boxes,
+and submit cancellable memory-bounded batches with progress and traversal-cost
+reporting. Caller-owned hit arrays and packed texture-set identifiers retain the
+boundary's exact sizing and atomic too-small behavior. The exact remaining C ABI
+gap is 168 runtime requirements, and the gate remains outside the green
+aggregate until it reaches zero.
 
 ## 1. Foundation
 

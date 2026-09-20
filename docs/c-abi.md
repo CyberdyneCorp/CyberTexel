@@ -60,6 +60,38 @@ the requested resolution and precision. The operation refuses a missing UV set
 before changing the document. Created stable identities can be retrieved with
 `ctex_document_get_texture_set_ids` and retain the selected UV name.
 
+## Picking
+
+`ctex_pick_index_create` and `ctex_uv_pick_index_create` build reusable CPU
+acceleration structures over an existing mesh. The mesh is non-owning and must
+outlive its indexes. A query detects `ctex_mesh_replace`, rebuilds before use and
+reports the indexed revision, build count, visited nodes and tested leaf
+triangles. Persistent index arrays and UV names use the allocator captured when
+the index was created.
+
+`ctex_pick_ray_from_screen` supports perspective and orthographic matrices.
+`ctex_pick_ray_query` selects nearest or ordered all-hit occlusion and accepts or
+rejects backfaces per call. Counter-clockwise vertices define the front when
+viewed from the geometric-normal side; equivalent shared-boundary hits choose
+the lowest triangle index. Each hit contains position, both normals, UV,
+texture-set identity, UDIM tile, triangle, barycentrics, material and distance.
+A zero result count is a successful miss.
+
+`ctex_pick_uv_query` performs the inverse surface lookup,
+`ctex_pick_snap_to_surface` finds the nearest surface within a distance, and the
+four `ctex_pick_query_*` region calls cover screen rectangles, screen lassos,
+world spheres and world boxes. Result arrays use the null-buffer sizing and
+atomic short-buffer rules. Texture-set identities occupy a separate packed
+NUL-terminated buffer addressed by each hit's offset and size.
+
+`ctex_pick_nearest_batch` returns one `ctex_pick_hit` per ray; `has_hit == 0`
+marks a non-error miss. Its optional control descriptor sets a logical memory
+ceiling, cancellation callback and progress interval. Cancellation returns no
+partial batch as complete, while `ctex_pick_batch_info` retains the status,
+processed count, required memory and aggregate traversal cost. Callbacks execute
+on the calling thread, carry the descriptor's user-data pointer and must not
+throw across the C boundary; a nonzero cancellation result requests a stop.
+
 ## Texture-set channels
 
 Every new texture set registers the nine metallic/roughness preset channels but
@@ -350,6 +382,9 @@ The contract is stated per entry-point family:
 | `ctex_document_create_texture_set`, `ctex_document_create_texture_sets_from_mesh`, `ctex_document_get_texture_set_ids`, `ctex_texture_set_*` | Calls on distinct document handles are safe concurrently; every call on the same document handle must be externally synchronized, including read-only calls. Mesh-derived creation also requires no concurrent use of that mesh handle |
 | `ctex_mesh_create` | Process-safe; each successful call creates independent owned state and captures the active allocator |
 | `ctex_mesh_destroy`, `ctex_mesh_replace`, `ctex_mesh_get_info`, `ctex_mesh_get_uv_set_names` | Calls on distinct mesh handles are safe concurrently; every call on the same mesh handle must be externally synchronized, including read-only calls |
+| `ctex_pick_ray_from_screen` | Stateless, process-safe and callable concurrently from any thread |
+| `ctex_pick_index_create`, `ctex_uv_pick_index_create` | Process-safe when no concurrent call mutates or destroys the supplied mesh; each successful call creates independent index state and captures the active allocator |
+| `ctex_pick_index_destroy`, `ctex_uv_pick_index_destroy`, `ctex_pick_index_get_info`, `ctex_uv_pick_index_get_info`, `ctex_pick_ray_query`, `ctex_pick_uv_query`, `ctex_pick_snap_to_surface`, `ctex_pick_query_*`, `ctex_pick_nearest_batch` | Calls on distinct indexes over idle or distinct meshes are safe concurrently. Every call on the same index or its mesh must be externally serialized; the mesh must outlive the index and callbacks must remain valid for the batch call |
 | `ctex_get_last_result`, `ctex_get_last_diagnostic_code`, `ctex_get_last_diagnostic` | Thread-local; concurrent threads never observe or replace one another's diagnostic state |
 
 A handle may move between threads while idle. CyberTexel does not attach thread
@@ -411,6 +446,8 @@ keys, texture-set identity and descriptor strings, shared accounting state,
 preset-vector capacity, channel descriptor/map storage, tiled channel-image
 metadata and pixels, opaque `.cube` LUT handles and sample tables, and opaque
 mesh handles with their copied geometry, UV, partition and material buffers.
+Opaque picking indexes route their BVH nodes, triangle order and retained UV
+name through the allocator captured by the index handle.
 Copy-on-write image versions retain that resource across copy and move
 publication. Native C++ callers use the standard default resource unless they
 provide another one. Temporary conversion and scratch allocations are
