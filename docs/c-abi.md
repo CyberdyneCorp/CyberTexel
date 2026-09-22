@@ -141,6 +141,16 @@ channel count and resident channel, mesh-map and total bytes. Enabled constant
 channels remain sparse and therefore report zero resident pixel bytes until a
 write materializes a tile.
 
+The current `ctex_texture_set_descriptor` appends `udim_tiling`; older prefixes
+default it off. UDIM sets expose sorted logical occupancy through
+`ctex_texture_set_get_udim_tiles`, and hosts can predeclare mesh occupancy with
+`ctex_texture_set_ensure_udim_tiles` without allocating channel pixels.
+`ctex_texture_set_write_udim_pixels` accepts one atomic batch of absolute UV
+coordinates, applies standard `1001 + u + 10 * v` addressing and reports changed
+and newly allocated tile counts. `ctex_texture_set_read_udim_pixel` uses the
+normal two-call sizing contract. Invalid coordinates or pixel layouts are
+refused before any tile in the batch changes.
+
 ## Mesh maps
 
 `ctex_mesh_map_set_create` binds an explicit map set to one document texture set

@@ -91,6 +91,7 @@ int main(void) {
         16,
         16,
         8,
+        0,
     };
     size_t successful_allocation_count = 0;
     size_t document_allocation_count = 0;

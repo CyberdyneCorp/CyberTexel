@@ -2794,13 +2794,24 @@ ctex::doc::TextureSetDescriptor texture_set_descriptor(
         throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_INVALID_TEXTURE_SET_BIT_DEPTH,
                        "descriptor.default_bit_depth=" + std::to_string(bit_depth));
     }
+    bool udim_tiling = false;
+    constexpr std::size_t udim_tiling_end = offsetof(ctex_texture_set_descriptor, udim_tiling) +
+                                            sizeof(ctex_texture_set_descriptor::udim_tiling);
+    if (descriptor.size >= udim_tiling_end) {
+        if (descriptor.udim_tiling > 1) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_INVALID_DESCRIPTOR_VALUE,
+                           "descriptor.udim_tiling=" + std::to_string(descriptor.udim_tiling));
+        }
+        udim_tiling = descriptor.udim_tiling != 0;
+    }
     return {.display_name = descriptor.display_name,
             .partition_kind = partition_source_kind(descriptor.partition_kind),
             .partition_key = descriptor.partition_key,
             .uv_set = descriptor.uv_set,
             .width = descriptor.width,
             .height = descriptor.height,
-            .default_bit_depth = bit_depth};
+            .default_bit_depth = bit_depth,
+            .udim_tiling = udim_tiling};
 }
 
 void create_texture_sets_from_mesh(ctex_document& document, const ctex_mesh& mesh,
@@ -15901,6 +15912,143 @@ extern "C" ctex_result ctex_texture_set_get_memory_report(
             .mesh_map_pixel_bytes = report.mesh_map_pixel_bytes,
             .total_resident_bytes = report.total_resident_bytes,
         };
+    });
+}
+
+extern "C" ctex_result ctex_texture_set_get_udim_tiles(const ctex_document* document,
+                                                       const char* texture_set_id,
+                                                       std::uint32_t* tile_numbers,
+                                                       std::size_t tile_capacity,
+                                                       std::size_t* out_tile_count) {
+    return call_boundary("ctex_texture_set_get_udim_tiles", [&] {
+        if (document == nullptr || out_tile_count == nullptr) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                           document == nullptr ? "document=null" : "out_tile_count=null");
+        }
+        const ctex::doc::TextureSet& texture_set = require_texture_set(*document, texture_set_id);
+        if (!texture_set.uses_udim_tiling()) {
+            throw_boundary(CTEX_RESULT_UNSUPPORTED_OPERATION,
+                           CTEX_DIAGNOSTIC_INVALID_DESCRIPTOR_VALUE,
+                           "texture set does not use UDIM tiling");
+        }
+        const std::vector<std::uint32_t> tiles = texture_set.occupied_udim_tiles();
+        *out_tile_count = tiles.size();
+        validate_output_array(tile_numbers, tile_capacity, tiles.size(), "tile_numbers");
+        if (tile_numbers != nullptr) {
+            std::ranges::copy(tiles, tile_numbers);
+        }
+    });
+}
+
+extern "C" ctex_result ctex_texture_set_ensure_udim_tiles(ctex_document* document,
+                                                          const char* texture_set_id,
+                                                          const std::uint32_t* tile_numbers,
+                                                          std::size_t tile_count,
+                                                          std::size_t* out_allocated_count) {
+    return call_boundary("ctex_texture_set_ensure_udim_tiles", [&] {
+        if (document == nullptr || out_allocated_count == nullptr ||
+            (tile_numbers == nullptr && tile_count != 0)) {
+            throw_boundary(
+                CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                "document, tile_numbers, and out_allocated_count must match their counts");
+        }
+        ctex::doc::TextureSet& texture_set = require_texture_set(*document, texture_set_id);
+        if (!texture_set.uses_udim_tiling()) {
+            throw_boundary(CTEX_RESULT_UNSUPPORTED_OPERATION,
+                           CTEX_DIAGNOSTIC_INVALID_DESCRIPTOR_VALUE,
+                           "texture set does not use UDIM tiling");
+        }
+        try {
+            const auto numbers = tile_count == 0 ? std::span<const std::uint32_t>{}
+                                                 : std::span(tile_numbers, tile_count);
+            *out_allocated_count = texture_set.ensure_udim_tiles(numbers).size();
+        } catch (const std::out_of_range& error) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_INVALID_DESCRIPTOR_VALUE,
+                           error.what());
+        }
+    });
+}
+
+extern "C" ctex_result ctex_texture_set_write_udim_pixels(
+    ctex_document* document, const char* texture_set_id, const char* semantic_id,
+    const ctex_udim_pixel_write_descriptor* writes, std::size_t write_count,
+    ctex_udim_write_info* out_info) {
+    return call_boundary("ctex_texture_set_write_udim_pixels", [&] {
+        if (document == nullptr || out_info == nullptr || (writes == nullptr && write_count != 0)) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                           "document, writes, and out_info must match their counts");
+        }
+        validate_structure_size(out_info->size, CTEX_UDIM_WRITE_INFO_V1_SIZE,
+                                CTEX_UDIM_WRITE_INFO_CURRENT_SIZE, "out_info.size");
+        ctex::doc::TextureSet& texture_set = require_texture_set(*document, texture_set_id);
+        if (!texture_set.uses_udim_tiling()) {
+            throw_boundary(CTEX_RESULT_UNSUPPORTED_OPERATION,
+                           CTEX_DIAGNOSTIC_INVALID_DESCRIPTOR_VALUE,
+                           "texture set does not use UDIM tiling");
+        }
+        static_cast<void>(require_channel(texture_set.channels(), semantic_id));
+        std::vector<ctex::doc::UdimPixelWrite> converted;
+        converted.reserve(write_count);
+        for (std::size_t index = 0; index < write_count; ++index) {
+            validate_structure_size(writes[index].size, CTEX_UDIM_PIXEL_WRITE_DESCRIPTOR_V1_SIZE,
+                                    CTEX_UDIM_PIXEL_WRITE_DESCRIPTOR_CURRENT_SIZE,
+                                    "writes[" + std::to_string(index) + "].size");
+            if (writes[index].pixel == nullptr && writes[index].pixel_size != 0) {
+                throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                               "write pixel is null with nonzero size");
+            }
+            const auto* bytes = static_cast<const std::byte*>(writes[index].pixel);
+            converted.push_back({
+                .u = writes[index].u,
+                .v = writes[index].v,
+                .pixel = writes[index].pixel_size == 0 ? std::span<const std::byte>{}
+                                                       : std::span(bytes, writes[index].pixel_size),
+            });
+        }
+        try {
+            const ctex::doc::UdimWriteResult result =
+                texture_set.write_udim_pixels(semantic_id, converted);
+            *out_info = {
+                .size = CTEX_UDIM_WRITE_INFO_CURRENT_SIZE,
+                .changed_tile_count = result.changed_tiles.size(),
+                .allocated_tile_count = result.allocated_tiles.size(),
+                .changed_pixel_count = result.changed_pixel_count,
+            };
+        } catch (const std::out_of_range& error) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_INVALID_DESCRIPTOR_VALUE,
+                           error.what());
+        }
+    });
+}
+
+extern "C" ctex_result ctex_texture_set_read_udim_pixel(
+    const ctex_document* document, const char* texture_set_id, const char* semantic_id,
+    std::uint32_t tile_number, std::uint32_t x, std::uint32_t y, void* pixel,
+    std::size_t pixel_size, std::size_t* out_required_pixel_size) {
+    return call_boundary("ctex_texture_set_read_udim_pixel", [&] {
+        if (document == nullptr || out_required_pixel_size == nullptr) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                           document == nullptr ? "document=null" : "out_required_pixel_size=null");
+        }
+        const ctex::doc::TextureSet& texture_set = require_texture_set(*document, texture_set_id);
+        if (!texture_set.uses_udim_tiling()) {
+            throw_boundary(CTEX_RESULT_UNSUPPORTED_OPERATION,
+                           CTEX_DIAGNOSTIC_INVALID_DESCRIPTOR_VALUE,
+                           "texture set does not use UDIM tiling");
+        }
+        static_cast<void>(require_channel(texture_set.channels(), semantic_id));
+        try {
+            const std::vector<std::byte> value =
+                texture_set.read_udim_pixel(semantic_id, tile_number, x, y);
+            *out_required_pixel_size = value.size();
+            validate_output_array(pixel, pixel_size, value.size(), "pixel");
+            if (pixel != nullptr) {
+                std::memcpy(pixel, value.data(), value.size());
+            }
+        } catch (const std::out_of_range& error) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_INVALID_DESCRIPTOR_VALUE,
+                           error.what());
+        }
     });
 }
 

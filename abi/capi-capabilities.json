@@ -104,6 +104,7 @@
       {"requirement": "Multiple UV sets", "symbols": ["ctex_mesh_create", "ctex_mesh_get_info", "ctex_mesh_get_uv_set_names", "ctex_document_create_texture_set", "ctex_document_create_texture_sets_from_mesh"]},
       {"requirement": "Texture set partitioning", "symbols": ["ctex_document_create_texture_set", "ctex_document_create_texture_sets_from_mesh"]},
       {"requirement": "Per-set resolution and bit depth", "symbols": ["ctex_document_create_texture_set", "ctex_document_create_texture_sets_from_mesh"]},
+      {"requirement": "UDIM tiles", "symbols": ["ctex_document_create_texture_set", "ctex_texture_set_ensure_udim_tiles", "ctex_texture_set_get_udim_tiles", "ctex_texture_set_write_udim_pixels", "ctex_texture_set_read_udim_pixel"]},
       {"requirement": "Overlapping UV detection", "symbols": ["ctex_mesh_analyze_uv_overlaps"]},
       {"requirement": "Coverage gaps are reported", "symbols": ["ctex_mesh_analyze_uv_coverage"]},
       {"requirement": "Mesh replacement preserves painting", "symbols": ["ctex_mesh_replacement_plan_create", "ctex_mesh_replacement_plan_create_with_tangent_data", "ctex_mesh_replacement_plan_get_info", "ctex_mesh_replacement_plan_apply", "ctex_mesh_replacement_plan_destroy"]},

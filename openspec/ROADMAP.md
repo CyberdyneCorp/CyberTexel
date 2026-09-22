@@ -286,6 +286,10 @@ and atomic keep/clear publication while deferring requested reprojection without
 mutation. The complete decoded-format set is now mapped to its public memory
 decode operation. Exactly 36 runtime requirements remain without C ABI evidence;
 those gaps must be implemented before task 14.8 can close.
+Sparse UDIM storage now crosses C through backward-compatible texture-set
+descriptors, logical occupancy declaration and enumeration, atomic absolute-UV
+write batches and caller-owned pixel readback. Exactly 35 runtime requirements
+remain without C ABI evidence.
 
 ## Milestones
 

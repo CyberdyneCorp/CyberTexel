@@ -1159,6 +1159,13 @@ the strict C surface round-trips every encodable input format through detection.
 The decoded-format requirement now has public C-operation evidence, reducing
 the exact remaining task-14.8 C ABI gap to 36 runtime requirements.
 
+The UDIM requirement now crosses the C boundary through the appended,
+backward-defaulted texture-set descriptor flag, sparse logical occupancy
+declaration and enumeration, atomic absolute-UV write batches and caller-owned
+pixel readback. Cross-border writes and invalid-batch rollback are covered by a
+strict-C fixture, reducing the exact remaining task-14.8 gap to 35 runtime
+requirements.
+
 ## 1. Foundation
 
 - [x] 1.1 CMake project, C++20, warnings as errors, presets for headless, macOS, Linux, Windows, iOS, Android

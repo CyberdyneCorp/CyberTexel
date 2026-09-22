@@ -264,5 +264,9 @@ EXPORTS
     ctex_texture_set_get_channel_ids
     ctex_texture_set_get_channel_info
     ctex_texture_set_get_memory_report
+    ctex_texture_set_get_udim_tiles
+    ctex_texture_set_ensure_udim_tiles
+    ctex_texture_set_write_udim_pixels
+    ctex_texture_set_read_udim_pixel
     ctex_texture_set_register_channel
     ctex_texture_set_set_channel_enabled

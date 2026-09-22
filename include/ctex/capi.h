@@ -2147,11 +2147,37 @@ typedef struct ctex_texture_set_descriptor {
     uint32_t width;
     uint32_t height;
     uint8_t default_bit_depth;
+    uint32_t udim_tiling;
 } ctex_texture_set_descriptor;
 
 #define CTEX_TEXTURE_SET_DESCRIPTOR_V1_SIZE \
     ((uint32_t)offsetof(ctex_texture_set_descriptor, default_bit_depth))
+#define CTEX_TEXTURE_SET_DESCRIPTOR_V2_SIZE \
+    ((uint32_t)offsetof(ctex_texture_set_descriptor, udim_tiling))
 #define CTEX_TEXTURE_SET_DESCRIPTOR_CURRENT_SIZE ((uint32_t)sizeof(ctex_texture_set_descriptor))
+
+typedef struct ctex_udim_pixel_write_descriptor {
+    uint32_t size;
+    double u;
+    double v;
+    const void* pixel;
+    size_t pixel_size;
+} ctex_udim_pixel_write_descriptor;
+
+#define CTEX_UDIM_PIXEL_WRITE_DESCRIPTOR_V1_SIZE \
+    ((uint32_t)sizeof(ctex_udim_pixel_write_descriptor))
+#define CTEX_UDIM_PIXEL_WRITE_DESCRIPTOR_CURRENT_SIZE \
+    ((uint32_t)sizeof(ctex_udim_pixel_write_descriptor))
+
+typedef struct ctex_udim_write_info {
+    uint32_t size;
+    size_t changed_tile_count;
+    size_t allocated_tile_count;
+    size_t changed_pixel_count;
+} ctex_udim_write_info;
+
+#define CTEX_UDIM_WRITE_INFO_V1_SIZE ((uint32_t)sizeof(ctex_udim_write_info))
+#define CTEX_UDIM_WRITE_INFO_CURRENT_SIZE ((uint32_t)sizeof(ctex_udim_write_info))
 
 typedef enum ctex_scalar_representation {
     CTEX_SCALAR_REPRESENTATION_UNSIGNED_NORMALIZED = 0,
@@ -5787,6 +5813,25 @@ CTEX_API ctex_result ctex_texture_set_get_channel_info(
 CTEX_API ctex_result ctex_texture_set_get_memory_report(const ctex_document* document,
                                                         const char* texture_set_id,
                                                         ctex_texture_set_memory_report* out_report);
+CTEX_API ctex_result ctex_texture_set_get_udim_tiles(const ctex_document* document,
+                                                     const char* texture_set_id,
+                                                     uint32_t* tile_numbers, size_t tile_capacity,
+                                                     size_t* out_tile_count);
+CTEX_API ctex_result ctex_texture_set_ensure_udim_tiles(ctex_document* document,
+                                                        const char* texture_set_id,
+                                                        const uint32_t* tile_numbers,
+                                                        size_t tile_count,
+                                                        size_t* out_allocated_count);
+CTEX_API ctex_result ctex_texture_set_write_udim_pixels(
+    ctex_document* document, const char* texture_set_id, const char* semantic_id,
+    const ctex_udim_pixel_write_descriptor* writes, size_t write_count,
+    ctex_udim_write_info* out_info);
+CTEX_API ctex_result ctex_texture_set_read_udim_pixel(const ctex_document* document,
+                                                      const char* texture_set_id,
+                                                      const char* semantic_id, uint32_t tile_number,
+                                                      uint32_t x, uint32_t y, void* pixel,
+                                                      size_t pixel_size,
+                                                      size_t* out_required_pixel_size);
 CTEX_API ctex_result ctex_texture_set_query_channel_delta(
     const ctex_document* document, const char* texture_set_id, const char* semantic_id,
     ctex_transport_revision_cursor synchronized_cursor, ctex_transport_tile_version* changed_tiles,

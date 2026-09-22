@@ -50,6 +50,7 @@ static int texture_set_codes_are_specific(void) {
         16,
         16,
         8,
+        0,
     };
     if (ctex_document_create(&document) != CTEX_RESULT_SUCCESS) {
         return 0;
