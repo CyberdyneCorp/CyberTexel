@@ -2850,6 +2850,83 @@ ctex::doc::AtlasDescriptor atlas_descriptor(const ctex_atlas_descriptor& descrip
     return converted;
 }
 
+ctex::doc::LayerEntryKind layer_entry_kind(std::uint32_t kind) {
+    if (kind > CTEX_LAYER_ENTRY_SURFACE_PATH) {
+        throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_INVALID_ENUM_VALUE,
+                       "layer entry kind=" + std::to_string(kind));
+    }
+    return static_cast<ctex::doc::LayerEntryKind>(kind);
+}
+
+bool layer_boolean(std::uint32_t value, std::string_view field) {
+    if (value > 1U) {
+        throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_INVALID_DESCRIPTOR_VALUE,
+                       std::string(field) + " must be zero or one");
+    }
+    return value != 0U;
+}
+
+ctex::doc::LayerEntry::ChannelModulation layer_channel_descriptor(
+    const ctex_layer_channel_descriptor& descriptor) {
+    validate_structure_size(descriptor.size, CTEX_LAYER_CHANNEL_DESCRIPTOR_V1_SIZE,
+                            CTEX_LAYER_CHANNEL_DESCRIPTOR_CURRENT_SIZE,
+                            "layer channel descriptor size");
+    if (descriptor.semantic_id == nullptr) {
+        throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                       "layer channel semantic_id=null");
+    }
+    return {.semantic_id = descriptor.semantic_id,
+            .enabled = layer_boolean(descriptor.enabled, "layer channel enabled"),
+            .opacity = descriptor.opacity};
+}
+
+ctex::doc::LayerEntry layer_entry_descriptor(const ctex_layer_entry_descriptor& descriptor) {
+    validate_structure_size(descriptor.size, CTEX_LAYER_ENTRY_DESCRIPTOR_V1_SIZE,
+                            CTEX_LAYER_ENTRY_DESCRIPTOR_CURRENT_SIZE,
+                            "layer entry descriptor size");
+    if (descriptor.identifier == nullptr || descriptor.display_name == nullptr ||
+        descriptor.blend_mode == nullptr ||
+        (descriptor.channels == nullptr && descriptor.channel_count != 0)) {
+        throw_boundary(
+            CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+            "layer identifier, display name, blend mode, and declared channels are required");
+    }
+    ctex::doc::LayerEntry converted{
+        .identifier = descriptor.identifier,
+        .display_name = descriptor.display_name,
+        .kind = layer_entry_kind(descriptor.kind),
+        .parent_identifier =
+            descriptor.parent_identifier == nullptr ? "" : descriptor.parent_identifier,
+        .target_identifier =
+            descriptor.target_identifier == nullptr ? "" : descriptor.target_identifier,
+        .source_identifier =
+            descriptor.source_identifier == nullptr ? "" : descriptor.source_identifier,
+        .enabled = layer_boolean(descriptor.enabled, "layer enabled"),
+        .opacity = descriptor.opacity,
+        .blend_mode = descriptor.blend_mode,
+        .channels = {},
+        .graph = std::nullopt,
+        .content_revision = 1,
+    };
+    converted.channels.reserve(descriptor.channel_count);
+    for (std::size_t index = 0; index < descriptor.channel_count; ++index) {
+        converted.channels.push_back(layer_channel_descriptor(descriptor.channels[index]));
+    }
+    return converted;
+}
+
+ctex::doc::ReferencedSourceDeletionPolicy layer_deletion_policy(std::uint32_t policy) {
+    switch (policy) {
+        case CTEX_LAYER_SOURCE_DELETION_REFUSE:
+            return ctex::doc::ReferencedSourceDeletionPolicy::refuse;
+        case CTEX_LAYER_SOURCE_DELETION_MAKE_INSTANCES_INDEPENDENT:
+            return ctex::doc::ReferencedSourceDeletionPolicy::make_instances_independent;
+        default:
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_INVALID_ENUM_VALUE,
+                           "layer source deletion policy=" + std::to_string(policy));
+    }
+}
+
 void create_texture_sets_from_mesh(ctex_document& document, const ctex_mesh& mesh,
                                    const char* uv_set, std::uint32_t width, std::uint32_t height,
                                    std::uint8_t default_bit_depth) {
@@ -6497,6 +6574,61 @@ void append_json_text(std::string& output, std::string_view value) {
         }
     }
     output.push_back('"');
+}
+
+std::string_view layer_entry_kind_name(ctex::doc::LayerEntryKind kind) {
+    constexpr std::array names{"paint",          "fill",          "group",
+                               "mask",           "filter",        "instance",
+                               "editable_decal", "editable_text", "surface_path"};
+    return names[static_cast<std::size_t>(kind)];
+}
+
+void append_layer_channel_json(std::string& output,
+                               const ctex::doc::LayerEntry::ChannelModulation& channel) {
+    output += "{\"semantic_id\":";
+    append_json_text(output, channel.semantic_id);
+    output += ",\"enabled\":";
+    output += channel.enabled ? "true" : "false";
+    output += ",\"opacity\":" + std::to_string(channel.opacity) + "}";
+}
+
+void append_layer_entry_json(std::string& output, const ctex::doc::LayerEntry& entry) {
+    output += "{\"id\":";
+    append_json_text(output, entry.identifier);
+    output += ",\"display_name\":";
+    append_json_text(output, entry.display_name);
+    output += ",\"kind\":";
+    append_json_text(output, layer_entry_kind_name(entry.kind));
+    output += ",\"parent\":";
+    append_json_text(output, entry.parent_identifier);
+    output += ",\"target\":";
+    append_json_text(output, entry.target_identifier);
+    output += ",\"source\":";
+    append_json_text(output, entry.source_identifier);
+    output += ",\"enabled\":";
+    output += entry.enabled ? "true" : "false";
+    output += ",\"opacity\":" + std::to_string(entry.opacity) + ",\"blend_mode\":";
+    append_json_text(output, entry.blend_mode);
+    output += ",\"content_revision\":" + std::to_string(entry.content_revision) + ",\"channels\":[";
+    for (std::size_t index = 0; index < entry.channels.size(); ++index) {
+        if (index != 0) {
+            output.push_back(',');
+        }
+        append_layer_channel_json(output, entry.channels[index]);
+    }
+    output += "]}";
+}
+
+std::string layer_stack_json(const ctex::doc::LayerStack& stack) {
+    std::string output = "{\"revision\":" + std::to_string(stack.revision()) + ",\"entries\":[";
+    for (std::size_t index = 0; index < stack.entries().size(); ++index) {
+        if (index != 0) {
+            output.push_back(',');
+        }
+        append_layer_entry_json(output, stack.entries()[index]);
+    }
+    output += "]}";
+    return output;
 }
 
 void append_project_image_json(std::string& output, const ctex::io::StoredTiledImage& image) {
@@ -16046,6 +16178,213 @@ extern "C" ctex_result ctex_texture_set_get_memory_report(
             .mesh_map_pixel_bytes = report.mesh_map_pixel_bytes,
             .total_resident_bytes = report.total_resident_bytes,
         };
+    });
+}
+
+extern "C" ctex_result ctex_texture_set_layer_append(ctex_document* document,
+                                                     const char* texture_set_id,
+                                                     const ctex_layer_entry_descriptor* entries,
+                                                     std::size_t entry_count) {
+    return call_boundary("ctex_texture_set_layer_append", [&] {
+        if (document == nullptr || (entries == nullptr && entry_count != 0)) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                           "document and declared layer entries are required");
+        }
+        std::vector<ctex::doc::LayerEntry> converted;
+        converted.reserve(entry_count);
+        for (std::size_t index = 0; index < entry_count; ++index) {
+            converted.push_back(layer_entry_descriptor(entries[index]));
+        }
+        require_texture_set(*document, texture_set_id).layer_stack().append(converted);
+    });
+}
+
+extern "C" ctex_result ctex_texture_set_layer_inspect(const ctex_document* document,
+                                                      const char* texture_set_id, char* output,
+                                                      std::size_t output_size,
+                                                      std::size_t* out_required_size) {
+    return call_boundary("ctex_texture_set_layer_inspect", [&] {
+        if (document == nullptr || out_required_size == nullptr) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                           document == nullptr ? "document=null" : "out_required_size=null");
+        }
+        const std::string report =
+            layer_stack_json(require_texture_set(*document, texture_set_id).layer_stack());
+        *out_required_size = report.size() + 1;
+        validate_string_buffer(output, output_size, *out_required_size);
+        if (output != nullptr) {
+            std::memcpy(output, report.c_str(), *out_required_size);
+        }
+    });
+}
+
+extern "C" ctex_result ctex_texture_set_layer_set_state(
+    ctex_document* document, const char* texture_set_id, const char* entry_identifier,
+    const char* display_name, std::uint32_t enabled, double opacity, const char* blend_mode) {
+    return call_boundary("ctex_texture_set_layer_set_state", [&] {
+        if (document == nullptr || entry_identifier == nullptr || display_name == nullptr ||
+            blend_mode == nullptr) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                           "document, entry identifier, display name, and blend mode are required");
+        }
+        ctex::doc::LayerStack& stack = require_texture_set(*document, texture_set_id).layer_stack();
+        ctex::doc::LayerEntry replacement = stack.entry(entry_identifier);
+        replacement.display_name = display_name;
+        replacement.enabled = layer_boolean(enabled, "layer enabled");
+        replacement.opacity = opacity;
+        replacement.blend_mode = blend_mode;
+        stack.replace(entry_identifier, std::move(replacement));
+    });
+}
+
+extern "C" ctex_result ctex_texture_set_layer_set_layout(ctex_document* document,
+                                                         const char* texture_set_id,
+                                                         const char* entry_identifier,
+                                                         const char* parent_identifier,
+                                                         const char* target_identifier) {
+    return call_boundary("ctex_texture_set_layer_set_layout", [&] {
+        if (document == nullptr || entry_identifier == nullptr) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                           document == nullptr ? "document=null" : "entry_identifier=null");
+        }
+        require_texture_set(*document, texture_set_id)
+            .layer_stack()
+            .set_layout(entry_identifier, parent_identifier == nullptr ? "" : parent_identifier,
+                        target_identifier == nullptr ? "" : target_identifier);
+    });
+}
+
+extern "C" ctex_result ctex_texture_set_layer_set_channel(
+    ctex_document* document, const char* texture_set_id, const char* entry_identifier,
+    const ctex_layer_channel_descriptor* channel) {
+    return call_boundary("ctex_texture_set_layer_set_channel", [&] {
+        if (document == nullptr || entry_identifier == nullptr || channel == nullptr) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                           "document, entry identifier, and channel are required");
+        }
+        require_texture_set(*document, texture_set_id)
+            .layer_stack()
+            .set_channel_modulation(entry_identifier, layer_channel_descriptor(*channel));
+    });
+}
+
+extern "C" ctex_result ctex_texture_set_layer_record_paint(ctex_document* document,
+                                                           const char* texture_set_id,
+                                                           const char* entry_identifier) {
+    return call_boundary("ctex_texture_set_layer_record_paint", [&] {
+        if (document == nullptr || entry_identifier == nullptr) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                           document == nullptr ? "document=null" : "entry_identifier=null");
+        }
+        require_texture_set(*document, texture_set_id).layer_stack().record_paint(entry_identifier);
+    });
+}
+
+extern "C" ctex_result ctex_texture_set_layer_remove(ctex_document* document,
+                                                     const char* texture_set_id,
+                                                     const char* const* entry_identifiers,
+                                                     std::size_t entry_count,
+                                                     std::uint32_t source_deletion_policy) {
+    return call_boundary("ctex_texture_set_layer_remove", [&] {
+        if (document == nullptr || (entry_identifiers == nullptr && entry_count != 0)) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                           "document and declared entry identifiers are required");
+        }
+        std::vector<std::string> identifiers;
+        identifiers.reserve(entry_count);
+        for (std::size_t index = 0; index < entry_count; ++index) {
+            if (entry_identifiers[index] == nullptr) {
+                throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                               "entry identifier=null");
+            }
+            identifiers.emplace_back(entry_identifiers[index]);
+        }
+        require_texture_set(*document, texture_set_id)
+            .layer_stack()
+            .remove(identifiers, layer_deletion_policy(source_deletion_policy));
+    });
+}
+
+extern "C" ctex_result ctex_texture_set_layer_evaluate_blend(
+    const ctex_document* document, const char* texture_set_id, const char* entry_identifier,
+    ctex_vec4f base, ctex_vec4f layer, double factor, ctex_vec4f* out_colour) {
+    return call_boundary("ctex_texture_set_layer_evaluate_blend", [&] {
+        if (document == nullptr || entry_identifier == nullptr || out_colour == nullptr) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                           "document, entry identifier, and out_colour are required");
+        }
+        const ctex::graph::ColourValue result =
+            require_texture_set(*document, texture_set_id)
+                .layer_stack()
+                .evaluate_blend(entry_identifier, {base.x, base.y, base.z, base.w},
+                                {layer.x, layer.y, layer.z, layer.w}, factor);
+        *out_colour = {result.r, result.g, result.b, result.a};
+    });
+}
+
+extern "C" ctex_result ctex_texture_set_layer_get_applicable_masks(
+    const ctex_document* document, const char* texture_set_id, const char* entry_identifier,
+    char* mask_ids, std::size_t mask_id_size, std::size_t* out_required_size,
+    std::size_t* out_mask_count) {
+    return call_boundary("ctex_texture_set_layer_get_applicable_masks", [&] {
+        if (document == nullptr || entry_identifier == nullptr || out_required_size == nullptr ||
+            out_mask_count == nullptr) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                           "document, entry identifier, and output sizes are required");
+        }
+        const std::vector<std::string> masks = require_texture_set(*document, texture_set_id)
+                                                   .layer_stack()
+                                                   .applicable_masks(entry_identifier);
+        *out_required_size = texture_set_id_buffer_size(masks);
+        *out_mask_count = masks.size();
+        validate_string_buffer(mask_ids, mask_id_size, *out_required_size);
+        if (mask_ids != nullptr) {
+            copy_packed_strings(masks, mask_ids);
+        }
+    });
+}
+
+extern "C" ctex_result ctex_texture_set_layer_get_participation(
+    const ctex_document* document, const char* texture_set_id, const char* entry_identifier,
+    const char* semantic_id, const ctex_layer_mask_sample* mask_samples,
+    std::size_t mask_sample_count, ctex_layer_participation_info* out_info, char* mask_ids,
+    std::size_t mask_id_size) {
+    return call_boundary("ctex_texture_set_layer_get_participation", [&] {
+        if (document == nullptr || entry_identifier == nullptr || semantic_id == nullptr ||
+            out_info == nullptr || (mask_samples == nullptr && mask_sample_count != 0)) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                           "document, entry, semantic, samples, and out_info are required");
+        }
+        validate_structure_size(out_info->size, CTEX_LAYER_PARTICIPATION_INFO_V1_SIZE,
+                                CTEX_LAYER_PARTICIPATION_INFO_CURRENT_SIZE,
+                                "layer participation info size");
+        const ctex::doc::TextureSet& set = require_texture_set(*document, texture_set_id);
+        static_cast<void>(require_channel(set.channels(), semantic_id));
+        std::vector<ctex::doc::LayerMaskSample> samples;
+        samples.reserve(mask_sample_count);
+        for (std::size_t index = 0; index < mask_sample_count; ++index) {
+            validate_structure_size(mask_samples[index].size, CTEX_LAYER_MASK_SAMPLE_V1_SIZE,
+                                    CTEX_LAYER_MASK_SAMPLE_CURRENT_SIZE, "layer mask sample size");
+            if (mask_samples[index].mask_identifier == nullptr) {
+                throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                               "layer mask sample identifier=null");
+            }
+            samples.push_back({mask_samples[index].mask_identifier, mask_samples[index].value});
+        }
+        const ctex::doc::LayerChannelParticipation result = set.layer_stack().channel_participation(
+            entry_identifier, semantic_id, set.channels().is_enabled(semantic_id), samples);
+        const std::size_t required_size = texture_set_id_buffer_size(result.mask_identifiers);
+        *out_info = {
+            .size = CTEX_LAYER_PARTICIPATION_INFO_CURRENT_SIZE,
+            .participates = result.participates ? 1U : 0U,
+            .effective_opacity = result.effective_opacity,
+            .mask_count = result.mask_identifiers.size(),
+            .required_mask_id_size = required_size,
+        };
+        validate_string_buffer(mask_ids, mask_id_size, required_size);
+        if (mask_ids != nullptr) {
+            copy_packed_strings(result.mask_identifiers, mask_ids);
+        }
     });
 }
 

@@ -267,6 +267,16 @@ EXPORTS
     ctex_texture_set_get_channel_ids
     ctex_texture_set_get_channel_info
     ctex_texture_set_get_memory_report
+    ctex_texture_set_layer_append
+    ctex_texture_set_layer_inspect
+    ctex_texture_set_layer_set_state
+    ctex_texture_set_layer_set_layout
+    ctex_texture_set_layer_set_channel
+    ctex_texture_set_layer_record_paint
+    ctex_texture_set_layer_remove
+    ctex_texture_set_layer_evaluate_blend
+    ctex_texture_set_layer_get_applicable_masks
+    ctex_texture_set_layer_get_participation
     ctex_texture_set_get_udim_tiles
     ctex_texture_set_ensure_udim_tiles
     ctex_texture_set_write_udim_pixels

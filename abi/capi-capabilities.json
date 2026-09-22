@@ -247,6 +247,12 @@
     {"name": "texture-document", "kind": "runtime", "requirements": [
       {"requirement": "Document and texture sets", "symbols": ["ctex_document_create", "ctex_document_create_texture_set", "ctex_document_get_texture_set_ids"]},
       {"requirement": "Channel set", "symbols": ["ctex_texture_set_get_channel_ids", "ctex_texture_set_register_channel", "ctex_texture_set_set_channel_enabled", "ctex_texture_set_get_channel_info", "ctex_texture_set_get_memory_report"]},
+      {"requirement": "Entry kinds", "symbols": ["ctex_texture_set_layer_append", "ctex_texture_set_layer_inspect"]},
+      {"requirement": "Instances", "symbols": ["ctex_texture_set_layer_append", "ctex_texture_set_layer_inspect", "ctex_texture_set_layer_set_state", "ctex_texture_set_layer_record_paint", "ctex_texture_set_layer_remove"]},
+      {"requirement": "Nesting rules", "symbols": ["ctex_texture_set_layer_append", "ctex_texture_set_layer_set_layout", "ctex_texture_set_layer_get_applicable_masks"]},
+      {"requirement": "Blend modes", "symbols": ["ctex_texture_set_layer_set_state", "ctex_texture_set_layer_evaluate_blend"]},
+      {"requirement": "Per-channel participation", "symbols": ["ctex_texture_set_layer_append", "ctex_texture_set_layer_set_channel", "ctex_texture_set_layer_get_participation"]},
+      {"requirement": "Effective opacity", "symbols": ["ctex_texture_set_layer_get_applicable_masks", "ctex_texture_set_layer_get_participation"]},
       {"requirement": "Tiled storage", "symbols": ["ctex_paint_preview_session_write_pixel", "ctex_paint_preview_session_get_changed_tiles"]},
       {"requirement": "Extensible channel descriptors", "symbols": ["ctex_texture_set_register_channel", "ctex_texture_set_get_channel_info", "ctex_texture_set_set_channel_enabled"]}
     ]},

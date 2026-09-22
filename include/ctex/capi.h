@@ -2225,6 +2225,71 @@ typedef struct ctex_atlas_info {
 #define CTEX_ATLAS_INFO_V1_SIZE ((uint32_t)sizeof(ctex_atlas_info))
 #define CTEX_ATLAS_INFO_CURRENT_SIZE ((uint32_t)sizeof(ctex_atlas_info))
 
+typedef enum ctex_layer_entry_kind {
+    CTEX_LAYER_ENTRY_PAINT = 0,
+    CTEX_LAYER_ENTRY_FILL = 1,
+    CTEX_LAYER_ENTRY_GROUP = 2,
+    CTEX_LAYER_ENTRY_MASK = 3,
+    CTEX_LAYER_ENTRY_FILTER = 4,
+    CTEX_LAYER_ENTRY_INSTANCE = 5,
+    CTEX_LAYER_ENTRY_EDITABLE_DECAL = 6,
+    CTEX_LAYER_ENTRY_EDITABLE_TEXT = 7,
+    CTEX_LAYER_ENTRY_SURFACE_PATH = 8
+} ctex_layer_entry_kind;
+
+typedef enum ctex_layer_source_deletion_policy {
+    CTEX_LAYER_SOURCE_DELETION_REFUSE = 0,
+    CTEX_LAYER_SOURCE_DELETION_MAKE_INSTANCES_INDEPENDENT = 1
+} ctex_layer_source_deletion_policy;
+
+typedef struct ctex_layer_channel_descriptor {
+    uint32_t size;
+    const char* semantic_id;
+    uint32_t enabled;
+    double opacity;
+} ctex_layer_channel_descriptor;
+
+#define CTEX_LAYER_CHANNEL_DESCRIPTOR_V1_SIZE ((uint32_t)sizeof(ctex_layer_channel_descriptor))
+#define CTEX_LAYER_CHANNEL_DESCRIPTOR_CURRENT_SIZE ((uint32_t)sizeof(ctex_layer_channel_descriptor))
+
+typedef struct ctex_layer_entry_descriptor {
+    uint32_t size;
+    const char* identifier;
+    const char* display_name;
+    uint32_t kind;
+    const char* parent_identifier;
+    const char* target_identifier;
+    const char* source_identifier;
+    uint32_t enabled;
+    double opacity;
+    const char* blend_mode;
+    const ctex_layer_channel_descriptor* channels;
+    size_t channel_count;
+} ctex_layer_entry_descriptor;
+
+#define CTEX_LAYER_ENTRY_DESCRIPTOR_V1_SIZE ((uint32_t)sizeof(ctex_layer_entry_descriptor))
+#define CTEX_LAYER_ENTRY_DESCRIPTOR_CURRENT_SIZE ((uint32_t)sizeof(ctex_layer_entry_descriptor))
+
+typedef struct ctex_layer_mask_sample {
+    uint32_t size;
+    const char* mask_identifier;
+    double value;
+} ctex_layer_mask_sample;
+
+#define CTEX_LAYER_MASK_SAMPLE_V1_SIZE ((uint32_t)sizeof(ctex_layer_mask_sample))
+#define CTEX_LAYER_MASK_SAMPLE_CURRENT_SIZE ((uint32_t)sizeof(ctex_layer_mask_sample))
+
+typedef struct ctex_layer_participation_info {
+    uint32_t size;
+    uint32_t participates;
+    double effective_opacity;
+    size_t mask_count;
+    size_t required_mask_id_size;
+} ctex_layer_participation_info;
+
+#define CTEX_LAYER_PARTICIPATION_INFO_V1_SIZE ((uint32_t)sizeof(ctex_layer_participation_info))
+#define CTEX_LAYER_PARTICIPATION_INFO_CURRENT_SIZE ((uint32_t)sizeof(ctex_layer_participation_info))
+
 typedef enum ctex_scalar_representation {
     CTEX_SCALAR_REPRESENTATION_UNSIGNED_NORMALIZED = 0,
     CTEX_SCALAR_REPRESENTATION_FLOATING_POINT = 1
@@ -5869,6 +5934,48 @@ CTEX_API ctex_result ctex_texture_set_get_channel_info(
 CTEX_API ctex_result ctex_texture_set_get_memory_report(const ctex_document* document,
                                                         const char* texture_set_id,
                                                         ctex_texture_set_memory_report* out_report);
+/* Appends a complete ordered batch after validating the resulting stack atomically. */
+CTEX_API ctex_result ctex_texture_set_layer_append(ctex_document* document,
+                                                   const char* texture_set_id,
+                                                   const ctex_layer_entry_descriptor* entries,
+                                                   size_t entry_count);
+/* Returns a canonical JSON snapshot containing the stack revision and explicit entry kinds. */
+CTEX_API ctex_result ctex_texture_set_layer_inspect(const ctex_document* document,
+                                                    const char* texture_set_id, char* output,
+                                                    size_t output_size, size_t* out_required_size);
+CTEX_API ctex_result ctex_texture_set_layer_set_state(ctex_document* document,
+                                                      const char* texture_set_id,
+                                                      const char* entry_identifier,
+                                                      const char* display_name, uint32_t enabled,
+                                                      double opacity, const char* blend_mode);
+CTEX_API ctex_result ctex_texture_set_layer_set_layout(ctex_document* document,
+                                                       const char* texture_set_id,
+                                                       const char* entry_identifier,
+                                                       const char* parent_identifier,
+                                                       const char* target_identifier);
+CTEX_API ctex_result ctex_texture_set_layer_set_channel(
+    ctex_document* document, const char* texture_set_id, const char* entry_identifier,
+    const ctex_layer_channel_descriptor* channel);
+CTEX_API ctex_result ctex_texture_set_layer_record_paint(ctex_document* document,
+                                                         const char* texture_set_id,
+                                                         const char* entry_identifier);
+CTEX_API ctex_result ctex_texture_set_layer_remove(ctex_document* document,
+                                                   const char* texture_set_id,
+                                                   const char* const* entry_identifiers,
+                                                   size_t entry_count,
+                                                   uint32_t source_deletion_policy);
+CTEX_API ctex_result ctex_texture_set_layer_evaluate_blend(const ctex_document* document,
+                                                           const char* texture_set_id,
+                                                           const char* entry_identifier,
+                                                           ctex_vec4f base, ctex_vec4f layer,
+                                                           double factor, ctex_vec4f* out_colour);
+CTEX_API ctex_result ctex_texture_set_layer_get_applicable_masks(
+    const ctex_document* document, const char* texture_set_id, const char* entry_identifier,
+    char* mask_ids, size_t mask_id_size, size_t* out_required_size, size_t* out_mask_count);
+CTEX_API ctex_result ctex_texture_set_layer_get_participation(
+    const ctex_document* document, const char* texture_set_id, const char* entry_identifier,
+    const char* semantic_id, const ctex_layer_mask_sample* mask_samples, size_t mask_sample_count,
+    ctex_layer_participation_info* out_info, char* mask_ids, size_t mask_id_size);
 CTEX_API ctex_result ctex_texture_set_get_udim_tiles(const ctex_document* document,
                                                      const char* texture_set_id,
                                                      uint32_t* tile_numbers, size_t tile_capacity,

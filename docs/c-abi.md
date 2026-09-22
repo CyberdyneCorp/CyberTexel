@@ -158,6 +158,27 @@ the display name and packed texture-set identities through caller-owned buffers.
 Missing sets, repeated membership, out-of-bounds regions and overlaps are
 refused before the document changes.
 
+## Texture-set layer stacks
+
+`ctex_texture_set_layer_append` accepts an ordered batch of explicit paint,
+fill, group, mask, filter, instance, editable-decal, editable-text and
+surface-path entries. The complete candidate stack is validated before it is
+published, so invalid evaluation order, nesting, attachments, instance sources,
+cycles, blend modes or channel modulation leave the stack unchanged.
+`ctex_texture_set_layer_inspect` returns a canonical JSON snapshot with the
+stack revision, explicit kinds, relationships, state, content revisions and
+per-channel modulation.
+
+Hosts can update entry state, layout and channel modulation without replacing
+stable identity or content. `ctex_texture_set_layer_record_paint` advances paint
+content revision and refuses direct instance painting with a diagnostic naming
+the source. Source deletion explicitly selects refusal or conversion of live
+instances to independent content. Applicable masks use packed identity
+enumeration; a participation query then requires exactly one finite normalized
+sample per applicable enabled mask and returns the flattened effective opacity.
+Blend evaluation uses the same authoritative linear-working-space formulas as
+document compositing.
+
 ## Mesh maps
 
 `ctex_mesh_map_set_create` binds an explicit map set to one document texture set
