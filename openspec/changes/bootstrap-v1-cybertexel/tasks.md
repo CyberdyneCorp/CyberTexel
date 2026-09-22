@@ -1172,6 +1172,15 @@ out-of-bounds regions and overlaps. A strict-C fixture covers the shared-atlas
 path and short-buffer contract, reducing the task-14.8 gap to 34 runtime
 requirements.
 
+The complete layer-operation family now crosses the C boundary through an
+allocator-owned resolved-raster snapshot and one versioned operation
+descriptor. Null-output validation is a non-mutating sizing pass; commit stages
+the texture set, validates output capacity, appearance tolerance and byte
+budget, then publishes the layer stack and snapshot together. A strict-C
+fixture exercises all twelve operation kinds plus query and short-buffer
+rollback. After the intervening C ABI slices and this operation boundary, the
+exact remaining task-14.8 gap is 22 runtime requirements.
+
 ## 1. Foundation
 
 - [x] 1.1 CMake project, C++20, warnings as errors, presets for headless, macOS, Linux, Windows, iOS, Android

@@ -255,6 +255,7 @@
       {"requirement": "Effective opacity", "symbols": ["ctex_texture_set_layer_get_applicable_masks", "ctex_texture_set_layer_get_participation"]},
       {"requirement": "Compositing order and determinism", "symbols": ["ctex_texture_set_layer_composite_cpu", "ctex_layer_snapshot_create", "ctex_layer_snapshot_destroy", "ctex_layer_snapshot_read", "ctex_texture_set_layer_composite_snapshot_cpu"]},
       {"requirement": "Composite grouping", "symbols": ["ctex_texture_set_layer_append", "ctex_texture_set_layer_set_state", "ctex_texture_set_layer_composite_cpu"]},
+      {"requirement": "Layer operations", "symbols": ["ctex_texture_set_apply_layer_operation"]},
       {"requirement": "Undo history is tile-scoped", "symbols": ["ctex_texture_set_begin_tile_history", "ctex_tile_history_capture_commit", "ctex_tile_history_capture_destroy", "ctex_texture_set_undo_tiles", "ctex_texture_set_redo_tiles"]},
       {"requirement": "Declared history budget", "symbols": ["ctex_texture_set_configure_tile_history", "ctex_texture_set_get_tile_history_budget", "ctex_texture_set_begin_tile_history"]},
       {"requirement": "Redo invalidation", "symbols": ["ctex_texture_set_begin_tile_history", "ctex_tile_history_capture_commit", "ctex_texture_set_undo_tiles", "ctex_texture_set_redo_tiles", "ctex_texture_set_get_tile_history_budget"]},

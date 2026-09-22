@@ -2434,6 +2434,55 @@ typedef struct ctex_layer_snapshot_mask_info {
     size_t value_count;
 } ctex_layer_snapshot_mask_info;
 
+typedef enum ctex_layer_operation_kind {
+    CTEX_LAYER_OPERATION_CREATE = 0,
+    CTEX_LAYER_OPERATION_DUPLICATE = 1,
+    CTEX_LAYER_OPERATION_DELETE = 2,
+    CTEX_LAYER_OPERATION_REORDER = 3,
+    CTEX_LAYER_OPERATION_REPARENT = 4,
+    CTEX_LAYER_OPERATION_CLEAR = 5,
+    CTEX_LAYER_OPERATION_INVERT = 6,
+    CTEX_LAYER_OPERATION_MERGE_DOWN = 7,
+    CTEX_LAYER_OPERATION_MERGE_GROUP = 8,
+    CTEX_LAYER_OPERATION_FLATTEN = 9,
+    CTEX_LAYER_OPERATION_CONVERT = 10,
+    CTEX_LAYER_OPERATION_APPLY_MASK = 11
+} ctex_layer_operation_kind;
+
+typedef struct ctex_layer_operation_descriptor {
+    uint32_t size;
+    uint32_t kind;
+    const char* identifier;
+    const char* duplicate_identifier;
+    const char* parent_identifier;
+    const char* before_identifier;
+    const char* semantic_id;
+    const ctex_layer_entry_descriptor* entry;
+    const ctex_layer_composite_raster_descriptor* replacement_content;
+    size_t replacement_content_count;
+    const ctex_layer_composite_mask_descriptor* replacement_masks;
+    size_t replacement_mask_count;
+    uint32_t source_deletion_policy;
+    uint32_t target_kind;
+    const void* graph_serialized;
+    size_t graph_serialized_size;
+    size_t maximum_output_bytes;
+    float appearance_tolerance;
+} ctex_layer_operation_descriptor;
+
+#define CTEX_LAYER_OPERATION_DESCRIPTOR_V1_SIZE ((uint32_t)sizeof(ctex_layer_operation_descriptor))
+#define CTEX_LAYER_OPERATION_DESCRIPTOR_CURRENT_SIZE \
+    ((uint32_t)sizeof(ctex_layer_operation_descriptor))
+
+typedef struct ctex_layer_operation_info {
+    uint32_t size;
+    size_t affected_count;
+    size_t required_affected_id_size;
+} ctex_layer_operation_info;
+
+#define CTEX_LAYER_OPERATION_INFO_V1_SIZE ((uint32_t)sizeof(ctex_layer_operation_info))
+#define CTEX_LAYER_OPERATION_INFO_CURRENT_SIZE ((uint32_t)sizeof(ctex_layer_operation_info))
+
 typedef enum ctex_scalar_representation {
     CTEX_SCALAR_REPRESENTATION_UNSIGNED_NORMALIZED = 0,
     CTEX_SCALAR_REPRESENTATION_FLOATING_POINT = 1
@@ -6143,6 +6192,11 @@ CTEX_API ctex_result ctex_texture_set_layer_composite_snapshot_cpu(
     ctex_layer_composite_info* out_info, ctex_layer_composite_channel_info* channels,
     size_t channel_capacity, char* semantic_ids, size_t semantic_id_size, ctex_vec4f* pixels,
     size_t pixel_capacity);
+/* A null affected_ids buffer validates and sizes the operation without committing it. */
+CTEX_API ctex_result ctex_texture_set_apply_layer_operation(
+    ctex_document* document, const char* texture_set_id, ctex_layer_snapshot* snapshot,
+    const ctex_layer_operation_descriptor* operation, ctex_layer_operation_info* out_info,
+    char* affected_ids, size_t affected_id_size);
 CTEX_API ctex_result ctex_texture_set_configure_tile_history(ctex_document* document,
                                                              const char* texture_set_id,
                                                              size_t budget_bytes);

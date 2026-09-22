@@ -8000,6 +8000,126 @@ std::string_view material_graph_bytes(const void* serialized, std::size_t serial
     return {static_cast<const char*>(serialized), serialized_size};
 }
 
+std::optional<ctex::graph::GraphDocument> layer_operation_graph(
+    const ctex_layer_operation_descriptor& descriptor) {
+    if (descriptor.graph_serialized == nullptr && descriptor.graph_serialized_size == 0) {
+        return std::nullopt;
+    }
+    return ctex::graph::deserialize_graph(
+        material_graph_bytes(descriptor.graph_serialized, descriptor.graph_serialized_size));
+}
+
+std::string layer_operation_text(const char* value) { return value == nullptr ? "" : value; }
+
+std::vector<ctex::doc::LayerCompositeRaster> layer_operation_content(
+    const ctex_layer_operation_descriptor& descriptor) {
+    if (descriptor.replacement_content == nullptr && descriptor.replacement_content_count != 0) {
+        throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                       "replacement_content=null with nonzero count");
+    }
+    std::vector<ctex::doc::LayerCompositeRaster> result;
+    result.reserve(descriptor.replacement_content_count);
+    for (std::size_t index = 0; index < descriptor.replacement_content_count; ++index) {
+        result.push_back(layer_composite_raster(descriptor.replacement_content[index]));
+    }
+    return result;
+}
+
+std::vector<ctex::doc::LayerCompositeMaskRaster> layer_operation_masks(
+    const ctex_layer_operation_descriptor& descriptor) {
+    if (descriptor.replacement_masks == nullptr && descriptor.replacement_mask_count != 0) {
+        throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                       "replacement_masks=null with nonzero count");
+    }
+    std::vector<ctex::doc::LayerCompositeMaskRaster> result;
+    result.reserve(descriptor.replacement_mask_count);
+    for (std::size_t index = 0; index < descriptor.replacement_mask_count; ++index) {
+        result.push_back(layer_composite_mask(descriptor.replacement_masks[index]));
+    }
+    return result;
+}
+
+ctex::doc::LayerEntry layer_operation_entry(const ctex_layer_operation_descriptor& descriptor) {
+    if (descriptor.entry == nullptr) {
+        throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                       "layer operation entry=null");
+    }
+    ctex::doc::LayerEntry entry = layer_entry_descriptor(*descriptor.entry);
+    entry.graph = layer_operation_graph(descriptor);
+    return entry;
+}
+
+ctex::doc::LayerOperation layer_operation(const ctex_layer_operation_descriptor& descriptor) {
+    validate_structure_size(descriptor.size, CTEX_LAYER_OPERATION_DESCRIPTOR_V1_SIZE,
+                            CTEX_LAYER_OPERATION_DESCRIPTOR_CURRENT_SIZE,
+                            "layer operation descriptor size");
+    const std::string identifier = layer_operation_text(descriptor.identifier);
+    switch (descriptor.kind) {
+        case CTEX_LAYER_OPERATION_CREATE:
+            return ctex::doc::CreateLayerOperation{.entry = layer_operation_entry(descriptor),
+                                                   .content = layer_operation_content(descriptor),
+                                                   .masks = layer_operation_masks(descriptor)};
+        case CTEX_LAYER_OPERATION_DUPLICATE:
+            return ctex::doc::DuplicateLayerOperation{
+                .identifier = identifier,
+                .duplicate_identifier = layer_operation_text(descriptor.duplicate_identifier)};
+        case CTEX_LAYER_OPERATION_DELETE:
+            return ctex::doc::DeleteLayerOperation{
+                .identifier = identifier,
+                .instance_policy = layer_deletion_policy(descriptor.source_deletion_policy)};
+        case CTEX_LAYER_OPERATION_REORDER:
+            return ctex::doc::ReorderLayerOperation{
+                .identifier = identifier,
+                .before_identifier = layer_operation_text(descriptor.before_identifier)};
+        case CTEX_LAYER_OPERATION_REPARENT:
+            return ctex::doc::ReparentLayerOperation{
+                .identifier = identifier,
+                .parent_identifier = layer_operation_text(descriptor.parent_identifier),
+                .before_identifier = layer_operation_text(descriptor.before_identifier)};
+        case CTEX_LAYER_OPERATION_CLEAR:
+            return ctex::doc::ClearLayerOperation{
+                .identifier = identifier,
+                .semantic_id = layer_operation_text(descriptor.semantic_id)};
+        case CTEX_LAYER_OPERATION_INVERT:
+            return ctex::doc::InvertLayerOperation{
+                .identifier = identifier,
+                .semantic_id = layer_operation_text(descriptor.semantic_id)};
+        case CTEX_LAYER_OPERATION_MERGE_DOWN:
+            return ctex::doc::MergeDownLayerOperation{
+                .identifier = identifier,
+                .replacement_content = layer_operation_content(descriptor)};
+        case CTEX_LAYER_OPERATION_MERGE_GROUP:
+            return ctex::doc::MergeGroupLayerOperation{
+                .identifier = identifier,
+                .replacement_content = layer_operation_content(descriptor)};
+        case CTEX_LAYER_OPERATION_FLATTEN:
+            return ctex::doc::FlattenLayersOperation{
+                .output_entry = layer_operation_entry(descriptor),
+                .replacement_content = layer_operation_content(descriptor)};
+        case CTEX_LAYER_OPERATION_CONVERT:
+            return ctex::doc::ConvertLayerOperation{
+                .identifier = identifier,
+                .target_kind = layer_entry_kind(descriptor.target_kind),
+                .fill_graph = layer_operation_graph(descriptor)};
+        case CTEX_LAYER_OPERATION_APPLY_MASK:
+            return ctex::doc::ApplyMaskLayerOperation{
+                .mask_identifier = identifier,
+                .replacement_content = layer_operation_content(descriptor)};
+        default:
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_INVALID_ENUM_VALUE,
+                           "layer operation kind=" + std::to_string(descriptor.kind));
+    }
+}
+
+[[noreturn]] void throw_layer_operation_error(const ctex::doc::LayerOperationError& error) {
+    if (error.code() == ctex::doc::LayerOperationErrorCode::allocation_limit) {
+        throw_boundary(CTEX_RESULT_OVER_BUDGET, CTEX_DIAGNOSTIC_INVALID_DESCRIPTOR_VALUE,
+                       error.what());
+    }
+    throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_INVALID_DESCRIPTOR_VALUE,
+                   error.what());
+}
+
 PreparedMaterialGraph prepare_material_graph(const void* serialized, std::size_t serialized_size) {
     return prepare_material_graph(
         ctex::graph::deserialize_graph(material_graph_bytes(serialized, serialized_size)));
@@ -16885,6 +17005,59 @@ extern "C" ctex_result ctex_texture_set_layer_composite_snapshot_cpu(
             result, *out_info,
             {.channels = channels, .semantic_ids = semantic_ids, .pixels = pixels},
             channel_capacity, semantic_id_size, pixel_capacity);
+    });
+}
+
+extern "C" ctex_result ctex_texture_set_apply_layer_operation(
+    ctex_document* document, const char* texture_set_id, ctex_layer_snapshot* snapshot,
+    const ctex_layer_operation_descriptor* operation, ctex_layer_operation_info* out_info,
+    char* affected_ids, std::size_t affected_id_size) {
+    return call_boundary("ctex_texture_set_apply_layer_operation", [&] {
+        if (document == nullptr || snapshot == nullptr || operation == nullptr ||
+            out_info == nullptr) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                           "document, snapshot, operation, and out_info are required");
+        }
+        validate_structure_size(out_info->size, CTEX_LAYER_OPERATION_INFO_V1_SIZE,
+                                CTEX_LAYER_OPERATION_INFO_CURRENT_SIZE,
+                                "layer operation info size");
+        if (affected_ids == nullptr && affected_id_size != 0) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                           "affected_ids=null with nonzero size");
+        }
+        ctex::doc::TextureSet& texture_set = require_texture_set(*document, texture_set_id);
+        ctex::doc::TextureSet staged = texture_set;
+        ctex::doc::LayerOperationResult result;
+        try {
+            result = staged.apply_layer_operation({
+                .operation = layer_operation(*operation),
+                .resolved_content = snapshot->value,
+                .maximum_output_bytes = operation->maximum_output_bytes,
+                .appearance_tolerance = operation->appearance_tolerance,
+            });
+        } catch (const ctex::doc::LayerOperationError& error) {
+            throw_layer_operation_error(error);
+        }
+        const std::size_t required_size = texture_set_id_buffer_size(result.affected_identifiers);
+        if (affected_ids == nullptr) {
+            *out_info = {
+                .size = CTEX_LAYER_OPERATION_INFO_CURRENT_SIZE,
+                .affected_count = result.affected_identifiers.size(),
+                .required_affected_id_size = required_size,
+            };
+            return;
+        }
+        validate_string_buffer(affected_ids, affected_id_size, required_size);
+        std::vector<ctex::doc::LayerEntry> committed_entries(staged.layer_stack().entries().begin(),
+                                                             staged.layer_stack().entries().end());
+        texture_set.layer_stack().assign(std::move(committed_entries));
+        snapshot->value = std::move(result.resolved_content);
+        *out_info = {
+            .size = CTEX_LAYER_OPERATION_INFO_CURRENT_SIZE,
+            .affected_count = result.affected_identifiers.size(),
+            .required_affected_id_size = required_size,
+        };
+        copy_packed_strings(result.affected_identifiers, affected_ids);
     });
 }
 

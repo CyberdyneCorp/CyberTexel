@@ -200,6 +200,18 @@ snapshot with the same deterministic compositor and output guarantees. Snapshot
 handles remain valid independently of the borrowed creation arrays and must be
 destroyed with `ctex_layer_snapshot_destroy`.
 
+`ctex_texture_set_apply_layer_operation` exposes create, duplicate, delete,
+reorder, reparent, clear, invert, merge down, merge group, flatten,
+paint/fill conversion and apply-mask through one versioned descriptor. The
+descriptor supplies the owned snapshot, any baked replacement rasters, the
+output-byte ceiling and appearance tolerance required by the core operation.
+Calling with a null affected-ID buffer validates the complete candidate and
+returns its packed-ID size without committing. A second call with sufficient
+storage atomically publishes both the layer stack and the updated snapshot;
+invalid operations, appearance mismatches, budget failures and short buffers
+leave both unchanged. Create and paint-to-fill conversion accept a canonical
+serialized graph. Delete always carries an explicit live-instance policy.
+
 Tile history has an explicit byte ceiling and reports retained and available
 bytes, proposed-step capacity, and undo/redo counts. A capture declares unique
 channel/tile targets before an operation; it can wrap an ordinary paint-preview
