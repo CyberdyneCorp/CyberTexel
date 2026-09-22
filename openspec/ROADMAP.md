@@ -297,6 +297,10 @@ Owned resolved-raster snapshots and all twelve atomic layer-operation kinds now
 cross C with non-mutating sizing, bounded candidate validation, appearance
 checks and joint stack/snapshot publication. Together with the intervening C
 ABI slices, exactly 22 runtime requirements remain without C ABI evidence.
+Allocator-owned texture-set transactions now stage declared pixel writes,
+layer operations and metadata/graph edits behind one stale-checked commit.
+Layer-only history retains zero pixel bytes, reducing the exact C ABI gap to 21
+runtime requirements.
 
 ## Milestones
 

@@ -283,6 +283,16 @@ EXPORTS
     ctex_layer_snapshot_read
     ctex_texture_set_layer_composite_snapshot_cpu
     ctex_texture_set_apply_layer_operation
+    ctex_texture_set_begin_transaction
+    ctex_texture_set_transaction_destroy
+    ctex_texture_set_transaction_write_pixel
+    ctex_texture_set_transaction_apply_layer_operation
+    ctex_texture_set_transaction_set_layer_state
+    ctex_texture_set_transaction_set_layer_layout
+    ctex_texture_set_transaction_set_layer_channel
+    ctex_texture_set_transaction_set_fill_graph
+    ctex_texture_set_transaction_commit
+    ctex_texture_set_transaction_cancel
     ctex_texture_set_configure_tile_history
     ctex_texture_set_get_tile_history_budget
     ctex_texture_set_begin_tile_history

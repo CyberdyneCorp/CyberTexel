@@ -212,6 +212,21 @@ invalid operations, appearance mismatches, budget failures and short buffers
 leave both unchanged. Create and paint-to-fill conversion accept a canonical
 serialized graph. Delete always carries an explicit live-instance policy.
 
+`ctex_texture_set_begin_transaction` copies an owned snapshot and opens an
+isolated texture-set candidate over a declared tile write set. Pixel writes,
+layer operations, state/layout/channel edits and fill-graph replacement affect
+only that candidate. Commit checks the live tile, layer and history revisions,
+then publishes every changed tile, the layer stack and the updated snapshot as
+one undo step. A stale or failed commit consumes the transaction and publishes
+nothing. Cancel, destruction without commit and every failed staged operation
+leave the document and caller snapshot unchanged. The document, texture set and
+snapshot must outlive the transaction handle.
+
+Layer-only commits retain command records and report zero tile count and zero
+pixel-history bytes. This applies to renaming, reorder/reparent, opacity, blend
+mode, channel modulation and graph edits. Transaction handles use the document's
+allocator and must be destroyed even after commit or cancel.
+
 Tile history has an explicit byte ceiling and reports retained and available
 bytes, proposed-step capacity, and undo/redo counts. A capture declares unique
 channel/tile targets before an operation; it can wrap an ordinary paint-preview

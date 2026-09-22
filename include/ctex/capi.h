@@ -162,6 +162,7 @@ typedef struct ctex_material_graph_node_registry ctex_material_graph_node_regist
 typedef struct ctex_shader_emission_cache ctex_shader_emission_cache;
 typedef struct ctex_tile_history_capture ctex_tile_history_capture;
 typedef struct ctex_layer_snapshot ctex_layer_snapshot;
+typedef struct ctex_texture_set_transaction ctex_texture_set_transaction;
 
 #define CTEX_MAX_MESH_VERTEX_COUNT ((size_t)100000000)
 #define CTEX_MAX_MESH_TRIANGLE_COUNT ((size_t)100000000)
@@ -6197,6 +6198,32 @@ CTEX_API ctex_result ctex_texture_set_apply_layer_operation(
     ctex_document* document, const char* texture_set_id, ctex_layer_snapshot* snapshot,
     const ctex_layer_operation_descriptor* operation, ctex_layer_operation_info* out_info,
     char* affected_ids, size_t affected_id_size);
+CTEX_API ctex_result ctex_texture_set_begin_transaction(
+    ctex_document* document, const char* texture_set_id, const char* step_identifier,
+    const ctex_tile_history_target_descriptor* targets, size_t target_count,
+    ctex_layer_snapshot* snapshot, ctex_texture_set_transaction** out_transaction);
+CTEX_API void ctex_texture_set_transaction_destroy(ctex_texture_set_transaction* transaction);
+CTEX_API ctex_result ctex_texture_set_transaction_write_pixel(
+    ctex_texture_set_transaction* transaction, const char* semantic_id, uint32_t x, uint32_t y,
+    const void* pixel, size_t pixel_size);
+CTEX_API ctex_result ctex_texture_set_transaction_apply_layer_operation(
+    ctex_texture_set_transaction* transaction, const ctex_layer_operation_descriptor* operation);
+CTEX_API ctex_result ctex_texture_set_transaction_set_layer_state(
+    ctex_texture_set_transaction* transaction, const char* entry_identifier,
+    const char* display_name, uint32_t enabled, double opacity, const char* blend_mode);
+CTEX_API ctex_result ctex_texture_set_transaction_set_layer_layout(
+    ctex_texture_set_transaction* transaction, const char* entry_identifier,
+    const char* parent_identifier, const char* target_identifier);
+CTEX_API ctex_result ctex_texture_set_transaction_set_layer_channel(
+    ctex_texture_set_transaction* transaction, const char* entry_identifier,
+    const ctex_layer_channel_descriptor* channel);
+CTEX_API ctex_result ctex_texture_set_transaction_set_fill_graph(
+    ctex_texture_set_transaction* transaction, const char* entry_identifier,
+    const void* graph_serialized, size_t graph_serialized_size);
+/* Commit consumes the staged transaction on both success and failure. */
+CTEX_API ctex_result ctex_texture_set_transaction_commit(ctex_texture_set_transaction* transaction,
+                                                         ctex_tile_history_commit_info* out_info);
+CTEX_API void ctex_texture_set_transaction_cancel(ctex_texture_set_transaction* transaction);
 CTEX_API ctex_result ctex_texture_set_configure_tile_history(ctex_document* document,
                                                              const char* texture_set_id,
                                                              size_t budget_bytes);

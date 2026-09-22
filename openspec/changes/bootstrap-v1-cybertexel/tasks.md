@@ -1181,6 +1181,14 @@ fixture exercises all twelve operation kinds plus query and short-buffer
 rollback. After the intervening C ABI slices and this operation boundary, the
 exact remaining task-14.8 gap is 22 runtime requirements.
 
+Texture-set transactions now cross C as allocator-owned handles over declared
+tile targets and an owned resolved-raster snapshot. Pixel writes, layer
+operations and metadata/graph edits remain staged until one stale-checked
+commit; cancel and destruction discard them. The strict-C fixture covers a
+forty-write mixed gesture, one-step undo/redo, cancellation, and a layer-only
+metadata/graph commit retaining zero pixel bytes. This closes non-pixel command
+history and reduces the exact remaining task-14.8 gap to 21 requirements.
+
 ## 1. Foundation
 
 - [x] 1.1 CMake project, C++20, warnings as errors, presets for headless, macOS, Linux, Windows, iOS, Android

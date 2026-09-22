@@ -242,6 +242,21 @@ struct ctex_layer_snapshot {
     ctex::doc::LayerCompositeRequest value;
 };
 
+struct ctex_texture_set_transaction {
+    ctex_texture_set_transaction(ctex_allocator_state allocator_value,
+                                 ctex::doc::TextureSetTransaction transaction_value,
+                                 ctex_layer_snapshot* snapshot_value)
+        : allocator(allocator_value),
+          value(std::move(transaction_value)),
+          snapshot(snapshot_value),
+          resolved_content(snapshot_value->value) {}
+
+    ctex_allocator_state allocator;
+    std::optional<ctex::doc::TextureSetTransaction> value;
+    ctex_layer_snapshot* snapshot;
+    ctex::doc::LayerCompositeRequest resolved_content;
+};
+
 struct ctex_pick_index {
     ctex_pick_index(ctex_allocator_state allocator_value, ctex_mesh* mesh_value)
         : allocator(allocator_value),
@@ -761,6 +776,20 @@ ctex_layer_snapshot* create_layer_snapshot(const ctex_allocator_state& allocator
     } catch (...) {
         deallocate_storage(allocator, storage, sizeof(ctex_layer_snapshot),
                            alignof(ctex_layer_snapshot));
+        throw;
+    }
+}
+
+ctex_texture_set_transaction* create_texture_set_transaction(const ctex_allocator_state& allocator,
+                                                             ctex::doc::TextureSetTransaction value,
+                                                             ctex_layer_snapshot* snapshot) {
+    void* storage = allocate_storage(allocator, sizeof(ctex_texture_set_transaction),
+                                     alignof(ctex_texture_set_transaction));
+    try {
+        return ::new (storage) ctex_texture_set_transaction(allocator, std::move(value), snapshot);
+    } catch (...) {
+        deallocate_storage(allocator, storage, sizeof(ctex_texture_set_transaction),
+                           alignof(ctex_texture_set_transaction));
         throw;
     }
 }
@@ -11031,6 +11060,14 @@ void publish_layer_snapshot(const ctex::doc::LayerCompositeRequest& snapshot,
     write_layer_snapshot(snapshot, output);
 }
 
+ctex::doc::TextureSetTransaction& require_transaction(ctex_texture_set_transaction& transaction) {
+    if (!transaction.value.has_value()) {
+        throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_INVALID_TILE_HISTORY,
+                       "texture-set transaction was already consumed");
+    }
+    return *transaction.value;
+}
+
 }  // namespace
 
 void* ctex_host_memory_resource::do_allocate(std::size_t bytes, std::size_t alignment) {
@@ -17059,6 +17096,193 @@ extern "C" ctex_result ctex_texture_set_apply_layer_operation(
         };
         copy_packed_strings(result.affected_identifiers, affected_ids);
     });
+}
+
+extern "C" ctex_result ctex_texture_set_begin_transaction(
+    ctex_document* document, const char* texture_set_id, const char* step_identifier,
+    const ctex_tile_history_target_descriptor* targets, std::size_t target_count,
+    ctex_layer_snapshot* snapshot, ctex_texture_set_transaction** out_transaction) {
+    return call_boundary("ctex_texture_set_begin_transaction", [&] {
+        if (document == nullptr || step_identifier == nullptr || snapshot == nullptr ||
+            out_transaction == nullptr || (targets == nullptr && target_count != 0)) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                           "document, step identifier, snapshot, declared targets, and output are "
+                           "required");
+        }
+        *out_transaction = nullptr;
+        std::vector<ctex::doc::TileHistoryTarget> converted;
+        converted.reserve(target_count);
+        for (std::size_t index = 0; index < target_count; ++index) {
+            validate_structure_size(targets[index].size,
+                                    CTEX_TILE_HISTORY_TARGET_DESCRIPTOR_V1_SIZE,
+                                    CTEX_TILE_HISTORY_TARGET_DESCRIPTOR_CURRENT_SIZE,
+                                    "transaction target descriptor size");
+            if (targets[index].semantic_id == nullptr) {
+                throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                               "transaction target semantic_id=null");
+            }
+            converted.push_back({.semantic_id = targets[index].semantic_id,
+                                 .coordinate = {targets[index].tile_x, targets[index].tile_y}});
+        }
+        try {
+            ctex::doc::TextureSetTransaction value =
+                require_texture_set(*document, texture_set_id)
+                    .begin_transaction(step_identifier, converted);
+            *out_transaction =
+                create_texture_set_transaction(document->allocator, std::move(value), snapshot);
+        } catch (const ctex::doc::TileHistoryError& error) {
+            throw_tile_history_error(error);
+        }
+    });
+}
+
+extern "C" void ctex_texture_set_transaction_destroy(ctex_texture_set_transaction* transaction) {
+    if (transaction == nullptr) {
+        return;
+    }
+    const ctex_allocator_state allocator = transaction->allocator;
+    transaction->~ctex_texture_set_transaction();
+    deallocate_storage(allocator, transaction, sizeof(ctex_texture_set_transaction),
+                       alignof(ctex_texture_set_transaction));
+}
+
+extern "C" ctex_result ctex_texture_set_transaction_write_pixel(
+    ctex_texture_set_transaction* transaction, const char* semantic_id, std::uint32_t x,
+    std::uint32_t y, const void* pixel, std::size_t pixel_size) {
+    return call_boundary("ctex_texture_set_transaction_write_pixel", [&] {
+        if (transaction == nullptr || semantic_id == nullptr ||
+            (pixel == nullptr && pixel_size != 0)) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                           "transaction, semantic_id, and declared pixel bytes are required");
+        }
+        require_transaction(*transaction)
+            .write_pixel(semantic_id, x, y, {static_cast<const std::byte*>(pixel), pixel_size});
+    });
+}
+
+extern "C" ctex_result ctex_texture_set_transaction_apply_layer_operation(
+    ctex_texture_set_transaction* transaction, const ctex_layer_operation_descriptor* operation) {
+    return call_boundary("ctex_texture_set_transaction_apply_layer_operation", [&] {
+        if (transaction == nullptr || operation == nullptr) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                           "transaction and operation are required");
+        }
+        try {
+            ctex::doc::LayerOperationResult result =
+                require_transaction(*transaction)
+                    .apply_layer_operation({
+                        .operation = layer_operation(*operation),
+                        .resolved_content = transaction->resolved_content,
+                        .maximum_output_bytes = operation->maximum_output_bytes,
+                        .appearance_tolerance = operation->appearance_tolerance,
+                    });
+            transaction->resolved_content = std::move(result.resolved_content);
+        } catch (const ctex::doc::LayerOperationError& error) {
+            throw_layer_operation_error(error);
+        }
+    });
+}
+
+extern "C" ctex_result ctex_texture_set_transaction_set_layer_state(
+    ctex_texture_set_transaction* transaction, const char* entry_identifier,
+    const char* display_name, std::uint32_t enabled, double opacity, const char* blend_mode) {
+    return call_boundary("ctex_texture_set_transaction_set_layer_state", [&] {
+        if (transaction == nullptr || entry_identifier == nullptr || display_name == nullptr ||
+            blend_mode == nullptr) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                           "transaction, entry, display name, and blend mode are required");
+        }
+        ctex::doc::LayerStack& stack = require_transaction(*transaction).layer_stack();
+        ctex::doc::LayerEntry replacement = stack.entry(entry_identifier);
+        replacement.display_name = display_name;
+        replacement.enabled = layer_boolean(enabled, "layer enabled");
+        replacement.opacity = opacity;
+        replacement.blend_mode = blend_mode;
+        stack.replace(entry_identifier, std::move(replacement));
+    });
+}
+
+extern "C" ctex_result ctex_texture_set_transaction_set_layer_layout(
+    ctex_texture_set_transaction* transaction, const char* entry_identifier,
+    const char* parent_identifier, const char* target_identifier) {
+    return call_boundary("ctex_texture_set_transaction_set_layer_layout", [&] {
+        if (transaction == nullptr || entry_identifier == nullptr) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                           "transaction and entry_identifier are required");
+        }
+        require_transaction(*transaction)
+            .layer_stack()
+            .set_layout(entry_identifier, layer_operation_text(parent_identifier),
+                        layer_operation_text(target_identifier));
+    });
+}
+
+extern "C" ctex_result ctex_texture_set_transaction_set_layer_channel(
+    ctex_texture_set_transaction* transaction, const char* entry_identifier,
+    const ctex_layer_channel_descriptor* channel) {
+    return call_boundary("ctex_texture_set_transaction_set_layer_channel", [&] {
+        if (transaction == nullptr || entry_identifier == nullptr || channel == nullptr) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                           "transaction, entry_identifier, and channel are required");
+        }
+        require_transaction(*transaction)
+            .layer_stack()
+            .set_channel_modulation(entry_identifier, layer_channel_descriptor(*channel));
+    });
+}
+
+extern "C" ctex_result ctex_texture_set_transaction_set_fill_graph(
+    ctex_texture_set_transaction* transaction, const char* entry_identifier,
+    const void* graph_serialized, std::size_t graph_serialized_size) {
+    return call_boundary("ctex_texture_set_transaction_set_fill_graph", [&] {
+        if (transaction == nullptr || entry_identifier == nullptr) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                           "transaction and entry_identifier are required");
+        }
+        ctex::graph::GraphDocument graph = ctex::graph::deserialize_graph(
+            material_graph_bytes(graph_serialized, graph_serialized_size));
+        require_transaction(*transaction)
+            .layer_stack()
+            .set_fill_graph(entry_identifier, std::move(graph));
+    });
+}
+
+extern "C" ctex_result ctex_texture_set_transaction_commit(
+    ctex_texture_set_transaction* transaction, ctex_tile_history_commit_info* out_info) {
+    return call_boundary("ctex_texture_set_transaction_commit", [&] {
+        if (transaction == nullptr || out_info == nullptr) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                           "transaction and out_info are required");
+        }
+        validate_structure_size(out_info->size, CTEX_TILE_HISTORY_COMMIT_INFO_V1_SIZE,
+                                CTEX_TILE_HISTORY_COMMIT_INFO_CURRENT_SIZE,
+                                "transaction commit info size");
+        ctex::doc::TileHistoryCommitResult result;
+        try {
+            result = require_transaction(*transaction).commit();
+            transaction->value.reset();
+        } catch (const ctex::doc::TileHistoryError& error) {
+            transaction->value.reset();
+            throw_tile_history_error(error);
+        } catch (...) {
+            transaction->value.reset();
+            throw;
+        }
+        std::swap(transaction->snapshot->value, transaction->resolved_content);
+        *out_info = {
+            .size = CTEX_TILE_HISTORY_COMMIT_INFO_CURRENT_SIZE,
+            .committed = result.committed ? 1U : 0U,
+            .tile_count = result.tile_count,
+            .retained_bytes = result.retained_bytes,
+            .layer_stack_changed = result.layer_stack_changed ? 1U : 0U,
+        };
+    });
+}
+
+extern "C" void ctex_texture_set_transaction_cancel(ctex_texture_set_transaction* transaction) {
+    if (transaction != nullptr) {
+        transaction->value.reset();
+    }
 }
 
 extern "C" ctex_result ctex_texture_set_configure_tile_history(ctex_document* document,
