@@ -8,6 +8,7 @@
 #include <memory>
 #include <memory_resource>
 #include <span>
+#include <string_view>
 #include <utility>
 #include <vector>
 
@@ -62,6 +63,37 @@ struct TileChangeSet {
     std::size_t indexed_tiles_visited{};
 };
 
+struct TileBackingKey {
+    std::uint64_t namespace_identity{};
+    TileCoordinate coordinate{};
+    Generation generation{};
+    friend constexpr bool operator==(TileBackingKey, TileBackingKey) noexcept = default;
+};
+
+class TileBackingStore {
+public:
+    virtual ~TileBackingStore() = default;
+    [[nodiscard]] virtual bool store(TileBackingKey key, std::span<const std::byte> bytes) = 0;
+    [[nodiscard]] virtual bool load(TileBackingKey key, std::span<std::byte> bytes) = 0;
+    virtual void discard(TileBackingKey key) noexcept = 0;
+    virtual void release_namespace(std::uint64_t namespace_identity) noexcept = 0;
+};
+
+enum class TileEvictionStatus : std::uint8_t {
+    evicted,
+    sparse,
+    already_evicted,
+    pinned,
+    no_backing_store,
+    backing_store_failed,
+};
+
+struct TileEvictionReport {
+    TileEvictionStatus status{};
+    std::size_t resident_bytes_released{};
+    std::size_t backing_bytes_written{};
+};
+
 class TiledImage {
 public:
     TiledImage(std::uint32_t width, std::uint32_t height, PixelFormat format,
@@ -70,8 +102,9 @@ public:
                std::pmr::memory_resource* memory_resource = std::pmr::get_default_resource());
     TiledImage(const TiledImage& other);
     TiledImage& operator=(const TiledImage& other);
-    TiledImage(TiledImage&& other) noexcept = default;
+    TiledImage(TiledImage&& other) noexcept;
     TiledImage& operator=(TiledImage&& other) noexcept;
+    ~TiledImage();
 
     [[nodiscard]] std::uint32_t width() const noexcept { return width_; }
     [[nodiscard]] std::uint32_t height() const noexcept { return height_; }
@@ -83,6 +116,7 @@ public:
     [[nodiscard]] std::size_t tile_bytes() const noexcept { return tile_bytes_; }
     [[nodiscard]] std::span<const std::byte> clear_pixel() const noexcept { return clear_pixel_; }
     [[nodiscard]] std::size_t resident_pixel_bytes() const noexcept;
+    [[nodiscard]] std::size_t backed_pixel_bytes() const noexcept;
     [[nodiscard]] Revision revision() const noexcept { return revision_; }
     [[nodiscard]] RevisionCursor revision_cursor() const noexcept {
         return {revision_epoch_, revision_};
@@ -92,6 +126,10 @@ public:
     [[nodiscard]] Revision tile_revision(TileCoordinate tile) const;
     [[nodiscard]] Generation tile_generation(TileCoordinate tile) const;
     [[nodiscard]] bool is_tile_allocated(TileCoordinate tile) const;
+    [[nodiscard]] bool is_tile_resident(TileCoordinate tile) const;
+    [[nodiscard]] bool is_tile_backed(TileCoordinate tile) const;
+    void set_backing_store(std::shared_ptr<TileBackingStore> backing_store);
+    [[nodiscard]] TileEvictionReport evict_tile(TileCoordinate tile);
     [[nodiscard]] TileStorageHandle pin_tile_storage(TileCoordinate tile) const;
     [[nodiscard]] TileStorageSnapshot snapshot_tile_storage(TileCoordinate tile) const;
     void prepare_tile_storage_exchanges(std::size_t maximum_new_allocations);
@@ -113,7 +151,12 @@ private:
     [[nodiscard]] std::size_t tile_index(TileCoordinate tile) const;
     [[nodiscard]] std::size_t pixel_offset(std::uint32_t x, std::uint32_t y) const noexcept;
     [[nodiscard]] TileStorage& allocate_tile(std::size_t index);
+    [[nodiscard]] std::shared_ptr<TileStorage> ensure_resident(std::size_t index) const;
+    [[nodiscard]] TileBackingKey backing_key(std::size_t index) const noexcept;
+    void discard_backing(std::size_t index) noexcept;
     void begin_new_revision_epoch() noexcept;
+
+    struct BackingNamespace {};
 
     std::uint32_t width_;
     std::uint32_t height_;
@@ -125,7 +168,8 @@ private:
     std::size_t tile_bytes_;
     std::pmr::memory_resource* memory_resource_;
     std::pmr::vector<std::byte> clear_pixel_;
-    std::pmr::vector<std::shared_ptr<TileStorage>> tiles_;
+    mutable std::pmr::vector<std::shared_ptr<TileStorage>> tiles_;
+    mutable std::pmr::vector<bool> backed_tiles_;
     std::pmr::vector<TileCoordinate> allocated_tiles_;
     std::pmr::vector<bool> dirty_;
     RevisionEpoch revision_epoch_{1};
@@ -133,7 +177,11 @@ private:
     std::pmr::vector<Revision> tile_revisions_;
     std::pmr::vector<Generation> tile_generations_;
     std::pmr::map<Revision, TileCoordinate> changed_tiles_by_revision_;
+    std::shared_ptr<TileBackingStore> backing_store_;
+    std::unique_ptr<BackingNamespace> backing_namespace_;
 };
+
+[[nodiscard]] std::string_view tile_eviction_status_name(TileEvictionStatus status) noexcept;
 
 }  // namespace ctex::image
 

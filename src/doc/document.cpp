@@ -363,7 +363,7 @@ std::vector<std::uint32_t> TextureSet::occupied_udim_tiles() const {
     return result;
 }
 
-const TextureChannels& TextureSet::udim_channels(std::uint32_t tile_number) const {
+TextureChannels& TextureSet::udim_channels(std::uint32_t tile_number) {
     if (!udim_tiling_) {
         throw std::logic_error("texture set does not use UDIM tiling");
     }
@@ -374,6 +374,10 @@ const TextureChannels& TextureSet::udim_channels(std::uint32_t tile_number) cons
                                 std::to_string(tile_number));
     }
     return found->second;
+}
+
+const TextureChannels& TextureSet::udim_channels(std::uint32_t tile_number) const {
+    return const_cast<TextureSet*>(this)->udim_channels(tile_number);
 }
 
 bool TextureSet::can_clear_channels() const noexcept {

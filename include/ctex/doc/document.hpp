@@ -185,6 +185,7 @@ public:
                                                          std::uint32_t tile_number, std::uint32_t x,
                                                          std::uint32_t y) const;
     [[nodiscard]] std::vector<std::uint32_t> occupied_udim_tiles() const;
+    [[nodiscard]] TextureChannels& udim_channels(std::uint32_t tile_number);
     [[nodiscard]] const TextureChannels& udim_channels(std::uint32_t tile_number) const;
     [[nodiscard]] bool can_clear_channels() const noexcept;
     void clear_channels();

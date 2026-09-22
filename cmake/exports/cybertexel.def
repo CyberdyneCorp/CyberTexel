@@ -52,6 +52,7 @@ EXPORTS
     ctex_resource_ledger_upsert
     ctex_resource_ledger_remove
     ctex_resource_ledger_get_report
+    ctex_resource_ledger_set_cache_eviction_callback
     ctex_resource_ledger_admit
     ctex_resource_reservation_destroy
     ctex_resource_reservation_release
@@ -277,6 +278,8 @@ EXPORTS
     ctex_texture_set_get_channel_ids
     ctex_texture_set_get_channel_info
     ctex_texture_set_get_memory_report
+    ctex_texture_set_set_channel_backing_store
+    ctex_texture_set_evict_channel_tile
     ctex_texture_set_layer_append
     ctex_texture_set_layer_inspect
     ctex_texture_set_layer_set_state

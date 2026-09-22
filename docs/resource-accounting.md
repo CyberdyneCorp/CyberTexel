@@ -67,14 +67,42 @@ The admission order is deterministic:
 
 1. admit the complete operation if it fits;
 2. otherwise schedule the largest work-item batch that fits;
-3. if even one item does not fit, consider unpinned, non-in-flight `cache`
-   allocations in identity order and stop evicting as soon as work fits; and
+3. if even one item does not fit and a cache-eviction callback is registered,
+   consider unpinned, non-in-flight `cache` allocations in identity order and
+   stop evicting as soon as work fits; and
 4. refuse atomically if fixed requirements plus one item still cannot fit.
 
 Only reconstructible storage belongs in the `cache` category. Document,
 history, recovery, pinned and in-flight allocations are never selected for
-eviction. Refusal leaves every ledger allocation unchanged. Destroying or
-releasing the reservation immediately returns its reserved capacity; admitted
-work then repeats the reported batch size until all work items are complete.
+eviction. Before removing an eligible ledger record, admission invokes the
+registered callback so the producer releases the physical allocation; without
+a callback, no cache record is considered evictable. The callback must not call
+back into the same ledger. Refusal leaves every ledger allocation unchanged.
+Destroying or releasing the reservation immediately returns its reserved
+capacity; admitted work then repeats the reported batch size until all work
+items are complete.
 Sparse authored-tile backing and reload policy builds on this contract in task
 19.3.
+
+## Sparse tiles and lossless backing
+
+Clear tiles remain logical constants and allocate neither pixels nor backing
+storage. A host can attach a `TileBackingStore` to an authored image, or the
+equivalent callback descriptor to a document channel through C. Backing keys
+combine a process-local image namespace, tile coordinate and exact generation;
+they do not depend on canvas resolution or UDIM number.
+
+Eviction follows a lossless sequence: write the complete physical tile, accept
+the write only when the host confirms success, then release the resident
+allocation. A tile retained by history or a snapshot is reported as pinned and
+is not evicted. A failed backing write leaves the resident allocation and
+pixels untouched. Reads and writes reload an evicted generation into the
+image's configured memory resource before access, and a failed reload leaves
+the backed state intact. Editing a restored tile discards its stale backing key;
+the next eviction writes the new generation.
+
+The C operations accept `udim_tile_number == 0` for the texture set's primary
+channel image or a concrete UDIM number for sparse tiled sets. The backing
+callbacks own persistence and receive explicit store, load, per-key discard and
+namespace-release notifications. They must remain valid until the document is
+destroyed and must not call back into that document from inside a callback.

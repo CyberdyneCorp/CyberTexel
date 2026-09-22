@@ -9,10 +9,13 @@
 #include <ctex/image/tiled_image.hpp>
 #include <exception>
 #include <iostream>
+#include <map>
+#include <memory>
 #include <memory_resource>
 #include <span>
 #include <stdexcept>
 #include <string_view>
+#include <tuple>
 #include <utility>
 #include <vector>
 
@@ -22,8 +25,61 @@ using ctex::image::ChannelExpansionRule;
 using ctex::image::ChannelType;
 using ctex::image::ImageResampleFilter;
 using ctex::image::PixelFormat;
+using ctex::image::TileBackingKey;
+using ctex::image::TileBackingStore;
 using ctex::image::TileCoordinate;
 using ctex::image::TiledImage;
+using ctex::image::TileEvictionStatus;
+
+struct BackingKeyLess {
+    bool operator()(TileBackingKey left, TileBackingKey right) const noexcept {
+        return std::tie(left.namespace_identity, left.coordinate.y, left.coordinate.x,
+                        left.generation) < std::tie(right.namespace_identity, right.coordinate.y,
+                                                    right.coordinate.x, right.generation);
+    }
+};
+
+class MemoryBackingStore final : public TileBackingStore {
+public:
+    bool store(TileBackingKey key, std::span<const std::byte> bytes) override {
+        ++store_calls;
+        if (fail_store) {
+            return false;
+        }
+        storage.insert_or_assign(key, std::vector<std::byte>(bytes.begin(), bytes.end()));
+        return true;
+    }
+
+    bool load(TileBackingKey key, std::span<std::byte> bytes) override {
+        ++load_calls;
+        const auto found = storage.find(key);
+        if (fail_load || found == storage.end() || found->second.size() != bytes.size()) {
+            return false;
+        }
+        std::ranges::copy(found->second, bytes.begin());
+        return true;
+    }
+
+    void discard(TileBackingKey key) noexcept override {
+        ++discard_calls;
+        storage.erase(key);
+    }
+
+    void release_namespace(std::uint64_t namespace_identity) noexcept override {
+        ++release_calls;
+        std::erase_if(storage, [namespace_identity](const auto& entry) {
+            return entry.first.namespace_identity == namespace_identity;
+        });
+    }
+
+    bool fail_store{};
+    bool fail_load{};
+    std::size_t store_calls{};
+    std::size_t load_calls{};
+    std::size_t discard_calls{};
+    std::size_t release_calls{};
+    std::map<TileBackingKey, std::vector<std::byte>, BackingKeyLess> storage;
+};
 
 class CountingResource final : public std::pmr::memory_resource {
 public:
@@ -366,6 +422,70 @@ bool test_persistent_storage_uses_supplied_resource() {
                   "image storage was not returned to its memory resource");
 }
 
+bool test_lossless_backing_evicts_and_reloads_authored_tiles() {
+    auto backing = std::make_shared<MemoryBackingStore>();
+    {
+        TiledImage image(4, 4, PixelFormat{ChannelType::uint8_unorm, 1}, 4);
+        if (!expect(image.evict_tile({0, 0}).status == TileEvictionStatus::sparse,
+                    "sparse clear tile was treated as resident storage")) {
+            return false;
+        }
+        const std::array authored{std::byte{73}};
+        image.write_pixel(1, 2, authored);
+        if (!expect(image.evict_tile({0, 0}).status == TileEvictionStatus::no_backing_store,
+                    "authored tile was evicted without lossless backing")) {
+            return false;
+        }
+        image.set_backing_store(backing);
+        auto pinned = image.pin_tile_storage({0, 0});
+        if (!expect(image.evict_tile({0, 0}).status == TileEvictionStatus::pinned,
+                    "pinned authored tile was evicted")) {
+            return false;
+        }
+        pinned.reset();
+        const auto evicted = image.evict_tile({0, 0});
+        if (!expect(evicted.status == TileEvictionStatus::evicted &&
+                        evicted.resident_bytes_released == 16 &&
+                        evicted.backing_bytes_written == 16 && image.resident_pixel_bytes() == 0 &&
+                        image.backed_pixel_bytes() == 16 && image.is_tile_allocated({0, 0}) &&
+                        !image.is_tile_resident({0, 0}),
+                    "authored tile eviction did not preserve logical occupancy and backing")) {
+            return false;
+        }
+        if (!expect(std::equal(authored.begin(), authored.end(), image.read_pixel(1, 2).begin()) &&
+                        image.resident_pixel_bytes() == 16 && backing->load_calls == 1,
+                    "evicted authored tile did not reload bit-identically")) {
+            return false;
+        }
+        const auto evicted_again = image.evict_tile({0, 0});
+        if (!expect(evicted_again.status == TileEvictionStatus::evicted &&
+                        evicted_again.backing_bytes_written == 0 && backing->store_calls == 1,
+                    "unchanged backed tile was written again during eviction")) {
+            return false;
+        }
+        static_cast<void>(image.read_pixel(1, 2));
+        image.write_pixel(1, 2, std::array{std::byte{99}});
+        if (!expect(!image.is_tile_backed({0, 0}) && backing->discard_calls == 1,
+                    "editing a restored tile did not invalidate stale backing")) {
+            return false;
+        }
+        if (!expect(image.evict_tile({0, 0}).status == TileEvictionStatus::evicted &&
+                        backing->store_calls == 2,
+                    "edited authored tile did not create a new lossless checkpoint")) {
+            return false;
+        }
+        backing->fail_load = true;
+        if (!expect_throws<std::runtime_error>([&] { static_cast<void>(image.read_pixel(1, 2)); },
+                                               "failed backing reload was accepted") ||
+            !expect(image.resident_pixel_bytes() == 0 && image.is_tile_backed({0, 0}),
+                    "failed reload lost the backed tile state")) {
+            return false;
+        }
+    }
+    return expect(backing->release_calls == 1 && backing->storage.empty(),
+                  "image destruction did not release its backing namespace");
+}
+
 bool test_validation() {
     bool passed = true;
     passed &= expect_throws<std::invalid_argument>(
@@ -398,7 +518,8 @@ int main() {
                    test_pinned_tile_storage_is_copy_on_write() &&
                    test_unpinned_tile_storage_is_reused() &&
                    test_tile_storage_ownership_exchange_is_copy_free() &&
-                   test_persistent_storage_uses_supplied_resource() && test_validation()
+                   test_persistent_storage_uses_supplied_resource() &&
+                   test_lossless_backing_evicts_and_reloads_authored_tiles() && test_validation()
                ? 0
                : 1;
 }

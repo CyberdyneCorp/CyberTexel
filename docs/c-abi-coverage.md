@@ -185,5 +185,10 @@ Atomic reservations now enforce independent CPU, GPU, backing-store and
 temporary ceilings, schedule the largest fitting bounded tile batch, evict only
 eligible reconstructible caches, and leave storage unchanged on refusal. The
 exact remaining gap is 16 runtime requirements.
+Sparse clear tiles remain allocation-free, while authored flat or UDIM channel
+tiles cross a host-provided lossless backing boundary before eviction and reload
+by exact generation. Physical cache release is callback-confirmed rather than
+an accounting-only deletion. The exact remaining gap is 15 runtime
+requirements.
 The gate is not part of the aggregate `just check` until that count reaches zero;
 its unit tests run in the normal tooling suite throughout the migration.

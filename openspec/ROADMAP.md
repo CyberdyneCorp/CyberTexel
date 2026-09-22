@@ -316,6 +316,11 @@ Budget admission now reserves fixed and tiled working sets against independent
 CPU, GPU, backing-store and temporary ceilings, with deterministic eligible
 cache eviction and atomic refusal. The exact C ABI gap is now 16 runtime
 requirements.
+Sparse authored tiles now require successful lossless host backing before
+resident release, reload by exact generation for flat and UDIM storage, and
+refuse pinned or failed writes. Cache admission invokes physical-release
+callbacks before accounting removal. The exact C ABI gap is now 15 runtime
+requirements.
 
 ## Milestones
 

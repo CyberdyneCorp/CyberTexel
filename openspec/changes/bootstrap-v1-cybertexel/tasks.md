@@ -1225,6 +1225,15 @@ strict-C fixtures cover tiled scheduling, concurrent reservations, cache
 eviction identities, pinned-cache retention and atomic refusal, reducing the
 exact task-14.8 gap to 16 runtime requirements.
 
+Task 19.3 keeps clear tiles allocation-free and adds host-supplied lossless
+backing for authored channel tiles. Exact generation keys work identically for
+flat and UDIM images. Eviction refuses pinned tiles and failed backing writes;
+successful eviction releases residency, transparent reads reload exact bytes,
+and edits discard stale checkpoints. Admission now invokes a required physical
+cache-release callback before removing an accounting record, so reported
+eviction cannot merely hide live host memory. C++ and strict-C UDIM fixtures
+reduce the exact task-14.8 gap to 15 runtime requirements.
+
 ## 1. Foundation
 
 - [x] 1.1 CMake project, C++20, warnings as errors, presets for headless, macOS, Linux, Windows, iOS, Android
@@ -1493,7 +1502,7 @@ exact task-14.8 gap to 16 runtime requirements.
 
 - [x] 19.1 Complete allocation accounting with shared physical allocation identity, host device descriptors and pinned/in-flight resource reporting
 - [x] 19.2 CPU/GPU/backing/temporary ceilings, bounded admission and tiled work scheduling
-- [ ] 19.3 Sparse constant tiles, derived-cache eviction, lossless authored-tile backing storage and reload
+- [x] 19.3 Sparse constant tiles, derived-cache eviction, lossless authored-tile backing storage and reload
 - [ ] 19.4 Host preview-quality policy with unchanged authored precision and export results
 - [ ] 19.5 Quiesce, durable checkpoint notification, suspension deadlines and recovery revision reporting
 - [ ] 19.6 `resource-residency` scenarios as tests

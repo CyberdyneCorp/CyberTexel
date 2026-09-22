@@ -104,6 +104,17 @@ ResourceBudgetLimits limits(std::size_t cpu, std::size_t temporary) {
             .temporary_bytes = temporary};
 }
 
+struct EvictionTracker {
+    std::uint64_t identity{};
+    std::size_t calls{};
+};
+
+void record_eviction(std::uint64_t identity, void* user_data) noexcept {
+    auto& tracker = *static_cast<EvictionTracker*>(user_data);
+    tracker.identity = identity;
+    ++tracker.calls;
+}
+
 bool admission_reserves_a_bounded_tile_batch() {
     ResourceLedger ledger;
     ledger.upsert({.allocation_identity = 10,
@@ -150,6 +161,8 @@ bool admission_reserves_a_bounded_tile_batch() {
 
 bool admission_evicts_only_when_required_and_refusal_is_atomic() {
     ResourceLedger ledger;
+    EvictionTracker tracker;
+    ledger.set_cache_eviction_callback(record_eviction, &tracker);
     ledger.upsert({.allocation_identity = 20,
                    .category = ResourceCategory::document_storage,
                    .physical_bytes = 500,
@@ -177,6 +190,8 @@ bool admission_evicts_only_when_required_and_refusal_is_atomic() {
         expect(admitted.active() && admitted.report().evicted_allocation_identities ==
                                         std::vector<std::uint64_t>{21},
                "admission did not evict the eligible cache allocation") &&
+        expect(tracker.calls == 1 && tracker.identity == 21,
+               "admission did not release the physical cache allocation") &&
         expect(ledger.report().physical_bytes == 700,
                "admission evicted pinned or unrelated storage");
 

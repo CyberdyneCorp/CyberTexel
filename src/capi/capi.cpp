@@ -297,8 +297,15 @@ struct ctex_resource_ledger {
     explicit ctex_resource_ledger(ctex_allocator_state allocator_value)
         : allocator(allocator_value) {}
 
+    static void evict_cache(std::uint64_t allocation_identity, void* opaque) noexcept {
+        auto* ledger = static_cast<ctex_resource_ledger*>(opaque);
+        ledger->cache_eviction_callback(allocation_identity, ledger->cache_eviction_user_data);
+    }
+
     ctex_allocator_state allocator;
     ctex::xport::ResourceLedger value;
+    ctex_resource_cache_eviction_callback cache_eviction_callback{};
+    void* cache_eviction_user_data{};
 };
 
 struct ctex_resource_reservation {
@@ -507,6 +514,40 @@ public:
 private:
     ctex_result result_;
     ctex_diagnostic_code code_;
+};
+
+ctex_tile_backing_key backing_key(ctex::image::TileBackingKey key) noexcept {
+    return {.namespace_identity = key.namespace_identity,
+            .tile_x = key.coordinate.x,
+            .tile_y = key.coordinate.y,
+            .generation = key.generation};
+}
+
+class CapiTileBackingStore final : public ctex::image::TileBackingStore {
+public:
+    explicit CapiTileBackingStore(ctex_tile_backing_store_descriptor descriptor)
+        : descriptor_(descriptor) {}
+
+    bool store(ctex::image::TileBackingKey key, std::span<const std::byte> bytes) override {
+        return descriptor_.store(backing_key(key), bytes.data(), bytes.size(),
+                                 descriptor_.user_data) != 0;
+    }
+
+    bool load(ctex::image::TileBackingKey key, std::span<std::byte> bytes) override {
+        return descriptor_.load(backing_key(key), bytes.data(), bytes.size(),
+                                descriptor_.user_data) != 0;
+    }
+
+    void discard(ctex::image::TileBackingKey key) noexcept override {
+        descriptor_.discard(backing_key(key), descriptor_.user_data);
+    }
+
+    void release_namespace(std::uint64_t namespace_identity) noexcept override {
+        descriptor_.release_namespace(namespace_identity, descriptor_.user_data);
+    }
+
+private:
+    ctex_tile_backing_store_descriptor descriptor_;
 };
 
 void clear_diagnostic() noexcept { last_diagnostic = {}; }
@@ -1209,6 +1250,21 @@ void require_semantic_id(const char* semantic_id) {
         throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_EMPTY_CHANNEL_SEMANTIC_ID,
                        "semantic_id is empty");
     }
+}
+
+ctex::image::TiledImage& require_channel_image(ctex_document& document, const char* texture_set_id,
+                                               const char* semantic_id,
+                                               std::uint32_t udim_tile_number) {
+    require_semantic_id(semantic_id);
+    ctex::doc::TextureSet& texture_set = require_texture_set(document, texture_set_id);
+    ctex::doc::TextureChannels& channels = udim_tile_number == 0
+                                               ? texture_set.channels()
+                                               : texture_set.udim_channels(udim_tile_number);
+    if (!channels.contains_descriptor(semantic_id) || !channels.is_enabled(semantic_id)) {
+        throw_boundary(CTEX_RESULT_MISSING_RESOURCE, CTEX_DIAGNOSTIC_MISSING_CHANNEL,
+                       "enabled channel is not present: " + std::string(semantic_id));
+    }
+    return channels.pixels(semantic_id);
 }
 
 bool channel_exists(const ctex::doc::TextureChannels& channels, std::string_view semantic_id) {
@@ -16786,6 +16842,53 @@ extern "C" ctex_result ctex_texture_set_get_memory_report(
     });
 }
 
+extern "C" ctex_result ctex_texture_set_set_channel_backing_store(
+    ctex_document* document, const char* texture_set_id, const char* semantic_id,
+    std::uint32_t udim_tile_number, const ctex_tile_backing_store_descriptor* descriptor) {
+    return call_boundary("ctex_texture_set_set_channel_backing_store", [&] {
+        if (document == nullptr || descriptor == nullptr) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                           document == nullptr ? "document=null" : "descriptor=null");
+        }
+        validate_structure_size(descriptor->size, CTEX_TILE_BACKING_STORE_DESCRIPTOR_V1_SIZE,
+                                CTEX_TILE_BACKING_STORE_DESCRIPTOR_CURRENT_SIZE,
+                                "tile backing-store descriptor size");
+        if (descriptor->store == nullptr || descriptor->load == nullptr ||
+            descriptor->discard == nullptr || descriptor->release_namespace == nullptr) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                           "tile backing-store callbacks must all be provided");
+        }
+        require_channel_image(*document, texture_set_id, semantic_id, udim_tile_number)
+            .set_backing_store(std::make_shared<CapiTileBackingStore>(*descriptor));
+    });
+}
+
+extern "C" ctex_result ctex_texture_set_evict_channel_tile(
+    ctex_document* document, const char* texture_set_id, const char* semantic_id,
+    std::uint32_t udim_tile_number, std::uint32_t tile_x, std::uint32_t tile_y,
+    ctex_tile_eviction_report* out_report) {
+    return call_boundary("ctex_texture_set_evict_channel_tile", [&] {
+        if (document == nullptr || out_report == nullptr) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                           document == nullptr ? "document=null" : "out_report=null");
+        }
+        validate_structure_size(out_report->size, CTEX_TILE_EVICTION_REPORT_V1_SIZE,
+                                CTEX_TILE_EVICTION_REPORT_CURRENT_SIZE,
+                                "tile eviction report size");
+        ctex::image::TiledImage& image =
+            require_channel_image(*document, texture_set_id, semantic_id, udim_tile_number);
+        const ctex::image::TileEvictionReport report = image.evict_tile({tile_x, tile_y});
+        *out_report = {
+            .size = CTEX_TILE_EVICTION_REPORT_CURRENT_SIZE,
+            .status = static_cast<std::uint32_t>(report.status),
+            .resident_bytes_released = report.resident_bytes_released,
+            .backing_bytes_written = report.backing_bytes_written,
+            .resident_pixel_bytes = image.resident_pixel_bytes(),
+            .backed_pixel_bytes = image.backed_pixel_bytes(),
+        };
+    });
+}
+
 extern "C" ctex_result ctex_document_get_memory_report(
     const ctex_document* document, ctex_document_memory_info* out_info,
     ctex_document_texture_set_memory_info* texture_sets, std::size_t texture_set_capacity,
@@ -17913,6 +18016,21 @@ extern "C" ctex_result ctex_resource_ledger_get_report(const ctex_resource_ledge
                 };
             }
         }
+    });
+}
+
+extern "C" ctex_result ctex_resource_ledger_set_cache_eviction_callback(
+    ctex_resource_ledger* ledger, ctex_resource_cache_eviction_callback callback, void* user_data) {
+    return call_boundary("ctex_resource_ledger_set_cache_eviction_callback", [&] {
+        if (ledger == nullptr) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                           "ledger=null");
+        }
+        ledger->value.set_cache_eviction_callback(nullptr);
+        ledger->cache_eviction_callback = callback;
+        ledger->cache_eviction_user_data = user_data;
+        ledger->value.set_cache_eviction_callback(
+            callback == nullptr ? nullptr : ctex_resource_ledger::evict_cache, ledger);
     });
 }
 

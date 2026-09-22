@@ -2833,6 +2833,9 @@ typedef enum ctex_resource_role {
     CTEX_RESOURCE_IN_FLIGHT = 16
 } ctex_resource_role;
 
+typedef void (*ctex_resource_cache_eviction_callback)(uint64_t allocation_identity,
+                                                      void* user_data);
+
 typedef struct ctex_resource_allocation_descriptor {
     uint32_t size;
     uint64_t allocation_identity;
@@ -2937,6 +2940,55 @@ typedef struct ctex_resource_admission_report {
 #define CTEX_RESOURCE_ADMISSION_REPORT_V1_SIZE ((uint32_t)sizeof(ctex_resource_admission_report))
 #define CTEX_RESOURCE_ADMISSION_REPORT_CURRENT_SIZE \
     ((uint32_t)sizeof(ctex_resource_admission_report))
+
+typedef struct ctex_tile_backing_key {
+    uint64_t namespace_identity;
+    uint32_t tile_x;
+    uint32_t tile_y;
+    uint64_t generation;
+} ctex_tile_backing_key;
+
+typedef uint32_t (*ctex_tile_backing_store_callback)(ctex_tile_backing_key key, const void* bytes,
+                                                     size_t byte_count, void* user_data);
+typedef uint32_t (*ctex_tile_backing_load_callback)(ctex_tile_backing_key key, void* bytes,
+                                                    size_t byte_count, void* user_data);
+typedef void (*ctex_tile_backing_discard_callback)(ctex_tile_backing_key key, void* user_data);
+typedef void (*ctex_tile_backing_release_callback)(uint64_t namespace_identity, void* user_data);
+
+typedef struct ctex_tile_backing_store_descriptor {
+    uint32_t size;
+    ctex_tile_backing_store_callback store;
+    ctex_tile_backing_load_callback load;
+    ctex_tile_backing_discard_callback discard;
+    ctex_tile_backing_release_callback release_namespace;
+    void* user_data;
+} ctex_tile_backing_store_descriptor;
+
+#define CTEX_TILE_BACKING_STORE_DESCRIPTOR_V1_SIZE \
+    ((uint32_t)sizeof(ctex_tile_backing_store_descriptor))
+#define CTEX_TILE_BACKING_STORE_DESCRIPTOR_CURRENT_SIZE \
+    ((uint32_t)sizeof(ctex_tile_backing_store_descriptor))
+
+typedef enum ctex_tile_eviction_status {
+    CTEX_TILE_EVICTED = 0,
+    CTEX_TILE_SPARSE = 1,
+    CTEX_TILE_ALREADY_EVICTED = 2,
+    CTEX_TILE_PINNED = 3,
+    CTEX_TILE_NO_BACKING_STORE = 4,
+    CTEX_TILE_BACKING_STORE_FAILED = 5
+} ctex_tile_eviction_status;
+
+typedef struct ctex_tile_eviction_report {
+    uint32_t size;
+    uint32_t status;
+    size_t resident_bytes_released;
+    size_t backing_bytes_written;
+    size_t resident_pixel_bytes;
+    size_t backed_pixel_bytes;
+} ctex_tile_eviction_report;
+
+#define CTEX_TILE_EVICTION_REPORT_V1_SIZE ((uint32_t)sizeof(ctex_tile_eviction_report))
+#define CTEX_TILE_EVICTION_REPORT_CURRENT_SIZE ((uint32_t)sizeof(ctex_tile_eviction_report))
 
 typedef enum ctex_transport_channel_order {
     CTEX_TRANSPORT_CHANNEL_ORDER_R = 0,
@@ -6278,6 +6330,15 @@ CTEX_API ctex_result ctex_texture_set_get_channel_info(
 CTEX_API ctex_result ctex_texture_set_get_memory_report(const ctex_document* document,
                                                         const char* texture_set_id,
                                                         ctex_texture_set_memory_report* out_report);
+CTEX_API ctex_result ctex_texture_set_set_channel_backing_store(
+    ctex_document* document, const char* texture_set_id, const char* semantic_id,
+    uint32_t udim_tile_number, const ctex_tile_backing_store_descriptor* descriptor);
+CTEX_API ctex_result ctex_texture_set_evict_channel_tile(ctex_document* document,
+                                                         const char* texture_set_id,
+                                                         const char* semantic_id,
+                                                         uint32_t udim_tile_number, uint32_t tile_x,
+                                                         uint32_t tile_y,
+                                                         ctex_tile_eviction_report* out_report);
 CTEX_API ctex_result ctex_document_get_memory_report(
     const ctex_document* document, ctex_document_memory_info* out_info,
     ctex_document_texture_set_memory_info* texture_sets, size_t texture_set_capacity,
@@ -6440,6 +6501,8 @@ CTEX_API ctex_result ctex_resource_ledger_get_report(const ctex_resource_ledger*
                                                      ctex_resource_accounting_report* out_report,
                                                      ctex_resource_category_report* categories,
                                                      size_t category_capacity);
+CTEX_API ctex_result ctex_resource_ledger_set_cache_eviction_callback(
+    ctex_resource_ledger* ledger, ctex_resource_cache_eviction_callback callback, void* user_data);
 CTEX_API ctex_result ctex_resource_ledger_admit(
     ctex_resource_ledger* ledger, const ctex_resource_admission_descriptor* descriptor,
     ctex_resource_reservation** out_reservation, ctex_resource_admission_report* out_report);

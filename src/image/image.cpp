@@ -66,11 +66,13 @@ TiledImage::TiledImage(std::uint32_t width, std::uint32_t height, PixelFormat fo
       memory_resource_(require_memory_resource(memory_resource)),
       clear_pixel_(memory_resource_),
       tiles_(memory_resource_),
+      backed_tiles_(memory_resource_),
       allocated_tiles_(memory_resource_),
       dirty_(memory_resource_),
       tile_revisions_(memory_resource_),
       tile_generations_(memory_resource_),
-      changed_tiles_by_revision_(memory_resource_) {
+      changed_tiles_by_revision_(memory_resource_),
+      backing_namespace_(std::make_unique<BackingNamespace>()) {
     if (width == 0 || height == 0) {
         throw std::invalid_argument("image dimensions must be non-zero");
     }
@@ -96,6 +98,7 @@ TiledImage::TiledImage(std::uint32_t width, std::uint32_t height, PixelFormat fo
         std::copy(clear_pixel.begin(), clear_pixel.end(), clear_pixel_.begin());
     }
     tiles_.resize(tile_count);
+    backed_tiles_.resize(tile_count, false);
     dirty_.resize(tile_count, false);
     tile_revisions_.resize(tile_count, 0);
     tile_generations_.resize(tile_count, 0);
@@ -112,14 +115,23 @@ TiledImage::TiledImage(const TiledImage& other)
       tile_bytes_(other.tile_bytes_),
       memory_resource_(other.memory_resource_),
       clear_pixel_(other.clear_pixel_, memory_resource_),
-      tiles_(other.tiles_, memory_resource_),
+      tiles_(memory_resource_),
+      backed_tiles_(memory_resource_),
       allocated_tiles_(other.allocated_tiles_, memory_resource_),
       dirty_(other.dirty_, memory_resource_),
       revision_epoch_(other.revision_epoch_),
       revision_(other.revision_),
       tile_revisions_(other.tile_revisions_, memory_resource_),
       tile_generations_(other.tile_generations_, memory_resource_),
-      changed_tiles_by_revision_(other.changed_tiles_by_revision_, memory_resource_) {}
+      changed_tiles_by_revision_(other.changed_tiles_by_revision_, memory_resource_),
+      backing_namespace_(std::make_unique<BackingNamespace>()) {
+    tiles_.resize(other.tiles_.size());
+    backed_tiles_.resize(other.tiles_.size(), false);
+    for (const TileCoordinate coordinate : allocated_tiles_) {
+        const std::size_t index = tile_index(coordinate);
+        tiles_[index] = other.ensure_resident(index);
+    }
+}
 
 TiledImage& TiledImage::operator=(const TiledImage& other) {
     if (this != &other) {
@@ -129,6 +141,8 @@ TiledImage& TiledImage::operator=(const TiledImage& other) {
     return *this;
 }
 
+TiledImage::TiledImage(TiledImage&& other) noexcept = default;
+
 TiledImage& TiledImage::operator=(TiledImage&& other) noexcept {
     if (this != &other) {
         this->~TiledImage();
@@ -137,9 +151,21 @@ TiledImage& TiledImage::operator=(TiledImage&& other) noexcept {
     return *this;
 }
 
+TiledImage::~TiledImage() {
+    if (backing_store_ && backing_namespace_) {
+        backing_store_->release_namespace(
+            static_cast<std::uint64_t>(reinterpret_cast<std::uintptr_t>(backing_namespace_.get())));
+    }
+}
+
 std::size_t TiledImage::resident_pixel_bytes() const noexcept {
     return static_cast<std::size_t>(std::count_if(
                tiles_.begin(), tiles_.end(), [](const auto& tile) { return tile != nullptr; })) *
+           tile_bytes_;
+}
+
+std::size_t TiledImage::backed_pixel_bytes() const noexcept {
+    return static_cast<std::size_t>(std::count(backed_tiles_.begin(), backed_tiles_.end(), true)) *
            tile_bytes_;
 }
 
@@ -162,15 +188,62 @@ Generation TiledImage::tile_generation(TileCoordinate tile) const {
 }
 
 bool TiledImage::is_tile_allocated(TileCoordinate tile) const {
-    return tiles_[tile_index(tile)] != nullptr;
+    const std::size_t index = tile_index(tile);
+    return tiles_[index] != nullptr || backed_tiles_[index];
 }
 
 TileStorageHandle TiledImage::pin_tile_storage(TileCoordinate tile) const {
-    return tiles_[tile_index(tile)];
+    return ensure_resident(tile_index(tile));
 }
 
 TileStorageSnapshot TiledImage::snapshot_tile_storage(TileCoordinate tile) const {
-    return TileStorageSnapshot(tiles_[tile_index(tile)]);
+    return TileStorageSnapshot(ensure_resident(tile_index(tile)));
+}
+
+bool TiledImage::is_tile_resident(TileCoordinate tile) const {
+    return tiles_[tile_index(tile)] != nullptr;
+}
+
+bool TiledImage::is_tile_backed(TileCoordinate tile) const {
+    return backed_tiles_[tile_index(tile)];
+}
+
+void TiledImage::set_backing_store(std::shared_ptr<TileBackingStore> backing_store) {
+    if (!backing_store) {
+        throw std::invalid_argument("tile backing store must not be null");
+    }
+    if (backing_store_) {
+        throw std::logic_error("tile backing store is already configured");
+    }
+    backing_store_ = std::move(backing_store);
+}
+
+TileEvictionReport TiledImage::evict_tile(TileCoordinate coordinate) {
+    const std::size_t index = tile_index(coordinate);
+    auto& tile = tiles_[index];
+    if (!tile) {
+        return {.status = backed_tiles_[index] ? TileEvictionStatus::already_evicted
+                                               : TileEvictionStatus::sparse};
+    }
+    if (!backing_store_) {
+        return {.status = TileEvictionStatus::no_backing_store};
+    }
+    if (tile.use_count() != 1) {
+        return {.status = TileEvictionStatus::pinned};
+    }
+    std::size_t written = 0;
+    if (!backed_tiles_[index]) {
+        if (!backing_store_->store(backing_key(index), std::span<const std::byte>(*tile))) {
+            return {.status = TileEvictionStatus::backing_store_failed};
+        }
+        backed_tiles_[index] = true;
+        written = tile->size();
+    }
+    const std::size_t released = tile->size();
+    tile.reset();
+    return {.status = TileEvictionStatus::evicted,
+            .resident_bytes_released = released,
+            .backing_bytes_written = written};
 }
 
 void TiledImage::prepare_tile_storage_exchanges(std::size_t maximum_new_allocations) {
@@ -186,6 +259,7 @@ TileStorageSnapshot TiledImage::exchange_tile_storage(TileCoordinate coordinate,
     if (!replacement.empty() && replacement.size() != tile_bytes_) {
         throw std::invalid_argument("replacement tile storage size does not match the image");
     }
+    static_cast<void>(ensure_resident(index));
     auto& current = tiles_[index];
     if (current == replacement.storage_) {
         return TileStorageSnapshot(current);
@@ -229,7 +303,8 @@ TileStorageSnapshot TiledImage::exchange_tile_storage(TileCoordinate coordinate,
         }
     }
     TileStorageSnapshot previous(current);
-    const bool was_allocated = static_cast<bool>(current);
+    const bool was_allocated = static_cast<bool>(current) || backed_tiles_[index];
+    discard_backing(index);
     current = std::move(replacement.storage_);
     const bool is_allocated = static_cast<bool>(current);
     if (!was_allocated && is_allocated) {
@@ -287,7 +362,7 @@ std::span<const std::byte> TiledImage::read_pixel(std::uint32_t x, std::uint32_t
         throw std::out_of_range("pixel coordinate is outside the image");
     }
     const TileCoordinate coordinate{x / tile_size_, y / tile_size_};
-    const auto& tile = tiles_[tile_index(coordinate)];
+    const auto tile = ensure_resident(tile_index(coordinate));
     if (!tile) {
         return clear_pixel_;
     }
@@ -333,6 +408,7 @@ void TiledImage::write_pixel(std::uint32_t x, std::uint32_t y, std::span<const s
             changed_tiles_by_revision_.erase(previous_revision);
         }
     }
+    discard_backing(index);
     std::copy(pixel.begin(), pixel.end(), tile.begin() + pixel_offset(x, y));
     ++revision_;
     ++tile_generations_[index];
@@ -351,7 +427,14 @@ void TiledImage::clear() {
     if (!can_clear()) {
         throw std::overflow_error("image revision epoch space is exhausted");
     }
+    auto next_backing_namespace = std::make_unique<BackingNamespace>();
+    if (backing_store_ && backing_namespace_) {
+        backing_store_->release_namespace(
+            static_cast<std::uint64_t>(reinterpret_cast<std::uintptr_t>(backing_namespace_.get())));
+    }
+    backing_namespace_ = std::move(next_backing_namespace);
     std::fill(tiles_.begin(), tiles_.end(), nullptr);
+    std::fill(backed_tiles_.begin(), backed_tiles_.end(), false);
     allocated_tiles_.clear();
     std::fill(dirty_.begin(), dirty_.end(), false);
     std::fill(tile_generations_.begin(), tile_generations_.end(), 0);
@@ -382,6 +465,7 @@ std::size_t TiledImage::pixel_offset(std::uint32_t x, std::uint32_t y) const noe
 }
 
 TileStorage& TiledImage::allocate_tile(std::size_t index) {
+    static_cast<void>(ensure_resident(index));
     auto& tile = tiles_[index];
     if (tile && tile.use_count() == 1) {
         return *tile;
@@ -404,11 +488,64 @@ TileStorage& TiledImage::allocate_tile(std::size_t index) {
     return *tile;
 }
 
+std::shared_ptr<TileStorage> TiledImage::ensure_resident(std::size_t index) const {
+    if (tiles_[index] || !backed_tiles_[index]) {
+        return tiles_[index];
+    }
+    if (!backing_store_) {
+        throw std::runtime_error("evicted tile has no backing store");
+    }
+    const std::pmr::polymorphic_allocator<TileStorage> allocator(memory_resource_);
+    auto allocation = std::allocate_shared<TileStorage>(allocator);
+    allocation->resize(tile_bytes_);
+    if (!backing_store_->load(backing_key(index), std::span<std::byte>(*allocation))) {
+        throw std::runtime_error("lossless tile backing reload failed");
+    }
+    tiles_[index] = std::move(allocation);
+    return tiles_[index];
+}
+
+TileBackingKey TiledImage::backing_key(std::size_t index) const noexcept {
+    return {
+        .namespace_identity =
+            static_cast<std::uint64_t>(reinterpret_cast<std::uintptr_t>(backing_namespace_.get())),
+        .coordinate = {.x = static_cast<std::uint32_t>(index % tile_columns_),
+                       .y = static_cast<std::uint32_t>(index / tile_columns_)},
+        .generation = tile_generations_[index],
+    };
+}
+
+void TiledImage::discard_backing(std::size_t index) noexcept {
+    if (!backed_tiles_[index]) {
+        return;
+    }
+    backing_store_->discard(backing_key(index));
+    backed_tiles_[index] = false;
+}
+
 void TiledImage::begin_new_revision_epoch() noexcept {
     ++revision_epoch_;
     revision_ = 0;
     std::fill(tile_revisions_.begin(), tile_revisions_.end(), 0);
     changed_tiles_by_revision_.clear();
+}
+
+std::string_view tile_eviction_status_name(TileEvictionStatus status) noexcept {
+    switch (status) {
+        case TileEvictionStatus::evicted:
+            return "evicted";
+        case TileEvictionStatus::sparse:
+            return "sparse";
+        case TileEvictionStatus::already_evicted:
+            return "already-evicted";
+        case TileEvictionStatus::pinned:
+            return "pinned";
+        case TileEvictionStatus::no_backing_store:
+            return "no-backing-store";
+        case TileEvictionStatus::backing_store_failed:
+            return "backing-store-failed";
+    }
+    return "unknown";
 }
 
 }  // namespace ctex::image

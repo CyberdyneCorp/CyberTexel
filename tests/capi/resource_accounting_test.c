@@ -9,6 +9,17 @@ static int expect(int condition, const char* message) {
     return condition;
 }
 
+typedef struct eviction_tracker {
+    uint64_t identity;
+    size_t calls;
+} eviction_tracker;
+
+static void record_eviction(uint64_t identity, void* user_data) {
+    eviction_tracker* tracker = (eviction_tracker*)user_data;
+    tracker->identity = identity;
+    ++tracker->calls;
+}
+
 static ctex_resource_allocation_descriptor allocation(uint64_t identity, uint32_t category,
                                                       size_t bytes, uint32_t roles) {
     ctex_resource_allocation_descriptor result = {
@@ -145,6 +156,7 @@ int main(void) {
 
     ctex_resource_allocation_descriptor cache =
         allocation(50, CTEX_RESOURCE_CACHE, 300, CTEX_RESOURCE_CPU_RESIDENT);
+    eviction_tracker tracker = {0};
     ctex_resource_admission_descriptor checkpoint = {
         .size = CTEX_RESOURCE_ADMISSION_DESCRIPTOR_CURRENT_SIZE,
         .operation = "checkpoint",
@@ -163,12 +175,16 @@ int main(void) {
     uint64_t evicted_identity = 0;
     size_t evicted_count = 99;
     const int eviction_ok =
-        expect(ctex_resource_ledger_upsert(ledger, &cache) == CTEX_RESULT_SUCCESS &&
-                   ctex_resource_ledger_admit(ledger, &checkpoint, &checkpoint_reservation,
-                                              &checkpoint_report) == CTEX_RESULT_SUCCESS &&
-                   checkpoint_reservation != NULL &&
-                   checkpoint_report.evicted_allocation_count == 1,
-               "required cache eviction was not reported") &&
+        expect(
+            ctex_resource_ledger_set_cache_eviction_callback(ledger, record_eviction, &tracker) ==
+                    CTEX_RESULT_SUCCESS &&
+                ctex_resource_ledger_upsert(ledger, &cache) == CTEX_RESULT_SUCCESS &&
+                ctex_resource_ledger_admit(ledger, &checkpoint, &checkpoint_reservation,
+                                           &checkpoint_report) == CTEX_RESULT_SUCCESS &&
+                checkpoint_reservation != NULL && checkpoint_report.evicted_allocation_count == 1,
+            "required cache eviction was not reported") &&
+        expect(tracker.calls == 1 && tracker.identity == 50,
+               "cache eviction callback did not release the physical allocation") &&
         expect(ctex_resource_reservation_get_evicted_allocations(
                    checkpoint_reservation, NULL, 0, &evicted_count) == CTEX_RESULT_SUCCESS &&
                    evicted_count == 1,

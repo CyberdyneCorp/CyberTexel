@@ -130,6 +130,9 @@ private:
 
 class ResourceLedger {
 public:
+    using CacheEvictionCallback = void (*)(std::uint64_t allocation_identity,
+                                           void* user_data) noexcept;
+
     ResourceLedger();
     ~ResourceLedger();
     ResourceLedger(ResourceLedger&&) noexcept;
@@ -140,6 +143,8 @@ public:
     void upsert(ResourceAllocationDescriptor descriptor);
     [[nodiscard]] bool remove(std::uint64_t allocation_identity) noexcept;
     [[nodiscard]] ResourceAccountingReport report() const;
+    void set_cache_eviction_callback(CacheEvictionCallback callback,
+                                     void* user_data = nullptr) noexcept;
     [[nodiscard]] ResourceReservation admit(const ResourceBudgetLimits& limits,
                                             const ResourceAdmissionRequest& request);
 

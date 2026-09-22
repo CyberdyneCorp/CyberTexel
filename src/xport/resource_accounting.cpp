@@ -167,6 +167,8 @@ public:
     mutable std::mutex mutex;
     std::unordered_map<std::uint64_t, ResourceAllocationDescriptor> allocations;
     ResourceBudgetLimits reserved;
+    ResourceLedger::CacheEvictionCallback cache_eviction_callback{};
+    void* cache_eviction_user_data{};
 };
 
 ResourceLedger::ResourceLedger() : state_(std::make_shared<ResourceLedgerState>()) {}
@@ -216,6 +218,13 @@ ResourceAccountingReport ResourceLedger::report() const {
     return result;
 }
 
+void ResourceLedger::set_cache_eviction_callback(CacheEvictionCallback callback,
+                                                 void* user_data) noexcept {
+    std::lock_guard lock(state_->mutex);
+    state_->cache_eviction_callback = callback;
+    state_->cache_eviction_user_data = user_data;
+}
+
 ResourceReservation ResourceLedger::admit(const ResourceBudgetLimits& limits,
                                           const ResourceAdmissionRequest& request) {
     if (request.operation.empty()) {
@@ -262,7 +271,8 @@ ResourceReservation ResourceLedger::admit(const ResourceBudgetLimits& limits,
     std::vector<std::uint64_t> candidates;
     candidates.reserve(state_->allocations.size());
     for (const auto& [identity, descriptor] : state_->allocations) {
-        if (descriptor.category == ResourceCategory::cache &&
+        if (state_->cache_eviction_callback != nullptr &&
+            descriptor.category == ResourceCategory::cache &&
             (descriptor.roles & (resource_role_pinned | resource_role_in_flight)) == 0U) {
             candidates.push_back(identity);
         }
@@ -295,6 +305,7 @@ ResourceReservation ResourceLedger::admit(const ResourceBudgetLimits& limits,
     const std::size_t batch = maximum_batch(base, fixed, per_item, limits, request.work_item_count);
     const ResourceBudgetLimits reserved = add_usage(fixed, usage(request.per_work_item, batch));
     for (const std::uint64_t identity : evicted) {
+        state_->cache_eviction_callback(identity, state_->cache_eviction_user_data);
         state_->allocations.erase(identity);
     }
     state_->reserved = add_usage(state_->reserved, reserved);
