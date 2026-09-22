@@ -66,6 +66,17 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(TinyEXR)
 set_target_properties(tinyexr miniz PROPERTIES POSITION_INDEPENDENT_CODE ON)
+if(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+    # TinyEXR enables -Weverything -Werror on its translation unit. Those
+    # upstream warnings are outside CTEX_WARNINGS_AS_ERRORS and fail newer
+    # AppleClang releases, so keep the project's warning policy scoped to
+    # CyberTexel sources.
+    set_property(
+        SOURCE "${tinyexr_SOURCE_DIR}/tinyexr.cc"
+        TARGET_DIRECTORY tinyexr
+        PROPERTY COMPILE_FLAGS ""
+    )
+endif()
 
 include(cmake/CyberTexelModules.cmake)
 

@@ -306,6 +306,19 @@ bool test_pinned_tile_storage_is_copy_on_write() {
                   "old pinned storage was double-counted as current image residency");
 }
 
+bool test_unpinned_tile_storage_is_reused() {
+    TiledImage image(2, 1, PixelFormat{ChannelType::uint8_unorm, 3}, 2);
+    image.write_pixel(0, 0, std::array{std::byte{1}, std::byte{2}, std::byte{3}});
+    auto observer = image.pin_tile_storage({0, 0});
+    const void* original_storage = observer.get();
+    observer.reset();
+
+    image.write_pixel(1, 0, std::array{std::byte{5}, std::byte{8}, std::byte{13}});
+
+    return expect(image.pin_tile_storage({0, 0}).get() == original_storage,
+                  "writing an unpinned tile replaced its uniquely owned storage");
+}
+
 bool test_tile_storage_ownership_exchange_is_copy_free() {
     TiledImage image(2, 1, PixelFormat{ChannelType::uint8_unorm, 3}, 2);
     const std::array before{std::byte{1}, std::byte{2}, std::byte{3}};
@@ -383,6 +396,7 @@ int main() {
                    test_resampling_preserves_float_range_and_honours_stride() &&
                    test_sparse_clear_and_dirty_tracking() &&
                    test_pinned_tile_storage_is_copy_on_write() &&
+                   test_unpinned_tile_storage_is_reused() &&
                    test_tile_storage_ownership_exchange_is_copy_free() &&
                    test_persistent_storage_uses_supplied_resource() && test_validation()
                ? 0

@@ -383,7 +383,7 @@ std::size_t TiledImage::pixel_offset(std::uint32_t x, std::uint32_t y) const noe
 
 TileStorage& TiledImage::allocate_tile(std::size_t index) {
     auto& tile = tiles_[index];
-    if (tile && tile.unique()) {
+    if (tile && tile.use_count() == 1) {
         return *tile;
     }
     const std::pmr::polymorphic_allocator<TileStorage> allocator(memory_resource_);
