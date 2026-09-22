@@ -190,5 +190,9 @@ tiles cross a host-provided lossless backing boundary before eviction and reload
 by exact generation. Physical cache release is callback-confirmed rather than
 an accounting-only deletion. The exact remaining gap is 15 runtime
 requirements.
+Ordered host preview-quality admission now reports full, deferred, reduced and
+combined outcomes, releases eligible caches only after no allowed choice fits,
+and returns over-budget without mutating authored storage. The exact remaining
+gap is 14 runtime requirements.
 The gate is not part of the aggregate `just check` until that count reaches zero;
 its unit tests run in the normal tooling suite throughout the migration.

@@ -160,6 +160,31 @@ std::size_t maximum_batch(const ResourceBudgetLimits& base, const ResourceBudget
                      limits.temporary_bytes);
 }
 
+ResourceBudgetLimits requirement_usage(std::span<const ResourceRequirement> requirements) {
+    ResourceBudgetLimits result;
+    for (const ResourceRequirement& requirement : requirements) {
+        validate_requirement(requirement);
+        result = add_usage(result, usage(requirement));
+    }
+    return result;
+}
+
+PreviewQualityStatus preview_status(const PreviewQualityRequest& request,
+                                    const PreviewQualityOption& option) noexcept {
+    const bool reduced =
+        option.width < request.full_quality_width || option.height < request.full_quality_height;
+    if (reduced && option.derived_work_deferred) {
+        return PreviewQualityStatus::reduced_and_deferred;
+    }
+    if (reduced) {
+        return PreviewQualityStatus::reduced_resolution;
+    }
+    if (option.derived_work_deferred) {
+        return PreviewQualityStatus::deferred_derived;
+    }
+    return PreviewQualityStatus::full_quality;
+}
+
 }  // namespace
 
 class ResourceLedgerState {
@@ -324,6 +349,117 @@ ResourceReservation ResourceLedger::admit(const ResourceBudgetLimits& limits,
                        : request.operation + " admitted as bounded tiled work"});
 }
 
+PreviewQualityAdmission ResourceLedger::admit_preview_quality(
+    const ResourceBudgetLimits& limits, const PreviewQualityRequest& request) {
+    if (request.operation.empty() || request.full_quality_width == 0 ||
+        request.full_quality_height == 0 || request.options.empty()) {
+        throw std::invalid_argument(
+            "preview quality requires an operation, full resolution, and ordered options");
+    }
+    std::vector<ResourceBudgetLimits> option_usage;
+    option_usage.reserve(request.options.size());
+    for (const PreviewQualityOption& option : request.options) {
+        if (option.width == 0 || option.height == 0 || option.width > request.full_quality_width ||
+            option.height > request.full_quality_height || option.requirements.empty()) {
+            throw std::invalid_argument(
+                "preview quality options require bounded dimensions and resources");
+        }
+        option_usage.push_back(requirement_usage(option.requirements));
+    }
+
+    std::lock_guard lock(state_->mutex);
+    ResourceBudgetLimits base = state_->reserved;
+    for (const auto& [identity, descriptor] : state_->allocations) {
+        static_cast<void>(identity);
+        base = add_usage(base, usage(descriptor));
+    }
+
+    std::size_t selected = request.options.size();
+    ResourceBudgetLimits selected_base = base;
+    std::vector<std::uint64_t> selected_evictions;
+    for (std::size_t index = 0; index < request.options.size(); ++index) {
+        if (fits(add_usage(base, option_usage[index]), limits)) {
+            selected = index;
+            break;
+        }
+    }
+
+    if (selected == request.options.size() && state_->cache_eviction_callback != nullptr) {
+        std::vector<std::uint64_t> candidates;
+        candidates.reserve(state_->allocations.size());
+        for (const auto& [identity, descriptor] : state_->allocations) {
+            if (descriptor.category == ResourceCategory::cache &&
+                (descriptor.roles & (resource_role_pinned | resource_role_in_flight)) == 0U) {
+                candidates.push_back(identity);
+            }
+        }
+        std::ranges::sort(candidates);
+        for (std::size_t index = 0; index < request.options.size(); ++index) {
+            ResourceBudgetLimits candidate_base = base;
+            std::vector<std::uint64_t> evictions;
+            for (const std::uint64_t identity : candidates) {
+                if (fits(add_usage(candidate_base, option_usage[index]), limits)) {
+                    break;
+                }
+                const ResourceBudgetLimits candidate = usage(state_->allocations.at(identity));
+                if (relieves_shortage(candidate_base, option_usage[index], candidate, limits)) {
+                    subtract_usage(candidate_base, candidate);
+                    evictions.push_back(identity);
+                }
+            }
+            if (fits(add_usage(candidate_base, option_usage[index]), limits)) {
+                selected = index;
+                selected_base = candidate_base;
+                selected_evictions = std::move(evictions);
+                break;
+            }
+        }
+    }
+
+    if (selected == request.options.size()) {
+        return {
+            .reservation = {},
+            .report = {.status = PreviewQualityStatus::over_budget,
+                       .selected_option = request.options.size(),
+                       .full_quality_width = request.full_quality_width,
+                       .full_quality_height = request.full_quality_height,
+                       .selected_width = 0,
+                       .selected_height = 0,
+                       .derived_work_deferred = false,
+                       .projected_usage = base,
+                       .evicted_allocation_identities = {},
+                       .detail = request.operation + " has no allowed preview quality that fits"}};
+    }
+
+    for (const std::uint64_t identity : selected_evictions) {
+        state_->cache_eviction_callback(identity, state_->cache_eviction_user_data);
+        state_->allocations.erase(identity);
+    }
+    state_->reserved = add_usage(state_->reserved, option_usage[selected]);
+    const PreviewQualityOption& option = request.options[selected];
+    const PreviewQualityStatus status = preview_status(request, option);
+    const ResourceBudgetLimits projected = add_usage(selected_base, option_usage[selected]);
+    ResourceAdmissionReport reservation_report = {
+        .status = ResourceAdmissionStatus::admitted_whole,
+        .projected_usage = projected,
+        .evicted_allocation_identities = selected_evictions,
+        .detail = request.operation + " preview reservation",
+    };
+    return {.reservation =
+                ResourceReservation(state_, option_usage[selected], std::move(reservation_report)),
+            .report = {.status = status,
+                       .selected_option = selected,
+                       .full_quality_width = request.full_quality_width,
+                       .full_quality_height = request.full_quality_height,
+                       .selected_width = option.width,
+                       .selected_height = option.height,
+                       .derived_work_deferred = option.derived_work_deferred,
+                       .projected_usage = projected,
+                       .evicted_allocation_identities = std::move(selected_evictions),
+                       .detail = request.operation + " admitted with host preview option " +
+                                 std::to_string(selected)}};
+}
+
 ResourceReservation::ResourceReservation(std::shared_ptr<ResourceLedgerState> state,
                                          ResourceBudgetLimits reserved,
                                          ResourceAdmissionReport report)
@@ -383,6 +519,22 @@ std::string_view resource_admission_status_name(ResourceAdmissionStatus status) 
         case ResourceAdmissionStatus::admitted_tiled:
             return "admitted-tiled";
         case ResourceAdmissionStatus::over_budget:
+            return "over-budget";
+    }
+    return "unknown";
+}
+
+std::string_view preview_quality_status_name(PreviewQualityStatus status) noexcept {
+    switch (status) {
+        case PreviewQualityStatus::full_quality:
+            return "full-quality";
+        case PreviewQualityStatus::reduced_resolution:
+            return "reduced-resolution";
+        case PreviewQualityStatus::deferred_derived:
+            return "deferred-derived";
+        case PreviewQualityStatus::reduced_and_deferred:
+            return "reduced-and-deferred";
+        case PreviewQualityStatus::over_budget:
             return "over-budget";
     }
     return "unknown";

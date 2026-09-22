@@ -321,6 +321,10 @@ resident release, reload by exact generation for flat and UDIM storage, and
 refuse pinned or failed writes. Cache admission invokes physical-release
 callbacks before accounting removal. The exact C ABI gap is now 15 runtime
 requirements.
+Host-ordered preview-quality admission now selects and reports explicit
+resolution/resource/deferred-work choices, falling back to cache release and
+then atomic over-budget refusal without access to authored or export state. The
+exact C ABI gap is now 14 runtime requirements.
 
 ## Milestones
 

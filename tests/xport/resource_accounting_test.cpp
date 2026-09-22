@@ -219,6 +219,83 @@ bool admission_evicts_only_when_required_and_refusal_is_atomic() {
                              "refused admission changed committed cache storage");
 }
 
+bool preview_quality_follows_host_policy_without_touching_authored_storage() {
+    ResourceLedger ledger;
+    ledger.upsert({.allocation_identity = 60,
+                   .category = ResourceCategory::document_storage,
+                   .physical_bytes = 600,
+                   .roles = resource_role_cpu_resident,
+                   .device = std::nullopt});
+    const ResourceRequirement full_requirement{.category = ResourceCategory::composite,
+                                               .physical_bytes = 500,
+                                               .roles = resource_role_cpu_resident};
+    const ResourceRequirement deferred_requirement{.category = ResourceCategory::composite,
+                                                   .physical_bytes = 300,
+                                                   .roles = resource_role_cpu_resident};
+    const ResourceRequirement reduced_requirement{.category = ResourceCategory::composite,
+                                                  .physical_bytes = 200,
+                                                  .roles = resource_role_cpu_resident};
+    const PreviewQualityOption options[] = {
+        {.width = 1024,
+         .height = 1024,
+         .requirements = std::span<const ResourceRequirement>(&full_requirement, 1)},
+        {.width = 1024,
+         .height = 1024,
+         .requirements = std::span<const ResourceRequirement>(&deferred_requirement, 1),
+         .derived_work_deferred = true},
+        {.width = 512,
+         .height = 512,
+         .requirements = std::span<const ResourceRequirement>(&reduced_requirement, 1),
+         .derived_work_deferred = true},
+    };
+    const PreviewQualityRequest request = {
+        .operation = "mobile viewport",
+        .full_quality_width = 1024,
+        .full_quality_height = 1024,
+        .options = options,
+    };
+
+    PreviewQualityAdmission deferred = ledger.admit_preview_quality(limits(950, 1000), request);
+    const bool deferred_ok =
+        expect(deferred.reservation.active() &&
+                   deferred.report.status == PreviewQualityStatus::deferred_derived &&
+                   deferred.report.selected_option == 1 && deferred.report.selected_width == 1024,
+               "preview policy did not defer derived work before reducing resolution");
+    deferred.reservation.release();
+
+    PreviewQualityAdmission reduced = ledger.admit_preview_quality(limits(850, 1000), request);
+    const bool reduced_ok =
+        expect(reduced.reservation.active() &&
+                   reduced.report.status == PreviewQualityStatus::reduced_and_deferred &&
+                   reduced.report.selected_option == 2 && reduced.report.selected_width == 512 &&
+                   reduced.report.selected_height == 512 &&
+                   reduced.report.projected_usage.cpu_bytes == 800,
+               "preview policy did not report the selected reduced quality");
+    reduced.reservation.release();
+
+    EvictionTracker tracker;
+    ledger.set_cache_eviction_callback(record_eviction, &tracker);
+    ledger.upsert({.allocation_identity = 61,
+                   .category = ResourceCategory::cache,
+                   .physical_bytes = 200,
+                   .roles = resource_role_cpu_resident,
+                   .device = std::nullopt});
+    PreviewQualityAdmission evicted = ledger.admit_preview_quality(limits(850, 1000), request);
+    const bool eviction_ok =
+        expect(evicted.reservation.active() && evicted.report.selected_option == 2 &&
+                   evicted.report.evicted_allocation_identities == std::vector<std::uint64_t>{61} &&
+                   tracker.calls == 1 && tracker.identity == 61,
+               "preview quality admission did not release cache under pressure");
+    evicted.reservation.release();
+
+    PreviewQualityAdmission refused = ledger.admit_preview_quality(limits(700, 1000), request);
+    return deferred_ok && reduced_ok && eviction_ok &&
+           expect(!refused.reservation.active() &&
+                      refused.report.status == PreviewQualityStatus::over_budget &&
+                      ledger.report().physical_bytes == 600,
+                  "preview over-budget refusal changed authored resource accounting");
+}
+
 }  // namespace
 
 int main() {
@@ -226,7 +303,8 @@ int main() {
                    updates_and_release_are_identity_stable() &&
                    invalid_or_reused_identities_are_refused() &&
                    admission_reserves_a_bounded_tile_batch() &&
-                   admission_evicts_only_when_required_and_refusal_is_atomic()
+                   admission_evicts_only_when_required_and_refusal_is_atomic() &&
+                   preview_quality_follows_host_policy_without_touching_authored_storage()
                ? 0
                : 1;
 }

@@ -196,6 +196,69 @@ int main(void) {
                "evicted allocation identity was not queryable");
     ctex_resource_reservation_destroy(checkpoint_reservation);
 
+    ctex_resource_requirement preview_requirements[2] = {
+        {.size = CTEX_RESOURCE_REQUIREMENT_CURRENT_SIZE,
+         .category = CTEX_RESOURCE_COMPOSITE,
+         .physical_bytes = 800,
+         .roles = CTEX_RESOURCE_CPU_RESIDENT},
+        {.size = CTEX_RESOURCE_REQUIREMENT_CURRENT_SIZE,
+         .category = CTEX_RESOURCE_COMPOSITE,
+         .physical_bytes = 200,
+         .roles = CTEX_RESOURCE_CPU_RESIDENT},
+    };
+    ctex_preview_quality_option preview_options[2] = {
+        {.size = CTEX_PREVIEW_QUALITY_OPTION_CURRENT_SIZE,
+         .width = 1024,
+         .height = 1024,
+         .requirements = &preview_requirements[0],
+         .requirement_count = 1},
+        {.size = CTEX_PREVIEW_QUALITY_OPTION_CURRENT_SIZE,
+         .width = 512,
+         .height = 512,
+         .requirements = &preview_requirements[1],
+         .requirement_count = 1,
+         .derived_work_deferred = 1},
+    };
+    ctex_preview_quality_admission_descriptor preview = {
+        .size = CTEX_PREVIEW_QUALITY_ADMISSION_DESCRIPTOR_CURRENT_SIZE,
+        .operation = "mobile viewport",
+        .limits = {.size = CTEX_RESOURCE_BUDGET_LIMITS_CURRENT_SIZE,
+                   .cpu_bytes = 4400,
+                   .gpu_bytes = 5000,
+                   .backing_store_bytes = 3000,
+                   .temporary_bytes = 200},
+        .full_quality_width = 1024,
+        .full_quality_height = 1024,
+        .options = preview_options,
+        .option_count = 2,
+    };
+    ctex_resource_reservation* preview_reservation = NULL;
+    ctex_preview_quality_admission_report preview_report = {
+        .size = CTEX_PREVIEW_QUALITY_ADMISSION_REPORT_CURRENT_SIZE,
+    };
+    ctex_resource_allocation_descriptor preview_cache =
+        allocation(51, CTEX_RESOURCE_CACHE, 200, CTEX_RESOURCE_CPU_RESIDENT);
+    uint64_t preview_evicted_identity = 0;
+    size_t preview_evicted_count = 0;
+    const int preview_ok = expect(
+        ctex_resource_ledger_upsert(ledger, &preview_cache) == CTEX_RESULT_SUCCESS &&
+            ctex_resource_ledger_admit_preview_quality(ledger, &preview, &preview_reservation,
+                                                       &preview_report) == CTEX_RESULT_SUCCESS &&
+            preview_reservation != NULL &&
+            preview_report.status == CTEX_PREVIEW_REDUCED_AND_DEFERRED &&
+            preview_report.selected_option == 1 && preview_report.full_quality_width == 1024 &&
+            preview_report.selected_width == 512 && preview_report.selected_height == 512 &&
+            preview_report.derived_work_deferred == 1 &&
+            preview_report.projected_cpu_bytes == 4296 &&
+            preview_report.evicted_allocation_count == 1 && tracker.calls == 2 &&
+            tracker.identity == 51 &&
+            ctex_resource_reservation_get_evicted_allocations(
+                preview_reservation, &preview_evicted_identity, 1, &preview_evicted_count) ==
+                CTEX_RESULT_SUCCESS &&
+            preview_evicted_count == 1 && preview_evicted_identity == 51,
+        "host preview quality policy was not reported exactly");
+    ctex_resource_reservation_destroy(preview_reservation);
+
     ctex_resource_ledger_destroy(ledger);
-    return totals_ok && validation_ok && tiled_ok && eviction_ok ? 0 : 1;
+    return totals_ok && validation_ok && tiled_ok && eviction_ok && preview_ok ? 0 : 1;
 }

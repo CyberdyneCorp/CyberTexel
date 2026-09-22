@@ -106,3 +106,26 @@ channel image or a concrete UDIM number for sparse tiled sets. The backing
 callbacks own persistence and receive explicit store, load, per-key discard and
 namespace-release notifications. They must remain valid until the document is
 destroyed and must not call back into that document from inside a callback.
+
+## Host preview-quality policy
+
+`ResourceLedger::admit_preview_quality()` and
+`ctex_resource_ledger_admit_preview_quality()` accept host-ordered preview
+choices. Each choice declares a resolution, one or more exact resource
+requirements, and whether derived work is deferred. Choices cannot exceed the
+declared full-quality dimensions. The first choice that fits without changing
+committed allocations wins. If none fits and a cache-release callback exists,
+the same order is retried while considering eligible caches in allocation
+identity order. If no allowed choice fits, admission returns over-budget and
+changes neither allocations nor reservations.
+
+The report distinguishes full quality, reduced resolution, deferred derived
+work, and a combined reduction/defer outcome. It also names the selected option,
+dimensions, projected resource totals, and released cache count. The returned
+reservation protects that preview choice against concurrent overcommit.
+
+This policy is deliberately separate from image and export state: it can reserve
+preview composites and temporary work, but it cannot mutate authored dimensions,
+pixel formats, stored precision, or export inputs. Hosts must build preview
+resources from the selected option and continue to use authored resources for
+full-quality export.

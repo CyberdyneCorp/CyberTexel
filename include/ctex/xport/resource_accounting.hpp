@@ -103,6 +103,41 @@ struct ResourceAdmissionReport {
     std::string detail;
 };
 
+struct PreviewQualityOption {
+    std::uint32_t width{};
+    std::uint32_t height{};
+    std::span<const ResourceRequirement> requirements;
+    bool derived_work_deferred{};
+};
+
+struct PreviewQualityRequest {
+    std::string operation;
+    std::uint32_t full_quality_width{};
+    std::uint32_t full_quality_height{};
+    std::span<const PreviewQualityOption> options;
+};
+
+enum class PreviewQualityStatus : std::uint8_t {
+    full_quality,
+    reduced_resolution,
+    deferred_derived,
+    reduced_and_deferred,
+    over_budget,
+};
+
+struct PreviewQualityReport {
+    PreviewQualityStatus status{PreviewQualityStatus::over_budget};
+    std::size_t selected_option{};
+    std::uint32_t full_quality_width{};
+    std::uint32_t full_quality_height{};
+    std::uint32_t selected_width{};
+    std::uint32_t selected_height{};
+    bool derived_work_deferred{};
+    ResourceBudgetLimits projected_usage{};
+    std::vector<std::uint64_t> evicted_allocation_identities;
+    std::string detail;
+};
+
 class ResourceLedgerState;
 
 class ResourceReservation {
@@ -128,6 +163,11 @@ private:
     ResourceAdmissionReport report_{};
 };
 
+struct PreviewQualityAdmission {
+    ResourceReservation reservation;
+    PreviewQualityReport report;
+};
+
 class ResourceLedger {
 public:
     using CacheEvictionCallback = void (*)(std::uint64_t allocation_identity,
@@ -147,6 +187,8 @@ public:
                                      void* user_data = nullptr) noexcept;
     [[nodiscard]] ResourceReservation admit(const ResourceBudgetLimits& limits,
                                             const ResourceAdmissionRequest& request);
+    [[nodiscard]] PreviewQualityAdmission admit_preview_quality(
+        const ResourceBudgetLimits& limits, const PreviewQualityRequest& request);
 
 private:
     std::shared_ptr<ResourceLedgerState> state_;
@@ -155,6 +197,7 @@ private:
 [[nodiscard]] std::string_view resource_category_name(ResourceCategory category) noexcept;
 [[nodiscard]] std::string_view resource_admission_status_name(
     ResourceAdmissionStatus status) noexcept;
+[[nodiscard]] std::string_view preview_quality_status_name(PreviewQualityStatus status) noexcept;
 
 }  // namespace ctex::xport
 

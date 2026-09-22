@@ -1234,6 +1234,15 @@ cache-release callback before removing an accounting record, so reported
 eviction cannot merely hide live host memory. C++ and strict-C UDIM fixtures
 reduce the exact task-14.8 gap to 15 runtime requirements.
 
+Task 19.4 adds ordered host preview-quality choices to resource admission.
+Each choice declares its resolution, exact resource requirements and whether
+derived work is deferred. Admission prefers a fitting choice without eviction,
+then releases eligible caches only if no allowed choice otherwise fits, and
+reports the selected reduction or deferral. The policy owns no authored or
+export state, so reservations cannot resize stored pixels, reduce their
+precision or change export inputs. C++ and strict-C fixtures reduce the exact
+task-14.8 gap to 14 runtime requirements.
+
 ## 1. Foundation
 
 - [x] 1.1 CMake project, C++20, warnings as errors, presets for headless, macOS, Linux, Windows, iOS, Android
@@ -1503,7 +1512,7 @@ reduce the exact task-14.8 gap to 15 runtime requirements.
 - [x] 19.1 Complete allocation accounting with shared physical allocation identity, host device descriptors and pinned/in-flight resource reporting
 - [x] 19.2 CPU/GPU/backing/temporary ceilings, bounded admission and tiled work scheduling
 - [x] 19.3 Sparse constant tiles, derived-cache eviction, lossless authored-tile backing storage and reload
-- [ ] 19.4 Host preview-quality policy with unchanged authored precision and export results
+- [x] 19.4 Host preview-quality policy with unchanged authored precision and export results
 - [ ] 19.5 Quiesce, durable checkpoint notification, suspension deadlines and recovery revision reporting
 - [ ] 19.6 `resource-residency` scenarios as tests
 

@@ -201,7 +201,8 @@
     {"name": "resource-residency", "kind": "runtime", "requirements": [
       {"requirement": "Complete resource accounting", "symbols": ["ctex_resource_ledger_create", "ctex_resource_ledger_destroy", "ctex_resource_ledger_upsert", "ctex_resource_ledger_remove", "ctex_resource_ledger_get_report"]},
       {"requirement": "Enforced budgets and admission", "symbols": ["ctex_resource_ledger_set_cache_eviction_callback", "ctex_resource_ledger_admit", "ctex_resource_reservation_release", "ctex_resource_reservation_destroy", "ctex_resource_reservation_get_evicted_allocations"]},
-      {"requirement": "Sparse tiles and eviction", "symbols": ["ctex_resource_ledger_set_cache_eviction_callback", "ctex_texture_set_set_channel_backing_store", "ctex_texture_set_evict_channel_tile"]}
+      {"requirement": "Sparse tiles and eviction", "symbols": ["ctex_resource_ledger_set_cache_eviction_callback", "ctex_texture_set_set_channel_backing_store", "ctex_texture_set_evict_channel_tile"]},
+      {"requirement": "Host-controlled quality policy", "symbols": ["ctex_resource_ledger_admit_preview_quality", "ctex_resource_reservation_release", "ctex_resource_reservation_destroy", "ctex_resource_reservation_get_evicted_allocations"]}
     ]},
     {"name": "shader-emission", "kind": "runtime", "requirements": [
       {"requirement": "Emission produces shader artifacts, never a device object", "symbols": ["ctex_shader_emit_material"]},

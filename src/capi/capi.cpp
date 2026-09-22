@@ -11182,6 +11182,50 @@ ctex::doc::TextureSetTransaction& require_transaction(ctex_texture_set_transacti
     return *transaction.value;
 }
 
+struct PreviewQualityOptions {
+    std::vector<std::vector<ctex::xport::ResourceRequirement>> requirement_storage;
+    std::vector<ctex::xport::PreviewQualityOption> values;
+};
+
+PreviewQualityOptions preview_quality_options(
+    const ctex_preview_quality_admission_descriptor& descriptor) {
+    if (descriptor.option_count != 0 && descriptor.options == nullptr) {
+        throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                       "preview quality options are null with a non-zero count");
+    }
+    PreviewQualityOptions result;
+    result.requirement_storage.reserve(descriptor.option_count);
+    result.values.reserve(descriptor.option_count);
+    for (std::size_t option_index = 0; option_index < descriptor.option_count; ++option_index) {
+        const ctex_preview_quality_option& source = descriptor.options[option_index];
+        validate_structure_size(source.size, CTEX_PREVIEW_QUALITY_OPTION_V1_SIZE,
+                                CTEX_PREVIEW_QUALITY_OPTION_CURRENT_SIZE,
+                                "preview quality option size");
+        if (source.requirement_count != 0 && source.requirements == nullptr) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                           "preview requirements are null with a non-zero count");
+        }
+        result.requirement_storage.emplace_back();
+        auto& requirements = result.requirement_storage.back();
+        requirements.reserve(source.requirement_count);
+        for (std::size_t index = 0; index < source.requirement_count; ++index) {
+            const ctex_resource_requirement& requirement = source.requirements[index];
+            validate_structure_size(requirement.size, CTEX_RESOURCE_REQUIREMENT_V1_SIZE,
+                                    CTEX_RESOURCE_REQUIREMENT_CURRENT_SIZE,
+                                    "preview resource requirement size");
+            requirements.push_back(
+                {.category = static_cast<ctex::xport::ResourceCategory>(requirement.category),
+                 .physical_bytes = requirement.physical_bytes,
+                 .roles = requirement.roles});
+        }
+        result.values.push_back({.width = source.width,
+                                 .height = source.height,
+                                 .requirements = requirements,
+                                 .derived_work_deferred = source.derived_work_deferred != 0});
+    }
+    return result;
+}
+
 }  // namespace
 
 void* ctex_host_memory_resource::do_allocate(std::size_t bytes, std::size_t alignment) {
@@ -18106,6 +18150,72 @@ extern "C" ctex_result ctex_resource_ledger_admit(
             .status = static_cast<std::uint32_t>(report.status),
             .work_item_count = report.work_item_count,
             .admitted_work_items = report.admitted_work_items,
+            .projected_cpu_bytes = report.projected_usage.cpu_bytes,
+            .projected_gpu_bytes = report.projected_usage.gpu_bytes,
+            .projected_backing_store_bytes = report.projected_usage.backing_store_bytes,
+            .projected_temporary_bytes = report.projected_usage.temporary_bytes,
+            .evicted_allocation_count = report.evicted_allocation_identities.size(),
+        };
+        if (handle->value.active()) {
+            *out_reservation = handle;
+        } else {
+            destroy_resource_reservation(handle);
+        }
+    });
+}
+
+extern "C" ctex_result ctex_resource_ledger_admit_preview_quality(
+    ctex_resource_ledger* ledger, const ctex_preview_quality_admission_descriptor* descriptor,
+    ctex_resource_reservation** out_reservation,
+    ctex_preview_quality_admission_report* out_report) {
+    return call_boundary("ctex_resource_ledger_admit_preview_quality", [&] {
+        if (ledger == nullptr || descriptor == nullptr || out_reservation == nullptr ||
+            out_report == nullptr) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                           "ledger, descriptor, out_reservation, and out_report are required");
+        }
+        validate_structure_size(descriptor->size, CTEX_PREVIEW_QUALITY_ADMISSION_DESCRIPTOR_V1_SIZE,
+                                CTEX_PREVIEW_QUALITY_ADMISSION_DESCRIPTOR_CURRENT_SIZE,
+                                "preview quality admission descriptor size");
+        validate_structure_size(descriptor->limits.size, CTEX_RESOURCE_BUDGET_LIMITS_V1_SIZE,
+                                CTEX_RESOURCE_BUDGET_LIMITS_CURRENT_SIZE,
+                                "resource budget limits size");
+        validate_structure_size(out_report->size, CTEX_PREVIEW_QUALITY_ADMISSION_REPORT_V1_SIZE,
+                                CTEX_PREVIEW_QUALITY_ADMISSION_REPORT_CURRENT_SIZE,
+                                "preview quality admission report size");
+        const char* operation =
+            require_transport_text(descriptor->operation, "preview quality operation");
+        const PreviewQualityOptions options = preview_quality_options(*descriptor);
+
+        *out_reservation = nullptr;
+        ctex_resource_reservation* handle =
+            create_resource_reservation(ledger->allocator, ctex::xport::ResourceReservation{});
+        ctex::xport::PreviewQualityReport report;
+        try {
+            ctex::xport::PreviewQualityAdmission admission = ledger->value.admit_preview_quality(
+                {.cpu_bytes = descriptor->limits.cpu_bytes,
+                 .gpu_bytes = descriptor->limits.gpu_bytes,
+                 .backing_store_bytes = descriptor->limits.backing_store_bytes,
+                 .temporary_bytes = descriptor->limits.temporary_bytes},
+                {.operation = operation,
+                 .full_quality_width = descriptor->full_quality_width,
+                 .full_quality_height = descriptor->full_quality_height,
+                 .options = options.values});
+            handle->value = std::move(admission.reservation);
+            report = std::move(admission.report);
+        } catch (...) {
+            destroy_resource_reservation(handle);
+            throw;
+        }
+        *out_report = {
+            .size = CTEX_PREVIEW_QUALITY_ADMISSION_REPORT_CURRENT_SIZE,
+            .status = static_cast<std::uint32_t>(report.status),
+            .selected_option = report.selected_option,
+            .full_quality_width = report.full_quality_width,
+            .full_quality_height = report.full_quality_height,
+            .selected_width = report.selected_width,
+            .selected_height = report.selected_height,
+            .derived_work_deferred = report.derived_work_deferred ? 1U : 0U,
             .projected_cpu_bytes = report.projected_usage.cpu_bytes,
             .projected_gpu_bytes = report.projected_usage.gpu_bytes,
             .projected_backing_store_bytes = report.projected_usage.backing_store_bytes,

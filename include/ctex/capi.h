@@ -2941,6 +2941,62 @@ typedef struct ctex_resource_admission_report {
 #define CTEX_RESOURCE_ADMISSION_REPORT_CURRENT_SIZE \
     ((uint32_t)sizeof(ctex_resource_admission_report))
 
+typedef struct ctex_preview_quality_option {
+    uint32_t size;
+    uint32_t width;
+    uint32_t height;
+    const ctex_resource_requirement* requirements;
+    size_t requirement_count;
+    uint32_t derived_work_deferred;
+} ctex_preview_quality_option;
+
+#define CTEX_PREVIEW_QUALITY_OPTION_V1_SIZE ((uint32_t)sizeof(ctex_preview_quality_option))
+#define CTEX_PREVIEW_QUALITY_OPTION_CURRENT_SIZE ((uint32_t)sizeof(ctex_preview_quality_option))
+
+typedef struct ctex_preview_quality_admission_descriptor {
+    uint32_t size;
+    const char* operation;
+    ctex_resource_budget_limits limits;
+    uint32_t full_quality_width;
+    uint32_t full_quality_height;
+    const ctex_preview_quality_option* options;
+    size_t option_count;
+} ctex_preview_quality_admission_descriptor;
+
+#define CTEX_PREVIEW_QUALITY_ADMISSION_DESCRIPTOR_V1_SIZE \
+    ((uint32_t)sizeof(ctex_preview_quality_admission_descriptor))
+#define CTEX_PREVIEW_QUALITY_ADMISSION_DESCRIPTOR_CURRENT_SIZE \
+    ((uint32_t)sizeof(ctex_preview_quality_admission_descriptor))
+
+typedef enum ctex_preview_quality_status {
+    CTEX_PREVIEW_FULL_QUALITY = 0,
+    CTEX_PREVIEW_REDUCED_RESOLUTION = 1,
+    CTEX_PREVIEW_DEFERRED_DERIVED = 2,
+    CTEX_PREVIEW_REDUCED_AND_DEFERRED = 3,
+    CTEX_PREVIEW_OVER_BUDGET = 4
+} ctex_preview_quality_status;
+
+typedef struct ctex_preview_quality_admission_report {
+    uint32_t size;
+    uint32_t status;
+    size_t selected_option;
+    uint32_t full_quality_width;
+    uint32_t full_quality_height;
+    uint32_t selected_width;
+    uint32_t selected_height;
+    uint32_t derived_work_deferred;
+    size_t projected_cpu_bytes;
+    size_t projected_gpu_bytes;
+    size_t projected_backing_store_bytes;
+    size_t projected_temporary_bytes;
+    size_t evicted_allocation_count;
+} ctex_preview_quality_admission_report;
+
+#define CTEX_PREVIEW_QUALITY_ADMISSION_REPORT_V1_SIZE \
+    ((uint32_t)sizeof(ctex_preview_quality_admission_report))
+#define CTEX_PREVIEW_QUALITY_ADMISSION_REPORT_CURRENT_SIZE \
+    ((uint32_t)sizeof(ctex_preview_quality_admission_report))
+
 typedef struct ctex_tile_backing_key {
     uint64_t namespace_identity;
     uint32_t tile_x;
@@ -6506,6 +6562,9 @@ CTEX_API ctex_result ctex_resource_ledger_set_cache_eviction_callback(
 CTEX_API ctex_result ctex_resource_ledger_admit(
     ctex_resource_ledger* ledger, const ctex_resource_admission_descriptor* descriptor,
     ctex_resource_reservation** out_reservation, ctex_resource_admission_report* out_report);
+CTEX_API ctex_result ctex_resource_ledger_admit_preview_quality(
+    ctex_resource_ledger* ledger, const ctex_preview_quality_admission_descriptor* descriptor,
+    ctex_resource_reservation** out_reservation, ctex_preview_quality_admission_report* out_report);
 CTEX_API void ctex_resource_reservation_destroy(ctex_resource_reservation* reservation);
 CTEX_API void ctex_resource_reservation_release(ctex_resource_reservation* reservation);
 CTEX_API ctex_result ctex_resource_reservation_get_evicted_allocations(
