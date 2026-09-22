@@ -16728,6 +16728,62 @@ extern "C" ctex_result ctex_texture_set_get_memory_report(
     });
 }
 
+extern "C" ctex_result ctex_document_get_memory_report(
+    const ctex_document* document, ctex_document_memory_info* out_info,
+    ctex_document_texture_set_memory_info* texture_sets, std::size_t texture_set_capacity,
+    char* texture_set_ids, std::size_t texture_set_id_size) {
+    return call_boundary("ctex_document_get_memory_report", [&] {
+        if (document == nullptr || out_info == nullptr) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                           "document and out_info are required");
+        }
+        validate_structure_size(out_info->size, CTEX_DOCUMENT_MEMORY_INFO_V1_SIZE,
+                                CTEX_DOCUMENT_MEMORY_INFO_CURRENT_SIZE,
+                                "document memory info size");
+        const ctex::doc::TextureDocumentMemoryReport report = document->value.memory_report();
+        std::vector<std::string> identifiers;
+        identifiers.reserve(report.texture_sets.size());
+        for (const ctex::doc::TextureSetMemoryReport& texture_set : report.texture_sets) {
+            identifiers.push_back(texture_set.texture_set_id);
+        }
+        const std::size_t required_id_size = texture_set_id_buffer_size(identifiers);
+        validate_output_array(texture_sets, texture_set_capacity, report.texture_sets.size(),
+                              "texture_sets");
+        validate_string_buffer(texture_set_ids, texture_set_id_size, required_id_size);
+        *out_info = {
+            .size = CTEX_DOCUMENT_MEMORY_INFO_CURRENT_SIZE,
+            .texture_set_count = report.texture_sets.size(),
+            .required_texture_set_id_size = required_id_size,
+            .channel_pixel_bytes = report.channel_pixel_bytes,
+            .history_retained_bytes = report.history_retained_bytes,
+            .mesh_map_pixel_bytes = report.mesh_map_pixel_bytes,
+            .total_resident_bytes = report.total_resident_bytes,
+            .estimated_save_bytes = report.estimated_save_bytes,
+        };
+        std::size_t id_offset = 0;
+        for (std::size_t index = 0; index < report.texture_sets.size(); ++index) {
+            const ctex::doc::TextureSetMemoryReport& texture_set = report.texture_sets[index];
+            const std::size_t id_size = texture_set.texture_set_id.size() + 1;
+            if (texture_sets != nullptr) {
+                texture_sets[index] = {
+                    .texture_set_id_offset = id_offset,
+                    .texture_set_id_size = id_size,
+                    .channel_pixel_bytes = texture_set.channel_pixel_bytes,
+                    .history_retained_bytes = texture_set.history_retained_bytes,
+                    .mesh_map_pixel_bytes = texture_set.mesh_map_pixel_bytes,
+                    .total_resident_bytes = texture_set.total_resident_bytes,
+                    .estimated_save_bytes = texture_set.estimated_save_bytes,
+                };
+            }
+            if (texture_set_ids != nullptr) {
+                std::memcpy(texture_set_ids + id_offset, texture_set.texture_set_id.c_str(),
+                            id_size);
+            }
+            id_offset += id_size;
+        }
+    });
+}
+
 extern "C" ctex_result ctex_texture_set_layer_append(ctex_document* document,
                                                      const char* texture_set_id,
                                                      const ctex_layer_entry_descriptor* entries,

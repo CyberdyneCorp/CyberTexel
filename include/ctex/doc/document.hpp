@@ -31,16 +31,20 @@ enum class TextureSetMemoryCategory : std::uint8_t { mesh_maps };
 struct TextureSetMemoryReport {
     std::string texture_set_id;
     std::size_t channel_pixel_bytes{};
+    std::size_t history_retained_bytes{};
     std::size_t mesh_map_pixel_bytes{};
     std::size_t total_resident_bytes{};
+    std::size_t estimated_save_bytes{};
     friend bool operator==(const TextureSetMemoryReport&, const TextureSetMemoryReport&) = default;
 };
 
 struct TextureDocumentMemoryReport {
     std::vector<TextureSetMemoryReport> texture_sets;
     std::size_t channel_pixel_bytes{};
+    std::size_t history_retained_bytes{};
     std::size_t mesh_map_pixel_bytes{};
     std::size_t total_resident_bytes{};
+    std::size_t estimated_save_bytes{};
     friend bool operator==(const TextureDocumentMemoryReport&,
                            const TextureDocumentMemoryReport&) = default;
 };

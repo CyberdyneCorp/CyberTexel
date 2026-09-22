@@ -2687,6 +2687,30 @@ typedef struct ctex_texture_set_memory_report {
 #define CTEX_TEXTURE_SET_MEMORY_REPORT_CURRENT_SIZE \
     ((uint32_t)sizeof(ctex_texture_set_memory_report))
 
+typedef struct ctex_document_texture_set_memory_info {
+    size_t texture_set_id_offset;
+    size_t texture_set_id_size;
+    size_t channel_pixel_bytes;
+    size_t history_retained_bytes;
+    size_t mesh_map_pixel_bytes;
+    size_t total_resident_bytes;
+    size_t estimated_save_bytes;
+} ctex_document_texture_set_memory_info;
+
+typedef struct ctex_document_memory_info {
+    uint32_t size;
+    size_t texture_set_count;
+    size_t required_texture_set_id_size;
+    size_t channel_pixel_bytes;
+    size_t history_retained_bytes;
+    size_t mesh_map_pixel_bytes;
+    size_t total_resident_bytes;
+    size_t estimated_save_bytes;
+} ctex_document_memory_info;
+
+#define CTEX_DOCUMENT_MEMORY_INFO_V1_SIZE ((uint32_t)sizeof(ctex_document_memory_info))
+#define CTEX_DOCUMENT_MEMORY_INFO_CURRENT_SIZE ((uint32_t)sizeof(ctex_document_memory_info))
+
 typedef struct ctex_transport_revision_cursor {
     uint64_t epoch;
     uint64_t revision;
@@ -6128,6 +6152,10 @@ CTEX_API ctex_result ctex_texture_set_get_channel_info(
 CTEX_API ctex_result ctex_texture_set_get_memory_report(const ctex_document* document,
                                                         const char* texture_set_id,
                                                         ctex_texture_set_memory_report* out_report);
+CTEX_API ctex_result ctex_document_get_memory_report(
+    const ctex_document* document, ctex_document_memory_info* out_info,
+    ctex_document_texture_set_memory_info* texture_sets, size_t texture_set_capacity,
+    char* texture_set_ids, size_t texture_set_id_size);
 /* Appends a complete ordered batch after validating the resulting stack atomically. */
 CTEX_API ctex_result ctex_texture_set_layer_append(ctex_document* document,
                                                    const char* texture_set_id,

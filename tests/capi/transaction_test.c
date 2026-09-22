@@ -126,6 +126,28 @@ static int mixed_commit_cancel_and_history(void) {
                     commit.committed == 1 && commit.tile_count == 1 &&
                     commit.layer_stack_changed == 1 && inspect_contains(&value, "Renamed group"),
                 "mixed transaction did not commit as one step");
+    ctex_document_memory_info memory = {.size = CTEX_DOCUMENT_MEMORY_INFO_CURRENT_SIZE};
+    ok = ok && expect(ctex_document_get_memory_report(value.document, &memory, NULL, 0, NULL, 0) ==
+                              CTEX_RESULT_SUCCESS &&
+                          memory.texture_set_count == 1 && memory.history_retained_bytes > 0 &&
+                          memory.total_resident_bytes >= memory.history_retained_bytes &&
+                          memory.estimated_save_bytes > 0,
+                      "document memory sizing report omitted history or save estimate");
+    ctex_document_texture_set_memory_info set_memory = {0};
+    char set_ids[128] = {0};
+    ok = ok &&
+         expect(ctex_document_get_memory_report(value.document, &memory, &set_memory, 1, set_ids,
+                                                sizeof(set_ids)) == CTEX_RESULT_SUCCESS &&
+                    strcmp(set_ids + set_memory.texture_set_id_offset, value.set_id) == 0 &&
+                    set_memory.history_retained_bytes == memory.history_retained_bytes &&
+                    set_memory.estimated_save_bytes > 0,
+                "document memory detail report did not match its aggregate");
+    ctex_document_texture_set_memory_info sentinel = {.texture_set_id_offset = 77};
+    memory.texture_set_count = 99;
+    ok = ok && expect(ctex_document_get_memory_report(value.document, &memory, &sentinel, 1,
+                                                      set_ids, 1) == CTEX_RESULT_BUFFER_TOO_SMALL &&
+                          sentinel.texture_set_id_offset == 77 && memory.texture_set_count == 99,
+                      "short document memory output partially published data");
     ctex_tile_history_restore_info restored = {.size = CTEX_TILE_HISTORY_RESTORE_INFO_CURRENT_SIZE};
     ok = ok &&
          expect(ctex_texture_set_undo_tiles(value.document, value.set_id, &restored) ==
@@ -247,7 +269,7 @@ static int non_pixel_edits_retain_zero_bytes(void) {
     ctex_texture_set_transaction_destroy(transaction);
     ctex_tile_history_restore_info restored = {.size = CTEX_TILE_HISTORY_RESTORE_INFO_CURRENT_SIZE};
     ok = ok && expect(ctex_texture_set_undo_tiles(value.document, value.set_id, &restored) ==
-                          CTEX_RESULT_SUCCESS &&
+                              CTEX_RESULT_SUCCESS &&
                           restored.tile_count == 0 && restored.layer_stack_exchanged == 1 &&
                           inspect_contains(&value, "\"display_name\":\"paint\""),
                       "zero-byte metadata transaction was not undoable");

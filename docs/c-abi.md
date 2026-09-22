@@ -548,6 +548,15 @@ configured user-data pointer and must not throw across the C boundary.
 
 ## Project containers
 
+`ctex_document_get_memory_report` returns aggregate and per-texture-set channel,
+tile-history, bound-map and total resident bytes through caller-owned arrays and
+packed stable identities. It also reports a pre-save size estimate without
+encoding the document. The estimate uses current sparse resident channel and
+map payloads plus deterministic container/texture-set/atlas metadata overhead;
+undo history is reported as resident memory but is not counted as saved project
+payload. Short detail or identity buffers publish neither aggregate nor detail
+output.
+
 The project-container boundary accepts and returns complete encoded container
 bytes rather than exposing C++ container objects. `ctex_project_container_create_empty`
 uses the normal null-buffer sizing call to create a canonical empty container,

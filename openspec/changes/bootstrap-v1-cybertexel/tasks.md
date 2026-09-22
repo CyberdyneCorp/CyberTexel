@@ -1189,6 +1189,13 @@ forty-write mixed gesture, one-step undo/redo, cancellation, and a layer-only
 metadata/graph commit retaining zero pixel bytes. This closes non-pixel command
 history and reduces the exact remaining task-14.8 gap to 21 requirements.
 
+Document memory and pre-save sizing now cross C as aggregate and per-texture-set
+channel, history, bound-map, resident-total and estimated-container counters.
+History is included in resident memory while the deterministic save estimate
+uses sparse channel/map payloads plus container, texture-set and atlas metadata.
+The strict-C transaction fixture verifies retained history, packed identities
+and short-buffer atomicity, reducing the exact task-14.8 gap to 20 requirements.
+
 ## 1. Foundation
 
 - [x] 1.1 CMake project, C++20, warnings as errors, presets for headless, macOS, Linux, Windows, iOS, Android

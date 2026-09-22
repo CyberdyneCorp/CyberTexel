@@ -22,6 +22,13 @@ std::size_t checked_add(std::size_t left, std::size_t right, const char* descrip
     return left + right;
 }
 
+std::size_t checked_multiply(std::size_t left, std::size_t right, const char* description) {
+    if (left != 0 && right > std::numeric_limits<std::size_t>::max() / left) {
+        throw std::overflow_error(description);
+    }
+    return left * right;
+}
+
 std::size_t& category_bytes(TextureSetMemoryState& state, TextureSetMemoryCategory category) {
     switch (category) {
         case TextureSetMemoryCategory::mesh_maps:
@@ -414,11 +421,18 @@ TextureSetMemoryReport TextureSet::memory_report() const {
                                     "UDIM channel memory report overflow");
     }
     const std::size_t map_bytes = memory_state_->mesh_map_pixel_bytes;
+    const std::size_t history_bytes = tile_history_.budget_report().retained_bytes;
+    const std::size_t pixel_and_map_bytes =
+        checked_add(channel_bytes, map_bytes, "texture-set save estimate overflow");
+    constexpr std::size_t container_metadata_estimate = 512;
     return {.texture_set_id = id(),
             .channel_pixel_bytes = channel_bytes,
+            .history_retained_bytes = history_bytes,
             .mesh_map_pixel_bytes = map_bytes,
-            .total_resident_bytes =
-                checked_add(channel_bytes, map_bytes, "texture-set memory report overflow")};
+            .total_resident_bytes = checked_add(pixel_and_map_bytes, history_bytes,
+                                                "texture-set memory report overflow"),
+            .estimated_save_bytes = checked_add(pixel_and_map_bytes, container_metadata_estimate,
+                                                "texture-set save estimate overflow")};
 }
 
 TextureDocument::TextureDocument(std::pmr::memory_resource* memory_resource)
@@ -557,6 +571,9 @@ std::vector<std::string> TextureDocument::atlas_ids() const {
 
 TextureDocumentMemoryReport TextureDocument::memory_report() const {
     TextureDocumentMemoryReport result;
+    constexpr std::size_t container_header_estimate = 64;
+    constexpr std::size_t atlas_metadata_estimate = 128;
+    result.estimated_save_bytes = container_header_estimate;
     result.texture_sets.reserve(texture_sets_.size());
     for (const auto& [id, texture_set] : texture_sets_) {
         static_cast<void>(id);
@@ -567,10 +584,26 @@ TextureDocumentMemoryReport TextureDocument::memory_report() const {
         result.mesh_map_pixel_bytes =
             checked_add(result.mesh_map_pixel_bytes, report.mesh_map_pixel_bytes,
                         "document mesh-map memory report overflow");
+        result.history_retained_bytes =
+            checked_add(result.history_retained_bytes, report.history_retained_bytes,
+                        "document history memory report overflow");
         result.total_resident_bytes =
             checked_add(result.total_resident_bytes, report.total_resident_bytes,
                         "document total memory report overflow");
+        result.estimated_save_bytes =
+            checked_add(result.estimated_save_bytes, report.estimated_save_bytes,
+                        "document save estimate overflow");
         result.texture_sets.push_back(std::move(report));
+    }
+    for (const auto& [unused, atlas] : atlases_) {
+        static_cast<void>(unused);
+        const std::size_t region_bytes =
+            checked_add(atlas_metadata_estimate,
+                        checked_multiply(atlas.regions.size(), sizeof(AtlasRegion),
+                                         "document atlas save estimate overflow"),
+                        "document atlas save estimate overflow");
+        result.estimated_save_bytes = checked_add(result.estimated_save_bytes, region_bytes,
+                                                  "document save estimate overflow");
     }
     return result;
 }

@@ -301,6 +301,9 @@ Allocator-owned texture-set transactions now stage declared pixel writes,
 layer operations and metadata/graph edits behind one stale-checked commit.
 Layer-only history retains zero pixel bytes, reducing the exact C ABI gap to 21
 runtime requirements.
+Aggregate and per-texture-set document memory reporting now includes channel,
+history and bound-map residency plus a deterministic pre-save size estimate.
+The exact C ABI gap is now 20 runtime requirements.
 
 ## Milestones
 
