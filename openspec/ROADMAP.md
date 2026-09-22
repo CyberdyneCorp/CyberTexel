@@ -7,7 +7,7 @@ decisions taken and questions still open.
 ## Status
 
 Implementation started. 24 capabilities, 332 requirements, 409 scenarios and
-222 tasks, 155 done. Foundation and the complete headless color-management
+222 tasks, 156 done. Foundation and the complete headless color-management
 scenario suite are green. Image input now detects and decodes PNG, JPEG, TGA,
 BMP, baseline TIFF, flat OpenEXR, Radiance HDR and flattened PSD from caller
 memory, with mismatch reporting, 8/16-bit preservation and hostile-input
@@ -329,6 +329,10 @@ Suspension now closes resource admission before cancellation, reports drain and
 checkpoint completion against one host deadline, embeds the durable revision in
 the atomic recovery container, and reopens admission only on explicit resume.
 The exact C ABI gap is now 13 runtime requirements.
+The complete resource-residency scenario matrix now maps all five scenarios to
+the C++ and strict-C accounting, backing, readback-cancellation and recovery
+fixtures. A checked `resource-residency-scenario` label and task-runner recipe
+fail when the specification, evidence names or suite membership drift.
 
 ## Milestones
 

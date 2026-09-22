@@ -798,6 +798,15 @@ if(BUILD_TESTING)
         PRIVATE ctex_xport ctex_doc ctex_mesh ctex_graph ctex_image
     )
     add_test(NAME resource-accounting COMMAND ctex_resource_accounting_test)
+    add_test(
+        NAME resource-residency-scenario-matrix
+        COMMAND
+            "${CTEX_PYTHON3_EXECUTABLE}"
+            tests/tools/check_resource_residency_scenario_matrix.py
+    )
+    set_tests_properties(
+        resource-residency-scenario-matrix PROPERTIES WORKING_DIRECTORY "${PROJECT_SOURCE_DIR}"
+    )
 
     add_executable(ctex_host_transport_preview_test tests/xport/preview_test.cpp)
     ctex_configure_cpp_target(ctex_host_transport_preview_test)
@@ -1698,5 +1707,17 @@ if(BUILD_TESTING)
             mesh-ingest
             executor-parity-gate
         APPEND PROPERTY LABELS texture-document-scenario
+    )
+    set_property(
+        TEST
+            tiled-image
+            project-autosave
+            c-abi-project-autosave
+            resource-accounting
+            c-abi-resource-accounting
+            c-abi-tile-backing
+            c-abi-host-transport-snapshot
+            resource-residency-scenario-matrix
+        APPEND PROPERTY LABELS resource-residency-scenario
     )
 endif()

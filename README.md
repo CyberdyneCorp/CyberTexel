@@ -289,7 +289,10 @@ The current implementation provides:
   separate ceilings, schedule bounded tile batches, and evict only eligible
   reconstructible caches when required for progress. Sparse authored tiles can
   be evicted only after a host confirms lossless backing, then transparently
-  reload by exact generation across flat and UDIM channel storage.
+  reload by exact generation across flat and UDIM channel storage. The checked
+  [resource-residency scenario matrix](docs/resource-residency-scenarios.md)
+  maps accounting, bounded admission, eviction, quality policy and suspension
+  recovery to one labeled suite.
 - Executor-owned [device capability reports](docs/executor-capabilities.md) for
   binding budget, texture limits and formats, float filtering, and compute,
   wired directly into layer-stack, material, and preview emission requests.
@@ -309,6 +312,7 @@ The current implementation provides:
   [shader-emission](docs/shader-emission-scenarios.md),
   [execution-backend](docs/execution-backend-scenarios.md), and
   [host-transport](docs/host-transport-scenarios.md),
+  [resource-residency](docs/resource-residency-scenarios.md),
   [texture-document](docs/texture-document-scenarios.md),
   [project-I/O and texture-export](docs/io-scenarios.md), plus combined
   [stroke-model and paint-engine](docs/paint-scenarios.md) scenario suites.

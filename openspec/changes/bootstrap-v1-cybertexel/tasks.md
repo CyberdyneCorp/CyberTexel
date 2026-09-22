@@ -1252,6 +1252,13 @@ container; resume strips lifecycle metadata from project bytes while reporting
 the exact durable revision. C++ and strict-C fixtures reduce the exact task-14.8
 gap to 13 runtime requirements.
 
+Task 19.6 maps every resource-residency scenario to named C++ and strict-C
+evidence. The checked matrix covers unified accounting, bounded tiled
+admission, bit-identical authored-tile reload, non-destructive preview quality,
+and mobile suspension through both real asynchronous-readback cancellation and
+durable recovery revision reporting. One `resource-residency-scenario` label
+and task-runner recipe execute the complete suite and fail on evidence drift.
+
 ## 1. Foundation
 
 - [x] 1.1 CMake project, C++20, warnings as errors, presets for headless, macOS, Linux, Windows, iOS, Android
@@ -1523,7 +1530,7 @@ gap to 13 runtime requirements.
 - [x] 19.3 Sparse constant tiles, derived-cache eviction, lossless authored-tile backing storage and reload
 - [x] 19.4 Host preview-quality policy with unchanged authored precision and export results
 - [x] 19.5 Quiesce, durable checkpoint notification, suspension deadlines and recovery revision reporting
-- [ ] 19.6 `resource-residency` scenarios as tests
+- [x] 19.6 `resource-residency` scenarios as tests
 
 ## 20. Editable authoring
 

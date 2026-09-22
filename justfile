@@ -170,6 +170,9 @@ test-host-transport-identity: build
 test-host-transport-scenarios: build
     ctest --test-dir build/headless --output-on-failure -L '^host-transport-scenario$'
 
+test-resource-residency-scenarios: build
+    ctest --test-dir build/headless --output-on-failure -L '^resource-residency-scenario$'
+
 test-stroke-reconstruction: build
     ctest --test-dir build/headless --output-on-failure -R '^stroke-reconstruction$'
 
