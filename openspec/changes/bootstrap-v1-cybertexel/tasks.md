@@ -713,6 +713,10 @@ exposed parameter, mark anchors, add references with ordering and cycle
 validation, and plan dependency-ordered reevaluation. Caller-owned canonical
 bytes and JSON reports remain atomic. The exact remaining C ABI gap is 139
 runtime requirements.
+The project container's public referenced/self-contained resource paths and
+mesh-replacement plan already prove referenced-by-default mesh identity,
+optional packing and moved-mesh recovery; correcting that stale manifest gap
+leaves 11 runtime requirements.
 
 The resource continuation exposes two more smart-material requirements. Hosts
 can package canonical materials from explicit portable resource manifests,
@@ -1295,6 +1299,12 @@ pin exact channel generations and own declared tile buffers across explicit
 asynchronous host readback. Binding tests verify pending-output refusal, exact
 host completion and atomic readability, with reference counting or ownership
 keeping every native dependency alive.
+The matching coverage-manifest entry reduces the exact task-14.8 gap to 12
+runtime requirements.
+The host-transport budget measures the already-public delta-query and explicit
+readback operations. Mapping those C entry points reduces the task-14.8 gap to
+10 requirements after the referenced-mesh correction; numeric device budgets
+remain open in group 17.
 
 ## 1. Foundation
 

@@ -357,6 +357,15 @@ completion, retained host-resident generations, pinned channel snapshots and
 explicit pending-to-complete host readback. Each binding test proves that
 pending buffers remain unreadable and publish atomically only after the host
 returns the exact requested tile payloads.
+This maps cross-binding transport reachability in the C coverage inventory and
+reduces the remaining task-14.8 gap to 12 runtime requirements.
+Existing public project-resource and mesh-replacement operations also prove the
+referenced-by-default mesh path, correcting the task-14.8 gap to 11 runtime
+requirements.
+The public delta-query and explicit-readback operations are also the exact host
+transport paths that task 17 will benchmark. Mapping their C surface reduces the
+task-14.8 gap to 10 requirements without claiming the deferred numeric device
+gate.
 
 ## Milestones
 

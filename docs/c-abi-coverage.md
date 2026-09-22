@@ -199,5 +199,16 @@ drains reservations and publishes a revision-bearing checkpoint within one
 lifecycle deadline. Recovery returns only the last atomic checkpoint and its
 durable revision while reporting known uncheckpointed revisions. The exact
 remaining gap is 13 runtime requirements.
+Python, Swift and safe Rust now drive channel revisions, snapshots, explicit
+host readback and host-execution completion through the same C operations. The
+exact remaining gap is 12 runtime requirements.
+The public project-container inventory, referenced/self-contained asset export
+and install paths, and mesh-replacement plan already cover referenced-by-default
+mesh identity, optional packing and moved-mesh recovery. Correcting that stale
+manifest omission reduces the exact remaining gap to 11 runtime requirements.
+The delta-query and explicit readback operations measured by the host-transport
+budget already cross the public C boundary. Mapping those operations reduces
+the surface gap to 10; the numeric reference-device budget and its gate remain
+scheduled under performance task 17.
 The gate is not part of the aggregate `just check` until that count reaches zero;
 its unit tests run in the normal tooling suite throughout the migration.

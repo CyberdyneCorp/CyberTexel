@@ -65,6 +65,8 @@
       {"requirement": "Cost is proportional to the change", "symbols": ["ctex_texture_set_query_channel_delta"]},
       {"requirement": "Preview transport", "symbols": ["ctex_paint_preview_session_query_snapshot", "ctex_transport_snapshot_get_tile_versions", "ctex_transport_snapshot_get_tile_memory_layout", "ctex_transport_snapshot_read_tiles"]},
       {"requirement": "Host-owned resources are tracked by identity", "symbols": ["ctex_host_execution_session_get_committed_resource", "ctex_host_execution_session_resource_is_held", "ctex_host_completion_result_get_info", "ctex_host_recovery_report_get_info"]},
+      {"requirement": "Transport is reachable from every binding", "symbols": ["ctex_texture_set_query_channel_delta", "ctex_texture_set_query_channel_snapshot", "ctex_transport_snapshot_destroy", "ctex_transport_snapshot_begin_host_readback", "ctex_transport_readback_complete_host", "ctex_host_execution_session_submit", "ctex_host_execution_session_complete"]},
+      {"requirement": "Transport has a stated budget", "symbols": ["ctex_texture_set_query_channel_delta", "ctex_transport_snapshot_read_tiles", "ctex_transport_snapshot_begin_host_readback", "ctex_transport_readback_get_info"]},
       {"requirement": "Explicit asynchronous readback", "symbols": ["ctex_transport_snapshot_begin_readback", "ctex_transport_snapshot_begin_host_readback", "ctex_transport_readback_get_info", "ctex_transport_readback_complete_host", "ctex_transport_readback_cancel", "ctex_transport_readback_fail", "ctex_transport_readback_destroy"]},
       {"requirement": "Snapshot pressure is bounded", "symbols": ["ctex_transport_snapshot_pool_create", "ctex_transport_snapshot_pool_destroy", "ctex_transport_snapshot_pool_get_memory_report", "ctex_texture_set_query_channel_snapshot", "ctex_transport_snapshot_destroy"]}
     ]},
@@ -190,6 +192,7 @@
       {"requirement": "Versioning", "symbols": ["ctex_project_container_probe_version"]},
       {"requirement": "Pixel storage", "symbols": ["ctex_project_container_create_empty", "ctex_project_container_normalize"]},
       {"requirement": "Referenced versus packed resources", "symbols": ["ctex_project_container_normalize"]},
+      {"requirement": "Mesh is referenced, not embedded by default", "symbols": ["ctex_project_container_normalize", "ctex_project_asset_export", "ctex_project_asset_install", "ctex_mesh_replacement_plan_create", "ctex_mesh_replacement_plan_apply"]},
       {"requirement": "Save is atomic", "symbols": ["ctex_project_container_save_atomic"]},
       {"requirement": "Autosave and recovery", "symbols": ["ctex_project_autosave_session_create", "ctex_project_autosave_session_destroy", "ctex_project_autosave_session_submit", "ctex_project_autosave_session_wait", "ctex_project_autosave_session_flush", "ctex_project_autosave_session_get_info", "ctex_project_recovery_enumerate", "ctex_project_recovery_read"]},
       {"requirement": "Untrusted input is bounded", "symbols": ["ctex_project_container_normalize", "ctex_project_container_save_atomic"]},
