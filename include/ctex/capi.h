@@ -29,7 +29,10 @@ typedef enum ctex_result {
     CTEX_RESULT_OVER_BUDGET = 5,
     CTEX_RESULT_CANCELLED = 6,
     CTEX_RESULT_INTERNAL_ERROR = 7,
-    CTEX_RESULT_BUFFER_TOO_SMALL = 8
+    CTEX_RESULT_BUFFER_TOO_SMALL = 8,
+    CTEX_RESULT_NO_UNDO = 9,
+    CTEX_RESULT_NO_REDO = 10,
+    CTEX_RESULT_STALE_STATE = 11
 } ctex_result;
 
 typedef enum ctex_diagnostic_code {
@@ -92,7 +95,8 @@ typedef enum ctex_diagnostic_code {
     CTEX_DIAGNOSTIC_INVALID_PAINT_TOOL = 56,
     CTEX_DIAGNOSTIC_INVALID_MATERIAL_GRAPH = 57,
     CTEX_DIAGNOSTIC_INVALID_SHADER_EMISSION = 58,
-    CTEX_DIAGNOSTIC_INVALID_MESH_MAP = 59
+    CTEX_DIAGNOSTIC_INVALID_MESH_MAP = 59,
+    CTEX_DIAGNOSTIC_INVALID_TILE_HISTORY = 60
 } ctex_diagnostic_code;
 
 typedef enum ctex_log_severity {
@@ -156,6 +160,7 @@ typedef struct ctex_host_recovery_report ctex_host_recovery_report;
 typedef struct ctex_material_graph_workspace ctex_material_graph_workspace;
 typedef struct ctex_material_graph_node_registry ctex_material_graph_node_registry;
 typedef struct ctex_shader_emission_cache ctex_shader_emission_cache;
+typedef struct ctex_tile_history_capture ctex_tile_history_capture;
 
 #define CTEX_MAX_MESH_VERTEX_COUNT ((size_t)100000000)
 #define CTEX_MAX_MESH_TRIANGLE_COUNT ((size_t)100000000)
@@ -2289,6 +2294,56 @@ typedef struct ctex_layer_participation_info {
 
 #define CTEX_LAYER_PARTICIPATION_INFO_V1_SIZE ((uint32_t)sizeof(ctex_layer_participation_info))
 #define CTEX_LAYER_PARTICIPATION_INFO_CURRENT_SIZE ((uint32_t)sizeof(ctex_layer_participation_info))
+
+typedef struct ctex_tile_history_target_descriptor {
+    uint32_t size;
+    const char* semantic_id;
+    uint32_t tile_x;
+    uint32_t tile_y;
+} ctex_tile_history_target_descriptor;
+
+#define CTEX_TILE_HISTORY_TARGET_DESCRIPTOR_V1_SIZE \
+    ((uint32_t)sizeof(ctex_tile_history_target_descriptor))
+#define CTEX_TILE_HISTORY_TARGET_DESCRIPTOR_CURRENT_SIZE \
+    ((uint32_t)sizeof(ctex_tile_history_target_descriptor))
+
+typedef struct ctex_tile_history_budget_report {
+    uint32_t size;
+    size_t budget_bytes;
+    size_t retained_bytes;
+    size_t available_bytes;
+    size_t proposed_step_bytes;
+    size_t additional_steps_at_proposed_size;
+    size_t undo_steps;
+    size_t redo_steps;
+} ctex_tile_history_budget_report;
+
+#define CTEX_TILE_HISTORY_BUDGET_REPORT_V1_SIZE ((uint32_t)sizeof(ctex_tile_history_budget_report))
+#define CTEX_TILE_HISTORY_BUDGET_REPORT_CURRENT_SIZE \
+    ((uint32_t)sizeof(ctex_tile_history_budget_report))
+
+typedef struct ctex_tile_history_commit_info {
+    uint32_t size;
+    uint32_t committed;
+    size_t tile_count;
+    size_t retained_bytes;
+    uint32_t layer_stack_changed;
+} ctex_tile_history_commit_info;
+
+#define CTEX_TILE_HISTORY_COMMIT_INFO_V1_SIZE ((uint32_t)sizeof(ctex_tile_history_commit_info))
+#define CTEX_TILE_HISTORY_COMMIT_INFO_CURRENT_SIZE ((uint32_t)sizeof(ctex_tile_history_commit_info))
+
+typedef struct ctex_tile_history_restore_info {
+    uint32_t size;
+    size_t tile_count;
+    size_t exchanged_storage_count;
+    size_t copied_pixel_bytes;
+    uint32_t layer_stack_exchanged;
+} ctex_tile_history_restore_info;
+
+#define CTEX_TILE_HISTORY_RESTORE_INFO_V1_SIZE ((uint32_t)sizeof(ctex_tile_history_restore_info))
+#define CTEX_TILE_HISTORY_RESTORE_INFO_CURRENT_SIZE \
+    ((uint32_t)sizeof(ctex_tile_history_restore_info))
 
 typedef enum ctex_scalar_representation {
     CTEX_SCALAR_REPRESENTATION_UNSIGNED_NORMALIZED = 0,
@@ -5976,6 +6031,26 @@ CTEX_API ctex_result ctex_texture_set_layer_get_participation(
     const ctex_document* document, const char* texture_set_id, const char* entry_identifier,
     const char* semantic_id, const ctex_layer_mask_sample* mask_samples, size_t mask_sample_count,
     ctex_layer_participation_info* out_info, char* mask_ids, size_t mask_id_size);
+CTEX_API ctex_result ctex_texture_set_configure_tile_history(ctex_document* document,
+                                                             const char* texture_set_id,
+                                                             size_t budget_bytes);
+CTEX_API ctex_result ctex_texture_set_get_tile_history_budget(
+    const ctex_document* document, const char* texture_set_id, size_t proposed_step_bytes,
+    ctex_tile_history_budget_report* out_report);
+CTEX_API ctex_result ctex_texture_set_begin_tile_history(
+    ctex_document* document, const char* texture_set_id, const char* step_identifier,
+    const ctex_tile_history_target_descriptor* targets, size_t target_count,
+    ctex_tile_history_capture** out_capture);
+CTEX_API void ctex_tile_history_capture_destroy(ctex_tile_history_capture* capture);
+/* Consumes the capture whether commit succeeds or fails. */
+CTEX_API ctex_result ctex_tile_history_capture_commit(ctex_tile_history_capture* capture,
+                                                      ctex_tile_history_commit_info* out_info);
+CTEX_API ctex_result ctex_texture_set_undo_tiles(ctex_document* document,
+                                                 const char* texture_set_id,
+                                                 ctex_tile_history_restore_info* out_info);
+CTEX_API ctex_result ctex_texture_set_redo_tiles(ctex_document* document,
+                                                 const char* texture_set_id,
+                                                 ctex_tile_history_restore_info* out_info);
 CTEX_API ctex_result ctex_texture_set_get_udim_tiles(const ctex_document* document,
                                                      const char* texture_set_id,
                                                      uint32_t* tile_numbers, size_t tile_capacity,

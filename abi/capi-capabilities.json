@@ -253,6 +253,9 @@
       {"requirement": "Blend modes", "symbols": ["ctex_texture_set_layer_set_state", "ctex_texture_set_layer_evaluate_blend"]},
       {"requirement": "Per-channel participation", "symbols": ["ctex_texture_set_layer_append", "ctex_texture_set_layer_set_channel", "ctex_texture_set_layer_get_participation"]},
       {"requirement": "Effective opacity", "symbols": ["ctex_texture_set_layer_get_applicable_masks", "ctex_texture_set_layer_get_participation"]},
+      {"requirement": "Undo history is tile-scoped", "symbols": ["ctex_texture_set_begin_tile_history", "ctex_tile_history_capture_commit", "ctex_tile_history_capture_destroy", "ctex_texture_set_undo_tiles", "ctex_texture_set_redo_tiles"]},
+      {"requirement": "Declared history budget", "symbols": ["ctex_texture_set_configure_tile_history", "ctex_texture_set_get_tile_history_budget", "ctex_texture_set_begin_tile_history"]},
+      {"requirement": "Redo invalidation", "symbols": ["ctex_texture_set_begin_tile_history", "ctex_tile_history_capture_commit", "ctex_texture_set_undo_tiles", "ctex_texture_set_redo_tiles", "ctex_texture_set_get_tile_history_budget"]},
       {"requirement": "Tiled storage", "symbols": ["ctex_paint_preview_session_write_pixel", "ctex_paint_preview_session_get_changed_tiles"]},
       {"requirement": "Extensible channel descriptors", "symbols": ["ctex_texture_set_register_channel", "ctex_texture_set_get_channel_info", "ctex_texture_set_set_channel_enabled"]}
     ]},

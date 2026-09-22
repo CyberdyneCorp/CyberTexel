@@ -216,6 +216,23 @@ struct ctex_paint_preview_session {
     ctex::paint::PaintPreviewSession preview;
 };
 
+struct ctex_tile_history_capture {
+    ctex_tile_history_capture(ctex_allocator_state allocator_value, ctex_document* document_value,
+                              std::string_view texture_set_id_value,
+                              ctex::doc::TileHistoryCapture capture_value)
+        : allocator(allocator_value),
+          memory_resource(allocator_value),
+          document(document_value),
+          texture_set_id(texture_set_id_value, &memory_resource),
+          value(std::move(capture_value)) {}
+
+    ctex_allocator_state allocator;
+    ctex_host_memory_resource memory_resource;
+    ctex_document* document;
+    std::pmr::string texture_set_id;
+    std::optional<ctex::doc::TileHistoryCapture> value;
+};
+
 struct ctex_pick_index {
     ctex_pick_index(ctex_allocator_state allocator_value, ctex_mesh* mesh_value)
         : allocator(allocator_value),
@@ -706,6 +723,22 @@ ctex_paint_preview_session* create_paint_preview_session(const ctex_allocator_st
     } catch (...) {
         deallocate_storage(allocator, storage, sizeof(ctex_paint_preview_session),
                            alignof(ctex_paint_preview_session));
+        throw;
+    }
+}
+
+ctex_tile_history_capture* create_tile_history_capture(const ctex_allocator_state& allocator,
+                                                       ctex_document* document,
+                                                       std::string_view texture_set_id,
+                                                       ctex::doc::TileHistoryCapture capture) {
+    void* storage = allocate_storage(allocator, sizeof(ctex_tile_history_capture),
+                                     alignof(ctex_tile_history_capture));
+    try {
+        return ::new (storage)
+            ctex_tile_history_capture(allocator, document, texture_set_id, std::move(capture));
+    } catch (...) {
+        deallocate_storage(allocator, storage, sizeof(ctex_tile_history_capture),
+                           alignof(ctex_tile_history_capture));
         throw;
     }
 }
@@ -2925,6 +2958,26 @@ ctex::doc::ReferencedSourceDeletionPolicy layer_deletion_policy(std::uint32_t po
             throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_INVALID_ENUM_VALUE,
                            "layer source deletion policy=" + std::to_string(policy));
     }
+}
+
+[[noreturn]] void throw_tile_history_error(const ctex::doc::TileHistoryError& error) {
+    switch (error.code()) {
+        case ctex::doc::TileHistoryErrorCode::invalid_capture:
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_INVALID_TILE_HISTORY,
+                           error.what());
+        case ctex::doc::TileHistoryErrorCode::over_budget:
+            throw_boundary(CTEX_RESULT_OVER_BUDGET, CTEX_DIAGNOSTIC_INVALID_TILE_HISTORY,
+                           error.what());
+        case ctex::doc::TileHistoryErrorCode::no_undo:
+            throw_boundary(CTEX_RESULT_NO_UNDO, CTEX_DIAGNOSTIC_INVALID_TILE_HISTORY, error.what());
+        case ctex::doc::TileHistoryErrorCode::no_redo:
+            throw_boundary(CTEX_RESULT_NO_REDO, CTEX_DIAGNOSTIC_INVALID_TILE_HISTORY, error.what());
+        case ctex::doc::TileHistoryErrorCode::stale_state:
+            throw_boundary(CTEX_RESULT_STALE_STATE, CTEX_DIAGNOSTIC_INVALID_TILE_HISTORY,
+                           error.what());
+    }
+    throw_boundary(CTEX_RESULT_INTERNAL_ERROR, CTEX_DIAGNOSTIC_UNEXPECTED_EXCEPTION,
+                   "unknown tile history failure");
 }
 
 void create_texture_sets_from_mesh(ctex_document& document, const ctex_mesh& mesh,
@@ -10521,6 +10574,17 @@ void query_transport_snapshot(ctex_transport_snapshot_pool& pool,
         create_transport_snapshot(pool.allocator, std::move(synchronized), std::move(layouts));
 }
 
+void set_tile_history_restore_info(const ctex::doc::TileHistoryRestoreResult& result,
+                                   ctex_tile_history_restore_info& info) {
+    info = {
+        .size = CTEX_TILE_HISTORY_RESTORE_INFO_CURRENT_SIZE,
+        .tile_count = result.tile_count,
+        .exchanged_storage_count = result.exchanged_storage_count,
+        .copied_pixel_bytes = result.copied_pixel_bytes,
+        .layer_stack_exchanged = result.layer_stack_exchanged ? 1U : 0U,
+    };
+}
+
 }  // namespace
 
 void* ctex_host_memory_resource::do_allocate(std::size_t bytes, std::size_t alignment) {
@@ -16384,6 +16448,173 @@ extern "C" ctex_result ctex_texture_set_layer_get_participation(
         validate_string_buffer(mask_ids, mask_id_size, required_size);
         if (mask_ids != nullptr) {
             copy_packed_strings(result.mask_identifiers, mask_ids);
+        }
+    });
+}
+
+extern "C" ctex_result ctex_texture_set_configure_tile_history(ctex_document* document,
+                                                               const char* texture_set_id,
+                                                               std::size_t budget_bytes) {
+    return call_boundary("ctex_texture_set_configure_tile_history", [&] {
+        if (document == nullptr) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                           "document=null");
+        }
+        try {
+            require_texture_set(*document, texture_set_id)
+                .configure_tile_history_budget(budget_bytes);
+        } catch (const ctex::doc::TileHistoryError& error) {
+            throw_tile_history_error(error);
+        }
+    });
+}
+
+extern "C" ctex_result ctex_texture_set_get_tile_history_budget(
+    const ctex_document* document, const char* texture_set_id, std::size_t proposed_step_bytes,
+    ctex_tile_history_budget_report* out_report) {
+    return call_boundary("ctex_texture_set_get_tile_history_budget", [&] {
+        if (document == nullptr || out_report == nullptr) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                           document == nullptr ? "document=null" : "out_report=null");
+        }
+        validate_structure_size(out_report->size, CTEX_TILE_HISTORY_BUDGET_REPORT_V1_SIZE,
+                                CTEX_TILE_HISTORY_BUDGET_REPORT_CURRENT_SIZE,
+                                "tile history budget report size");
+        const ctex::doc::TileHistoryBudgetReport report =
+            require_texture_set(*document, texture_set_id)
+                .tile_history_budget_report(proposed_step_bytes);
+        *out_report = {
+            .size = CTEX_TILE_HISTORY_BUDGET_REPORT_CURRENT_SIZE,
+            .budget_bytes = report.budget_bytes,
+            .retained_bytes = report.retained_bytes,
+            .available_bytes = report.available_bytes,
+            .proposed_step_bytes = report.proposed_step_bytes,
+            .additional_steps_at_proposed_size = report.additional_steps_at_proposed_size,
+            .undo_steps = report.undo_steps,
+            .redo_steps = report.redo_steps,
+        };
+    });
+}
+
+extern "C" ctex_result ctex_texture_set_begin_tile_history(
+    ctex_document* document, const char* texture_set_id, const char* step_identifier,
+    const ctex_tile_history_target_descriptor* targets, std::size_t target_count,
+    ctex_tile_history_capture** out_capture) {
+    return call_boundary("ctex_texture_set_begin_tile_history", [&] {
+        if (document == nullptr || step_identifier == nullptr || out_capture == nullptr ||
+            (targets == nullptr && target_count != 0)) {
+            throw_boundary(
+                CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                "document, step identifier, declared targets, and out_capture are required");
+        }
+        *out_capture = nullptr;
+        std::vector<ctex::doc::TileHistoryTarget> converted;
+        converted.reserve(target_count);
+        for (std::size_t index = 0; index < target_count; ++index) {
+            validate_structure_size(targets[index].size,
+                                    CTEX_TILE_HISTORY_TARGET_DESCRIPTOR_V1_SIZE,
+                                    CTEX_TILE_HISTORY_TARGET_DESCRIPTOR_CURRENT_SIZE,
+                                    "tile history target descriptor size");
+            if (targets[index].semantic_id == nullptr) {
+                throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                               "tile history target semantic_id=null");
+            }
+            converted.push_back({.semantic_id = targets[index].semantic_id,
+                                 .coordinate = {targets[index].tile_x, targets[index].tile_y}});
+        }
+        try {
+            ctex::doc::TileHistoryCapture capture =
+                require_texture_set(*document, texture_set_id)
+                    .begin_tile_history_step(step_identifier, converted);
+            *out_capture = create_tile_history_capture(document->allocator, document,
+                                                       texture_set_id, std::move(capture));
+        } catch (const ctex::doc::TileHistoryError& error) {
+            throw_tile_history_error(error);
+        }
+    });
+}
+
+extern "C" void ctex_tile_history_capture_destroy(ctex_tile_history_capture* capture) {
+    if (capture == nullptr) {
+        return;
+    }
+    const ctex_allocator_state allocator = capture->allocator;
+    capture->~ctex_tile_history_capture();
+    deallocate_storage(allocator, capture, sizeof(ctex_tile_history_capture),
+                       alignof(ctex_tile_history_capture));
+}
+
+extern "C" ctex_result ctex_tile_history_capture_commit(ctex_tile_history_capture* capture,
+                                                        ctex_tile_history_commit_info* out_info) {
+    return call_boundary("ctex_tile_history_capture_commit", [&] {
+        if (capture == nullptr || out_info == nullptr) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                           capture == nullptr ? "capture=null" : "out_info=null");
+        }
+        validate_structure_size(out_info->size, CTEX_TILE_HISTORY_COMMIT_INFO_V1_SIZE,
+                                CTEX_TILE_HISTORY_COMMIT_INFO_CURRENT_SIZE,
+                                "tile history commit info size");
+        if (!capture->value.has_value()) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_INVALID_TILE_HISTORY,
+                           "tile history capture was already consumed");
+        }
+        ctex::doc::TileHistoryCapture value = std::move(*capture->value);
+        capture->value.reset();
+        try {
+            const ctex::doc::TileHistoryCommitResult result =
+                capture->document->value.texture_set(capture->texture_set_id)
+                    .commit_tile_history_step(std::move(value));
+            *out_info = {
+                .size = CTEX_TILE_HISTORY_COMMIT_INFO_CURRENT_SIZE,
+                .committed = result.committed ? 1U : 0U,
+                .tile_count = result.tile_count,
+                .retained_bytes = result.retained_bytes,
+                .layer_stack_changed = result.layer_stack_changed ? 1U : 0U,
+            };
+        } catch (const ctex::doc::TileHistoryError& error) {
+            throw_tile_history_error(error);
+        }
+    });
+}
+
+extern "C" ctex_result ctex_texture_set_undo_tiles(ctex_document* document,
+                                                   const char* texture_set_id,
+                                                   ctex_tile_history_restore_info* out_info) {
+    return call_boundary("ctex_texture_set_undo_tiles", [&] {
+        if (document == nullptr || out_info == nullptr) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                           document == nullptr ? "document=null" : "out_info=null");
+        }
+        validate_structure_size(out_info->size, CTEX_TILE_HISTORY_RESTORE_INFO_V1_SIZE,
+                                CTEX_TILE_HISTORY_RESTORE_INFO_CURRENT_SIZE,
+                                "tile history restore info size");
+        try {
+            const ctex::doc::TileHistoryRestoreResult result =
+                require_texture_set(*document, texture_set_id).undo_tiles();
+            set_tile_history_restore_info(result, *out_info);
+        } catch (const ctex::doc::TileHistoryError& error) {
+            throw_tile_history_error(error);
+        }
+    });
+}
+
+extern "C" ctex_result ctex_texture_set_redo_tiles(ctex_document* document,
+                                                   const char* texture_set_id,
+                                                   ctex_tile_history_restore_info* out_info) {
+    return call_boundary("ctex_texture_set_redo_tiles", [&] {
+        if (document == nullptr || out_info == nullptr) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                           document == nullptr ? "document=null" : "out_info=null");
+        }
+        validate_structure_size(out_info->size, CTEX_TILE_HISTORY_RESTORE_INFO_V1_SIZE,
+                                CTEX_TILE_HISTORY_RESTORE_INFO_CURRENT_SIZE,
+                                "tile history restore info size");
+        try {
+            const ctex::doc::TileHistoryRestoreResult result =
+                require_texture_set(*document, texture_set_id).redo_tiles();
+            set_tile_history_restore_info(result, *out_info);
+        } catch (const ctex::doc::TileHistoryError& error) {
+            throw_tile_history_error(error);
         }
     });
 }

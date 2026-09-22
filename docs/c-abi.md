@@ -179,6 +179,20 @@ sample per applicable enabled mask and returns the flattened effective opacity.
 Blend evaluation uses the same authoritative linear-working-space formulas as
 document compositing.
 
+Tile history has an explicit byte ceiling and reports retained and available
+bytes, proposed-step capacity, and undo/redo counts. A capture declares unique
+channel/tile targets before an operation; it can wrap an ordinary paint-preview
+commit, and its final commit retains only targets whose generation changed.
+Capture handles use the configured host allocator and must be destroyed; a
+commit consumes its capture even when it reports an error.
+
+Undo and redo exchange exact tile storage owners and report exchanged storage
+and copied pixel bytes. Empty directions return `CTEX_RESULT_NO_UNDO` or
+`CTEX_RESULT_NO_REDO`, stale live state returns `CTEX_RESULT_STALE_STATE`, and
+oversized capture admission returns `CTEX_RESULT_OVER_BUDGET`. Committing a new
+step after undo releases the redo side immediately without exceeding the
+declared ceiling.
+
 ## Mesh maps
 
 `ctex_mesh_map_set_create` binds an explicit map set to one document texture set

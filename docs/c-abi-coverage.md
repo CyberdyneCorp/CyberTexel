@@ -164,5 +164,9 @@ Ordered layer-stack authoring and canonical inspection now expose every entry
 kind, atomic nesting validation, live instances, authoritative blend evaluation,
 per-channel modulation, applicable masks and exact effective opacity. The exact
 remaining gap is 28 runtime requirements.
+Budgeted tile-history captures now wrap document pixel publication, retain only
+changed declared tiles, exchange storage symmetrically for undo and redo, expose
+distinct empty/stale results and invalidate redo on a new commit. The exact
+remaining gap is 25 runtime requirements.
 The gate is not part of the aggregate `just check` until that count reaches zero;
 its unit tests run in the normal tooling suite throughout the migration.

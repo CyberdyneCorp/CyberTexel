@@ -277,6 +277,13 @@ EXPORTS
     ctex_texture_set_layer_evaluate_blend
     ctex_texture_set_layer_get_applicable_masks
     ctex_texture_set_layer_get_participation
+    ctex_texture_set_configure_tile_history
+    ctex_texture_set_get_tile_history_budget
+    ctex_texture_set_begin_tile_history
+    ctex_tile_history_capture_destroy
+    ctex_tile_history_capture_commit
+    ctex_texture_set_undo_tiles
+    ctex_texture_set_redo_tiles
     ctex_texture_set_get_udim_tiles
     ctex_texture_set_ensure_udim_tiles
     ctex_texture_set_write_udim_pixels
