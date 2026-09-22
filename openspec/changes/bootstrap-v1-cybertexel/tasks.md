@@ -1204,6 +1204,16 @@ Together these map decoder fuzzing and third-party audit evidence through the
 public memory decode operation, reducing the exact task-14.8 gap to 18 runtime
 requirements.
 
+Task 19.1 adds one thread-safe resource ledger for document storage, history,
+recovery records, mesh maps, composites, caches and temporary allocations.
+Stable physical identities prevent a shared CPU/GPU allocation from being
+counted twice while residency, pinned and in-flight roles remain independently
+visible. Hosts describe GPU allocations with copied backend, device and heap
+identifiers rather than API handles. C++ and strict-C fixtures cover identity
+updates, all report totals, invalid device declarations, removal, sizing and
+short-buffer atomicity. The public mapping reduces the exact task-14.8 gap to
+17 runtime requirements.
+
 ## 1. Foundation
 
 - [x] 1.1 CMake project, C++20, warnings as errors, presets for headless, macOS, Linux, Windows, iOS, Android
@@ -1470,7 +1480,7 @@ requirements.
 
 ## 19. Resource residency
 
-- [ ] 19.1 Complete allocation accounting with shared physical allocation identity, host device descriptors and pinned/in-flight resource reporting
+- [x] 19.1 Complete allocation accounting with shared physical allocation identity, host device descriptors and pinned/in-flight resource reporting
 - [ ] 19.2 CPU/GPU/backing/temporary ceilings, bounded admission and tiled work scheduling
 - [ ] 19.3 Sparse constant tiles, derived-cache eviction, lossless authored-tile backing storage and reload
 - [ ] 19.4 Host preview-quality policy with unchanged authored precision and export results

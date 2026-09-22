@@ -47,6 +47,11 @@ EXPORTS
     ctex_transport_snapshot_pool_create
     ctex_transport_snapshot_pool_destroy
     ctex_transport_snapshot_pool_get_memory_report
+    ctex_resource_ledger_create
+    ctex_resource_ledger_destroy
+    ctex_resource_ledger_upsert
+    ctex_resource_ledger_remove
+    ctex_resource_ledger_get_report
     ctex_texture_set_query_channel_snapshot
     ctex_paint_preview_session_query_snapshot
     ctex_transport_snapshot_destroy

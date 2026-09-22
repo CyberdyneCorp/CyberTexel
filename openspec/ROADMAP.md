@@ -308,6 +308,10 @@ Every supported flat image decoder now runs in the sanitizer-backed,
 deterministic CI fuzz campaign, with Docker providing the identical Linux gate
 on macOS. Decoder dependency revisions and licence texts remain enforced by the
 licence audit. The exact C ABI gap is now 18 runtime requirements.
+Unified resource accounting now reports every required ownership category and
+residency role through stable physical identities, including shared CPU/GPU,
+pinned and in-flight allocations plus API-independent host device descriptors.
+The exact C ABI gap is now 17 runtime requirements.
 
 ## Milestones
 

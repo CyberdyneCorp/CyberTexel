@@ -177,5 +177,9 @@ gap to 22 requirements. Allocator-owned texture-set transactions reduce it to
 21, and aggregate document memory plus pre-save sizing reduce it to 20. The
 decoder fuzzing and pinned-dependency audit gates now cover the public in-memory
 decode boundary, reducing the exact remaining gap to 18 runtime requirements.
+Unified resource accounting now exposes stable physical identities, complete
+category and residency-role totals, pinned/in-flight state, and
+API-independent host device descriptors. The exact remaining gap is 17 runtime
+requirements.
 The gate is not part of the aggregate `just check` until that count reaches zero;
 its unit tests run in the normal tooling suite throughout the migration.

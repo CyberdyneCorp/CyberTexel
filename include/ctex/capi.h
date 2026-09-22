@@ -147,6 +147,7 @@ typedef struct ctex_uv_pick_index ctex_uv_pick_index;
 typedef struct ctex_transport_snapshot_pool ctex_transport_snapshot_pool;
 typedef struct ctex_transport_snapshot ctex_transport_snapshot;
 typedef struct ctex_transport_readback ctex_transport_readback;
+typedef struct ctex_resource_ledger ctex_resource_ledger;
 typedef struct ctex_mesh_map_set ctex_mesh_map_set;
 typedef struct ctex_mesh_map_bake_session ctex_mesh_map_bake_session;
 typedef struct ctex_mesh_map_bake_request_token ctex_mesh_map_bake_request_token;
@@ -2811,6 +2812,72 @@ typedef struct ctex_transport_snapshot_memory_report {
     ((uint32_t)sizeof(ctex_transport_snapshot_memory_report))
 #define CTEX_TRANSPORT_SNAPSHOT_MEMORY_REPORT_CURRENT_SIZE \
     ((uint32_t)sizeof(ctex_transport_snapshot_memory_report))
+
+typedef enum ctex_resource_category {
+    CTEX_RESOURCE_DOCUMENT_STORAGE = 0,
+    CTEX_RESOURCE_HISTORY = 1,
+    CTEX_RESOURCE_RECOVERY_RECORD = 2,
+    CTEX_RESOURCE_MESH_MAP = 3,
+    CTEX_RESOURCE_COMPOSITE = 4,
+    CTEX_RESOURCE_CACHE = 5,
+    CTEX_RESOURCE_TEMPORARY = 6,
+    CTEX_RESOURCE_CATEGORY_COUNT = 7
+} ctex_resource_category;
+
+typedef enum ctex_resource_role {
+    CTEX_RESOURCE_CPU_RESIDENT = 1,
+    CTEX_RESOURCE_GPU_RESIDENT = 2,
+    CTEX_RESOURCE_BACKING_STORE = 4,
+    CTEX_RESOURCE_PINNED = 8,
+    CTEX_RESOURCE_IN_FLIGHT = 16
+} ctex_resource_role;
+
+typedef struct ctex_resource_allocation_descriptor {
+    uint32_t size;
+    uint64_t allocation_identity;
+    uint32_t category;
+    size_t physical_bytes;
+    uint32_t roles;
+    const char* device_backend;
+    const char* device_identifier;
+    const char* heap_identifier;
+} ctex_resource_allocation_descriptor;
+
+#define CTEX_RESOURCE_ALLOCATION_DESCRIPTOR_V1_SIZE \
+    ((uint32_t)sizeof(ctex_resource_allocation_descriptor))
+#define CTEX_RESOURCE_ALLOCATION_DESCRIPTOR_CURRENT_SIZE \
+    ((uint32_t)sizeof(ctex_resource_allocation_descriptor))
+
+typedef struct ctex_resource_category_report {
+    uint32_t size;
+    uint32_t category;
+    size_t allocation_count;
+    size_t physical_bytes;
+    size_t cpu_resident_bytes;
+    size_t gpu_resident_bytes;
+    size_t backing_store_bytes;
+    size_t pinned_bytes;
+    size_t in_flight_bytes;
+} ctex_resource_category_report;
+
+#define CTEX_RESOURCE_CATEGORY_REPORT_V1_SIZE ((uint32_t)sizeof(ctex_resource_category_report))
+#define CTEX_RESOURCE_CATEGORY_REPORT_CURRENT_SIZE ((uint32_t)sizeof(ctex_resource_category_report))
+
+typedef struct ctex_resource_accounting_report {
+    uint32_t size;
+    size_t allocation_count;
+    size_t physical_bytes;
+    size_t cpu_resident_bytes;
+    size_t gpu_resident_bytes;
+    size_t backing_store_bytes;
+    size_t pinned_bytes;
+    size_t in_flight_bytes;
+    size_t category_count;
+} ctex_resource_accounting_report;
+
+#define CTEX_RESOURCE_ACCOUNTING_REPORT_V1_SIZE ((uint32_t)sizeof(ctex_resource_accounting_report))
+#define CTEX_RESOURCE_ACCOUNTING_REPORT_CURRENT_SIZE \
+    ((uint32_t)sizeof(ctex_resource_accounting_report))
 
 typedef enum ctex_transport_channel_order {
     CTEX_TRANSPORT_CHANNEL_ORDER_R = 0,
@@ -6303,6 +6370,17 @@ CTEX_API ctex_result ctex_transport_snapshot_pool_create(size_t budget_bytes,
 CTEX_API void ctex_transport_snapshot_pool_destroy(ctex_transport_snapshot_pool* pool);
 CTEX_API ctex_result ctex_transport_snapshot_pool_get_memory_report(
     const ctex_transport_snapshot_pool* pool, ctex_transport_snapshot_memory_report* out_report);
+CTEX_API ctex_result ctex_resource_ledger_create(ctex_resource_ledger** out_ledger);
+CTEX_API void ctex_resource_ledger_destroy(ctex_resource_ledger* ledger);
+CTEX_API ctex_result ctex_resource_ledger_upsert(
+    ctex_resource_ledger* ledger, const ctex_resource_allocation_descriptor* descriptor);
+CTEX_API ctex_result ctex_resource_ledger_remove(ctex_resource_ledger* ledger,
+                                                 uint64_t allocation_identity,
+                                                 uint32_t* out_removed);
+CTEX_API ctex_result ctex_resource_ledger_get_report(const ctex_resource_ledger* ledger,
+                                                     ctex_resource_accounting_report* out_report,
+                                                     ctex_resource_category_report* categories,
+                                                     size_t category_capacity);
 CTEX_API ctex_result ctex_texture_set_query_channel_snapshot(
     ctex_transport_snapshot_pool* pool, const ctex_document* document, const char* texture_set_id,
     const char* semantic_id, ctex_transport_revision_cursor synchronized_cursor,

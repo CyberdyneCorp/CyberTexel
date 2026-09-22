@@ -281,6 +281,10 @@ The current implementation provides:
   host outputs, atomic revision publication, cancellation, stale-result
   rejection, recovery-before-publication, and device-loss recovery before CPU
   fallback.
+- Unified [resource accounting](docs/resource-accounting.md) with stable
+  physical allocation identities, independent CPU/GPU/backing-store roles,
+  pinned and in-flight visibility, seven ownership categories, and
+  API-independent host device descriptors.
 - Executor-owned [device capability reports](docs/executor-capabilities.md) for
   binding budget, texture limits and formats, float filtering, and compute,
   wired directly into layer-stack, material, and preview emission requests.

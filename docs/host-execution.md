@@ -66,4 +66,4 @@ accounted bytes. On device loss it restores that revision, makes all uncommitted
 submissions terminal, and reports their released generations. Only a successful
 recovery report can be passed to the checked fallback-report factory to describe
 CPU fallback. Recovery records and checkpoint persistence are expanded by
-editable-authoring tasks 20.1–20.2; memory admission is added in 19.1–19.2.
+editable-authoring tasks 20.1–20.2; memory admission is added in task 19.2.

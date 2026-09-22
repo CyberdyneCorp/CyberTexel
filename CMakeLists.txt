@@ -225,6 +225,7 @@ ctex_add_module(
         src/xport/format.cpp
         src/xport/preview.cpp
         src/xport/readback.cpp
+        src/xport/resource_accounting.cpp
         src/xport/snapshot.cpp
 )
 ctex_add_module(
@@ -532,6 +533,10 @@ if(BUILD_TESTING)
         target_link_libraries(ctex_capi_host_transport_snapshot_test PRIVATE cybertexel_c)
         add_test(NAME c-abi-host-transport-snapshot
                  COMMAND ctex_capi_host_transport_snapshot_test)
+        add_executable(ctex_capi_resource_accounting_test tests/capi/resource_accounting_test.c)
+        ctex_configure_c_target(ctex_capi_resource_accounting_test)
+        target_link_libraries(ctex_capi_resource_accounting_test PRIVATE cybertexel_c)
+        add_test(NAME c-abi-resource-accounting COMMAND ctex_capi_resource_accounting_test)
         add_executable(ctex_capi_executor_registry_test tests/capi/executor_registry_test.c)
         ctex_configure_c_target(ctex_capi_executor_registry_test)
         target_link_libraries(ctex_capi_executor_registry_test PRIVATE cybertexel_c)
@@ -781,6 +786,14 @@ if(BUILD_TESTING)
         PRIVATE ctex_xport ctex_doc ctex_mesh ctex_graph ctex_image
     )
     add_test(NAME host-transport-snapshot COMMAND ctex_host_transport_snapshot_test)
+
+    add_executable(ctex_resource_accounting_test tests/xport/resource_accounting_test.cpp)
+    ctex_configure_cpp_target(ctex_resource_accounting_test)
+    target_link_libraries(
+        ctex_resource_accounting_test
+        PRIVATE ctex_xport ctex_doc ctex_mesh ctex_graph ctex_image
+    )
+    add_test(NAME resource-accounting COMMAND ctex_resource_accounting_test)
 
     add_executable(ctex_host_transport_preview_test tests/xport/preview_test.cpp)
     ctex_configure_cpp_target(ctex_host_transport_preview_test)

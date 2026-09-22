@@ -65,6 +65,7 @@
 #include <ctex/xport/delta.hpp>
 #include <ctex/xport/format.hpp>
 #include <ctex/xport/readback.hpp>
+#include <ctex/xport/resource_accounting.hpp>
 #include <ctex/xport/snapshot.hpp>
 #include <exception>
 #include <fstream>
@@ -290,6 +291,14 @@ struct ctex_transport_snapshot_pool {
 
     ctex_allocator_state allocator;
     ctex::xport::SnapshotPool value;
+};
+
+struct ctex_resource_ledger {
+    explicit ctex_resource_ledger(ctex_allocator_state allocator_value)
+        : allocator(allocator_value) {}
+
+    ctex_allocator_state allocator;
+    ctex::xport::ResourceLedger value;
 };
 
 struct ctex_transport_snapshot {
@@ -826,6 +835,18 @@ ctex_transport_snapshot_pool* create_transport_snapshot_pool(const ctex_allocato
     } catch (...) {
         deallocate_storage(allocator, storage, sizeof(ctex_transport_snapshot_pool),
                            alignof(ctex_transport_snapshot_pool));
+        throw;
+    }
+}
+
+ctex_resource_ledger* create_resource_ledger(const ctex_allocator_state& allocator) {
+    void* storage =
+        allocate_storage(allocator, sizeof(ctex_resource_ledger), alignof(ctex_resource_ledger));
+    try {
+        return ::new (storage) ctex_resource_ledger(allocator);
+    } catch (...) {
+        deallocate_storage(allocator, storage, sizeof(ctex_resource_ledger),
+                           alignof(ctex_resource_ledger));
         throw;
     }
 }
@@ -17746,6 +17767,120 @@ extern "C" ctex_result ctex_transport_snapshot_pool_get_memory_report(
             .active_snapshots = report.active_snapshots,
             .pinned_allocations = report.pinned_allocations,
         };
+    });
+}
+
+extern "C" ctex_result ctex_resource_ledger_create(ctex_resource_ledger** out_ledger) {
+    return call_boundary("ctex_resource_ledger_create", [&] {
+        if (out_ledger == nullptr) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                           "out_ledger=null");
+        }
+        *out_ledger = nullptr;
+        *out_ledger = create_resource_ledger(current_allocator());
+    });
+}
+
+extern "C" void ctex_resource_ledger_destroy(ctex_resource_ledger* ledger) {
+    if (ledger == nullptr) {
+        return;
+    }
+    const ctex_allocator_state allocator = ledger->allocator;
+    ledger->~ctex_resource_ledger();
+    deallocate_storage(allocator, ledger, sizeof(ctex_resource_ledger),
+                       alignof(ctex_resource_ledger));
+}
+
+extern "C" ctex_result ctex_resource_ledger_upsert(
+    ctex_resource_ledger* ledger, const ctex_resource_allocation_descriptor* descriptor) {
+    return call_boundary("ctex_resource_ledger_upsert", [&] {
+        if (ledger == nullptr || descriptor == nullptr) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                           ledger == nullptr ? "ledger=null" : "descriptor=null");
+        }
+        validate_structure_size(descriptor->size, CTEX_RESOURCE_ALLOCATION_DESCRIPTOR_V1_SIZE,
+                                CTEX_RESOURCE_ALLOCATION_DESCRIPTOR_CURRENT_SIZE,
+                                "resource allocation descriptor size");
+        std::optional<ctex::xport::DeviceAllocationDescriptor> device;
+        if (descriptor->device_backend != nullptr || descriptor->device_identifier != nullptr ||
+            descriptor->heap_identifier != nullptr) {
+            if (descriptor->device_backend == nullptr || descriptor->device_identifier == nullptr ||
+                descriptor->heap_identifier == nullptr) {
+                throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                               "device allocation descriptor must provide all three strings");
+            }
+            device = {.backend = descriptor->device_backend,
+                      .device_identifier = descriptor->device_identifier,
+                      .heap_identifier = descriptor->heap_identifier};
+        }
+        ledger->value.upsert({
+            .allocation_identity = descriptor->allocation_identity,
+            .category = static_cast<ctex::xport::ResourceCategory>(descriptor->category),
+            .physical_bytes = descriptor->physical_bytes,
+            .roles = descriptor->roles,
+            .device = std::move(device),
+        });
+    });
+}
+
+extern "C" ctex_result ctex_resource_ledger_remove(ctex_resource_ledger* ledger,
+                                                   std::uint64_t allocation_identity,
+                                                   std::uint32_t* out_removed) {
+    return call_boundary("ctex_resource_ledger_remove", [&] {
+        if (ledger == nullptr || out_removed == nullptr) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                           ledger == nullptr ? "ledger=null" : "out_removed=null");
+        }
+        if (allocation_identity == 0) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_INVALID_HOST_TRANSPORT,
+                           "allocation_identity=0");
+        }
+        *out_removed = ledger->value.remove(allocation_identity) ? 1U : 0U;
+    });
+}
+
+extern "C" ctex_result ctex_resource_ledger_get_report(const ctex_resource_ledger* ledger,
+                                                       ctex_resource_accounting_report* out_report,
+                                                       ctex_resource_category_report* categories,
+                                                       std::size_t category_capacity) {
+    return call_boundary("ctex_resource_ledger_get_report", [&] {
+        if (ledger == nullptr || out_report == nullptr) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                           ledger == nullptr ? "ledger=null" : "out_report=null");
+        }
+        validate_structure_size(out_report->size, CTEX_RESOURCE_ACCOUNTING_REPORT_V1_SIZE,
+                                CTEX_RESOURCE_ACCOUNTING_REPORT_CURRENT_SIZE,
+                                "resource accounting report size");
+        const ctex::xport::ResourceAccountingReport report = ledger->value.report();
+        validate_output_array(categories, category_capacity, report.categories.size(),
+                              "resource categories");
+        *out_report = {
+            .size = CTEX_RESOURCE_ACCOUNTING_REPORT_CURRENT_SIZE,
+            .allocation_count = report.allocation_count,
+            .physical_bytes = report.physical_bytes,
+            .cpu_resident_bytes = report.cpu_resident_bytes,
+            .gpu_resident_bytes = report.gpu_resident_bytes,
+            .backing_store_bytes = report.backing_store_bytes,
+            .pinned_bytes = report.pinned_bytes,
+            .in_flight_bytes = report.in_flight_bytes,
+            .category_count = report.categories.size(),
+        };
+        if (categories != nullptr) {
+            for (std::size_t index = 0; index < report.categories.size(); ++index) {
+                const ctex::xport::ResourceCategoryReport& source = report.categories[index];
+                categories[index] = {
+                    .size = CTEX_RESOURCE_CATEGORY_REPORT_CURRENT_SIZE,
+                    .category = static_cast<std::uint32_t>(source.category),
+                    .allocation_count = source.allocation_count,
+                    .physical_bytes = source.physical_bytes,
+                    .cpu_resident_bytes = source.cpu_resident_bytes,
+                    .gpu_resident_bytes = source.gpu_resident_bytes,
+                    .backing_store_bytes = source.backing_store_bytes,
+                    .pinned_bytes = source.pinned_bytes,
+                    .in_flight_bytes = source.in_flight_bytes,
+                };
+            }
+        }
     });
 }
 
