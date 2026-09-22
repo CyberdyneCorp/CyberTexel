@@ -161,6 +161,7 @@ typedef struct ctex_material_graph_workspace ctex_material_graph_workspace;
 typedef struct ctex_material_graph_node_registry ctex_material_graph_node_registry;
 typedef struct ctex_shader_emission_cache ctex_shader_emission_cache;
 typedef struct ctex_tile_history_capture ctex_tile_history_capture;
+typedef struct ctex_layer_snapshot ctex_layer_snapshot;
 
 #define CTEX_MAX_MESH_VERTEX_COUNT ((size_t)100000000)
 #define CTEX_MAX_MESH_TRIANGLE_COUNT ((size_t)100000000)
@@ -2395,6 +2396,43 @@ typedef struct ctex_layer_composite_channel_info {
     size_t pixel_offset;
     size_t pixel_count;
 } ctex_layer_composite_channel_info;
+
+typedef struct ctex_layer_snapshot_info {
+    uint32_t size;
+    uint32_t width;
+    uint32_t height;
+    size_t content_count;
+    size_t mask_count;
+    size_t required_string_size;
+    size_t required_pixel_count;
+    size_t required_coverage_count;
+    size_t required_mask_value_count;
+} ctex_layer_snapshot_info;
+
+#define CTEX_LAYER_SNAPSHOT_INFO_V1_SIZE ((uint32_t)sizeof(ctex_layer_snapshot_info))
+#define CTEX_LAYER_SNAPSHOT_INFO_CURRENT_SIZE ((uint32_t)sizeof(ctex_layer_snapshot_info))
+
+typedef struct ctex_layer_snapshot_content_info {
+    uint32_t width;
+    uint32_t height;
+    size_t entry_identifier_offset;
+    size_t entry_identifier_size;
+    size_t semantic_id_offset;
+    size_t semantic_id_size;
+    size_t pixel_offset;
+    size_t pixel_count;
+    size_t coverage_offset;
+    size_t coverage_count;
+} ctex_layer_snapshot_content_info;
+
+typedef struct ctex_layer_snapshot_mask_info {
+    uint32_t width;
+    uint32_t height;
+    size_t mask_identifier_offset;
+    size_t mask_identifier_size;
+    size_t value_offset;
+    size_t value_count;
+} ctex_layer_snapshot_mask_info;
 
 typedef enum ctex_scalar_representation {
     CTEX_SCALAR_REPRESENTATION_UNSIGNED_NORMALIZED = 0,
@@ -6086,6 +6124,22 @@ CTEX_API ctex_result ctex_texture_set_layer_composite_cpu(
     const ctex_document* document, const char* texture_set_id, uint32_t width, uint32_t height,
     const ctex_layer_composite_raster_descriptor* content, size_t content_count,
     const ctex_layer_composite_mask_descriptor* masks, size_t mask_count,
+    ctex_layer_composite_info* out_info, ctex_layer_composite_channel_info* channels,
+    size_t channel_capacity, char* semantic_ids, size_t semantic_id_size, ctex_vec4f* pixels,
+    size_t pixel_capacity);
+CTEX_API ctex_result ctex_layer_snapshot_create(
+    uint32_t width, uint32_t height, const ctex_layer_composite_raster_descriptor* content,
+    size_t content_count, const ctex_layer_composite_mask_descriptor* masks, size_t mask_count,
+    ctex_layer_snapshot** out_snapshot);
+CTEX_API void ctex_layer_snapshot_destroy(ctex_layer_snapshot* snapshot);
+CTEX_API ctex_result ctex_layer_snapshot_read(
+    const ctex_layer_snapshot* snapshot, ctex_layer_snapshot_info* out_info,
+    ctex_layer_snapshot_content_info* content, size_t content_capacity,
+    ctex_layer_snapshot_mask_info* masks, size_t mask_capacity, char* strings, size_t string_size,
+    ctex_vec4f* pixels, size_t pixel_capacity, float* coverage, size_t coverage_capacity,
+    double* mask_values, size_t mask_value_capacity);
+CTEX_API ctex_result ctex_texture_set_layer_composite_snapshot_cpu(
+    const ctex_document* document, const char* texture_set_id, const ctex_layer_snapshot* snapshot,
     ctex_layer_composite_info* out_info, ctex_layer_composite_channel_info* channels,
     size_t channel_capacity, char* semantic_ids, size_t semantic_id_size, ctex_vec4f* pixels,
     size_t pixel_capacity);

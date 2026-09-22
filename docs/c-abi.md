@@ -189,6 +189,17 @@ the enclosing accumulator. Missing, duplicate, unknown, mismatched, non-finite
 or unevaluable inputs are refused before any output buffer changes, and repeated
 unchanged calls are bit-identical.
 
+`ctex_layer_snapshot_create` copies those resolved content, coverage and mask
+rasters into an allocator-routed opaque handle. `ctex_layer_snapshot_read`
+uses the same two-call contract to return dimensions, offsets and flattened
+caller-owned arrays without exposing internal storage. Snapshot creation checks
+descriptor structure and ownership requirements; semantic validation against a
+particular layer stack occurs when the snapshot is composited or used by an
+operation. `ctex_texture_set_layer_composite_snapshot_cpu` evaluates the owned
+snapshot with the same deterministic compositor and output guarantees. Snapshot
+handles remain valid independently of the borrowed creation arrays and must be
+destroyed with `ctex_layer_snapshot_destroy`.
+
 Tile history has an explicit byte ceiling and reports retained and available
 bytes, proposed-step capacity, and undo/redo counts. A capture declares unique
 channel/tile targets before an operation; it can wrap an ordinary paint-preview

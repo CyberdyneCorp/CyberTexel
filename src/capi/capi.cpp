@@ -233,6 +233,15 @@ struct ctex_tile_history_capture {
     std::optional<ctex::doc::TileHistoryCapture> value;
 };
 
+struct ctex_layer_snapshot {
+    ctex_layer_snapshot(ctex_allocator_state allocator_value,
+                        ctex::doc::LayerCompositeRequest value_value)
+        : allocator(allocator_value), value(std::move(value_value)) {}
+
+    ctex_allocator_state allocator;
+    ctex::doc::LayerCompositeRequest value;
+};
+
 struct ctex_pick_index {
     ctex_pick_index(ctex_allocator_state allocator_value, ctex_mesh* mesh_value)
         : allocator(allocator_value),
@@ -739,6 +748,19 @@ ctex_tile_history_capture* create_tile_history_capture(const ctex_allocator_stat
     } catch (...) {
         deallocate_storage(allocator, storage, sizeof(ctex_tile_history_capture),
                            alignof(ctex_tile_history_capture));
+        throw;
+    }
+}
+
+ctex_layer_snapshot* create_layer_snapshot(const ctex_allocator_state& allocator,
+                                           ctex::doc::LayerCompositeRequest value) {
+    void* storage =
+        allocate_storage(allocator, sizeof(ctex_layer_snapshot), alignof(ctex_layer_snapshot));
+    try {
+        return ::new (storage) ctex_layer_snapshot(allocator, std::move(value));
+    } catch (...) {
+        deallocate_storage(allocator, storage, sizeof(ctex_layer_snapshot),
+                           alignof(ctex_layer_snapshot));
         throw;
     }
 }
@@ -10721,6 +10743,174 @@ void write_layer_composite_output(const ctex::doc::LayerCompositeResult& result,
     }
 }
 
+void publish_layer_composite(const ctex::doc::LayerCompositeResult& result,
+                             ctex_layer_composite_info& info,
+                             const LayerCompositeOutputBuffers& output,
+                             std::size_t channel_capacity, std::size_t semantic_id_size,
+                             std::size_t pixel_capacity) {
+    const LayerCompositeOutputShape shape = layer_composite_output_shape(result);
+    const std::size_t required_semantic_size = texture_set_id_buffer_size(shape.semantic_ids);
+    validate_output_array(output.channels, channel_capacity, result.channels.size(), "channels");
+    validate_string_buffer(output.semantic_ids, semantic_id_size, required_semantic_size);
+    validate_output_array(output.pixels, pixel_capacity, shape.pixel_count, "pixels");
+    info = {
+        .size = CTEX_LAYER_COMPOSITE_INFO_CURRENT_SIZE,
+        .width = result.width,
+        .height = result.height,
+        .channel_count = result.channels.size(),
+        .required_semantic_id_size = required_semantic_size,
+        .required_pixel_count = shape.pixel_count,
+    };
+    write_layer_composite_output(result, output);
+}
+
+struct LayerSnapshotShape {
+    std::size_t string_size{};
+    std::size_t pixel_count{};
+    std::size_t coverage_count{};
+    std::size_t mask_value_count{};
+};
+
+void add_layer_snapshot_size(std::size_t value, std::size_t& total, std::string_view name) {
+    if (value > std::numeric_limits<std::size_t>::max() - total) {
+        throw std::overflow_error(std::string("layer snapshot ") + std::string(name) +
+                                  " count overflow");
+    }
+    total += value;
+}
+
+LayerSnapshotShape layer_snapshot_shape(const ctex::doc::LayerCompositeRequest& snapshot) {
+    LayerSnapshotShape shape;
+    for (const ctex::doc::LayerCompositeRaster& raster : snapshot.content) {
+        add_layer_snapshot_size(raster.entry_identifier.size() + 1, shape.string_size, "string");
+        add_layer_snapshot_size(raster.semantic_id.size() + 1, shape.string_size, "string");
+        add_layer_snapshot_size(raster.pixels.size(), shape.pixel_count, "pixel");
+        add_layer_snapshot_size(raster.coverage.size(), shape.coverage_count, "coverage");
+    }
+    for (const ctex::doc::LayerCompositeMaskRaster& mask : snapshot.masks) {
+        add_layer_snapshot_size(mask.mask_identifier.size() + 1, shape.string_size, "string");
+        add_layer_snapshot_size(mask.values.size(), shape.mask_value_count, "mask value");
+    }
+    return shape;
+}
+
+struct LayerSnapshotOutputBuffers {
+    ctex_layer_snapshot_content_info* content{};
+    ctex_layer_snapshot_mask_info* masks{};
+    char* strings{};
+    ctex_vec4f* pixels{};
+    float* coverage{};
+    double* mask_values{};
+};
+
+void write_layer_snapshot_content(const ctex::doc::LayerCompositeRaster& raster, std::size_t index,
+                                  std::size_t& string_offset, std::size_t& pixel_offset,
+                                  std::size_t& coverage_offset,
+                                  const LayerSnapshotOutputBuffers& output) {
+    const std::size_t entry_size = raster.entry_identifier.size() + 1;
+    const std::size_t semantic_offset = string_offset + entry_size;
+    const std::size_t semantic_size = raster.semantic_id.size() + 1;
+    if (output.content != nullptr) {
+        output.content[index] = {
+            .width = raster.width,
+            .height = raster.height,
+            .entry_identifier_offset = string_offset,
+            .entry_identifier_size = entry_size,
+            .semantic_id_offset = semantic_offset,
+            .semantic_id_size = semantic_size,
+            .pixel_offset = pixel_offset,
+            .pixel_count = raster.pixels.size(),
+            .coverage_offset = coverage_offset,
+            .coverage_count = raster.coverage.size(),
+        };
+    }
+    if (output.strings != nullptr) {
+        std::memcpy(output.strings + string_offset, raster.entry_identifier.c_str(), entry_size);
+        std::memcpy(output.strings + semantic_offset, raster.semantic_id.c_str(), semantic_size);
+    }
+    if (output.pixels != nullptr) {
+        for (std::size_t pixel = 0; pixel < raster.pixels.size(); ++pixel) {
+            const ctex::graph::ColourValue value = raster.pixels[pixel];
+            output.pixels[pixel_offset + pixel] = {value.r, value.g, value.b, value.a};
+        }
+    }
+    if (output.coverage != nullptr) {
+        std::copy(raster.coverage.begin(), raster.coverage.end(),
+                  output.coverage + coverage_offset);
+    }
+    string_offset = semantic_offset + semantic_size;
+    pixel_offset += raster.pixels.size();
+    coverage_offset += raster.coverage.size();
+}
+
+void write_layer_snapshot_mask(const ctex::doc::LayerCompositeMaskRaster& mask, std::size_t index,
+                               std::size_t& string_offset, std::size_t& value_offset,
+                               const LayerSnapshotOutputBuffers& output) {
+    const std::size_t identifier_size = mask.mask_identifier.size() + 1;
+    if (output.masks != nullptr) {
+        output.masks[index] = {
+            .width = mask.width,
+            .height = mask.height,
+            .mask_identifier_offset = string_offset,
+            .mask_identifier_size = identifier_size,
+            .value_offset = value_offset,
+            .value_count = mask.values.size(),
+        };
+    }
+    if (output.strings != nullptr) {
+        std::memcpy(output.strings + string_offset, mask.mask_identifier.c_str(), identifier_size);
+    }
+    if (output.mask_values != nullptr) {
+        std::copy(mask.values.begin(), mask.values.end(), output.mask_values + value_offset);
+    }
+    string_offset += identifier_size;
+    value_offset += mask.values.size();
+}
+
+void write_layer_snapshot(const ctex::doc::LayerCompositeRequest& snapshot,
+                          const LayerSnapshotOutputBuffers& output) {
+    std::size_t string_offset = 0;
+    std::size_t pixel_offset = 0;
+    std::size_t coverage_offset = 0;
+    for (std::size_t index = 0; index < snapshot.content.size(); ++index) {
+        write_layer_snapshot_content(snapshot.content[index], index, string_offset, pixel_offset,
+                                     coverage_offset, output);
+    }
+    std::size_t mask_value_offset = 0;
+    for (std::size_t index = 0; index < snapshot.masks.size(); ++index) {
+        write_layer_snapshot_mask(snapshot.masks[index], index, string_offset, mask_value_offset,
+                                  output);
+    }
+}
+
+void publish_layer_snapshot(const ctex::doc::LayerCompositeRequest& snapshot,
+                            ctex_layer_snapshot_info& info,
+                            const LayerSnapshotOutputBuffers& output, std::size_t content_capacity,
+                            std::size_t mask_capacity, std::size_t string_size,
+                            std::size_t pixel_capacity, std::size_t coverage_capacity,
+                            std::size_t mask_value_capacity) {
+    const LayerSnapshotShape shape = layer_snapshot_shape(snapshot);
+    validate_output_array(output.content, content_capacity, snapshot.content.size(), "content");
+    validate_output_array(output.masks, mask_capacity, snapshot.masks.size(), "masks");
+    validate_string_buffer(output.strings, string_size, shape.string_size);
+    validate_output_array(output.pixels, pixel_capacity, shape.pixel_count, "pixels");
+    validate_output_array(output.coverage, coverage_capacity, shape.coverage_count, "coverage");
+    validate_output_array(output.mask_values, mask_value_capacity, shape.mask_value_count,
+                          "mask_values");
+    info = {
+        .size = CTEX_LAYER_SNAPSHOT_INFO_CURRENT_SIZE,
+        .width = snapshot.width,
+        .height = snapshot.height,
+        .content_count = snapshot.content.size(),
+        .mask_count = snapshot.masks.size(),
+        .required_string_size = shape.string_size,
+        .required_pixel_count = shape.pixel_count,
+        .required_coverage_count = shape.coverage_count,
+        .required_mask_value_count = shape.mask_value_count,
+    };
+    write_layer_snapshot(snapshot, output);
+}
+
 }  // namespace
 
 void* ctex_host_memory_resource::do_allocate(std::size_t bytes, std::size_t alignment) {
@@ -16612,21 +16802,89 @@ extern "C" ctex_result ctex_texture_set_layer_composite_cpu(
         } catch (const ctex::doc::LayerCompositeError& error) {
             throw_layer_composite_error(error);
         }
-        const LayerCompositeOutputShape shape = layer_composite_output_shape(result);
-        const std::size_t required_semantic_size = texture_set_id_buffer_size(shape.semantic_ids);
-        validate_output_array(channels, channel_capacity, result.channels.size(), "channels");
-        validate_string_buffer(semantic_ids, semantic_id_size, required_semantic_size);
-        validate_output_array(pixels, pixel_capacity, shape.pixel_count, "pixels");
-        *out_info = {
-            .size = CTEX_LAYER_COMPOSITE_INFO_CURRENT_SIZE,
-            .width = result.width,
-            .height = result.height,
-            .channel_count = result.channels.size(),
-            .required_semantic_id_size = required_semantic_size,
-            .required_pixel_count = shape.pixel_count,
-        };
-        write_layer_composite_output(
-            result, {.channels = channels, .semantic_ids = semantic_ids, .pixels = pixels});
+        publish_layer_composite(
+            result, *out_info,
+            {.channels = channels, .semantic_ids = semantic_ids, .pixels = pixels},
+            channel_capacity, semantic_id_size, pixel_capacity);
+    });
+}
+
+extern "C" ctex_result ctex_layer_snapshot_create(
+    std::uint32_t width, std::uint32_t height,
+    const ctex_layer_composite_raster_descriptor* content, std::size_t content_count,
+    const ctex_layer_composite_mask_descriptor* masks, std::size_t mask_count,
+    ctex_layer_snapshot** out_snapshot) {
+    return call_boundary("ctex_layer_snapshot_create", [&] {
+        if (out_snapshot == nullptr || (content == nullptr && content_count != 0) ||
+            (masks == nullptr && mask_count != 0)) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                           "declared snapshot inputs and out_snapshot are required");
+        }
+        *out_snapshot = nullptr;
+        ctex::doc::LayerCompositeRequest value =
+            make_layer_composite_request(width, height, content, content_count, masks, mask_count);
+        *out_snapshot = create_layer_snapshot(current_allocator(), std::move(value));
+    });
+}
+
+extern "C" void ctex_layer_snapshot_destroy(ctex_layer_snapshot* snapshot) {
+    if (snapshot == nullptr) {
+        return;
+    }
+    const ctex_allocator_state allocator = snapshot->allocator;
+    snapshot->~ctex_layer_snapshot();
+    deallocate_storage(allocator, snapshot, sizeof(ctex_layer_snapshot),
+                       alignof(ctex_layer_snapshot));
+}
+
+extern "C" ctex_result ctex_layer_snapshot_read(
+    const ctex_layer_snapshot* snapshot, ctex_layer_snapshot_info* out_info,
+    ctex_layer_snapshot_content_info* content, std::size_t content_capacity,
+    ctex_layer_snapshot_mask_info* masks, std::size_t mask_capacity, char* strings,
+    std::size_t string_size, ctex_vec4f* pixels, std::size_t pixel_capacity, float* coverage,
+    std::size_t coverage_capacity, double* mask_values, std::size_t mask_value_capacity) {
+    return call_boundary("ctex_layer_snapshot_read", [&] {
+        if (snapshot == nullptr || out_info == nullptr) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                           "snapshot and out_info are required");
+        }
+        validate_structure_size(out_info->size, CTEX_LAYER_SNAPSHOT_INFO_V1_SIZE,
+                                CTEX_LAYER_SNAPSHOT_INFO_CURRENT_SIZE, "layer snapshot info size");
+        publish_layer_snapshot(snapshot->value, *out_info,
+                               {.content = content,
+                                .masks = masks,
+                                .strings = strings,
+                                .pixels = pixels,
+                                .coverage = coverage,
+                                .mask_values = mask_values},
+                               content_capacity, mask_capacity, string_size, pixel_capacity,
+                               coverage_capacity, mask_value_capacity);
+    });
+}
+
+extern "C" ctex_result ctex_texture_set_layer_composite_snapshot_cpu(
+    const ctex_document* document, const char* texture_set_id, const ctex_layer_snapshot* snapshot,
+    ctex_layer_composite_info* out_info, ctex_layer_composite_channel_info* channels,
+    std::size_t channel_capacity, char* semantic_ids, std::size_t semantic_id_size,
+    ctex_vec4f* pixels, std::size_t pixel_capacity) {
+    return call_boundary("ctex_texture_set_layer_composite_snapshot_cpu", [&] {
+        if (document == nullptr || snapshot == nullptr || out_info == nullptr) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                           "document, snapshot, and out_info are required");
+        }
+        validate_structure_size(out_info->size, CTEX_LAYER_COMPOSITE_INFO_V1_SIZE,
+                                CTEX_LAYER_COMPOSITE_INFO_CURRENT_SIZE,
+                                "layer composite info size");
+        ctex::doc::LayerCompositeResult result;
+        try {
+            result = require_texture_set(*document, texture_set_id).composite_cpu(snapshot->value);
+        } catch (const ctex::doc::LayerCompositeError& error) {
+            throw_layer_composite_error(error);
+        }
+        publish_layer_composite(
+            result, *out_info,
+            {.channels = channels, .semantic_ids = semantic_ids, .pixels = pixels},
+            channel_capacity, semantic_id_size, pixel_capacity);
     });
 }
 

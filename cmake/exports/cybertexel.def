@@ -278,6 +278,10 @@ EXPORTS
     ctex_texture_set_layer_get_applicable_masks
     ctex_texture_set_layer_get_participation
     ctex_texture_set_layer_composite_cpu
+    ctex_layer_snapshot_create
+    ctex_layer_snapshot_destroy
+    ctex_layer_snapshot_read
+    ctex_texture_set_layer_composite_snapshot_cpu
     ctex_texture_set_configure_tile_history
     ctex_texture_set_get_tile_history_budget
     ctex_texture_set_begin_tile_history
