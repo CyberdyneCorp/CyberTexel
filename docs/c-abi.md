@@ -179,6 +179,16 @@ sample per applicable enabled mask and returns the flattened effective opacity.
 Blend evaluation uses the same authoritative linear-working-space formulas as
 document compositing.
 
+`ctex_texture_set_layer_composite_cpu` is the device-free reference compositor.
+Callers supply explicit normalized content, optional coverage and mask rasters;
+the document supplies bottom-to-top order, instances, filters, channel policy
+and group scope. The two-call output contract returns ordered channel metadata,
+packed semantic identities and flattened caller-owned pixels. Ordinary groups
+isolate and blend once, while Pass Through groups evaluate their children into
+the enclosing accumulator. Missing, duplicate, unknown, mismatched, non-finite
+or unevaluable inputs are refused before any output buffer changes, and repeated
+unchanged calls are bit-identical.
+
 Tile history has an explicit byte ceiling and reports retained and available
 bytes, proposed-step capacity, and undo/redo counts. A capture declares unique
 channel/tile targets before an operation; it can wrap an ordinary paint-preview

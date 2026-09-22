@@ -168,5 +168,9 @@ Budgeted tile-history captures now wrap document pixel publication, retain only
 changed declared tiles, exchange storage symmetrically for undo and redo, expose
 distinct empty/stale results and invalidate redo on a new commit. The exact
 remaining gap is 25 runtime requirements.
+The device-free reference compositor now consumes explicit content, coverage and
+mask rasters and returns caller-owned enabled-channel pixels with deterministic
+bottom-to-top evaluation, isolated groups and Pass Through scope. The exact
+remaining gap is 23 runtime requirements.
 The gate is not part of the aggregate `just check` until that count reaches zero;
 its unit tests run in the normal tooling suite throughout the migration.

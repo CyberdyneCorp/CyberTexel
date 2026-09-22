@@ -2345,6 +2345,57 @@ typedef struct ctex_tile_history_restore_info {
 #define CTEX_TILE_HISTORY_RESTORE_INFO_CURRENT_SIZE \
     ((uint32_t)sizeof(ctex_tile_history_restore_info))
 
+typedef struct ctex_layer_composite_raster_descriptor {
+    uint32_t size;
+    const char* entry_identifier;
+    const char* semantic_id;
+    uint32_t width;
+    uint32_t height;
+    const ctex_vec4f* pixels;
+    size_t pixel_count;
+    const float* coverage;
+    size_t coverage_count;
+} ctex_layer_composite_raster_descriptor;
+
+#define CTEX_LAYER_COMPOSITE_RASTER_DESCRIPTOR_V1_SIZE \
+    ((uint32_t)sizeof(ctex_layer_composite_raster_descriptor))
+#define CTEX_LAYER_COMPOSITE_RASTER_DESCRIPTOR_CURRENT_SIZE \
+    ((uint32_t)sizeof(ctex_layer_composite_raster_descriptor))
+
+typedef struct ctex_layer_composite_mask_descriptor {
+    uint32_t size;
+    const char* mask_identifier;
+    uint32_t width;
+    uint32_t height;
+    const double* values;
+    size_t value_count;
+} ctex_layer_composite_mask_descriptor;
+
+#define CTEX_LAYER_COMPOSITE_MASK_DESCRIPTOR_V1_SIZE \
+    ((uint32_t)sizeof(ctex_layer_composite_mask_descriptor))
+#define CTEX_LAYER_COMPOSITE_MASK_DESCRIPTOR_CURRENT_SIZE \
+    ((uint32_t)sizeof(ctex_layer_composite_mask_descriptor))
+
+typedef struct ctex_layer_composite_info {
+    uint32_t size;
+    uint32_t width;
+    uint32_t height;
+    size_t channel_count;
+    size_t required_semantic_id_size;
+    size_t required_pixel_count;
+} ctex_layer_composite_info;
+
+#define CTEX_LAYER_COMPOSITE_INFO_V1_SIZE ((uint32_t)sizeof(ctex_layer_composite_info))
+#define CTEX_LAYER_COMPOSITE_INFO_CURRENT_SIZE ((uint32_t)sizeof(ctex_layer_composite_info))
+
+typedef struct ctex_layer_composite_channel_info {
+    uint32_t component_count;
+    size_t semantic_id_offset;
+    size_t semantic_id_size;
+    size_t pixel_offset;
+    size_t pixel_count;
+} ctex_layer_composite_channel_info;
+
 typedef enum ctex_scalar_representation {
     CTEX_SCALAR_REPRESENTATION_UNSIGNED_NORMALIZED = 0,
     CTEX_SCALAR_REPRESENTATION_FLOATING_POINT = 1
@@ -6031,6 +6082,13 @@ CTEX_API ctex_result ctex_texture_set_layer_get_participation(
     const ctex_document* document, const char* texture_set_id, const char* entry_identifier,
     const char* semantic_id, const ctex_layer_mask_sample* mask_samples, size_t mask_sample_count,
     ctex_layer_participation_info* out_info, char* mask_ids, size_t mask_id_size);
+CTEX_API ctex_result ctex_texture_set_layer_composite_cpu(
+    const ctex_document* document, const char* texture_set_id, uint32_t width, uint32_t height,
+    const ctex_layer_composite_raster_descriptor* content, size_t content_count,
+    const ctex_layer_composite_mask_descriptor* masks, size_t mask_count,
+    ctex_layer_composite_info* out_info, ctex_layer_composite_channel_info* channels,
+    size_t channel_capacity, char* semantic_ids, size_t semantic_id_size, ctex_vec4f* pixels,
+    size_t pixel_capacity);
 CTEX_API ctex_result ctex_texture_set_configure_tile_history(ctex_document* document,
                                                              const char* texture_set_id,
                                                              size_t budget_bytes);
