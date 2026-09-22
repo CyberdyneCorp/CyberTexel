@@ -14,7 +14,19 @@ from typing import Any
 ROOT = Path(__file__).resolve().parents[1]
 BASELINE = ROOT / "abi" / "cybertexel-abi-v0.json"
 HEADER = ROOT / "include" / "ctex" / "capi.h"
-LIBRARY = ROOT / "build" / "headless" / "libcybertexel_c.so"
+
+
+def default_library_path(root: Path, platform: str = sys.platform) -> Path:
+    if platform == "darwin":
+        filename = "libcybertexel_c.dylib"
+    elif platform == "win32":
+        filename = "cybertexel_c.dll"
+    else:
+        filename = "libcybertexel_c.so"
+    return root / "build" / "headless" / filename
+
+
+LIBRARY = default_library_path(ROOT)
 
 
 def normalize_declaration(declaration: str) -> str:
@@ -132,15 +144,17 @@ def descriptor_failures(surface: dict[str, Any]) -> list[str]:
     return failures
 
 
-def dynamic_exports(library: Path, nm: str) -> set[str]:
+def dynamic_exports(library: Path, nm: str, platform: str = sys.platform) -> set[str]:
+    arguments = ([nm, "-gUj", str(library)] if platform == "darwin" else
+                 [nm, "-D", "--defined-only", "-g", str(library)])
     completed = subprocess.run(
-        [nm, "-D", "--defined-only", "-g", str(library)],
+        arguments,
         check=True,
         capture_output=True,
         text=True,
     )
     return {
-        line.split()[-1].split("@")[0]
+        line.split()[-1].split("@")[0].removeprefix("_" if platform == "darwin" else "")
         for line in completed.stdout.splitlines()
         if line.split()
     }

@@ -3,6 +3,7 @@ from __future__ import annotations
 import importlib.util
 import unittest
 from pathlib import Path
+from unittest import mock
 
 
 SCRIPT = Path(__file__).resolve().parents[2] / "tools" / "check_abi.py"
@@ -22,6 +23,30 @@ def surface(version: str = "0.1.0") -> dict:
 
 
 class AbiGateTests(unittest.TestCase):
+    def test_default_library_path_is_platform_specific(self) -> None:
+        root = Path("repo")
+        self.assertEqual(
+            CHECK_ABI.default_library_path(root, "linux"),
+            root / "build" / "headless" / "libcybertexel_c.so",
+        )
+        self.assertEqual(
+            CHECK_ABI.default_library_path(root, "darwin"),
+            root / "build" / "headless" / "libcybertexel_c.dylib",
+        )
+        self.assertEqual(
+            CHECK_ABI.default_library_path(root, "win32"),
+            root / "build" / "headless" / "cybertexel_c.dll",
+        )
+
+    def test_macos_exports_use_mach_o_nm_and_strip_prefix(self) -> None:
+        completed = mock.Mock(stdout="_ctex_one\n_ctex_two\n")
+        with mock.patch.object(CHECK_ABI.subprocess, "run", return_value=completed) as run:
+            exports = CHECK_ABI.dynamic_exports(Path("library.dylib"), "nm", "darwin")
+        self.assertEqual(exports, {"ctex_one", "ctex_two"})
+        run.assert_called_once_with(
+            ["nm", "-gUj", "library.dylib"], check=True, capture_output=True, text=True
+        )
+
     def test_append_only_additions_are_compatible(self) -> None:
         baseline = surface()
         current = surface("0.2.0")
