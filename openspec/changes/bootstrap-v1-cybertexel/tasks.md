@@ -1259,6 +1259,16 @@ and mobile suspension through both real asynchronous-readback cancellation and
 durable recovery revision reporting. One `resource-residency-scenario` label
 and task-runner recipe execute the complete suite and fail on evidence drift.
 
+Task 14.9 adds the first idiomatic language layer over the stable C ABI. The
+Python 3.10+ package uses NumPy-owned buffers for decoded images, channel
+snapshots, mesh input, imported mesh maps and generated masks; native failures
+retain their stable result, diagnostic code and English text in typed
+exceptions. Platform wheels bundle exactly one ABI-checked shared library and
+depend only on NumPy. Linux, macOS and Windows CI build and smoke-test each
+wheel in isolated minimum and current-version environments. The macOS build
+also compiles deterministic numeric emission for its declared 13.0 deployment
+target instead of relying on newer floating-point `charconv` symbols.
+
 ## 1. Foundation
 
 - [x] 1.1 CMake project, C++20, warnings as errors, presets for headless, macOS, Linux, Windows, iOS, Android
@@ -1463,7 +1473,7 @@ and task-runner recipe execute the complete suite and fail on evidence drift.
 - [x] 14.6 Host log sink and the English-plus-codes diagnostic rule
 - [x] 14.7 Host allocator callbacks
 - [ ] 14.8 Full-surface coverage gate
-- [ ] 14.9 Python binding, numpy-native, typed exceptions, wheel packaging
+- [x] 14.9 Python binding, numpy-native, typed exceptions, wheel packaging
 - [ ] 14.10 Swift package with a system target, idiomatic layer, automatic handle lifetime
 - [ ] 14.11 Rust `-sys` and safe crates, typed errors, `Send`/`Sync` matching the contract
 - [ ] 14.12 Host-executed route and host transport reachable from all three bindings

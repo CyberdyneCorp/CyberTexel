@@ -140,6 +140,9 @@ test-smart-material-scenarios: build
 test-c-api: build
     ctest --test-dir build/headless --output-on-failure -R '^c-abi-(foundation|caller-buffers|versioned-descriptors|two-document-concurrency|host-logging|host-allocator|export-surface|compatibility)$'
 
+test-python-binding: (_require "uv" "Python wheel builder") (_require "cmake" "3.24")
+    uv run --no-project --python 3.12 -- python tools/test_python_wheel.py
+
 test-preset-shelf-library: build
     ctest --test-dir build/headless --output-on-failure -R '^preset-shelf-library$'
 

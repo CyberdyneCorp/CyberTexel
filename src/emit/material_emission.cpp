@@ -1,9 +1,10 @@
 #include <algorithm>
 #include <array>
 #include <cctype>
-#include <charconv>
 #include <ctex/emit/material_emission.hpp>
+#include <iomanip>
 #include <limits>
+#include <locale>
 #include <map>
 #include <set>
 #include <sstream>
@@ -194,19 +195,19 @@ void replace_all(std::string& value, std::string_view from, std::string_view to)
 
 std::string kong_numeric_literal(std::string_view token) {
     double value = 0.0;
-    const auto parsed = std::from_chars(token.data(), token.data() + token.size(), value,
-                                        std::chars_format::scientific);
-    if (parsed.ec != std::errc{} || parsed.ptr != token.data() + token.size()) {
+    std::istringstream input{std::string(token)};
+    input.imbue(std::locale::classic());
+    input >> std::noskipws >> value;
+    if (!input || input.peek() != std::char_traits<char>::eof()) {
         throw MaterialEmissionError("could not translate a graph numeric literal to Kong");
     }
-    std::array<char, 128> buffer{};
-    const auto formatted =
-        std::to_chars(buffer.data(), buffer.data() + buffer.size(), value, std::chars_format::fixed,
-                      std::numeric_limits<double>::max_digits10);
-    if (formatted.ec != std::errc{}) {
+    std::ostringstream output;
+    output.imbue(std::locale::classic());
+    output << std::fixed << std::setprecision(std::numeric_limits<double>::max_digits10) << value;
+    if (!output) {
         throw MaterialEmissionError("could not format a graph numeric literal for Kong");
     }
-    return {buffer.data(), formatted.ptr};
+    return output.str();
 }
 
 bool starts_numeric_token(std::string_view source, std::size_t cursor) {

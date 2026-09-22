@@ -7,7 +7,7 @@ decisions taken and questions still open.
 ## Status
 
 Implementation started. 24 capabilities, 332 requirements, 409 scenarios and
-222 tasks, 156 done. Foundation and the complete headless color-management
+222 tasks, 157 done. Foundation and the complete headless color-management
 scenario suite are green. Image input now detects and decodes PNG, JPEG, TGA,
 BMP, baseline TIFF, flat OpenEXR, Radiance HDR and flattened PSD from caller
 memory, with mismatch reporting, 8/16-bit preservation and hostile-input
@@ -333,6 +333,12 @@ The complete resource-residency scenario matrix now maps all five scenarios to
 the C++ and strict-C accounting, backing, readback-cancellation and recovery
 fixtures. A checked `resource-residency-scenario` label and task-runner recipe
 fail when the specification, evidence names or suite membership drift.
+The first language binding now packages the C ABI as a platform Python wheel
+for Python 3.10 onward. Its idiomatic layer moves decoded images, channel
+snapshots, meshes, mesh maps and generated masks through NumPy arrays, retains
+native diagnostic codes in typed exceptions, and checks the bundled ABI at
+import. Linux, macOS and Windows CI build and smoke-test isolated wheels at the
+minimum and current supported Python versions.
 
 ## Milestones
 

@@ -1,12 +1,13 @@
 #include <algorithm>
-#include <charconv>
 #include <ctex/emit/graph_emission.hpp>
+#include <iomanip>
 #include <limits>
+#include <locale>
 #include <map>
 #include <optional>
 #include <span>
+#include <sstream>
 #include <string>
-#include <system_error>
 #include <utility>
 #include <vector>
 
@@ -112,14 +113,14 @@ const graph::NodeProperty& find_property(const GraphNode& node, std::string_view
 
 template <typename Value>
 std::string floating_literal(Value value) {
-    char buffer[64];
-    const auto converted =
-        std::to_chars(buffer, buffer + sizeof(buffer), value, std::chars_format::scientific,
-                      std::numeric_limits<Value>::max_digits10);
-    if (converted.ec != std::errc{}) {
+    std::ostringstream stream;
+    stream.imbue(std::locale::classic());
+    stream << std::scientific << std::setprecision(std::numeric_limits<Value>::max_digits10)
+           << value;
+    if (!stream) {
         throw GraphEmissionError("could not format a floating-point graph value");
     }
-    return std::string(buffer, converted.ptr);
+    return stream.str();
 }
 
 std::string literal(const SocketValue& value, SocketType type) {

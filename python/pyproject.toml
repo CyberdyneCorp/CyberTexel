@@ -1,5 +1,5 @@
 [build-system]
-requires = ["setuptools>=69"]
+requires = ["setuptools>=70.1"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -7,3 +7,12 @@ name = "cybertexel"
 version = "0.1.0"
 requires-python = ">=3.10"
 dependencies = ["numpy>=1.26"]
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+cybertexel = ["_native_lib/*"]

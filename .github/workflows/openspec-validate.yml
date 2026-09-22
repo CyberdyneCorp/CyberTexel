@@ -100,6 +100,29 @@ jobs:
     - name: Test suite
       run: just test
 
+  python-wheel:
+    name: python-wheel-${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+    - uses: actions/checkout@v4
+    - uses: actions/setup-python@v5
+      with:
+        python-version: '3.12'
+    - uses: astral-sh/setup-uv@v6
+    - uses: extractions/setup-just@v2
+    - name: Minimum supported Python wheel
+      run: just test-python-binding
+      env:
+        CTEX_PYTHON_VERSION: '3.10'
+    - name: Current supported Python wheel
+      run: just test-python-binding
+      env:
+        CTEX_PYTHON_VERSION: '3.14'
+
   check-spec:
     name: check-spec
     runs-on: ubuntu-latest
