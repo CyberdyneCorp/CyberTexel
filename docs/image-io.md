@@ -64,6 +64,14 @@ miniz implementation. Revisions and licence texts are recorded in the
 dependency manifest and third-party notices; baseline TIFF is implemented
 locally.
 
+`just fuzz-image-decoders` dispatches a fixed seed for every supported content
+signature and then performs 20,000 deterministic, coverage-guided mutations
+under libFuzzer, AddressSanitizer and UndefinedBehaviorSanitizer. CI fails on a
+crash, sanitizer finding, timeout or memory-limit breach and uploads the
+reproducer. The dependency licence gate independently verifies that LodePNG,
+stb, TinyEXR and bundled miniz retain pinned revisions and repository-owned
+licence texts.
+
 The texture-export path additionally encodes PNG, JPEG, TGA, TIFF and OpenEXR
 to caller-owned buffers. Its exact format/depth compatibility table and output
 semantics are documented in [Export presets and channel tokens](export-presets.md).

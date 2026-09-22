@@ -62,11 +62,41 @@ test-sanitize: (_require "cmake" "3.24") (_require "c++" "C++20") (_require "nin
     cmake --build --preset headless-sanitize
     ctest --preset headless-sanitize
 
+_fuzz target runner build_dir:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    if [[ "$(uname -s)" == "Darwin" ]]; then
+        if ! command -v docker >/dev/null 2>&1; then
+            printf 'missing prerequisite: docker (needed for libFuzzer on macOS)\n' >&2
+            exit 1
+        fi
+        mkdir -p build/fuzz-artifacts
+        docker build --tag cybertexel-fuzz-toolchain --file tools/docker/fuzz.Dockerfile tools/docker
+        docker run --rm \
+            --mount "type=bind,source=$PWD,target=/src,readonly" \
+            --mount "type=bind,source=$PWD/build/fuzz-artifacts,target=/artifacts" \
+            --mount "type=volume,source=cybertexel-fuzz-build,target=/work" \
+            cybertexel-fuzz-toolchain \
+            bash -lc 'cmake -S /src -B /work/build -G Ninja -DCMAKE_BUILD_TYPE=Debug -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++ -DCTEX_ENABLE_SANITIZERS=ON -DCTEX_BUILD_FUZZERS=ON && cmake --build /work/build --target {{target}} && cd /src && python3 {{runner}} /work/build/{{target}} --artifact-dir /artifacts/{{target}}'
+    else
+        for prerequisite in clang clang++ cmake ninja python3; do
+            if ! command -v "$prerequisite" >/dev/null 2>&1; then
+                printf 'missing prerequisite: %s\n' "$prerequisite" >&2
+                exit 1
+            fi
+        done
+        cmake -S . -B {{build_dir}} -G Ninja -DCMAKE_BUILD_TYPE=Debug -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++ -DCTEX_ENABLE_SANITIZERS=ON -DCTEX_BUILD_FUZZERS=ON
+        cmake --build {{build_dir}} --target {{target}}
+        python3 {{runner}} {{build_dir}}/{{target}}
+    fi
+
 # Bounded deterministic libFuzzer gate for the untrusted project-container reader.
-fuzz-project-container: (_require "clang++" "14") (_require "cmake" "3.24") (_require "ninja" "1.10") (_require "python3" "3.10")
-    CC=clang CXX=clang++ cmake -S . -B build/project-container-fuzz -G Ninja -DCMAKE_BUILD_TYPE=Debug -DCTEX_ENABLE_SANITIZERS=ON -DCTEX_BUILD_FUZZERS=ON
-    cmake --build build/project-container-fuzz --target ctex_project_container_fuzz
-    python3 tools/run_project_container_fuzz.py build/project-container-fuzz/ctex_project_container_fuzz
+fuzz-project-container:
+    just _fuzz ctex_project_container_fuzz tools/run_project_container_fuzz.py build/project-container-fuzz
+
+# Bounded deterministic libFuzzer gate for every in-memory image decoder.
+fuzz-image-decoders:
+    just _fuzz ctex_image_decode_fuzz tools/run_image_decode_fuzz.py build/image-decode-fuzz
 
 test-vulkan: build-vulkan
     ./build/vulkan/ctex_vulkan_executor_test --require-device

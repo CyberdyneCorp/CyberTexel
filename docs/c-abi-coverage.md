@@ -172,5 +172,10 @@ The device-free reference compositor now consumes explicit content, coverage and
 mask rasters and returns caller-owned enabled-channel pixels with deterministic
 bottom-to-top evaluation, isolated groups and Pass Through scope. The exact
 remaining gap is 23 runtime requirements.
+Owned resolved-raster snapshots and atomic layer operations reduce the exact
+gap to 22 requirements. Allocator-owned texture-set transactions reduce it to
+21, and aggregate document memory plus pre-save sizing reduce it to 20. The
+decoder fuzzing and pinned-dependency audit gates now cover the public in-memory
+decode boundary, reducing the exact remaining gap to 18 runtime requirements.
 The gate is not part of the aggregate `just check` until that count reaches zero;
 its unit tests run in the normal tooling suite throughout the migration.

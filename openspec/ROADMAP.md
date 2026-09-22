@@ -304,6 +304,10 @@ runtime requirements.
 Aggregate and per-texture-set document memory reporting now includes channel,
 history and bound-map residency plus a deterministic pre-save size estimate.
 The exact C ABI gap is now 20 runtime requirements.
+Every supported flat image decoder now runs in the sanitizer-backed,
+deterministic CI fuzz campaign, with Docker providing the identical Linux gate
+on macOS. Decoder dependency revisions and licence texts remain enforced by the
+licence audit. The exact C ABI gap is now 18 runtime requirements.
 
 ## Milestones
 

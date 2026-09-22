@@ -43,6 +43,7 @@ written to prevent. Do not stub one to green.
 | A C++20 toolchain | — | building |
 | Rust | stable | the Rust bindings |
 | Swift | 5.9 | the Swift package |
+| Docker | current | local libFuzzer gates on macOS |
 
 The native foundation build also requires CMake, Ninja, a C++20 compiler and
 clang-format. Rust and Swift become required as their binding tasks land.

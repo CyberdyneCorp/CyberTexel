@@ -1196,6 +1196,14 @@ uses sparse channel/map payloads plus container, texture-set and atlas metadata.
 The strict-C transaction fixture verifies retained history, packed identities
 and short-buffer atomicity, reducing the exact task-14.8 gap to 20 requirements.
 
+Every flat image decoder now runs behind one deterministic 20,000-input
+libFuzzer, ASan and UBSan gate. Linux CI runs it natively; macOS uses the same
+Linux toolchain in a cached Docker image, and failures retain their reproducer.
+The existing dependency audit verifies every decoder revision and licence.
+Together these map decoder fuzzing and third-party audit evidence through the
+public memory decode operation, reducing the exact task-14.8 gap to 18 runtime
+requirements.
+
 ## 1. Foundation
 
 - [x] 1.1 CMake project, C++20, warnings as errors, presets for headless, macOS, Linux, Windows, iOS, Android
@@ -1220,7 +1228,7 @@ and short-buffer atomicity, reducing the exact task-14.8 gap to 20 requirements.
 - [x] 2.7 Encoders with per-format options and the impossible-combination refusal
 - [x] 2.8 Decoding from memory buffers
 - [x] 2.9 Untrusted input bounds: dimension validation before allocation, configurable ceiling, named refusals
-- [ ] 2.10 Decoder fuzzing gate in CI
+- [x] 2.10 Decoder fuzzing gate in CI
 - [ ] 2.11 Cancellation, progress and bounded working memory for large decodes
 - [x] 2.12 Documented resampling filters with a stated default
 - [ ] 2.13 `image-io` scenarios as tests

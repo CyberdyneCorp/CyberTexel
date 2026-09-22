@@ -25,6 +25,15 @@ jobs:
       run: just test-sanitize
     - name: Project container fuzz gate
       run: just fuzz-project-container
+    - name: Image decoder fuzz gate
+      run: just fuzz-image-decoders
+    - name: Upload fuzz reproducers
+      if: failure()
+      uses: actions/upload-artifact@v4
+      with:
+        name: fuzz-reproducers
+        path: build/fuzz-artifacts
+        if-no-files-found: ignore
 
   build:
     name: build-and-layering

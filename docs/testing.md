@@ -13,6 +13,20 @@ payload and record count has a stricter ceiling. CI runs this gate after the
 sanitized test suite; any crash, out-of-bounds access, unexpected exception,
 timeout, or memory-limit breach fails the job.
 
+`just fuzz-image-decoders` applies the same sanitizer-backed, deterministic
+20,000-input campaign to the in-memory PNG, JPEG, TGA, BMP, TIFF, OpenEXR,
+Radiance HDR and PSD dispatch paths. Its fixed corpus contains a content marker
+for every decoder plus a valid PNG; coverage-guided mutations are generated
+only for the duration of the run. Inputs are capped at 1 MiB, decoded output at
+8 MiB and dimensions at 4096 per axis. A failure is retained under
+`build/fuzz-artifacts` for promotion into the permanent regression suite.
+
+Linux runs the fuzz recipes natively. macOS runs the identical Linux Clang gate
+in the cached `tools/docker/fuzz.Dockerfile` image because Apple Command Line
+Tools do not ship libFuzzer. The Docker path keeps the source tree read-only and
+reuses a named build volume; Docker is therefore the only additional local
+prerequisite on macOS.
+
 The determinism gate is registry-driven. Each category in
 `tests/determinism/cases.json` supplies a command and the output files it owns.
 The runner gives the command two clean output directories through

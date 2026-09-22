@@ -34,7 +34,13 @@ def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("fuzzer", type=Path)
     parser.add_argument("--runs", type=int, default=20_000)
+    parser.add_argument(
+        "--artifact-dir",
+        type=Path,
+        default=Path("build/fuzz-artifacts/project-container"),
+    )
     args = parser.parse_args()
+    args.artifact_dir.mkdir(parents=True, exist_ok=True)
     version = tuple(int(part) for part in Path("VERSION").read_text().strip().split("."))
     with tempfile.TemporaryDirectory(prefix="ctex-project-fuzz-") as temporary:
         corpus = Path(temporary)
@@ -48,6 +54,7 @@ def main() -> int:
             "-rss_limit_mb=512",
             "-timeout=5",
             "-print_final_stats=1",
+            f"-artifact_prefix={args.artifact_dir.resolve()}/",
         ]
         return subprocess.run(command, check=False).returncode
 

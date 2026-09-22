@@ -308,6 +308,14 @@ if(CTEX_BUILD_FUZZERS)
     target_compile_options(ctex_project_container_fuzz PRIVATE -fsanitize=fuzzer)
     target_link_options(ctex_project_container_fuzz PRIVATE -fsanitize=fuzzer)
     target_link_libraries(ctex_project_container_fuzz PRIVATE cybertexel)
+    add_executable(
+        ctex_image_decode_fuzz
+        tests/fuzz/image_decode_fuzz.cpp
+    )
+    ctex_configure_cpp_target(ctex_image_decode_fuzz)
+    target_compile_options(ctex_image_decode_fuzz PRIVATE -fsanitize=fuzzer)
+    target_link_options(ctex_image_decode_fuzz PRIVATE -fsanitize=fuzzer)
+    target_link_libraries(ctex_image_decode_fuzz PRIVATE cybertexel)
 endif()
 
 # This is deliberately an example-only dependency. The library and its default

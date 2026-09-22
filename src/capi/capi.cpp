@@ -10817,7 +10817,12 @@ ctex::doc::LayerCompositeRequest make_layer_composite_request(
     std::uint32_t width, std::uint32_t height,
     const ctex_layer_composite_raster_descriptor* content, std::size_t content_count,
     const ctex_layer_composite_mask_descriptor* masks, std::size_t mask_count) {
-    ctex::doc::LayerCompositeRequest request{.width = width, .height = height};
+    ctex::doc::LayerCompositeRequest request{
+        .width = width,
+        .height = height,
+        .content = {},
+        .masks = {},
+    };
     request.content.reserve(content_count);
     for (std::size_t index = 0; index < content_count; ++index) {
         request.content.push_back(layer_composite_raster(content[index]));
