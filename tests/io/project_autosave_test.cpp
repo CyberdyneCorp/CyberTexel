@@ -81,6 +81,7 @@ bool pinned_snapshot_remains_consistent_while_painting_continues() {
                       snapshot.retained_pixel_bytes() == image.tile_bytes() * 2 &&
                       materialized.tiled_images.front().occupied_tiles.size() == 2 &&
                       materialized.assets.size() == 1 &&
+                      materialized.recovery_checkpoint_revision == 41 &&
                       materialized.assets.front().identifier == "materials/snapshot" &&
                       materialized.tiled_images.front().occupied_tiles.front().coordinate ==
                           image::TileCoordinate{0, 0} &&
@@ -154,6 +155,8 @@ bool periodic_autosave_coalesces_and_enumerates_recovery() {
                   "autosave status did not report the coalesced revision") &&
            expect(restored.read_pixel(0, 0)[0] == second[0],
                   "autosave did not persist the latest consistent snapshot") &&
+           expect(opened.container.recovery_checkpoint_revision == 2,
+                  "autosave did not persist its durable project revision") &&
            expect(recovery.recoverable.size() == 1 && recovery.rejected.size() == 1 &&
                       recovery.recoverable.front().recovery_key == "document-7" &&
                       recovery.recoverable.front().schema_version == current_container_schema &&
@@ -177,9 +180,12 @@ bool flush_publishes_immediately_and_configuration_is_validated() {
         ProjectAutosaveSession autosave(
             {.recovery_directory = directory, .recovery_key = "manual", .interval = 1h});
         static_cast<void>(autosave.submit(capture(9, image)));
-        autosave.flush();
+        const bool missed_before_flush = !autosave.wait_until_saved(9, 0ms);
+        autosave.request_flush();
+        const bool saved_before_deadline = autosave.wait_until_saved(9, 30s);
         flushed = std::filesystem::is_regular_file(autosave.recovery_path()) &&
-                  autosave.status().last_saved_revision == 9;
+                  autosave.status().last_saved_revision == 9 && missed_before_flush &&
+                  saved_before_deadline;
     }
     const bool invalid_key = expect_error(
         [&] {
@@ -193,9 +199,12 @@ bool flush_publishes_immediately_and_configuration_is_validated() {
                 {.recovery_directory = directory, .recovery_key = "valid", .interval = 0ms});
         },
         ProjectContainerErrorCode::invalid_snapshot, "zero autosave interval was accepted");
+    const bool invalid_revision = expect_error([&] { static_cast<void>(capture(0, image)); },
+                                               ProjectContainerErrorCode::invalid_snapshot,
+                                               "zero project revision was accepted for recovery");
     std::filesystem::remove_all(directory, filesystem_error);
     return expect(flushed, "explicit autosave flush did not publish the pending snapshot") &&
-           invalid_key && invalid_interval;
+           invalid_key && invalid_interval && invalid_revision;
 }
 
 }  // namespace

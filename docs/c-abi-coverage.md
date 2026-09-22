@@ -194,5 +194,10 @@ Ordered host preview-quality admission now reports full, deferred, reduced and
 combined outcomes, releases eligible caches only after no allowed choice fits,
 and returns over-budget without mutating authored storage. The exact remaining
 gap is 14 runtime requirements.
+Host-driven quiesce now closes resource admission, requests cancellation,
+drains reservations and publishes a revision-bearing checkpoint within one
+lifecycle deadline. Recovery returns only the last atomic checkpoint and its
+durable revision while reporting known uncheckpointed revisions. The exact
+remaining gap is 13 runtime requirements.
 The gate is not part of the aggregate `just check` until that count reaches zero;
 its unit tests run in the normal tooling suite throughout the migration.

@@ -325,6 +325,10 @@ Host-ordered preview-quality admission now selects and reports explicit
 resolution/resource/deferred-work choices, falling back to cache release and
 then atomic over-budget refusal without access to authored or export state. The
 exact C ABI gap is now 14 runtime requirements.
+Suspension now closes resource admission before cancellation, reports drain and
+checkpoint completion against one host deadline, embeds the durable revision in
+the atomic recovery container, and reopens admission only on explicit resume.
+The exact C ABI gap is now 13 runtime requirements.
 
 ## Milestones
 

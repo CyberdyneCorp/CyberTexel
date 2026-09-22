@@ -145,6 +145,10 @@ std::size_t ProjectSaveSnapshot::retained_pixel_bytes() const noexcept {
 ProjectSaveSnapshot capture_project_snapshot(ProjectRevision revision,
                                              ProjectSnapshotMetadata metadata,
                                              std::span<const ProjectSnapshotImageSource> images) {
+    if (revision == 0) {
+        throw ProjectContainerError(ProjectContainerErrorCode::invalid_snapshot,
+                                    "project snapshot revision must be non-zero");
+    }
     auto snapshot = std::make_unique<ProjectSaveSnapshot::Impl>();
     snapshot->revision = revision;
     snapshot->metadata = std::move(metadata);
@@ -171,7 +175,8 @@ ProjectContainer materialize_project_snapshot(const ProjectSaveSnapshot& snapsho
                                .tiled_images = {},
                                .resources = snapshot.impl_->metadata.resources,
                                .assets = snapshot.impl_->metadata.assets,
-                               .opaque_sections = snapshot.impl_->metadata.opaque_sections};
+                               .opaque_sections = snapshot.impl_->metadata.opaque_sections,
+                               .recovery_checkpoint_revision = snapshot.impl_->revision};
     container.tiled_images.reserve(snapshot.impl_->images.size());
     for (const PinnedImage& pinned : snapshot.impl_->images) {
         StoredTiledImage image = pinned.metadata;
@@ -292,6 +297,25 @@ bool ProjectAutosaveSession::wait_until_idle(std::chrono::milliseconds timeout) 
     return impl_->changed.wait_for(lock, timeout, [&] {
         return !impl_->pending.has_value() && !impl_->status.saving_revision.has_value();
     });
+}
+
+void ProjectAutosaveSession::request_flush() noexcept {
+    std::scoped_lock lock(impl_->mutex);
+    if (impl_->pending.has_value()) {
+        impl_->flush_requested = true;
+        impl_->changed.notify_all();
+    }
+}
+
+bool ProjectAutosaveSession::wait_until_saved(ProjectRevision revision,
+                                              std::chrono::milliseconds timeout) {
+    std::unique_lock lock(impl_->mutex);
+    impl_->changed.wait_for(lock, timeout, [&] {
+        return impl_->status.last_saved_revision.value_or(0) >= revision ||
+               (!impl_->pending.has_value() && !impl_->status.saving_revision.has_value() &&
+                !impl_->status.last_error.empty());
+    });
+    return impl_->status.last_saved_revision.value_or(0) >= revision;
 }
 
 void ProjectAutosaveSession::flush() {

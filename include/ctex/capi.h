@@ -2922,7 +2922,8 @@ typedef struct ctex_resource_admission_descriptor {
 typedef enum ctex_resource_admission_status {
     CTEX_RESOURCE_ADMITTED_WHOLE = 0,
     CTEX_RESOURCE_ADMITTED_TILED = 1,
-    CTEX_RESOURCE_OVER_BUDGET = 2
+    CTEX_RESOURCE_OVER_BUDGET = 2,
+    CTEX_RESOURCE_QUIESCING = 3
 } ctex_resource_admission_status;
 
 typedef struct ctex_resource_admission_report {
@@ -2973,7 +2974,8 @@ typedef enum ctex_preview_quality_status {
     CTEX_PREVIEW_REDUCED_RESOLUTION = 1,
     CTEX_PREVIEW_DEFERRED_DERIVED = 2,
     CTEX_PREVIEW_REDUCED_AND_DEFERRED = 3,
-    CTEX_PREVIEW_OVER_BUDGET = 4
+    CTEX_PREVIEW_OVER_BUDGET = 4,
+    CTEX_PREVIEW_QUIESCING = 5
 } ctex_preview_quality_status;
 
 typedef struct ctex_preview_quality_admission_report {
@@ -4520,6 +4522,54 @@ typedef struct ctex_project_autosave_info {
 #define CTEX_PROJECT_AUTOSAVE_INFO_V1_SIZE ((uint32_t)sizeof(ctex_project_autosave_info))
 #define CTEX_PROJECT_AUTOSAVE_INFO_CURRENT_SIZE ((uint32_t)sizeof(ctex_project_autosave_info))
 
+typedef void (*ctex_project_quiesce_cancel_callback)(void* user_data);
+
+typedef struct ctex_project_quiesce_descriptor {
+    uint32_t size;
+    uint64_t current_revision;
+    uint64_t deadline_milliseconds;
+    ctex_project_quiesce_cancel_callback request_cancel;
+    void* user_data;
+} ctex_project_quiesce_descriptor;
+
+#define CTEX_PROJECT_QUIESCE_DESCRIPTOR_V1_SIZE ((uint32_t)sizeof(ctex_project_quiesce_descriptor))
+#define CTEX_PROJECT_QUIESCE_DESCRIPTOR_CURRENT_SIZE \
+    ((uint32_t)sizeof(ctex_project_quiesce_descriptor))
+
+typedef enum ctex_project_quiesce_status {
+    CTEX_PROJECT_QUIESCE_DURABLE = 0,
+    CTEX_PROJECT_QUIESCE_DEADLINE_EXCEEDED = 1,
+    CTEX_PROJECT_QUIESCE_CHECKPOINT_FAILED = 2
+} ctex_project_quiesce_status;
+
+typedef struct ctex_project_quiesce_report {
+    uint32_t size;
+    uint32_t status;
+    uint32_t admissions_stopped;
+    uint32_t cancellation_requested;
+    uint32_t work_drained;
+    size_t active_operation_count;
+    uint32_t has_durable_revision;
+    uint64_t durable_revision;
+    uint32_t has_uncheckpointed_range;
+    uint64_t uncheckpointed_first_revision;
+    uint64_t uncheckpointed_last_revision;
+} ctex_project_quiesce_report;
+
+#define CTEX_PROJECT_QUIESCE_REPORT_V1_SIZE ((uint32_t)sizeof(ctex_project_quiesce_report))
+#define CTEX_PROJECT_QUIESCE_REPORT_CURRENT_SIZE ((uint32_t)sizeof(ctex_project_quiesce_report))
+
+typedef struct ctex_project_recovery_checkpoint_info {
+    uint32_t size;
+    uint32_t has_revision;
+    uint64_t revision;
+} ctex_project_recovery_checkpoint_info;
+
+#define CTEX_PROJECT_RECOVERY_CHECKPOINT_INFO_V1_SIZE \
+    ((uint32_t)sizeof(ctex_project_recovery_checkpoint_info))
+#define CTEX_PROJECT_RECOVERY_CHECKPOINT_INFO_CURRENT_SIZE \
+    ((uint32_t)sizeof(ctex_project_recovery_checkpoint_info))
+
 typedef struct ctex_project_recovery_entry {
     size_t recovery_key_offset;
     size_t recovery_key_size;
@@ -5496,6 +5546,15 @@ CTEX_API ctex_result ctex_project_autosave_session_flush(ctex_project_autosave_s
 CTEX_API ctex_result ctex_project_autosave_session_get_info(
     const ctex_project_autosave_session* session, ctex_project_autosave_info* out_info,
     char* recovery_path, size_t recovery_path_size, char* last_error, size_t last_error_size);
+/*
+ * Stops new ledger admissions, requests an immediate checkpoint, invokes the
+ * optional host cancellation callback, and waits within one relative deadline.
+ * Admission remains stopped after every outcome until lifecycle_resume.
+ */
+CTEX_API ctex_result ctex_project_lifecycle_quiesce(
+    ctex_resource_ledger* ledger, ctex_project_autosave_session* autosave,
+    const ctex_project_quiesce_descriptor* descriptor, ctex_project_quiesce_report* out_report);
+CTEX_API ctex_result ctex_project_lifecycle_resume(ctex_resource_ledger* ledger);
 
 /* Enumerates atomically published recovery files and names malformed candidates. */
 CTEX_API ctex_result ctex_project_recovery_enumerate(
@@ -5509,6 +5568,12 @@ CTEX_API ctex_result ctex_project_recovery_read(
     const char* path, const ctex_project_container_read_limits_descriptor* limits,
     ctex_project_container_info* out_info, void* canonical_output, size_t canonical_output_size,
     char* report_output, size_t report_output_size);
+/* Reads the same canonical recovery bytes and reports their atomic checkpoint revision. */
+CTEX_API ctex_result ctex_project_recovery_resume(
+    const char* path, const ctex_project_container_read_limits_descriptor* limits,
+    ctex_project_recovery_checkpoint_info* out_checkpoint, ctex_project_container_info* out_info,
+    void* canonical_output, size_t canonical_output_size, char* report_output,
+    size_t report_output_size);
 
 /*
  * Extracts one asset and its exact resource/image dependencies from a project

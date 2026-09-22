@@ -15,6 +15,11 @@ static int expect(int condition, const char* message) {
     return condition;
 }
 
+static void release_reservation(void* user_data) {
+    ctex_resource_reservation* reservation = (ctex_resource_reservation*)user_data;
+    ctex_resource_reservation_destroy(reservation);
+}
+
 static unsigned char* empty_project(size_t* size) {
     unsigned char* bytes = NULL;
     if (!expect(ctex_project_container_create_empty(NULL, 0, size) == CTEX_RESULT_SUCCESS,
@@ -105,6 +110,8 @@ static int recovery_is_enumerable_and_readable(const unsigned char* project, siz
     ctex_project_recovery_entry recoverable[2] = {{0}};
     ctex_project_recovery_rejection rejected[2] = {{0}};
     ctex_project_container_info container = {.size = CTEX_PROJECT_CONTAINER_INFO_CURRENT_SIZE};
+    ctex_project_recovery_checkpoint_info checkpoint = {
+        .size = CTEX_PROJECT_RECOVERY_CHECKPOINT_INFO_CURRENT_SIZE};
     char strings[1024] = {0};
     unsigned char* opened = NULL;
     char* report = NULL;
@@ -137,13 +144,14 @@ static int recovery_is_enumerable_and_readable(const unsigned char* project, siz
     opened = (unsigned char*)malloc(container.canonical_size);
     report = (char*)malloc(container.report_size);
     if (!expect(opened != NULL && report != NULL, "recovery output allocation failed") ||
-        !expect(ctex_project_recovery_read(recovery_path, NULL, &container, opened,
-                                           container.canonical_size, report,
-                                           container.report_size) == CTEX_RESULT_SUCCESS,
+        !expect(ctex_project_recovery_resume(recovery_path, NULL, &checkpoint, &container, opened,
+                                             container.canonical_size, report,
+                                             container.report_size) == CTEX_RESULT_SUCCESS,
                 "recovery read failed") ||
-        !expect(
-            memcmp(opened, project, project_size) == 0 && strstr(report, "\"images\":[]") != NULL,
-            "recovery content did not round-trip canonically")) {
+        !expect(checkpoint.has_revision == 1 && checkpoint.revision == 2 &&
+                    memcmp(opened, project, project_size) == 0 &&
+                    strstr(report, "\"images\":[]") != NULL,
+                "recovery content did not round-trip canonically")) {
         goto cleanup;
     }
     passed = 1;
@@ -151,6 +159,86 @@ static int recovery_is_enumerable_and_readable(const unsigned char* project, siz
 cleanup:
     free(report);
     free(opened);
+    return passed;
+}
+
+static int lifecycle_quiesce_reports_the_last_durable_revision(
+    ctex_project_autosave_session* autosave) {
+    ctex_resource_ledger* ledger = NULL;
+    ctex_resource_reservation* reservation = NULL;
+    ctex_resource_requirement requirement = {
+        .size = CTEX_RESOURCE_REQUIREMENT_CURRENT_SIZE,
+        .category = CTEX_RESOURCE_TEMPORARY,
+        .physical_bytes = 64,
+        .roles = CTEX_RESOURCE_CPU_RESIDENT,
+    };
+    ctex_resource_admission_descriptor admission = {
+        .size = CTEX_RESOURCE_ADMISSION_DESCRIPTOR_CURRENT_SIZE,
+        .operation = "in-flight edit",
+        .limits = {.size = CTEX_RESOURCE_BUDGET_LIMITS_CURRENT_SIZE,
+                   .cpu_bytes = 1024,
+                   .gpu_bytes = 1024,
+                   .backing_store_bytes = 1024,
+                   .temporary_bytes = 1024},
+        .fixed_requirements = &requirement,
+        .fixed_requirement_count = 1,
+    };
+    ctex_resource_admission_report admission_report = {
+        .size = CTEX_RESOURCE_ADMISSION_REPORT_CURRENT_SIZE};
+    ctex_project_quiesce_report quiesce = {.size = CTEX_PROJECT_QUIESCE_REPORT_CURRENT_SIZE};
+    int passed = expect(ctex_resource_ledger_create(&ledger) == CTEX_RESULT_SUCCESS,
+                        "lifecycle resource ledger creation failed") &&
+                 expect(ctex_resource_ledger_admit(ledger, &admission, &reservation,
+                                                   &admission_report) == CTEX_RESULT_SUCCESS &&
+                            reservation != NULL,
+                        "lifecycle in-flight edit was not admitted");
+    ctex_project_quiesce_descriptor descriptor = {
+        .size = CTEX_PROJECT_QUIESCE_DESCRIPTOR_CURRENT_SIZE,
+        .current_revision = 3,
+        .deadline_milliseconds = 0,
+        .request_cancel = release_reservation,
+        .user_data = reservation,
+    };
+    passed = passed &&
+             expect(ctex_project_lifecycle_quiesce(ledger, autosave, &descriptor, &quiesce) ==
+                            CTEX_RESULT_SUCCESS &&
+                        quiesce.status == CTEX_PROJECT_QUIESCE_DEADLINE_EXCEEDED &&
+                        quiesce.admissions_stopped == 1 && quiesce.cancellation_requested == 1 &&
+                        quiesce.work_drained == 1 && quiesce.active_operation_count == 0 &&
+                        quiesce.has_durable_revision == 1 && quiesce.durable_revision == 2 &&
+                        quiesce.has_uncheckpointed_range == 1 &&
+                        quiesce.uncheckpointed_first_revision == 3 &&
+                        quiesce.uncheckpointed_last_revision == 3,
+                    "quiesce did not report its deadline and durable revision exactly");
+    reservation = NULL;
+    ctex_resource_reservation* refused = NULL;
+    admission_report.size = CTEX_RESOURCE_ADMISSION_REPORT_CURRENT_SIZE;
+    passed = passed &&
+             expect(ctex_resource_ledger_admit(ledger, &admission, &refused, &admission_report) ==
+                            CTEX_RESULT_SUCCESS &&
+                        refused == NULL && admission_report.status == CTEX_RESOURCE_QUIESCING,
+                    "quiesce admitted new edit work") &&
+             expect(ctex_project_lifecycle_resume(ledger) == CTEX_RESULT_SUCCESS,
+                    "lifecycle resume failed") &&
+             expect(ctex_resource_ledger_admit(ledger, &admission, &reservation,
+                                               &admission_report) == CTEX_RESULT_SUCCESS &&
+                        reservation != NULL,
+                    "lifecycle resume did not restore edit admission");
+    ctex_resource_reservation_destroy(reservation);
+    descriptor.current_revision = 2;
+    descriptor.request_cancel = NULL;
+    descriptor.user_data = NULL;
+    quiesce.size = CTEX_PROJECT_QUIESCE_REPORT_CURRENT_SIZE;
+    passed =
+        passed &&
+        expect(ctex_project_lifecycle_quiesce(ledger, autosave, &descriptor, &quiesce) ==
+                       CTEX_RESULT_SUCCESS &&
+                   quiesce.status == CTEX_PROJECT_QUIESCE_DURABLE && quiesce.work_drained == 1 &&
+                   quiesce.durable_revision == 2 && quiesce.has_uncheckpointed_range == 0,
+               "quiesce did not report an already durable checkpoint") &&
+        expect(ctex_project_lifecycle_resume(ledger) == CTEX_RESULT_SUCCESS,
+               "lifecycle did not resume after a durable checkpoint");
+    ctex_resource_ledger_destroy(ledger);
     return passed;
 }
 
@@ -174,6 +262,7 @@ int main(void) {
     unsigned char* project = empty_project(&project_size);
     int passed = project != NULL &&
                  autosave_coalesces_and_publishes(project, project_size, &session) &&
+                 lifecycle_quiesce_reports_the_last_durable_revision(session) &&
                  recovery_is_enumerable_and_readable(project, project_size) &&
                  invalid_configuration_is_refused();
     ctex_project_autosave_session_destroy(session);

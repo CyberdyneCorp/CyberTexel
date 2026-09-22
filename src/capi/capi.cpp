@@ -7213,6 +7213,31 @@ std::vector<std::byte> read_project_recovery_file(
     return bytes;
 }
 
+struct PreparedRecoveryCheckpoint {
+    std::optional<ctex::io::ProjectRevision> revision;
+    PreparedProjectContainer project;
+};
+
+PreparedRecoveryCheckpoint prepare_recovery_checkpoint(
+    const std::filesystem::path& path,
+    const ctex_project_container_read_limits_descriptor* limits) {
+    const ctex::io::ProjectContainerReadLimits read_limits = project_container_limits(limits);
+    const std::vector<std::byte> bytes = read_project_recovery_file(path, read_limits);
+    ctex::io::ProjectContainerReadResult read =
+        ctex::io::read_project_container(bytes, read_limits);
+    const std::optional<ctex::io::ProjectRevision> revision =
+        read.container.recovery_checkpoint_revision;
+    read.container.recovery_checkpoint_revision.reset();
+    return {.revision = revision, .project = prepare_project_container(std::move(read))};
+}
+
+std::chrono::milliseconds remaining_timeout(std::chrono::steady_clock::time_point started,
+                                            std::chrono::milliseconds timeout) {
+    const auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(
+        std::chrono::steady_clock::now() - started);
+    return elapsed >= timeout ? std::chrono::milliseconds::zero() : timeout - elapsed;
+}
+
 [[noreturn]] void throw_smart_material_error(const ctex::doc::SmartMaterialError& error) {
     const ctex_result result =
         error.code() == ctex::doc::SmartMaterialErrorCode::unsupported_version
@@ -12083,6 +12108,73 @@ extern "C" ctex_result ctex_project_autosave_session_get_info(
     });
 }
 
+extern "C" ctex_result ctex_project_lifecycle_quiesce(
+    ctex_resource_ledger* ledger, ctex_project_autosave_session* autosave,
+    const ctex_project_quiesce_descriptor* descriptor, ctex_project_quiesce_report* out_report) {
+    return call_boundary("ctex_project_lifecycle_quiesce", [&] {
+        if (ledger == nullptr || autosave == nullptr || descriptor == nullptr ||
+            out_report == nullptr) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                           "ledger, autosave, descriptor, and out_report are required");
+        }
+        validate_structure_size(descriptor->size, CTEX_PROJECT_QUIESCE_DESCRIPTOR_V1_SIZE,
+                                CTEX_PROJECT_QUIESCE_DESCRIPTOR_CURRENT_SIZE,
+                                "project quiesce descriptor size");
+        validate_structure_size(out_report->size, CTEX_PROJECT_QUIESCE_REPORT_V1_SIZE,
+                                CTEX_PROJECT_QUIESCE_REPORT_CURRENT_SIZE,
+                                "project quiesce report size");
+        if (descriptor->current_revision == 0 ||
+            descriptor->deadline_milliseconds >
+                static_cast<std::uint64_t>(std::numeric_limits<std::int64_t>::max())) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_INVALID_PROJECT_CONTAINER,
+                           "quiesce revision must be non-zero and deadline must fit milliseconds");
+        }
+
+        const auto timeout = std::chrono::milliseconds(descriptor->deadline_milliseconds);
+        const auto started = std::chrono::steady_clock::now();
+        ledger->value.begin_quiesce();
+        autosave->value.request_flush();
+        if (descriptor->request_cancel != nullptr) {
+            descriptor->request_cancel(descriptor->user_data);
+        }
+        const bool drained =
+            ledger->value.wait_until_quiescent(remaining_timeout(started, timeout));
+        const bool saved = autosave->value.wait_until_saved(descriptor->current_revision,
+                                                            remaining_timeout(started, timeout));
+        const ctex::io::ProjectAutosaveStatus autosave_status = autosave->value.status();
+        const std::uint64_t durable = autosave_status.last_saved_revision.value_or(0);
+        const bool missing = durable < descriptor->current_revision;
+        const std::uint32_t status =
+            drained && saved
+                ? CTEX_PROJECT_QUIESCE_DURABLE
+                : (!autosave_status.last_error.empty() ? CTEX_PROJECT_QUIESCE_CHECKPOINT_FAILED
+                                                       : CTEX_PROJECT_QUIESCE_DEADLINE_EXCEEDED);
+        *out_report = {
+            .size = CTEX_PROJECT_QUIESCE_REPORT_CURRENT_SIZE,
+            .status = status,
+            .admissions_stopped = ledger->value.accepting_admissions() ? 0U : 1U,
+            .cancellation_requested = descriptor->request_cancel != nullptr ? 1U : 0U,
+            .work_drained = drained ? 1U : 0U,
+            .active_operation_count = ledger->value.active_reservation_count(),
+            .has_durable_revision = autosave_status.last_saved_revision ? 1U : 0U,
+            .durable_revision = durable,
+            .has_uncheckpointed_range = missing ? 1U : 0U,
+            .uncheckpointed_first_revision = missing ? durable + 1 : 0,
+            .uncheckpointed_last_revision = missing ? descriptor->current_revision : 0,
+        };
+    });
+}
+
+extern "C" ctex_result ctex_project_lifecycle_resume(ctex_resource_ledger* ledger) {
+    return call_boundary("ctex_project_lifecycle_resume", [&] {
+        if (ledger == nullptr) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                           "ledger=null");
+        }
+        ledger->value.resume_admission();
+    });
+}
+
 extern "C" ctex_result ctex_project_recovery_enumerate(
     const char* recovery_directory, ctex_project_recovery_enumeration_info* out_info,
     ctex_project_recovery_entry* recoverable, std::size_t recoverable_capacity,
@@ -12141,15 +12233,48 @@ extern "C" ctex_result ctex_project_recovery_read(
                                 CTEX_PROJECT_CONTAINER_INFO_CURRENT_SIZE,
                                 "project container info size");
         try {
-            const auto read_limits = project_container_limits(limits);
-            const std::vector<std::byte> bytes =
-                read_project_recovery_file(std::filesystem::path(path), read_limits);
-            PreparedProjectContainer prepared =
-                prepare_project_container(bytes.data(), bytes.size(), limits);
-            *out_info = prepared.info;
-            validate_project_container_outputs(prepared, canonical_output, canonical_output_size,
-                                               report_output, report_output_size);
-            write_project_container_outputs(prepared, canonical_output, report_output);
+            PreparedRecoveryCheckpoint prepared =
+                prepare_recovery_checkpoint(std::filesystem::path(path), limits);
+            *out_info = prepared.project.info;
+            validate_project_container_outputs(prepared.project, canonical_output,
+                                               canonical_output_size, report_output,
+                                               report_output_size);
+            write_project_container_outputs(prepared.project, canonical_output, report_output);
+        } catch (const ctex::io::ProjectContainerError& error) {
+            throw_project_container_error(error);
+        }
+    });
+}
+
+extern "C" ctex_result ctex_project_recovery_resume(
+    const char* path, const ctex_project_container_read_limits_descriptor* limits,
+    ctex_project_recovery_checkpoint_info* out_checkpoint, ctex_project_container_info* out_info,
+    void* canonical_output, std::size_t canonical_output_size, char* report_output,
+    std::size_t report_output_size) {
+    return call_boundary("ctex_project_recovery_resume", [&] {
+        if (path == nullptr || out_checkpoint == nullptr || out_info == nullptr) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                           "path, out_checkpoint, and out_info are required");
+        }
+        validate_structure_size(out_checkpoint->size, CTEX_PROJECT_RECOVERY_CHECKPOINT_INFO_V1_SIZE,
+                                CTEX_PROJECT_RECOVERY_CHECKPOINT_INFO_CURRENT_SIZE,
+                                "project recovery checkpoint info size");
+        validate_structure_size(out_info->size, CTEX_PROJECT_CONTAINER_INFO_V1_SIZE,
+                                CTEX_PROJECT_CONTAINER_INFO_CURRENT_SIZE,
+                                "project container info size");
+        try {
+            PreparedRecoveryCheckpoint prepared =
+                prepare_recovery_checkpoint(std::filesystem::path(path), limits);
+            *out_checkpoint = {
+                .size = CTEX_PROJECT_RECOVERY_CHECKPOINT_INFO_CURRENT_SIZE,
+                .has_revision = prepared.revision ? 1U : 0U,
+                .revision = prepared.revision.value_or(0),
+            };
+            *out_info = prepared.project.info;
+            validate_project_container_outputs(prepared.project, canonical_output,
+                                               canonical_output_size, report_output,
+                                               report_output_size);
+            write_project_container_outputs(prepared.project, canonical_output, report_output);
         } catch (const ctex::io::ProjectContainerError& error) {
             throw_project_container_error(error);
         }

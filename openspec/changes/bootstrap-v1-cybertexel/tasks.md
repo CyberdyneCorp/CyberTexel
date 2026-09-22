@@ -1243,6 +1243,15 @@ export state, so reservations cannot resize stored pixels, reduce their
 precision or change export inputs. C++ and strict-C fixtures reduce the exact
 task-14.8 gap to 14 runtime requirements.
 
+Task 19.5 closes resource admission before host cancellation, tracks active
+reservations to quiescence, and requests autosave publication within one
+host-supplied deadline. Reports distinguish durable, deadline-exceeded and
+checkpoint-failed outcomes and name the last durable plus known uncheckpointed
+revision range. The revision is stored inside the atomically published recovery
+container; resume strips lifecycle metadata from project bytes while reporting
+the exact durable revision. C++ and strict-C fixtures reduce the exact task-14.8
+gap to 13 runtime requirements.
+
 ## 1. Foundation
 
 - [x] 1.1 CMake project, C++20, warnings as errors, presets for headless, macOS, Linux, Windows, iOS, Android
@@ -1513,7 +1522,7 @@ task-14.8 gap to 14 runtime requirements.
 - [x] 19.2 CPU/GPU/backing/temporary ceilings, bounded admission and tiled work scheduling
 - [x] 19.3 Sparse constant tiles, derived-cache eviction, lossless authored-tile backing storage and reload
 - [x] 19.4 Host preview-quality policy with unchanged authored precision and export results
-- [ ] 19.5 Quiesce, durable checkpoint notification, suspension deadlines and recovery revision reporting
+- [x] 19.5 Quiesce, durable checkpoint notification, suspension deadlines and recovery revision reporting
 - [ ] 19.6 `resource-residency` scenarios as tests
 
 ## 20. Editable authoring

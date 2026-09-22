@@ -20,6 +20,10 @@ inline constexpr std::uint32_t project_resource_section_kind = 2;
 inline constexpr std::uint32_t project_resource_section_version = 1;
 inline constexpr std::uint32_t standalone_asset_section_kind = 3;
 inline constexpr std::uint32_t standalone_asset_section_version = 1;
+inline constexpr std::uint32_t recovery_checkpoint_section_kind = 4;
+inline constexpr std::uint32_t recovery_checkpoint_section_version = 1;
+
+using ProjectRevision = std::uint64_t;
 
 enum class TileCompression : std::uint8_t { zlib_deflate = 1 };
 
@@ -73,6 +77,7 @@ struct ProjectContainer {
     std::vector<ProjectResource> resources;
     std::vector<StandaloneAsset> assets;
     std::vector<OpaqueContainerSection> opaque_sections;
+    std::optional<ProjectRevision> recovery_checkpoint_revision;
 };
 
 enum class ProjectResourceStatus : std::uint8_t { packed, referenced, missing };

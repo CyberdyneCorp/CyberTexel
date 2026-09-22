@@ -129,7 +129,8 @@ ProjectContainer package_standalone_asset(const ProjectContainer& source,
                              .tiled_images = {},
                              .resources = {},
                              .assets = {asset},
-                             .opaque_sections = source.opaque_sections};
+                             .opaque_sections = source.opaque_sections,
+                             .recovery_checkpoint_revision = std::nullopt};
     package.resources.reserve(asset.resource_dependencies.size());
     for (const std::string& identifier : asset.resource_dependencies) {
         ProjectResource resource = find_dependency(

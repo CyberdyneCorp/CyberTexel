@@ -956,10 +956,23 @@ ContainerSchemaVersion probe_project_container_version(std::span<const std::byte
 }
 
 std::vector<std::byte> write_project_container(const ProjectContainer& container) {
+    const std::size_t known_section_count = 3 + (container.recovery_checkpoint_revision ? 1 : 0);
     if (container.opaque_sections.size() >
-        static_cast<std::size_t>(std::numeric_limits<std::uint32_t>::max()) - 3) {
+        static_cast<std::size_t>(std::numeric_limits<std::uint32_t>::max()) - known_section_count) {
         throw ProjectContainerError(ProjectContainerErrorCode::over_limit,
                                     "container section count exceeds the format limit");
+    }
+    if (container.recovery_checkpoint_revision == 0) {
+        throw ProjectContainerError(ProjectContainerErrorCode::invalid_snapshot,
+                                    "recovery checkpoint revision must be non-zero");
+    }
+    if (container.recovery_checkpoint_revision &&
+        std::ranges::any_of(container.opaque_sections, [](const OpaqueContainerSection& section) {
+            return section.kind == recovery_checkpoint_section_kind &&
+                   section.version == recovery_checkpoint_section_version;
+        })) {
+        throw ProjectContainerError(ProjectContainerErrorCode::invalid_snapshot,
+                                    "recovery checkpoint metadata is duplicated");
     }
     const std::vector<std::byte> tiled_payload = encode_tiled_images(container.tiled_images);
     const std::vector<std::byte> resource_payload = encode_resources(container.resources);
@@ -971,6 +984,12 @@ std::vector<std::byte> write_project_container(const ProjectContainer& container
                    resource_payload);
     append_section(body, standalone_asset_section_kind, standalone_asset_section_version,
                    asset_payload);
+    if (container.recovery_checkpoint_revision) {
+        ByteWriter recovery_payload;
+        recovery_payload.u64(*container.recovery_checkpoint_revision);
+        append_section(body, recovery_checkpoint_section_kind, recovery_checkpoint_section_version,
+                       recovery_payload.view());
+    }
     for (const OpaqueContainerSection& section : container.opaque_sections) {
         append_section(body, section.kind, section.version, section.payload);
     }
@@ -981,7 +1000,7 @@ std::vector<std::byte> write_project_container(const ProjectContainer& container
     writer.u32(container.schema_version.major);
     writer.u32(container.schema_version.minor);
     writer.u32(container.schema_version.patch);
-    writer.u32(static_cast<std::uint32_t>(container.opaque_sections.size() + 3));
+    writer.u32(static_cast<std::uint32_t>(container.opaque_sections.size() + known_section_count));
     writer.u32(0);
     writer.u64(body.view().size());
     writer.bytes(body.view());
@@ -1015,7 +1034,8 @@ ProjectContainerReadResult read_project_container(std::span<const std::byte> byt
                                                     .tiled_images = {},
                                                     .resources = {},
                                                     .assets = {},
-                                                    .opaque_sections = {}},
+                                                    .opaque_sections = {},
+                                                    .recovery_checkpoint_revision = std::nullopt},
                                       .report = {.source_schema = header.version,
                                                  .newer_schema = newer_than_current(header.version),
                                                  .unknown_parts = {}}};
@@ -1089,6 +1109,20 @@ ProjectContainerReadResult read_project_container(std::span<const std::byte> byt
                 }
                 result.container.assets.push_back(std::move(asset));
             }
+            continue;
+        } else if (kind == recovery_checkpoint_section_kind &&
+                   version == recovery_checkpoint_section_version) {
+            if (result.container.recovery_checkpoint_revision) {
+                throw ProjectContainerError(ProjectContainerErrorCode::malformed_section,
+                                            "container repeats recovery checkpoint metadata");
+            }
+            ByteReader recovery(payload);
+            const ProjectRevision revision = recovery.u64("recovery checkpoint revision");
+            if (revision == 0 || !recovery.empty()) {
+                throw ProjectContainerError(ProjectContainerErrorCode::malformed_section,
+                                            "recovery checkpoint metadata is invalid");
+            }
+            result.container.recovery_checkpoint_revision = revision;
             continue;
         } else {
             append_opaque_section(result, kind, version, payload,

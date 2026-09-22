@@ -2,6 +2,7 @@
 #define CTEX_XPORT_RESOURCE_ACCOUNTING_HPP
 
 #include <array>
+#include <chrono>
 #include <cstddef>
 #include <cstdint>
 #include <memory>
@@ -92,7 +93,12 @@ struct ResourceAdmissionRequest {
     std::size_t work_item_count{};
 };
 
-enum class ResourceAdmissionStatus : std::uint8_t { admitted_whole, admitted_tiled, over_budget };
+enum class ResourceAdmissionStatus : std::uint8_t {
+    admitted_whole,
+    admitted_tiled,
+    over_budget,
+    quiescing,
+};
 
 struct ResourceAdmissionReport {
     ResourceAdmissionStatus status{ResourceAdmissionStatus::over_budget};
@@ -123,6 +129,7 @@ enum class PreviewQualityStatus : std::uint8_t {
     deferred_derived,
     reduced_and_deferred,
     over_budget,
+    quiescing,
 };
 
 struct PreviewQualityReport {
@@ -189,6 +196,11 @@ public:
                                             const ResourceAdmissionRequest& request);
     [[nodiscard]] PreviewQualityAdmission admit_preview_quality(
         const ResourceBudgetLimits& limits, const PreviewQualityRequest& request);
+    void begin_quiesce();
+    void resume_admission();
+    [[nodiscard]] bool wait_until_quiescent(std::chrono::milliseconds timeout) const;
+    [[nodiscard]] bool accepting_admissions() const;
+    [[nodiscard]] std::size_t active_reservation_count() const;
 
 private:
     std::shared_ptr<ResourceLedgerState> state_;

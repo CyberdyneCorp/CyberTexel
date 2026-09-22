@@ -129,3 +129,13 @@ preview composites and temporary work, but it cannot mutate authored dimensions,
 pixel formats, stored precision, or export inputs. Hosts must build preview
 resources from the selected option and continue to use authored resources for
 full-quality export.
+
+## Lifecycle admission gate
+
+`ResourceLedger::begin_quiesce()` atomically refuses new normal and preview
+admissions with the distinct `quiescing` status. Existing reservations remain
+counted until their owners finish or cancel and release them;
+`wait_until_quiescent()` observes that count under a caller-supplied timeout.
+The gate stays closed across a missed suspension deadline and reopens only via
+`resume_admission()`. The project lifecycle C operations combine this gate with
+the durable autosave protocol described in `project-autosave.md`.

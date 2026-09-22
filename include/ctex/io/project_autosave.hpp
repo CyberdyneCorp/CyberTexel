@@ -14,8 +14,6 @@
 
 namespace ctex::io {
 
-using ProjectRevision = std::uint64_t;
-
 struct ProjectSnapshotImageSource {
     std::string resource_id;
     const image::TiledImage* image{};
@@ -84,6 +82,9 @@ public:
 
     [[nodiscard]] AutosaveSubmissionStatus submit(ProjectSaveSnapshot snapshot);
     [[nodiscard]] bool wait_until_idle(std::chrono::milliseconds timeout);
+    void request_flush() noexcept;
+    [[nodiscard]] bool wait_until_saved(ProjectRevision revision,
+                                        std::chrono::milliseconds timeout);
     void flush();
     [[nodiscard]] ProjectAutosaveStatus status() const;
     [[nodiscard]] const std::filesystem::path& recovery_path() const noexcept;

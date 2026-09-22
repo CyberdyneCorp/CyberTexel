@@ -34,6 +34,30 @@ publication and waits; it is suitable for lifecycle boundaries, but not the
 paint loop. Destroying a session waits only for a write already in progress and
 discards a merely pending snapshot.
 
+Every autosave embeds its non-zero project revision in a dedicated checkpoint
+section inside the atomically published container. The bytes and revision
+therefore become durable as one filesystem operation; there is no sidecar that
+can name a different revision after interruption. Normal recovery reads remove
+this internal lifecycle section from the returned canonical project bytes.
+
+## Suspend and resume
+
+The lifecycle quiesce operation combines a resource ledger with an autosave
+session. The host must submit the newest committed snapshot before quiescing and
+provides its current revision, deadline, and optional cancellation callback.
+Quiesce closes the ledger admission gate first, requests immediate checkpoint
+publication, invokes cancellation, and waits within the one shared deadline for
+active reservations to drain and the requested revision to become durable.
+The cancellation callback may release or destroy reservations, but must not
+destroy the ledger or autosave session during the call.
+
+The report distinguishes a durable checkpoint, an exceeded deadline, and a
+checkpoint failure. It includes remaining active work, the last durable
+revision, and the uncheckpointed revision range when the current revision is
+newer. Missing a deadline never claims pending edits survived and leaves
+admission closed until the host explicitly resumes it. Atomic publication means
+interrupted temporary files are never offered as recovery candidates.
+
 ## Recovery discovery
 
 Each session updates `<recovery-key>.ctex-recovery`, leaving at most one current
@@ -59,3 +83,6 @@ the complete lifecycle without polling the filesystem.
 for valid and rejected candidates. `ctex_project_recovery_read` reads a selected
 candidate under normal project-container limits and returns canonical bytes and
 the JSON inventory through the standard atomic two-call contract.
+`ctex_project_recovery_resume` performs the same bounded read while also
+returning the revision embedded in the durable checkpoint. Legacy recovery
+files remain readable and explicitly report that no revision metadata exists.

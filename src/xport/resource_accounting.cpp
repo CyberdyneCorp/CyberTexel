@@ -1,4 +1,5 @@
 #include <algorithm>
+#include <condition_variable>
 #include <ctex/xport/resource_accounting.hpp>
 #include <limits>
 #include <mutex>
@@ -190,8 +191,11 @@ PreviewQualityStatus preview_status(const PreviewQualityRequest& request,
 class ResourceLedgerState {
 public:
     mutable std::mutex mutex;
+    mutable std::condition_variable changed;
     std::unordered_map<std::uint64_t, ResourceAllocationDescriptor> allocations;
     ResourceBudgetLimits reserved;
+    std::size_t active_reservations{};
+    bool accepting_admissions{true};
     ResourceLedger::CacheEvictionCallback cache_eviction_callback{};
     void* cache_eviction_user_data{};
 };
@@ -270,6 +274,16 @@ ResourceReservation ResourceLedger::admit(const ResourceBudgetLimits& limits,
     }
 
     std::lock_guard lock(state_->mutex);
+    if (!state_->accepting_admissions) {
+        return ResourceReservation(
+            {}, {},
+            {.status = ResourceAdmissionStatus::quiescing,
+             .work_item_count = request.work_item_count,
+             .admitted_work_items = 0,
+             .projected_usage = {},
+             .evicted_allocation_identities = {},
+             .detail = request.operation + " refused while the resource ledger is quiescing"});
+    }
     ResourceBudgetLimits base = state_->reserved;
     for (const auto& [identity, descriptor] : state_->allocations) {
         static_cast<void>(identity);
@@ -368,6 +382,20 @@ PreviewQualityAdmission ResourceLedger::admit_preview_quality(
     }
 
     std::lock_guard lock(state_->mutex);
+    if (!state_->accepting_admissions) {
+        return {.reservation = {},
+                .report = {.status = PreviewQualityStatus::quiescing,
+                           .selected_option = request.options.size(),
+                           .full_quality_width = request.full_quality_width,
+                           .full_quality_height = request.full_quality_height,
+                           .selected_width = 0,
+                           .selected_height = 0,
+                           .derived_work_deferred = false,
+                           .projected_usage = {},
+                           .evicted_allocation_identities = {},
+                           .detail = request.operation +
+                                     " refused while the resource ledger is quiescing"}};
+    }
     ResourceBudgetLimits base = state_->reserved;
     for (const auto& [identity, descriptor] : state_->allocations) {
         static_cast<void>(identity);
@@ -460,10 +488,40 @@ PreviewQualityAdmission ResourceLedger::admit_preview_quality(
                                  std::to_string(selected)}};
 }
 
+void ResourceLedger::begin_quiesce() {
+    std::lock_guard lock(state_->mutex);
+    state_->accepting_admissions = false;
+}
+
+void ResourceLedger::resume_admission() {
+    std::lock_guard lock(state_->mutex);
+    state_->accepting_admissions = true;
+}
+
+bool ResourceLedger::wait_until_quiescent(std::chrono::milliseconds timeout) const {
+    std::unique_lock lock(state_->mutex);
+    return state_->changed.wait_for(lock, timeout,
+                                    [&] { return state_->active_reservations == 0; });
+}
+
+bool ResourceLedger::accepting_admissions() const {
+    std::lock_guard lock(state_->mutex);
+    return state_->accepting_admissions;
+}
+
+std::size_t ResourceLedger::active_reservation_count() const {
+    std::lock_guard lock(state_->mutex);
+    return state_->active_reservations;
+}
+
 ResourceReservation::ResourceReservation(std::shared_ptr<ResourceLedgerState> state,
                                          ResourceBudgetLimits reserved,
                                          ResourceAdmissionReport report)
-    : state_(std::move(state)), reserved_(reserved), report_(std::move(report)) {}
+    : state_(std::move(state)), reserved_(reserved), report_(std::move(report)) {
+    if (state_) {
+        ++state_->active_reservations;
+    }
+}
 
 ResourceReservation::~ResourceReservation() { release(); }
 ResourceReservation::ResourceReservation(ResourceReservation&& other) noexcept = default;
@@ -484,9 +542,13 @@ void ResourceReservation::release() noexcept {
     if (!state_) {
         return;
     }
-    std::lock_guard lock(state_->mutex);
-    subtract_usage(state_->reserved, reserved_);
-    state_.reset();
+    std::shared_ptr<ResourceLedgerState> state = std::move(state_);
+    {
+        std::lock_guard lock(state->mutex);
+        subtract_usage(state->reserved, reserved_);
+        --state->active_reservations;
+        state->changed.notify_all();
+    }
     reserved_ = {};
 }
 
@@ -520,6 +582,8 @@ std::string_view resource_admission_status_name(ResourceAdmissionStatus status) 
             return "admitted-tiled";
         case ResourceAdmissionStatus::over_budget:
             return "over-budget";
+        case ResourceAdmissionStatus::quiescing:
+            return "quiescing";
     }
     return "unknown";
 }
@@ -536,6 +600,8 @@ std::string_view preview_quality_status_name(PreviewQualityStatus status) noexce
             return "reduced-and-deferred";
         case PreviewQualityStatus::over_budget:
             return "over-budget";
+        case PreviewQualityStatus::quiescing:
+            return "quiescing";
     }
     return "unknown";
 }

@@ -296,6 +296,37 @@ bool preview_quality_follows_host_policy_without_touching_authored_storage() {
                   "preview over-budget refusal changed authored resource accounting");
 }
 
+bool quiesce_blocks_admission_and_tracks_active_work() {
+    ResourceLedger ledger;
+    const ResourceRequirement requirement{.category = ResourceCategory::temporary,
+                                          .physical_bytes = 64,
+                                          .roles = resource_role_cpu_resident};
+    const ResourceAdmissionRequest request = {
+        .operation = "active edit",
+        .fixed_requirements = std::span<const ResourceRequirement>(&requirement, 1),
+        .per_work_item = {},
+        .work_item_count = 0,
+    };
+    ResourceReservation active = ledger.admit(limits(256, 256), request);
+    ledger.begin_quiesce();
+    ResourceReservation refused = ledger.admit(limits(256, 256), request);
+    const bool stopped =
+        expect(active.active() && !refused.active() &&
+                   refused.report().status == ResourceAdmissionStatus::quiescing &&
+                   !ledger.accepting_admissions() && ledger.active_reservation_count() == 1 &&
+                   !ledger.wait_until_quiescent(std::chrono::milliseconds::zero()),
+               "quiesce did not stop admission or retain active-work visibility");
+    active.release();
+    const bool drained = expect(ledger.wait_until_quiescent(std::chrono::milliseconds::zero()) &&
+                                    ledger.active_reservation_count() == 0,
+                                "released work did not make the ledger quiescent");
+    ledger.resume_admission();
+    ResourceReservation resumed = ledger.admit(limits(256, 256), request);
+    return stopped && drained &&
+           expect(resumed.active() && ledger.accepting_admissions(),
+                  "resuming the lifecycle gate did not restore admission");
+}
+
 }  // namespace
 
 int main() {
@@ -304,7 +335,8 @@ int main() {
                    invalid_or_reused_identities_are_refused() &&
                    admission_reserves_a_bounded_tile_batch() &&
                    admission_evicts_only_when_required_and_refusal_is_atomic() &&
-                   preview_quality_follows_host_policy_without_touching_authored_storage()
+                   preview_quality_follows_host_policy_without_touching_authored_storage() &&
+                   quiesce_blocks_admission_and_tracks_active_work()
                ? 0
                : 1;
 }
