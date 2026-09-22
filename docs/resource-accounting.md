@@ -52,5 +52,29 @@ changing either output.
 
 The ledger is thread-safe. It does not own the reported allocations and does
 not poll graphics APIs. Producers update it when allocation residency or
-lifetime changes. Budget reservation, eviction, and tiled admission build on
-this accounting contract in roadmap tasks 19.2–19.3.
+lifetime changes.
+
+## Budget admission
+
+`ResourceLedger::admit()` and `ctex_resource_ledger_admit()` enforce separate
+CPU, GPU, backing-store and temporary ceilings. A request declares fixed
+requirements—such as history and recovery storage—and one temporary
+requirement per bounded work item. Successful admission returns a move-only
+reservation that prevents concurrent operations from overcommitting the same
+budgets.
+
+The admission order is deterministic:
+
+1. admit the complete operation if it fits;
+2. otherwise schedule the largest work-item batch that fits;
+3. if even one item does not fit, consider unpinned, non-in-flight `cache`
+   allocations in identity order and stop evicting as soon as work fits; and
+4. refuse atomically if fixed requirements plus one item still cannot fit.
+
+Only reconstructible storage belongs in the `cache` category. Document,
+history, recovery, pinned and in-flight allocations are never selected for
+eviction. Refusal leaves every ledger allocation unchanged. Destroying or
+releasing the reservation immediately returns its reserved capacity; admitted
+work then repeats the reported batch size until all work items are complete.
+Sparse authored-tile backing and reload policy builds on this contract in task
+19.3.

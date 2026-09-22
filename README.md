@@ -284,7 +284,9 @@ The current implementation provides:
 - Unified [resource accounting](docs/resource-accounting.md) with stable
   physical allocation identities, independent CPU/GPU/backing-store roles,
   pinned and in-flight visibility, seven ownership categories, and
-  API-independent host device descriptors.
+  API-independent host device descriptors. Atomic reservations enforce
+  separate ceilings, schedule bounded tile batches, and evict only eligible
+  reconstructible caches when required for progress.
 - Executor-owned [device capability reports](docs/executor-capabilities.md) for
   binding budget, texture limits and formats, float filtering, and compute,
   wired directly into layer-stack, material, and preview emission requests.

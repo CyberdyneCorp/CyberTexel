@@ -1214,6 +1214,17 @@ updates, all report totals, invalid device declarations, removal, sizing and
 short-buffer atomicity. The public mapping reduces the exact task-14.8 gap to
 17 runtime requirements.
 
+Task 19.2 adds atomic admission against separate CPU, GPU, backing-store and
+temporary ceilings. Fixed history/recovery requirements and per-work-item
+temporary storage are reserved across concurrent operations. Whole work is
+preferred, otherwise the largest fitting tile batch is reported;
+identity-ordered reconstructible, unpinned caches are evicted only until one
+item fits and only when it cannot otherwise make progress. Refusal changes no
+ledger allocation. C++ and
+strict-C fixtures cover tiled scheduling, concurrent reservations, cache
+eviction identities, pinned-cache retention and atomic refusal, reducing the
+exact task-14.8 gap to 16 runtime requirements.
+
 ## 1. Foundation
 
 - [x] 1.1 CMake project, C++20, warnings as errors, presets for headless, macOS, Linux, Windows, iOS, Android
@@ -1481,7 +1492,7 @@ short-buffer atomicity. The public mapping reduces the exact task-14.8 gap to
 ## 19. Resource residency
 
 - [x] 19.1 Complete allocation accounting with shared physical allocation identity, host device descriptors and pinned/in-flight resource reporting
-- [ ] 19.2 CPU/GPU/backing/temporary ceilings, bounded admission and tiled work scheduling
+- [x] 19.2 CPU/GPU/backing/temporary ceilings, bounded admission and tiled work scheduling
 - [ ] 19.3 Sparse constant tiles, derived-cache eviction, lossless authored-tile backing storage and reload
 - [ ] 19.4 Host preview-quality policy with unchanged authored precision and export results
 - [ ] 19.5 Quiesce, durable checkpoint notification, suspension deadlines and recovery revision reporting

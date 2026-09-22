@@ -106,6 +106,80 @@ int main(void) {
                    removed == 1,
                "resource allocation removal failed");
 
+    ctex_resource_requirement fixed = {
+        .size = CTEX_RESOURCE_REQUIREMENT_CURRENT_SIZE,
+        .category = CTEX_RESOURCE_HISTORY,
+        .physical_bytes = 100,
+        .roles = CTEX_RESOURCE_CPU_RESIDENT,
+    };
+    ctex_resource_admission_descriptor admission = {
+        .size = CTEX_RESOURCE_ADMISSION_DESCRIPTOR_CURRENT_SIZE,
+        .operation = "large export",
+        .limits = {.size = CTEX_RESOURCE_BUDGET_LIMITS_CURRENT_SIZE,
+                   .cpu_bytes = 4596,
+                   .gpu_bytes = 5000,
+                   .backing_store_bytes = 3000,
+                   .temporary_bytes = 200},
+        .fixed_requirements = &fixed,
+        .fixed_requirement_count = 1,
+        .per_work_item = {.size = CTEX_RESOURCE_REQUIREMENT_CURRENT_SIZE,
+                          .category = CTEX_RESOURCE_TEMPORARY,
+                          .physical_bytes = 100,
+                          .roles = CTEX_RESOURCE_CPU_RESIDENT},
+        .work_item_count = 5,
+    };
+    ctex_resource_reservation* reservation = NULL;
+    ctex_resource_admission_report admission_report = {
+        .size = CTEX_RESOURCE_ADMISSION_REPORT_CURRENT_SIZE,
+    };
+    const int tiled_ok =
+        expect(ctex_resource_ledger_admit(ledger, &admission, &reservation, &admission_report) ==
+                       CTEX_RESULT_SUCCESS &&
+                   reservation != NULL && admission_report.status == CTEX_RESOURCE_ADMITTED_TILED &&
+                   admission_report.admitted_work_items == 2 &&
+                   admission_report.projected_cpu_bytes == 4396 &&
+                   admission_report.projected_temporary_bytes == 200,
+               "resource admission did not schedule a bounded tile batch");
+    ctex_resource_reservation_release(reservation);
+    ctex_resource_reservation_destroy(reservation);
+
+    ctex_resource_allocation_descriptor cache =
+        allocation(50, CTEX_RESOURCE_CACHE, 300, CTEX_RESOURCE_CPU_RESIDENT);
+    ctex_resource_admission_descriptor checkpoint = {
+        .size = CTEX_RESOURCE_ADMISSION_DESCRIPTOR_CURRENT_SIZE,
+        .operation = "checkpoint",
+        .limits = {.size = CTEX_RESOURCE_BUDGET_LIMITS_CURRENT_SIZE,
+                   .cpu_bytes = 4400,
+                   .gpu_bytes = 5000,
+                   .backing_store_bytes = 3000,
+                   .temporary_bytes = 200},
+        .fixed_requirements = &fixed,
+        .fixed_requirement_count = 1,
+    };
+    ctex_resource_reservation* checkpoint_reservation = NULL;
+    ctex_resource_admission_report checkpoint_report = {
+        .size = CTEX_RESOURCE_ADMISSION_REPORT_CURRENT_SIZE,
+    };
+    uint64_t evicted_identity = 0;
+    size_t evicted_count = 99;
+    const int eviction_ok =
+        expect(ctex_resource_ledger_upsert(ledger, &cache) == CTEX_RESULT_SUCCESS &&
+                   ctex_resource_ledger_admit(ledger, &checkpoint, &checkpoint_reservation,
+                                              &checkpoint_report) == CTEX_RESULT_SUCCESS &&
+                   checkpoint_reservation != NULL &&
+                   checkpoint_report.evicted_allocation_count == 1,
+               "required cache eviction was not reported") &&
+        expect(ctex_resource_reservation_get_evicted_allocations(
+                   checkpoint_reservation, NULL, 0, &evicted_count) == CTEX_RESULT_SUCCESS &&
+                   evicted_count == 1,
+               "evicted allocation sizing failed") &&
+        expect(ctex_resource_reservation_get_evicted_allocations(
+                   checkpoint_reservation, &evicted_identity, 1, &evicted_count) ==
+                       CTEX_RESULT_SUCCESS &&
+                   evicted_count == 1 && evicted_identity == 50,
+               "evicted allocation identity was not queryable");
+    ctex_resource_reservation_destroy(checkpoint_reservation);
+
     ctex_resource_ledger_destroy(ledger);
-    return totals_ok && validation_ok ? 0 : 1;
+    return totals_ok && validation_ok && tiled_ok && eviction_ok ? 0 : 1;
 }

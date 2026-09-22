@@ -301,6 +301,15 @@ struct ctex_resource_ledger {
     ctex::xport::ResourceLedger value;
 };
 
+struct ctex_resource_reservation {
+    ctex_resource_reservation(ctex_allocator_state allocator_value,
+                              ctex::xport::ResourceReservation reservation_value)
+        : allocator(allocator_value), value(std::move(reservation_value)) {}
+
+    ctex_allocator_state allocator;
+    ctex::xport::ResourceReservation value;
+};
+
 struct ctex_transport_snapshot {
     ctex_transport_snapshot(ctex_allocator_state allocator_value,
                             ctex::xport::SnapshotDelta snapshot_value,
@@ -849,6 +858,29 @@ ctex_resource_ledger* create_resource_ledger(const ctex_allocator_state& allocat
                            alignof(ctex_resource_ledger));
         throw;
     }
+}
+
+ctex_resource_reservation* create_resource_reservation(const ctex_allocator_state& allocator,
+                                                       ctex::xport::ResourceReservation value) {
+    void* storage = allocate_storage(allocator, sizeof(ctex_resource_reservation),
+                                     alignof(ctex_resource_reservation));
+    try {
+        return ::new (storage) ctex_resource_reservation(allocator, std::move(value));
+    } catch (...) {
+        deallocate_storage(allocator, storage, sizeof(ctex_resource_reservation),
+                           alignof(ctex_resource_reservation));
+        throw;
+    }
+}
+
+void destroy_resource_reservation(ctex_resource_reservation* reservation) noexcept {
+    if (reservation == nullptr) {
+        return;
+    }
+    const ctex_allocator_state allocator = reservation->allocator;
+    reservation->~ctex_resource_reservation();
+    deallocate_storage(allocator, reservation, sizeof(ctex_resource_reservation),
+                       alignof(ctex_resource_reservation));
 }
 
 ctex_transport_snapshot* create_transport_snapshot(
@@ -17881,6 +17913,121 @@ extern "C" ctex_result ctex_resource_ledger_get_report(const ctex_resource_ledge
                 };
             }
         }
+    });
+}
+
+extern "C" ctex_result ctex_resource_ledger_admit(
+    ctex_resource_ledger* ledger, const ctex_resource_admission_descriptor* descriptor,
+    ctex_resource_reservation** out_reservation, ctex_resource_admission_report* out_report) {
+    return call_boundary("ctex_resource_ledger_admit", [&] {
+        if (ledger == nullptr || descriptor == nullptr || out_reservation == nullptr ||
+            out_report == nullptr) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                           "ledger, descriptor, out_reservation, and out_report are required");
+        }
+        validate_structure_size(descriptor->size, CTEX_RESOURCE_ADMISSION_DESCRIPTOR_V1_SIZE,
+                                CTEX_RESOURCE_ADMISSION_DESCRIPTOR_CURRENT_SIZE,
+                                "resource admission descriptor size");
+        validate_structure_size(descriptor->limits.size, CTEX_RESOURCE_BUDGET_LIMITS_V1_SIZE,
+                                CTEX_RESOURCE_BUDGET_LIMITS_CURRENT_SIZE,
+                                "resource budget limits size");
+        validate_structure_size(out_report->size, CTEX_RESOURCE_ADMISSION_REPORT_V1_SIZE,
+                                CTEX_RESOURCE_ADMISSION_REPORT_CURRENT_SIZE,
+                                "resource admission report size");
+        const char* operation =
+            require_transport_text(descriptor->operation, "resource admission operation");
+        if (descriptor->fixed_requirement_count != 0 && descriptor->fixed_requirements == nullptr) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                           "fixed_requirements=null with a non-zero count");
+        }
+        std::vector<ctex::xport::ResourceRequirement> fixed;
+        fixed.reserve(descriptor->fixed_requirement_count);
+        for (std::size_t index = 0; index < descriptor->fixed_requirement_count; ++index) {
+            const ctex_resource_requirement& requirement = descriptor->fixed_requirements[index];
+            validate_structure_size(requirement.size, CTEX_RESOURCE_REQUIREMENT_V1_SIZE,
+                                    CTEX_RESOURCE_REQUIREMENT_CURRENT_SIZE,
+                                    "resource requirement size");
+            fixed.push_back(
+                {.category = static_cast<ctex::xport::ResourceCategory>(requirement.category),
+                 .physical_bytes = requirement.physical_bytes,
+                 .roles = requirement.roles});
+        }
+        ctex::xport::ResourceRequirement per_work_item;
+        if (descriptor->work_item_count != 0) {
+            validate_structure_size(
+                descriptor->per_work_item.size, CTEX_RESOURCE_REQUIREMENT_V1_SIZE,
+                CTEX_RESOURCE_REQUIREMENT_CURRENT_SIZE, "per-work-item resource requirement size");
+            per_work_item = {
+                .category =
+                    static_cast<ctex::xport::ResourceCategory>(descriptor->per_work_item.category),
+                .physical_bytes = descriptor->per_work_item.physical_bytes,
+                .roles = descriptor->per_work_item.roles,
+            };
+        }
+
+        *out_reservation = nullptr;
+        ctex_resource_reservation* handle =
+            create_resource_reservation(ledger->allocator, ctex::xport::ResourceReservation{});
+        try {
+            handle->value =
+                ledger->value.admit({.cpu_bytes = descriptor->limits.cpu_bytes,
+                                     .gpu_bytes = descriptor->limits.gpu_bytes,
+                                     .backing_store_bytes = descriptor->limits.backing_store_bytes,
+                                     .temporary_bytes = descriptor->limits.temporary_bytes},
+                                    {.operation = operation,
+                                     .fixed_requirements = fixed,
+                                     .per_work_item = per_work_item,
+                                     .work_item_count = descriptor->work_item_count});
+        } catch (...) {
+            destroy_resource_reservation(handle);
+            throw;
+        }
+        const ctex::xport::ResourceAdmissionReport& report = handle->value.report();
+        *out_report = {
+            .size = CTEX_RESOURCE_ADMISSION_REPORT_CURRENT_SIZE,
+            .status = static_cast<std::uint32_t>(report.status),
+            .work_item_count = report.work_item_count,
+            .admitted_work_items = report.admitted_work_items,
+            .projected_cpu_bytes = report.projected_usage.cpu_bytes,
+            .projected_gpu_bytes = report.projected_usage.gpu_bytes,
+            .projected_backing_store_bytes = report.projected_usage.backing_store_bytes,
+            .projected_temporary_bytes = report.projected_usage.temporary_bytes,
+            .evicted_allocation_count = report.evicted_allocation_identities.size(),
+        };
+        if (handle->value.active()) {
+            *out_reservation = handle;
+        } else {
+            destroy_resource_reservation(handle);
+        }
+    });
+}
+
+extern "C" void ctex_resource_reservation_destroy(ctex_resource_reservation* reservation) {
+    destroy_resource_reservation(reservation);
+}
+
+extern "C" void ctex_resource_reservation_release(ctex_resource_reservation* reservation) {
+    if (reservation != nullptr) {
+        reservation->value.release();
+    }
+}
+
+extern "C" ctex_result ctex_resource_reservation_get_evicted_allocations(
+    const ctex_resource_reservation* reservation, std::uint64_t* allocation_identities,
+    std::size_t allocation_identity_capacity, std::size_t* out_allocation_identity_count) {
+    return call_boundary("ctex_resource_reservation_get_evicted_allocations", [&] {
+        if (reservation == nullptr || out_allocation_identity_count == nullptr) {
+            throw_boundary(
+                CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                reservation == nullptr ? "reservation=null" : "out_allocation_identity_count=null");
+        }
+        const auto& evicted = reservation->value.report().evicted_allocation_identities;
+        validate_output_array(allocation_identities, allocation_identity_capacity, evicted.size(),
+                              "evicted resource allocation identities");
+        if (allocation_identities != nullptr) {
+            std::ranges::copy(evicted, allocation_identities);
+        }
+        *out_allocation_identity_count = evicted.size();
     });
 }
 

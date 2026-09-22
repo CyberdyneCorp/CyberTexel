@@ -181,5 +181,9 @@ Unified resource accounting now exposes stable physical identities, complete
 category and residency-role totals, pinned/in-flight state, and
 API-independent host device descriptors. The exact remaining gap is 17 runtime
 requirements.
+Atomic reservations now enforce independent CPU, GPU, backing-store and
+temporary ceilings, schedule the largest fitting bounded tile batch, evict only
+eligible reconstructible caches, and leave storage unchanged on refusal. The
+exact remaining gap is 16 runtime requirements.
 The gate is not part of the aggregate `just check` until that count reaches zero;
 its unit tests run in the normal tooling suite throughout the migration.

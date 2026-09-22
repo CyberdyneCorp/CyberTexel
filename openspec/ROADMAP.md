@@ -312,6 +312,10 @@ Unified resource accounting now reports every required ownership category and
 residency role through stable physical identities, including shared CPU/GPU,
 pinned and in-flight allocations plus API-independent host device descriptors.
 The exact C ABI gap is now 17 runtime requirements.
+Budget admission now reserves fixed and tiled working sets against independent
+CPU, GPU, backing-store and temporary ceilings, with deterministic eligible
+cache eviction and atomic refusal. The exact C ABI gap is now 16 runtime
+requirements.
 
 ## Milestones
 

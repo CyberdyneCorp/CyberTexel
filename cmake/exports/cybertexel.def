@@ -52,6 +52,10 @@ EXPORTS
     ctex_resource_ledger_upsert
     ctex_resource_ledger_remove
     ctex_resource_ledger_get_report
+    ctex_resource_ledger_admit
+    ctex_resource_reservation_destroy
+    ctex_resource_reservation_release
+    ctex_resource_reservation_get_evicted_allocations
     ctex_texture_set_query_channel_snapshot
     ctex_paint_preview_session_query_snapshot
     ctex_transport_snapshot_destroy

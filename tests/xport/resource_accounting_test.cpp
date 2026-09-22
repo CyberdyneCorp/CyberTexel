@@ -1,5 +1,6 @@
 #include <ctex/xport/resource_accounting.hpp>
 #include <iostream>
+#include <limits>
 #include <stdexcept>
 #include <string_view>
 
@@ -96,12 +97,121 @@ bool invalid_or_reused_identities_are_refused() {
            expect(changed_storage, "allocation identity changed category without refusal");
 }
 
+ResourceBudgetLimits limits(std::size_t cpu, std::size_t temporary) {
+    return {.cpu_bytes = cpu,
+            .gpu_bytes = std::numeric_limits<std::size_t>::max(),
+            .backing_store_bytes = std::numeric_limits<std::size_t>::max(),
+            .temporary_bytes = temporary};
+}
+
+bool admission_reserves_a_bounded_tile_batch() {
+    ResourceLedger ledger;
+    ledger.upsert({.allocation_identity = 10,
+                   .category = ResourceCategory::document_storage,
+                   .physical_bytes = 400,
+                   .roles = resource_role_cpu_resident,
+                   .device = std::nullopt});
+    const ResourceRequirement fixed{.category = ResourceCategory::history,
+                                    .physical_bytes = 100,
+                                    .roles = resource_role_cpu_resident};
+    ResourceReservation first = ledger.admit(
+        limits(1000, 300), {.operation = "large export",
+                            .fixed_requirements = std::span<const ResourceRequirement>(&fixed, 1),
+                            .per_work_item = {.category = ResourceCategory::temporary,
+                                              .physical_bytes = 100,
+                                              .roles = resource_role_cpu_resident},
+                            .work_item_count = 10});
+    ResourceReservation concurrent = ledger.admit(
+        limits(1000, 300), {.operation = "concurrent export",
+                            .fixed_requirements = std::span<const ResourceRequirement>(&fixed, 1),
+                            .per_work_item = {.category = ResourceCategory::temporary,
+                                              .physical_bytes = 100,
+                                              .roles = resource_role_cpu_resident},
+                            .work_item_count = 1});
+    const bool bounded =
+        expect(first.active() && first.report().status == ResourceAdmissionStatus::admitted_tiled &&
+                   first.report().admitted_work_items == 3 &&
+                   first.report().projected_usage.cpu_bytes == 800 &&
+                   first.report().projected_usage.temporary_bytes == 300,
+               "large work was not admitted as the maximum bounded tile batch") &&
+        expect(!concurrent.active() &&
+                   concurrent.report().status == ResourceAdmissionStatus::over_budget,
+               "concurrent work ignored an active reservation");
+    first.release();
+    ResourceReservation after_release =
+        ledger.admit(limits(1000, 300), {.operation = "later export",
+                                         .fixed_requirements = {},
+                                         .per_work_item = {.category = ResourceCategory::temporary,
+                                                           .physical_bytes = 100,
+                                                           .roles = resource_role_cpu_resident},
+                                         .work_item_count = 1});
+    return bounded && expect(after_release.active(), "released budget remained reserved");
+}
+
+bool admission_evicts_only_when_required_and_refusal_is_atomic() {
+    ResourceLedger ledger;
+    ledger.upsert({.allocation_identity = 20,
+                   .category = ResourceCategory::document_storage,
+                   .physical_bytes = 500,
+                   .roles = resource_role_cpu_resident,
+                   .device = std::nullopt});
+    ledger.upsert({.allocation_identity = 21,
+                   .category = ResourceCategory::cache,
+                   .physical_bytes = 300,
+                   .roles = resource_role_cpu_resident,
+                   .device = std::nullopt});
+    ledger.upsert({.allocation_identity = 22,
+                   .category = ResourceCategory::cache,
+                   .physical_bytes = 200,
+                   .roles = resource_role_cpu_resident | resource_role_pinned,
+                   .device = std::nullopt});
+    const ResourceRequirement fixed{.category = ResourceCategory::recovery_record,
+                                    .physical_bytes = 100,
+                                    .roles = resource_role_cpu_resident};
+    ResourceReservation admitted = ledger.admit(
+        limits(1000, 1000), {.operation = "checkpoint",
+                             .fixed_requirements = std::span<const ResourceRequirement>(&fixed, 1),
+                             .per_work_item = {},
+                             .work_item_count = 0});
+    const bool evicted =
+        expect(admitted.active() && admitted.report().evicted_allocation_identities ==
+                                        std::vector<std::uint64_t>{21},
+               "admission did not evict the eligible cache allocation") &&
+        expect(ledger.report().physical_bytes == 700,
+               "admission evicted pinned or unrelated storage");
+
+    ResourceLedger refusing;
+    refusing.upsert({.allocation_identity = 30,
+                     .category = ResourceCategory::document_storage,
+                     .physical_bytes = 900,
+                     .roles = resource_role_cpu_resident,
+                     .device = std::nullopt});
+    refusing.upsert({.allocation_identity = 31,
+                     .category = ResourceCategory::cache,
+                     .physical_bytes = 50,
+                     .roles = resource_role_cpu_resident,
+                     .device = std::nullopt});
+    const ResourceRequirement impossible{.category = ResourceCategory::history,
+                                         .physical_bytes = 200,
+                                         .roles = resource_role_cpu_resident};
+    ResourceReservation rejected =
+        refusing.admit(limits(1000, 1000),
+                       {.operation = "impossible edit",
+                        .fixed_requirements = std::span<const ResourceRequirement>(&impossible, 1),
+                        .per_work_item = {},
+                        .work_item_count = 0});
+    return evicted && expect(!rejected.active() && refusing.report().physical_bytes == 950,
+                             "refused admission changed committed cache storage");
+}
+
 }  // namespace
 
 int main() {
     return shared_views_count_physical_storage_once() &&
                    updates_and_release_are_identity_stable() &&
-                   invalid_or_reused_identities_are_refused()
+                   invalid_or_reused_identities_are_refused() &&
+                   admission_reserves_a_bounded_tile_batch() &&
+                   admission_evicts_only_when_required_and_refusal_is_atomic()
                ? 0
                : 1;
 }

@@ -148,6 +148,7 @@ typedef struct ctex_transport_snapshot_pool ctex_transport_snapshot_pool;
 typedef struct ctex_transport_snapshot ctex_transport_snapshot;
 typedef struct ctex_transport_readback ctex_transport_readback;
 typedef struct ctex_resource_ledger ctex_resource_ledger;
+typedef struct ctex_resource_reservation ctex_resource_reservation;
 typedef struct ctex_mesh_map_set ctex_mesh_map_set;
 typedef struct ctex_mesh_map_bake_session ctex_mesh_map_bake_session;
 typedef struct ctex_mesh_map_bake_request_token ctex_mesh_map_bake_request_token;
@@ -2878,6 +2879,64 @@ typedef struct ctex_resource_accounting_report {
 #define CTEX_RESOURCE_ACCOUNTING_REPORT_V1_SIZE ((uint32_t)sizeof(ctex_resource_accounting_report))
 #define CTEX_RESOURCE_ACCOUNTING_REPORT_CURRENT_SIZE \
     ((uint32_t)sizeof(ctex_resource_accounting_report))
+
+typedef struct ctex_resource_budget_limits {
+    uint32_t size;
+    size_t cpu_bytes;
+    size_t gpu_bytes;
+    size_t backing_store_bytes;
+    size_t temporary_bytes;
+} ctex_resource_budget_limits;
+
+#define CTEX_RESOURCE_BUDGET_LIMITS_V1_SIZE ((uint32_t)sizeof(ctex_resource_budget_limits))
+#define CTEX_RESOURCE_BUDGET_LIMITS_CURRENT_SIZE ((uint32_t)sizeof(ctex_resource_budget_limits))
+
+typedef struct ctex_resource_requirement {
+    uint32_t size;
+    uint32_t category;
+    size_t physical_bytes;
+    uint32_t roles;
+} ctex_resource_requirement;
+
+#define CTEX_RESOURCE_REQUIREMENT_V1_SIZE ((uint32_t)sizeof(ctex_resource_requirement))
+#define CTEX_RESOURCE_REQUIREMENT_CURRENT_SIZE ((uint32_t)sizeof(ctex_resource_requirement))
+
+typedef struct ctex_resource_admission_descriptor {
+    uint32_t size;
+    const char* operation;
+    ctex_resource_budget_limits limits;
+    const ctex_resource_requirement* fixed_requirements;
+    size_t fixed_requirement_count;
+    ctex_resource_requirement per_work_item;
+    size_t work_item_count;
+} ctex_resource_admission_descriptor;
+
+#define CTEX_RESOURCE_ADMISSION_DESCRIPTOR_V1_SIZE \
+    ((uint32_t)sizeof(ctex_resource_admission_descriptor))
+#define CTEX_RESOURCE_ADMISSION_DESCRIPTOR_CURRENT_SIZE \
+    ((uint32_t)sizeof(ctex_resource_admission_descriptor))
+
+typedef enum ctex_resource_admission_status {
+    CTEX_RESOURCE_ADMITTED_WHOLE = 0,
+    CTEX_RESOURCE_ADMITTED_TILED = 1,
+    CTEX_RESOURCE_OVER_BUDGET = 2
+} ctex_resource_admission_status;
+
+typedef struct ctex_resource_admission_report {
+    uint32_t size;
+    uint32_t status;
+    size_t work_item_count;
+    size_t admitted_work_items;
+    size_t projected_cpu_bytes;
+    size_t projected_gpu_bytes;
+    size_t projected_backing_store_bytes;
+    size_t projected_temporary_bytes;
+    size_t evicted_allocation_count;
+} ctex_resource_admission_report;
+
+#define CTEX_RESOURCE_ADMISSION_REPORT_V1_SIZE ((uint32_t)sizeof(ctex_resource_admission_report))
+#define CTEX_RESOURCE_ADMISSION_REPORT_CURRENT_SIZE \
+    ((uint32_t)sizeof(ctex_resource_admission_report))
 
 typedef enum ctex_transport_channel_order {
     CTEX_TRANSPORT_CHANNEL_ORDER_R = 0,
@@ -6381,6 +6440,14 @@ CTEX_API ctex_result ctex_resource_ledger_get_report(const ctex_resource_ledger*
                                                      ctex_resource_accounting_report* out_report,
                                                      ctex_resource_category_report* categories,
                                                      size_t category_capacity);
+CTEX_API ctex_result ctex_resource_ledger_admit(
+    ctex_resource_ledger* ledger, const ctex_resource_admission_descriptor* descriptor,
+    ctex_resource_reservation** out_reservation, ctex_resource_admission_report* out_report);
+CTEX_API void ctex_resource_reservation_destroy(ctex_resource_reservation* reservation);
+CTEX_API void ctex_resource_reservation_release(ctex_resource_reservation* reservation);
+CTEX_API ctex_result ctex_resource_reservation_get_evicted_allocations(
+    const ctex_resource_reservation* reservation, uint64_t* allocation_identities,
+    size_t allocation_identity_capacity, size_t* out_allocation_identity_count);
 CTEX_API ctex_result ctex_texture_set_query_channel_snapshot(
     ctex_transport_snapshot_pool* pool, const ctex_document* document, const char* texture_set_id,
     const char* semantic_id, ctex_transport_revision_cursor synchronized_cursor,
