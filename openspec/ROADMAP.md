@@ -290,6 +290,9 @@ Sparse UDIM storage now crosses C through backward-compatible texture-set
 descriptors, logical occupancy declaration and enumeration, atomic absolute-UV
 write batches and caller-owned pixel readback. Exactly 35 runtime requirements
 remain without C ABI evidence.
+Atlas creation and inspection now cross C with validated existing-set
+membership, non-overlapping regions and caller-owned identity buffers. Exactly
+34 runtime requirements remain without C ABI evidence.
 
 ## Milestones
 

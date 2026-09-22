@@ -157,5 +157,8 @@ Sparse UDIM texture sets now cross the boundary through an appended,
 backward-defaulted descriptor field, logical occupancy declaration and
 enumeration, atomic absolute-UV write batches and caller-owned pixel readback.
 The exact remaining gap is 35 runtime requirements.
+Validated atlas creation, identity enumeration and ordered region inspection
+now expose the document's export-time texture-set grouping. The exact remaining
+gap is 34 runtime requirements.
 The gate is not part of the aggregate `just check` until that count reaches zero;
 its unit tests run in the normal tooling suite throughout the migration.

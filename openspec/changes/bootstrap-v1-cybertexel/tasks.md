@@ -1166,6 +1166,12 @@ pixel readback. Cross-border writes and invalid-batch rollback are covered by a
 strict-C fixture, reducing the exact remaining task-14.8 gap to 35 runtime
 requirements.
 
+Atlas creation, identity enumeration and ordered region inspection now cross
+the C boundary with atomic refusal of missing sets, duplicate membership,
+out-of-bounds regions and overlaps. A strict-C fixture covers the shared-atlas
+path and short-buffer contract, reducing the task-14.8 gap to 34 runtime
+requirements.
+
 ## 1. Foundation
 
 - [x] 1.1 CMake project, C++20, warnings as errors, presets for headless, macOS, Linux, Windows, iOS, Android

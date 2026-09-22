@@ -2179,6 +2179,52 @@ typedef struct ctex_udim_write_info {
 #define CTEX_UDIM_WRITE_INFO_V1_SIZE ((uint32_t)sizeof(ctex_udim_write_info))
 #define CTEX_UDIM_WRITE_INFO_CURRENT_SIZE ((uint32_t)sizeof(ctex_udim_write_info))
 
+typedef struct ctex_atlas_region_descriptor {
+    uint32_t size;
+    const char* texture_set_id;
+    uint32_t x;
+    uint32_t y;
+    uint32_t width;
+    uint32_t height;
+} ctex_atlas_region_descriptor;
+
+#define CTEX_ATLAS_REGION_DESCRIPTOR_V1_SIZE ((uint32_t)sizeof(ctex_atlas_region_descriptor))
+#define CTEX_ATLAS_REGION_DESCRIPTOR_CURRENT_SIZE ((uint32_t)sizeof(ctex_atlas_region_descriptor))
+
+typedef struct ctex_atlas_descriptor {
+    uint32_t size;
+    const char* identifier;
+    const char* display_name;
+    uint32_t width;
+    uint32_t height;
+    const ctex_atlas_region_descriptor* regions;
+    size_t region_count;
+} ctex_atlas_descriptor;
+
+#define CTEX_ATLAS_DESCRIPTOR_V1_SIZE ((uint32_t)sizeof(ctex_atlas_descriptor))
+#define CTEX_ATLAS_DESCRIPTOR_CURRENT_SIZE ((uint32_t)sizeof(ctex_atlas_descriptor))
+
+typedef struct ctex_atlas_region {
+    size_t texture_set_id_offset;
+    size_t texture_set_id_size;
+    uint32_t x;
+    uint32_t y;
+    uint32_t width;
+    uint32_t height;
+} ctex_atlas_region;
+
+typedef struct ctex_atlas_info {
+    uint32_t size;
+    uint32_t width;
+    uint32_t height;
+    size_t region_count;
+    size_t required_display_name_size;
+    size_t required_texture_set_id_size;
+} ctex_atlas_info;
+
+#define CTEX_ATLAS_INFO_V1_SIZE ((uint32_t)sizeof(ctex_atlas_info))
+#define CTEX_ATLAS_INFO_CURRENT_SIZE ((uint32_t)sizeof(ctex_atlas_info))
+
 typedef enum ctex_scalar_representation {
     CTEX_SCALAR_REPRESENTATION_UNSIGNED_NORMALIZED = 0,
     CTEX_SCALAR_REPRESENTATION_FLOATING_POINT = 1
@@ -5795,6 +5841,16 @@ CTEX_API ctex_result ctex_document_get_texture_set_ids(const ctex_document* docu
                                                        size_t buffer_size,
                                                        size_t* out_required_size,
                                                        size_t* out_count);
+CTEX_API ctex_result ctex_document_create_atlas(ctex_document* document,
+                                                const ctex_atlas_descriptor* descriptor);
+CTEX_API ctex_result ctex_document_get_atlas_ids(const ctex_document* document, char* buffer,
+                                                 size_t buffer_size, size_t* out_required_size,
+                                                 size_t* out_count);
+CTEX_API ctex_result ctex_document_get_atlas(const ctex_document* document, const char* atlas_id,
+                                             ctex_atlas_info* out_info, ctex_atlas_region* regions,
+                                             size_t region_capacity, char* display_name,
+                                             size_t display_name_size, char* texture_set_ids,
+                                             size_t texture_set_id_size);
 CTEX_API ctex_result ctex_texture_set_get_channel_ids(const ctex_document* document,
                                                       const char* texture_set_id, char* buffer,
                                                       size_t buffer_size, size_t* out_required_size,

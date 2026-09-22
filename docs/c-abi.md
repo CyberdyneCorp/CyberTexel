@@ -151,6 +151,13 @@ and newly allocated tile counts. `ctex_texture_set_read_udim_pixel` uses the
 normal two-call sizing contract. Invalid coordinates or pixel layouts are
 refused before any tile in the batch changes.
 
+`ctex_document_create_atlas` groups existing texture sets into validated,
+non-overlapping regions. Atlas identities use the packed two-call enumeration
+contract, while `ctex_document_get_atlas` returns dimensions, ordered regions,
+the display name and packed texture-set identities through caller-owned buffers.
+Missing sets, repeated membership, out-of-bounds regions and overlaps are
+refused before the document changes.
+
 ## Mesh maps
 
 `ctex_mesh_map_set_create` binds an explicit map set to one document texture set

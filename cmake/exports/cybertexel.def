@@ -1,8 +1,11 @@
 EXPORTS
+    ctex_document_create_atlas
     ctex_document_create
     ctex_document_create_texture_set
     ctex_document_create_texture_sets_from_mesh
     ctex_document_destroy
+    ctex_document_get_atlas
+    ctex_document_get_atlas_ids
     ctex_document_get_texture_set_ids
     ctex_mesh_create_with_tangent_data
     ctex_mesh_replace_with_tangent_data

@@ -2814,6 +2814,42 @@ ctex::doc::TextureSetDescriptor texture_set_descriptor(
             .udim_tiling = udim_tiling};
 }
 
+ctex::doc::AtlasDescriptor atlas_descriptor(const ctex_atlas_descriptor& descriptor) {
+    validate_structure_size(descriptor.size, CTEX_ATLAS_DESCRIPTOR_V1_SIZE,
+                            CTEX_ATLAS_DESCRIPTOR_CURRENT_SIZE, "atlas descriptor size");
+    if (descriptor.identifier == nullptr || descriptor.display_name == nullptr ||
+        (descriptor.regions == nullptr && descriptor.region_count != 0)) {
+        throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                       "atlas identifier, display name, and declared regions are required");
+    }
+    ctex::doc::AtlasDescriptor converted{
+        .identifier = descriptor.identifier,
+        .display_name = descriptor.display_name,
+        .width = descriptor.width,
+        .height = descriptor.height,
+        .regions = {},
+    };
+    converted.regions.reserve(descriptor.region_count);
+    for (std::size_t index = 0; index < descriptor.region_count; ++index) {
+        const ctex_atlas_region_descriptor& region = descriptor.regions[index];
+        validate_structure_size(region.size, CTEX_ATLAS_REGION_DESCRIPTOR_V1_SIZE,
+                                CTEX_ATLAS_REGION_DESCRIPTOR_CURRENT_SIZE,
+                                "atlas region descriptor size");
+        if (region.texture_set_id == nullptr) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                           "atlas region texture_set_id=null");
+        }
+        converted.regions.push_back({
+            .texture_set_identifier = region.texture_set_id,
+            .x = region.x,
+            .y = region.y,
+            .width = region.width,
+            .height = region.height,
+        });
+    }
+    return converted;
+}
+
 void create_texture_sets_from_mesh(ctex_document& document, const ctex_mesh& mesh,
                                    const char* uv_set, std::uint32_t width, std::uint32_t height,
                                    std::uint8_t default_bit_depth) {
@@ -15757,6 +15793,104 @@ extern "C" ctex_result ctex_document_get_texture_set_ids(const ctex_document* do
         }
         validate_string_buffer(buffer, buffer_size, required_size);
         copy_packed_strings(identifiers, buffer);
+    });
+}
+
+extern "C" ctex_result ctex_document_create_atlas(ctex_document* document,
+                                                  const ctex_atlas_descriptor* descriptor) {
+    return call_boundary("ctex_document_create_atlas", [&] {
+        if (document == nullptr || descriptor == nullptr) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                           document == nullptr ? "document=null" : "descriptor=null");
+        }
+        static_cast<void>(document->value.create_atlas(atlas_descriptor(*descriptor)));
+    });
+}
+
+extern "C" ctex_result ctex_document_get_atlas_ids(const ctex_document* document, char* buffer,
+                                                   std::size_t buffer_size,
+                                                   std::size_t* out_required_size,
+                                                   std::size_t* out_count) {
+    return call_boundary("ctex_document_get_atlas_ids", [&] {
+        if (document == nullptr || out_required_size == nullptr) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                           document == nullptr ? "document=null" : "out_required_size=null");
+        }
+        const std::vector<std::string> identifiers = document->value.atlas_ids();
+        const std::size_t required_size = texture_set_id_buffer_size(identifiers);
+        *out_required_size = required_size;
+        if (out_count != nullptr) {
+            *out_count = identifiers.size();
+        }
+        validate_string_buffer(buffer, buffer_size, required_size);
+        if (buffer != nullptr) {
+            copy_packed_strings(identifiers, buffer);
+        }
+    });
+}
+
+extern "C" ctex_result ctex_document_get_atlas(const ctex_document* document, const char* atlas_id,
+                                               ctex_atlas_info* out_info,
+                                               ctex_atlas_region* regions,
+                                               std::size_t region_capacity, char* display_name,
+                                               std::size_t display_name_size, char* texture_set_ids,
+                                               std::size_t texture_set_id_size) {
+    return call_boundary("ctex_document_get_atlas", [&] {
+        if (document == nullptr || atlas_id == nullptr || out_info == nullptr) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                           "document, atlas_id, and out_info are required");
+        }
+        validate_structure_size(out_info->size, CTEX_ATLAS_INFO_V1_SIZE,
+                                CTEX_ATLAS_INFO_CURRENT_SIZE, "atlas info size");
+        if (!document->value.contains_atlas(atlas_id)) {
+            throw_boundary(CTEX_RESULT_MISSING_RESOURCE, CTEX_DIAGNOSTIC_INVALID_DESCRIPTOR_VALUE,
+                           "atlas identity is not present: " + std::string(atlas_id));
+        }
+        const ctex::doc::AtlasDescriptor& atlas = document->value.atlas(atlas_id);
+        std::vector<std::string> texture_sets;
+        texture_sets.reserve(atlas.regions.size());
+        for (const auto& region : atlas.regions) {
+            texture_sets.push_back(region.texture_set_identifier);
+        }
+        const std::size_t required_display_name_size = atlas.display_name.size() + 1;
+        const std::size_t required_texture_set_id_size = texture_set_id_buffer_size(texture_sets);
+        *out_info = {
+            .size = CTEX_ATLAS_INFO_CURRENT_SIZE,
+            .width = atlas.width,
+            .height = atlas.height,
+            .region_count = atlas.regions.size(),
+            .required_display_name_size = required_display_name_size,
+            .required_texture_set_id_size = required_texture_set_id_size,
+        };
+        validate_output_array(regions, region_capacity, atlas.regions.size(), "regions");
+        validate_string_buffer(display_name, display_name_size, required_display_name_size);
+        validate_string_buffer(texture_set_ids, texture_set_id_size, required_texture_set_id_size);
+        if (display_name != nullptr) {
+            std::memcpy(display_name, atlas.display_name.c_str(), required_display_name_size);
+        }
+        if (texture_set_ids == nullptr && regions == nullptr) {
+            return;
+        }
+        std::size_t offset = 0;
+        for (std::size_t index = 0; index < atlas.regions.size(); ++index) {
+            const auto& source = atlas.regions[index];
+            const std::size_t identifier_size = source.texture_set_identifier.size() + 1;
+            if (regions != nullptr) {
+                regions[index] = {
+                    .texture_set_id_offset = offset,
+                    .texture_set_id_size = identifier_size,
+                    .x = source.x,
+                    .y = source.y,
+                    .width = source.width,
+                    .height = source.height,
+                };
+            }
+            if (texture_set_ids != nullptr) {
+                std::memcpy(texture_set_ids + offset, source.texture_set_identifier.c_str(),
+                            identifier_size);
+            }
+            offset += identifier_size;
+        }
     });
 }
 
