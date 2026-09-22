@@ -245,6 +245,10 @@ The current implementation provides:
   in Linux, macOS and Windows wheels, checks ABI compatibility at import, maps
   native failures to typed exceptions, and exchanges decoded images, channel
   snapshots, meshes, mesh maps and generated masks as NumPy arrays.
+- A [SwiftPM binding](docs/swift-binding.md) for macOS 13 and iOS 16 that resolves
+  the installed C ABI through a system-library target, presents document and
+  texture-set values with thrown typed errors, and releases shared native
+  handles automatically and exactly once.
 - An isolated [Kong shader compiler context](docs/kong-backend.md) that compiles
   Kong source deterministically to WGSL, MSL, binary SPIR-V, or HLSL, supports
   concurrent independent targets, and reports unsupported requests explicitly.
@@ -322,9 +326,9 @@ The current implementation provides:
   [stroke-model and paint-engine](docs/paint-scenarios.md) scenario suites.
 
 Remaining advanced image IO, mesh/texture-set extensions, paint-tool scenario
-closure, host-transport binding/performance integrations, Swift and Rust
-bindings, and delivery workflow stages remain roadmap work and are not
-presented as implemented APIs yet.
+closure, host-transport binding/performance integrations, the Rust binding,
+full cross-binding parity, and delivery workflow stages remain roadmap work and
+are not presented as implemented APIs yet.
 
 ## Architecture
 

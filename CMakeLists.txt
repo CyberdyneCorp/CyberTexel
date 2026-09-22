@@ -8,6 +8,7 @@ endif()
 
 project(CyberTexel VERSION "${CTEX_VERSION}" LANGUAGES C CXX)
 
+include(GNUInstallDirs)
 find_package(Threads REQUIRED)
 
 option(CTEX_WARNINGS_AS_ERRORS "Treat compiler warnings in CyberTexel sources as errors" ON)
@@ -296,6 +297,24 @@ if(CTEX_ENABLE_VULKAN_EXECUTOR)
         target_link_libraries(cybertexel_c PRIVATE volk::volk)
     endif()
 endif()
+
+configure_file(cmake/cybertexel.pc.in cybertexel.pc @ONLY)
+install(
+    TARGETS cybertexel_c ctex_lodepng ctex_kong tinyexr miniz
+    ARCHIVE DESTINATION "${CMAKE_INSTALL_LIBDIR}"
+    LIBRARY DESTINATION "${CMAKE_INSTALL_LIBDIR}"
+    RUNTIME DESTINATION "${CMAKE_INSTALL_BINDIR}"
+)
+install(
+    FILES
+        "${PROJECT_SOURCE_DIR}/include/ctex/capi.h"
+        "${PROJECT_BINARY_DIR}/generated/include/ctex/version.h"
+    DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}/ctex"
+)
+install(
+    FILES "${PROJECT_BINARY_DIR}/cybertexel.pc"
+    DESTINATION "${CMAKE_INSTALL_LIBDIR}/pkgconfig"
+)
 
 if(CTEX_BUILD_FUZZERS)
     if(NOT CMAKE_CXX_COMPILER_ID MATCHES "Clang")

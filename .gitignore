@@ -1,6 +1,7 @@
 /build/
 /python/build/
 /python/src/*.egg-info/
+/swift/.build/
 /out/
 /dist/
 /target/

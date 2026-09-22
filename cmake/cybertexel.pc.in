@@ -1,0 +1,11 @@
+prefix=${pcfiledir}/../..
+exec_prefix=${prefix}
+libdir=${prefix}/@CMAKE_INSTALL_LIBDIR@
+includedir=${prefix}/@CMAKE_INSTALL_INCLUDEDIR@
+
+Name: CyberTexel
+Description: Portable headless texture-painting engine C ABI
+Version: @PROJECT_VERSION@
+Libs: -L${libdir} -lcybertexel_c
+Libs.private: -lctex_lodepng -lctex_kong -ltinyexr -lminiz -lc++
+Cflags: -I${includedir}

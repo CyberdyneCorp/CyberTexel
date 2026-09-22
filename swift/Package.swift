@@ -8,6 +8,14 @@ let cyberTexelVersion = "0.1.0"
 
 let package = Package(
     name: "CyberTexel",
-    products: [],
-    targets: []
+    platforms: [.macOS(.v13), .iOS(.v16)],
+    products: [
+        .library(name: "CyberTexel", targets: ["CyberTexel"])
+    ],
+    targets: [
+        .systemLibrary(name: "CyberTexelC", pkgConfig: "cybertexel"),
+        .target(name: "CyberTexel", dependencies: ["CyberTexelC"]),
+        .executableTarget(name: "CyberTexelLinkCheck", dependencies: ["CyberTexel"]),
+        .testTarget(name: "CyberTexelTests", dependencies: ["CyberTexel"])
+    ]
 )

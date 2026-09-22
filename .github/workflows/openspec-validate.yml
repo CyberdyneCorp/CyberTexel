@@ -123,6 +123,17 @@ jobs:
       env:
         CTEX_PYTHON_VERSION: '3.14'
 
+  swift-package:
+    name: swift-package-macos-ios
+    runs-on: macos-latest
+    steps:
+    - uses: actions/checkout@v4
+    - uses: extractions/setup-just@v2
+    - name: Install pkg-config
+      run: brew install pkgconf
+    - name: Build and test Swift package
+      run: just test-swift-binding
+
   check-spec:
     name: check-spec
     runs-on: ubuntu-latest

@@ -91,18 +91,15 @@ function(ctex_add_library)
             SOVERSION "${PROJECT_VERSION_MAJOR}"
     )
 
-    if(NOT CMAKE_SYSTEM_NAME STREQUAL "iOS")
+    if(CMAKE_SYSTEM_NAME STREQUAL "iOS")
+        add_library(cybertexel_c STATIC ${module_objects})
+    else()
         add_library(cybertexel_c SHARED ${module_objects})
-        add_library(CyberTexel::capi_shared ALIAS cybertexel_c)
-        ctex_configure_cpp_target(cybertexel_c)
+    endif()
+    add_library(CyberTexel::capi_shared ALIAS cybertexel_c)
+    ctex_configure_cpp_target(cybertexel_c)
+    if(NOT CMAKE_SYSTEM_NAME STREQUAL "iOS")
         target_compile_definitions(cybertexel_c INTERFACE CTEX_SHARED)
-        set_target_properties(
-            cybertexel_c
-            PROPERTIES
-                VERSION "${PROJECT_VERSION}"
-                SOVERSION "${PROJECT_VERSION_MAJOR}"
-        )
-
         if(APPLE)
             target_link_options(
                 cybertexel_c
@@ -129,4 +126,10 @@ function(ctex_add_library)
             )
         endif()
     endif()
+    set_target_properties(
+        cybertexel_c
+        PROPERTIES
+            VERSION "${PROJECT_VERSION}"
+            SOVERSION "${PROJECT_VERSION_MAJOR}"
+    )
 endfunction()

@@ -1269,6 +1269,15 @@ wheel in isolated minimum and current-version environments. The macOS build
 also compiles deterministic numeric emission for its declared 13.0 deployment
 target instead of relying on newer floating-point `charconv` symbols.
 
+Task 14.10 installs the C header, native library and relocatable pkg-config
+metadata consumed by a path-independent SwiftPM system target. The macOS
+13+/iOS 16+ Swift layer exposes document and texture-set values, checks the ABI
+major before handle creation, turns result and diagnostic codes into thrown
+errors, and shares one private reference-counted handle owner across document
+copies. XCTest proves real document use, typed failure and exact-once
+destruction. The package gate runs those tests on macOS and cross-builds the C
+ABI plus an executable Swift link check for iOS arm64.
+
 ## 1. Foundation
 
 - [x] 1.1 CMake project, C++20, warnings as errors, presets for headless, macOS, Linux, Windows, iOS, Android
@@ -1474,7 +1483,7 @@ target instead of relying on newer floating-point `charconv` symbols.
 - [x] 14.7 Host allocator callbacks
 - [ ] 14.8 Full-surface coverage gate
 - [x] 14.9 Python binding, numpy-native, typed exceptions, wheel packaging
-- [ ] 14.10 Swift package with a system target, idiomatic layer, automatic handle lifetime
+- [x] 14.10 Swift package with a system target, idiomatic layer, automatic handle lifetime
 - [ ] 14.11 Rust `-sys` and safe crates, typed errors, `Send`/`Sync` matching the contract
 - [ ] 14.12 Host-executed route and host transport reachable from all three bindings
 - [ ] 14.13 Binding parity gate

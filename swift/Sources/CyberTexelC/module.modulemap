@@ -1,0 +1,10 @@
+module CyberTexelC [system] {
+    header "shim.h"
+    link "cybertexel_c"
+    link "ctex_lodepng"
+    link "ctex_kong"
+    link "tinyexr"
+    link "miniz"
+    link "c++"
+    export *
+}

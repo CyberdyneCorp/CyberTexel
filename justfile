@@ -143,6 +143,9 @@ test-c-api: build
 test-python-binding: (_require "uv" "Python wheel builder") (_require "cmake" "3.24")
     uv run --no-project --python 3.12 -- python tools/test_python_wheel.py
 
+test-swift-binding: (_require "swift" "Swift 5.9") (_require "cmake" "3.24")
+    python3 tools/test_swift_package.py
+
 test-preset-shelf-library: build
     ctest --test-dir build/headless --output-on-failure -R '^preset-shelf-library$'
 
