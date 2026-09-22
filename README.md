@@ -254,6 +254,10 @@ The current implementation provides:
   handles, returns typed diagnostic-bearing errors, confines `unsafe` to one
   audited boundary, and encodes the per-document threading contract by making
   `Document` movable between threads (`Send`) but not shareable (`Sync`).
+- A shared [binding host-execution workflow](docs/binding-host-transport.md)
+  that emits real shader source and JSON pass plans, records host-resident
+  completion without pixel transfer, and makes pinned asynchronous readback
+  explicit in Python, Swift and safe Rust.
 - An isolated [Kong shader compiler context](docs/kong-backend.md) that compiles
   Kong source deterministically to WGSL, MSL, binary SPIR-V, or HLSL, supports
   concurrent independent targets, and reports unsupported requests explicitly.

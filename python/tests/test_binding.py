@@ -99,6 +99,76 @@ class BindingTest(unittest.TestCase):
         self.assertIn("requires missing map", raised.exception.diagnostic)
         self.assertIn("position", raised.exception.diagnostic)
 
+    def test_host_execution_retains_resident_result_without_readback(self) -> None:
+        program = cybertexel.emit_default_host_material(
+            stable_identity="binding/paint",
+            output_identity="paint",
+            width=64,
+            height=32,
+        )
+        self.assertIn(b"@vertex", program.vertex_artifact)
+        self.assertIn('"logical_id":"paint"', program.pass_plan)
+        source = cybertexel.HostResource(
+            "source",
+            1,
+            "input",
+            2,
+            64,
+            32,
+            False,
+        )
+        output = cybertexel.HostResource(
+            "paint",
+            1,
+            "output",
+            2,
+            64,
+            32,
+            True,
+            externally_initialized=False,
+            required_state=cybertexel.ResourceState.RENDER_TARGET,
+        )
+        with cybertexel.HostExecutionSession() as session:
+            token = session.submit("paint", 0, [source, output])
+            result = session.complete(
+                token,
+                [cybertexel.CompletedResource("paint", 1, 2, 64, 32)],
+                cybertexel.Recovery("paint-v1", 0, 96),
+            )
+            self.assertEqual(
+                result.disposition, cybertexel.CompletionDisposition.PUBLISHED
+            )
+            self.assertEqual(result.published_revision, 1)
+            self.assertEqual(session.committed_generation("paint"), 1)
+            self.assertTrue(session.resource_is_held("paint", 1))
+
+    def test_explicit_host_readback_publishes_only_after_completion(self) -> None:
+        with cybertexel.Document() as document:
+            texture_set = document.create_texture_set(
+                "Readback", partition_key="readback", width=8, height=4
+            )
+            document.set_channel_enabled(texture_set, "pbr.base_color")
+            with cybertexel.SnapshotPool(64 * 64 * 3) as pool:
+                cursor = pool.current_cursor(document, texture_set, "pbr.base_color")
+                document.write_channel_pixel(
+                    texture_set, "pbr.base_color", 1, 2, bytes([7, 11, 13])
+                )
+                snapshot = pool.snapshot(
+                    document, texture_set, "pbr.base_color", cursor
+                )
+                readback = snapshot.begin_host_readback()
+                self.assertEqual(readback.status, cybertexel.ReadbackStatus.PENDING)
+                with self.assertRaises(RuntimeError):
+                    _ = readback.tiles
+                payloads = tuple(
+                    bytes([42]) * size for size in readback.tile_byte_sizes
+                )
+                readback.complete(payloads)
+                self.assertEqual(readback.status, cybertexel.ReadbackStatus.COMPLETE)
+                self.assertEqual(readback.tiles, payloads)
+                snapshot.close()
+                readback.close()
+
 
 if __name__ == "__main__":
     unittest.main()

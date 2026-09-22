@@ -1287,6 +1287,15 @@ enforces the negative `Sync` guarantee and a unit test asserts `Send`. A checked
 source audit confines all wrapper `unsafe` to its documented FFI boundary, while
 Linux, macOS and Windows CI run formatting, Clippy and both crate test suites.
 
+Task 14.12 gives Python, Swift and safe Rust the same host-executed workflow.
+Each emits an actual shader artifact and JSON pass plan, submits typed logical
+resources, publishes a recoverable completion and queries the retained
+host-resident generation without reading pixels back. Snapshot-pool wrappers
+pin exact channel generations and own declared tile buffers across explicit
+asynchronous host readback. Binding tests verify pending-output refusal, exact
+host completion and atomic readability, with reference counting or ownership
+keeping every native dependency alive.
+
 ## 1. Foundation
 
 - [x] 1.1 CMake project, C++20, warnings as errors, presets for headless, macOS, Linux, Windows, iOS, Android
@@ -1494,7 +1503,7 @@ Linux, macOS and Windows CI run formatting, Clippy and both crate test suites.
 - [x] 14.9 Python binding, numpy-native, typed exceptions, wheel packaging
 - [x] 14.10 Swift package with a system target, idiomatic layer, automatic handle lifetime
 - [x] 14.11 Rust `-sys` and safe crates, typed errors, `Send`/`Sync` matching the contract
-- [ ] 14.12 Host-executed route and host transport reachable from all three bindings
+- [x] 14.12 Host-executed route and host transport reachable from all three bindings
 - [ ] 14.13 Binding parity gate
 - [ ] 14.14 `c-abi` and `language-bindings` scenarios as tests
 

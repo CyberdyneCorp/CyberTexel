@@ -14,9 +14,14 @@ initial idiomatic layer also accepts C-contiguous NumPy mesh and mesh-map
 buffers. Exact `float32`/`uint32` mesh arrays cross without an intermediate
 binding copy before the native mesh takes ownership of its own copy; map imports
 behave the same for `uint8`, `uint16`, and `float32`. Other dtypes or strided
-inputs are explicitly normalized to a contiguous supported array. Tasks
-14.12–14.13 extend the host-executed route and mechanically enforce complete C
-surface parity.
+inputs are explicitly normalized to a contiguous supported array.
+
+The [host-execution layer](binding-host-transport.md) returns owned shader bytes
+and a JSON pass plan, tracks host-resident logical resources through typed
+submission and completion values, and exposes pinned snapshots with explicit
+asynchronous host readback. Pending readback buffers cannot be read through the
+Python API; successful completion atomically publishes independent `bytes`
+objects. Task 14.13 mechanically enforces complete C-surface parity.
 
 `MeshMapSet.generate_mask()` returns a caller-owned `float32` NumPy array and
 uses generator defaults. Missing required maps fail before allocation and raise

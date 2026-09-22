@@ -42,4 +42,61 @@ final class CyberTexelTests: XCTestCase {
     }
     XCTAssertEqual(destroyCount, 1)
   }
+
+  func testHostExecutionRetainsResidentResultWithoutReadback() throws {
+    let program = try emitDefaultHostMaterial(
+      stableIdentity: "binding/paint", outputIdentity: "paint", width: 64,
+      height: 32)
+    XCTAssertTrue(String(decoding: program.vertexArtifact, as: UTF8.self).contains("@vertex"))
+    XCTAssertTrue(program.passPlan.contains("\"logical_id\":\"paint\""))
+    let session = try HostExecutionSession()
+    let source = HostResource(
+      logicalID: "source", generation: 1, role: "input", format: 2,
+      width: 64, height: 32, output: false)
+    let output = HostResource(
+      logicalID: "paint", generation: 1, role: "output", format: 2,
+      width: 64, height: 32, externallyInitialized: false,
+      requiredState: .renderTarget, output: true)
+    let token = try session.submit(
+      operation: "paint", baseRevision: 0, resources: [source, output])
+    let result = try session.complete(
+      token: token,
+      outputs: [
+        CompletedHostResource(
+          logicalID: "paint", generation: 1, format: 2, width: 64, height: 32)
+      ],
+      recovery: HostRecovery(
+        operationRecordVersion: "paint-v1", checkpointRevision: 0,
+        retainedBytes: 96)
+    )
+    XCTAssertEqual(result.disposition, .published)
+    XCTAssertEqual(result.publishedRevision, 1)
+    XCTAssertEqual(try session.committedGeneration(for: "paint"), 1)
+    XCTAssertTrue(try session.resourceIsHeld("paint", generation: 1))
+  }
+
+  func testExplicitHostReadbackPublishesOnlyAfterCompletion() throws {
+    let document = try Document()
+    let textureSet = try document.createTextureSet(
+      displayName: "Readback", partitionKey: "readback", width: 8, height: 4)
+    try document.setChannelEnabled("pbr.base_color", in: textureSet)
+    let pool = try SnapshotPool(budgetBytes: 64 * 64 * 3)
+    let cursor = try pool.currentCursor(
+      document: document, textureSet: textureSet, semanticID: "pbr.base_color")
+    try document.writeChannelPixel(
+      [7, 11, 13], x: 1, y: 2, semanticID: "pbr.base_color", in: textureSet)
+    let snapshot = try pool.snapshot(
+      document: document, textureSet: textureSet, semanticID: "pbr.base_color",
+      since: cursor)
+    let readback = try snapshot.beginHostReadback()
+    XCTAssertEqual(try readback.status, .pending)
+    XCTAssertThrowsError(try readback.tiles)
+    let payloads = readback.tileByteSizes.map { [UInt8](repeating: 42, count: $0) }
+    try readback.complete(tiles: payloads)
+    XCTAssertEqual(try readback.status, .complete)
+    XCTAssertEqual(try readback.tiles, payloads)
+    snapshot.close()
+    readback.close()
+    pool.close()
+  }
 }

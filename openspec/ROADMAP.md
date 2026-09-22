@@ -7,7 +7,7 @@ decisions taken and questions still open.
 ## Status
 
 Implementation started. 24 capabilities, 332 requirements, 409 scenarios and
-222 tasks, 159 done. Foundation and the complete headless color-management
+222 tasks, 166 done. Foundation and the complete headless color-management
 scenario suite are green. Image input now detects and decodes PNG, JPEG, TGA,
 BMP, baseline TIFF, flat OpenEXR, Radiance HDR and flattened PSD from caller
 memory, with mismatch reporting, 8/16-bit preservation and hostile-input
@@ -351,6 +351,12 @@ their handles, return typed diagnostic-bearing errors and are deliberately
 `Send` but not `Sync`; a unit assertion and compile-fail test enforce that
 threading contract. An audit confines wrapper `unsafe` to one documented FFI
 boundary, and CI builds and tests both crates on Linux, macOS and Windows.
+All three bindings now expose the host-executed lifecycle: real shader artifacts
+and JSON pass plans, typed logical-resource submission and recoverable
+completion, retained host-resident generations, pinned channel snapshots and
+explicit pending-to-complete host readback. Each binding test proves that
+pending buffers remain unreadable and publish atomically only after the host
+returns the exact requested tile payloads.
 
 ## Milestones
 

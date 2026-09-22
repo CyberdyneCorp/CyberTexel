@@ -87,7 +87,7 @@ public struct TextureSet: Equatable, Sendable {
 }
 
 public struct Document {
-  private let storage: DocumentStorage
+  let storage: DocumentStorage
 
   public init() throws {
     try Native.checkABI()
@@ -159,5 +159,65 @@ public struct Document {
       throw CyberTexelError.invalidNativeState("created texture set has no identifier")
     }
     return TextureSet(identifier: identifier, width: width, height: height)
+  }
+
+  public func setChannelEnabled(
+    _ semanticID: String,
+    in textureSet: TextureSet,
+    bitDepth: UInt32 = 0
+  ) throws {
+    try textureSet.identifier.withCString { identifier in
+      try semanticID.withCString { semantic in
+        try Native.check(
+          ctex_texture_set_set_channel_enabled(
+            storage.handle, identifier, semantic, 1, bitDepth
+          )
+        )
+      }
+    }
+  }
+
+  public func writeChannelPixel(
+    _ pixel: [UInt8],
+    x: UInt32,
+    y: UInt32,
+    semanticID: String,
+    in textureSet: TextureSet
+  ) throws {
+    guard x < textureSet.width, y < textureSet.height else {
+      throw CyberTexelError.invalidNativeState("pixel coordinate is outside the texture set")
+    }
+    var session: OpaquePointer?
+    try textureSet.identifier.withCString { identifier in
+      try semanticID.withCString { semantic in
+        try Native.check(
+          ctex_paint_preview_session_create(storage.handle, identifier, semantic, &session)
+        )
+      }
+    }
+    guard let session else {
+      throw CyberTexelError.invalidNativeState("preview creation returned no handle")
+    }
+    defer { ctex_paint_preview_session_destroy(session) }
+    try pixel.withUnsafeBytes { bytes in
+      try Native.check(
+        ctex_paint_preview_session_write_pixel(
+          session, x, y, bytes.baseAddress, bytes.count
+        )
+      )
+    }
+    var coverage = [UInt8](
+      repeating: 0, count: Int(textureSet.width * textureSet.height))
+    coverage[Int(y * textureSet.width + x)] = 1
+    var info = ctex_paint_preview_info()
+    info.size = UInt32(MemoryLayout<ctex_paint_preview_info>.size)
+    try coverage.withUnsafeBufferPointer { buffer in
+      try Native.check(
+        ctex_paint_preview_session_finalize(
+          session, buffer.baseAddress, buffer.count, 0, &info
+        )
+      )
+    }
+    try Native.check(ctex_paint_preview_session_commit(session, &info))
   }
 }

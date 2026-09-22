@@ -197,3 +197,44 @@ class Document:
             return pixels
         finally:
             LIB.ctex_paint_preview_session_destroy(session)
+
+    def write_channel_pixel(
+        self,
+        texture_set: TextureSet,
+        semantic_id: str,
+        x: int,
+        y: int,
+        pixel: bytes,
+    ) -> None:
+        """Commit one authored pixel, primarily for examples and host synchronization."""
+
+        if not (0 <= x < texture_set.width and 0 <= y < texture_set.height):
+            raise ValueError("pixel coordinate is outside the texture set")
+        session = ctypes.c_void_p()
+        check(
+            LIB.ctex_paint_preview_session_create(
+                self._require_open(),
+                texture_set.identifier.encode("utf-8"),
+                semantic_id.encode("utf-8"),
+                ctypes.byref(session),
+            )
+        )
+        try:
+            value = (ctypes.c_uint8 * len(pixel)).from_buffer_copy(pixel)
+            check(
+                LIB.ctex_paint_preview_session_write_pixel(
+                    session, x, y, value, len(pixel)
+                )
+            )
+            coverage = (ctypes.c_uint8 * (texture_set.width * texture_set.height))()
+            coverage[(y * texture_set.width) + x] = 1
+            info = PaintPreviewInfo()
+            info.size = ctypes.sizeof(PaintPreviewInfo)
+            check(
+                LIB.ctex_paint_preview_session_finalize(
+                    session, coverage, len(coverage), 0, ctypes.byref(info)
+                )
+            )
+            check(LIB.ctex_paint_preview_session_commit(session, ctypes.byref(info)))
+        finally:
+            LIB.ctex_paint_preview_session_destroy(session)

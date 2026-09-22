@@ -16,8 +16,14 @@ asserts that the type remains `Send`.
 
 The sys build accepts `CYBERTEXEL_LIBRARY_DIR` for development against an
 already-built shared library. Without it, the build script configures and builds
-the native C ABI from the checked-out source. Tasks 14.12–14.13 add host
-transport and mechanically enforce complete C-operation parity.
+the native C ABI from the checked-out source.
+
+The safe crate implements the shared [host-execution and transport
+workflow](binding-host-transport.md). Owned shader artifacts and pass-plan
+strings feed typed logical submissions. `Rc`-owned pool storage, consuming
+snapshot-to-readback conversion, boxed tile buffers and `Drop` encode the native
+lifetime rules without exposing raw pointers. Pending readback output returns a
+typed error. Task 14.13 mechanically enforces complete C-operation parity.
 
 Run formatting, Clippy, unit tests, compile-fail tests and the unsafe-boundary
 audit with:

@@ -14,9 +14,12 @@ reference-counted storage owner when copied. That owner calls
 `ctex_document_destroy` exactly once when the last Swift value leaves scope;
 there is no public raw handle and no manual close operation.
 
-The initial task-14.10 surface exposes document and texture-set creation and
-enumeration. It does not return borrowed native buffers. Tasks 14.12–14.13 add
-host transport and enforce complete C-operation parity.
+The package also exposes the shared [host-execution and transport
+workflow](binding-host-transport.md). Swift-owned shader artifacts and pass-plan
+strings feed logical submissions; completion preserves host-resident results.
+Reference types retain snapshot and readback handles plus their allocated tile
+buffers until destruction. Pending output throws instead of exposing bytes.
+Task 14.13 enforces complete C-operation parity.
 
 Build and test the macOS package, then link its native and Swift layers into an
 iOS arm64 check executable, with:

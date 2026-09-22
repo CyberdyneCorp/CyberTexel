@@ -358,6 +358,36 @@ def _load() -> ctypes.CDLL:
     )
     _signature(
         library,
+        "ctex_paint_preview_session_write_pixel",
+        [
+            ctypes.c_void_p,
+            ctypes.c_uint32,
+            ctypes.c_uint32,
+            ctypes.c_void_p,
+            ctypes.c_size_t,
+        ],
+        ctypes.c_uint32,
+    )
+    _signature(
+        library,
+        "ctex_paint_preview_session_finalize",
+        [
+            ctypes.c_void_p,
+            ctypes.c_void_p,
+            ctypes.c_size_t,
+            ctypes.c_uint32,
+            ctypes.POINTER(PaintPreviewInfo),
+        ],
+        ctypes.c_uint32,
+    )
+    _signature(
+        library,
+        "ctex_paint_preview_session_commit",
+        [ctypes.c_void_p, ctypes.POINTER(PaintPreviewInfo)],
+        ctypes.c_uint32,
+    )
+    _signature(
+        library,
         "ctex_mesh_create",
         [ctypes.POINTER(MeshDescriptor), ctypes.POINTER(ctypes.c_void_p)],
         ctypes.c_uint32,
