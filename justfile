@@ -146,6 +146,12 @@ test-python-binding: (_require "uv" "Python wheel builder") (_require "cmake" "3
 test-swift-binding: (_require "swift" "Swift 5.9") (_require "cmake" "3.24")
     python3 tools/test_swift_package.py
 
+test-rust-binding: (_require "cargo" "Rust stable") (_require "cmake" "3.24")
+    cargo fmt --all --manifest-path rust/Cargo.toml -- --check
+    cargo clippy --manifest-path rust/Cargo.toml --workspace --all-targets -- -D warnings
+    cargo test --manifest-path rust/Cargo.toml --workspace
+    python3 tools/check_rust_unsafe.py
+
 test-preset-shelf-library: build
     ctest --test-dir build/headless --output-on-failure -R '^preset-shelf-library$'
 

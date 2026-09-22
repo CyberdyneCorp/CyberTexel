@@ -1,0 +1,11 @@
+[package]
+name = "cybertexel-sys"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+links = "cybertexel_c"
+build = "build.rs"
+
+[lib]
+path = "src/lib.rs"

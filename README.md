@@ -249,6 +249,11 @@ The current implementation provides:
   the installed C ABI through a system-library target, presents document and
   texture-set values with thrown typed errors, and releases shared native
   handles automatically and exactly once.
+- Separate [Rust raw and safe crates](docs/rust-binding.md):
+  `cybertexel-sys` builds the native C ABI, while `cybertexel` owns document
+  handles, returns typed diagnostic-bearing errors, confines `unsafe` to one
+  audited boundary, and encodes the per-document threading contract by making
+  `Document` movable between threads (`Send`) but not shareable (`Sync`).
 - An isolated [Kong shader compiler context](docs/kong-backend.md) that compiles
   Kong source deterministically to WGSL, MSL, binary SPIR-V, or HLSL, supports
   concurrent independent targets, and reports unsupported requests explicitly.
@@ -326,8 +331,8 @@ The current implementation provides:
   [stroke-model and paint-engine](docs/paint-scenarios.md) scenario suites.
 
 Remaining advanced image IO, mesh/texture-set extensions, paint-tool scenario
-closure, host-transport binding/performance integrations, the Rust binding,
-full cross-binding parity, and delivery workflow stages remain roadmap work and
+closure, host-transport binding/performance integrations, full cross-binding
+parity, and delivery workflow stages remain roadmap work and
 are not presented as implemented APIs yet.
 
 ## Architecture

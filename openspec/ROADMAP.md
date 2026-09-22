@@ -7,7 +7,7 @@ decisions taken and questions still open.
 ## Status
 
 Implementation started. 24 capabilities, 332 requirements, 409 scenarios and
-222 tasks, 158 done. Foundation and the complete headless color-management
+222 tasks, 159 done. Foundation and the complete headless color-management
 scenario suite are green. Image input now detects and decodes PNG, JPEG, TGA,
 BMP, baseline TIFF, flat OpenEXR, Radiance HDR and flattened PSD from caller
 memory, with mismatch reporting, 8/16-bit preservation and hostile-input
@@ -345,6 +345,12 @@ checks ABI compatibility, throws typed diagnostic-bearing errors and releases a
 shared document handle exactly once when its last Swift value leaves scope.
 CI runs the macOS XCTest suite and cross-builds both native and Swift layers for
 iOS arm64 through a final executable link.
+The Rust workspace now separates native-building raw declarations into
+`cybertexel-sys` from an idiomatic safe `cybertexel` crate. Safe documents own
+their handles, return typed diagnostic-bearing errors and are deliberately
+`Send` but not `Sync`; a unit assertion and compile-fail test enforce that
+threading contract. An audit confines wrapper `unsafe` to one documented FFI
+boundary, and CI builds and tests both crates on Linux, macOS and Windows.
 
 ## Milestones
 
