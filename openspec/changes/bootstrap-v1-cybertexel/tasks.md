@@ -1357,6 +1357,12 @@ prior tile-history context. C++ and strict-C fixtures prove target-resolution
 stroke output, mixed replay/checkpoint policy, budget refusal and atomic
 undo/redo, reducing the exact task-14.8 gap to 4 requirements.
 
+The editable-surface-path C fixture now edits a control-point position, width
+and material parameter, verifies dependent-tile invalidation and stroke-model
+re-evaluation, then proves undo restores the original path. Together with the
+existing bounded mesh-reprojection preflight and atomic commit, this maps the
+paint-tools requirement and reduces the exact task-14.8 gap to 3 requirements.
+
 ## 1. Foundation
 
 - [x] 1.1 CMake project, C++20, warnings as errors, presets for headless, macOS, Linux, Windows, iOS, Android

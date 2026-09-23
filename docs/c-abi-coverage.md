@@ -245,5 +245,11 @@ filter; complete host replay rasters are validated and published under working
 and history byte ceilings. Dedicated undo/redo entry points exchange the whole
 base/UDIM state atomically. Mapping the resolution-change requirement reduces
 the exact remaining gap to 4 runtime requirements.
+Editable surface paths now have strict-C evidence for control-point position,
+width and material edits, dependent-tile invalidation, stroke-model
+re-evaluation and atomic undo. The existing mesh-reprojection preflight and
+commit operations cover attachment migration and invalid-attachment reporting.
+Mapping that paint-tools requirement reduces the exact remaining gap to 3
+runtime requirements.
 The gate is not part of the aggregate `just check` until that count reaches zero;
 its unit tests run in the normal tooling suite throughout the migration.

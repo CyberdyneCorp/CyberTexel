@@ -77,6 +77,8 @@ int main(void) {
     ctex_editable_entry_descriptor path = {0};
     ctex_stroke_settings_descriptor stroke = {0};
     ctex_resolved_stroke_info stroke_info = {0};
+    ctex_resolved_stamp stamps[64] = {{0}};
+    ctex_swept_segment swept_segments[64] = {{0}};
     size_t stamp_count = 0;
     size_t segment_count = 0;
     ctex_project_container_info saved_info = {0};
@@ -196,6 +198,59 @@ int main(void) {
                 "resolve editable surface path") ||
         !expect(stamp_count >= 2 && segment_count >= 1,
                 "surface path resolves through stroke model")) {
+        goto fail;
+    }
+    stroke_info.size = CTEX_RESOLVED_STROKE_INFO_CURRENT_SIZE;
+    if (!expect(stamp_count <= 64 && segment_count <= 64, "resolved path fits test buffers") ||
+        !expect(ctex_texture_set_editable_surface_path_resolve(
+                    document, texture_set_id, "seam-line", &stroke, &stroke_info, stamps, 64,
+                    &stamp_count, swept_segments, 64, &segment_count) == CTEX_RESULT_SUCCESS,
+                "read resolved editable surface path") ||
+        !expect(stamps[0].position.y == 0.0 && stamps[0].radius == 0.5,
+                "resolved path begins at the original control point and width")) {
+        goto fail;
+    }
+
+    points[0].position.y = 1.0;
+    points[0].width = 0.75;
+    parameter.value[0] = 0.6;
+    path.expected_revision = 1;
+    info.size = CTEX_EDITABLE_ENTRY_INFO_CURRENT_SIZE;
+    if (!expect(ctex_texture_set_editable_entry_edit(document, texture_set_id, &path, &info, report,
+                                                     sizeof(report)) == CTEX_RESULT_SUCCESS,
+                "edit editable surface path") ||
+        !expect(info.entry_revision == 2 && info.invalidated_tile_count == 2 &&
+                    strstr(report, "\"values\":[0.600000]") != NULL &&
+                    strstr(report, "\"width\":0.750000") != NULL,
+                "path edit retains material and invalidates the previous raster tiles")) {
+        goto fail;
+    }
+    stroke_info.size = CTEX_RESOLVED_STROKE_INFO_CURRENT_SIZE;
+    if (!expect(ctex_texture_set_editable_surface_path_resolve(
+                    document, texture_set_id, "seam-line", &stroke, &stroke_info, stamps, 64,
+                    &stamp_count, swept_segments, 64, &segment_count) == CTEX_RESULT_SUCCESS,
+                "resolve edited surface path") ||
+        !expect(stamps[0].position.y == 1.0 && stamps[0].radius == 0.75,
+                "position and width edits reach stroke reconstruction")) {
+        goto fail;
+    }
+
+    info.size = CTEX_EDITABLE_ENTRY_INFO_CURRENT_SIZE;
+    if (!expect(ctex_texture_set_editable_entry_undo(document, texture_set_id, &info, report,
+                                                     sizeof(report)) == CTEX_RESULT_SUCCESS,
+                "undo editable surface path") ||
+        !expect(info.entry_revision == 1 && strstr(report, "\"values\":[0.350000]") != NULL &&
+                    strstr(report, "\"width\":0.500000") != NULL,
+                "undo restores the original path material and width")) {
+        goto fail;
+    }
+    stroke_info.size = CTEX_RESOLVED_STROKE_INFO_CURRENT_SIZE;
+    if (!expect(ctex_texture_set_editable_surface_path_resolve(
+                    document, texture_set_id, "seam-line", &stroke, &stroke_info, stamps, 64,
+                    &stamp_count, swept_segments, 64, &segment_count) == CTEX_RESULT_SUCCESS,
+                "resolve restored surface path") ||
+        !expect(stamps[0].position.y == 0.0 && stamps[0].radius == 0.5,
+                "undo restores the original position and stroke width")) {
         goto fail;
     }
 
