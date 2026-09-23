@@ -1,19 +1,26 @@
+#include <algorithm>
 #include <array>
 #include <charconv>
+#include <chrono>
 #include <cstddef>
 #include <cstdint>
 #include <cstdlib>
 #include <ctex/doc/smart_material.hpp>
+#include <ctex/exec/cpu_reference.hpp>
+#include <ctex/exec/executor.hpp>
 #include <ctex/io/project_container.hpp>
 #include <ctex/paint/stroke_preset.hpp>
 #include <filesystem>
 #include <fstream>
 #include <iostream>
 #include <limits>
+#include <memory>
 #include <optional>
 #include <span>
+#include <stdexcept>
 #include <string>
 #include <string_view>
+#include <thread>
 #include <vector>
 
 namespace {
@@ -33,6 +40,17 @@ struct OptionSpec {
     std::string_view name;
     std::string_view value;
     bool required{};
+    std::string_view description;
+    std::string_view default_value;
+
+    constexpr OptionSpec(std::string_view option_name, std::string_view option_value,
+                         bool is_required, std::string_view option_description = {},
+                         std::string_view option_default = {})
+        : name(option_name),
+          value(option_value),
+          required(is_required),
+          description(option_description),
+          default_value(option_default) {}
 };
 
 struct CommandSpec {
@@ -68,9 +86,13 @@ constexpr std::array commands{
 };
 
 constexpr std::array global_options{
-    OptionSpec{"--report", "text|json", false}, OptionSpec{"--executor", "cpu|auto|host", false},
-    OptionSpec{"--memory-ceiling", "BYTES", false}, OptionSpec{"--texel-ceiling", "COUNT", false},
-    OptionSpec{"--workers", "COUNT", false}};
+    OptionSpec{"--report", "text|json", false, "report format", "text"},
+    OptionSpec{"--quiet", "", false, "suppress non-diagnostic prose", "false"},
+    OptionSpec{"--executor", "cpu|auto|host", false, "executor", "CTEX_EXECUTOR or auto"},
+    OptionSpec{"--memory-ceiling", "BYTES", false, "maximum working bytes", "unlimited"},
+    OptionSpec{"--texel-ceiling", "COUNT", false, "maximum processed texels", "unlimited"},
+    OptionSpec{"--workers", "COUNT", false, "worker bound", "hardware concurrency"},
+    OptionSpec{"--help", "", false, "show help", ""}};
 
 struct ParsedOption {
     std::string_view name;
@@ -81,6 +103,30 @@ struct Invocation {
     const CommandSpec* command{};
     std::vector<ParsedOption> options;
     bool quiet{};
+};
+
+struct ExecutionOptions {
+    std::uint64_t memory_ceiling{std::numeric_limits<std::uint64_t>::max()};
+    std::uint64_t texel_ceiling{std::numeric_limits<std::uint64_t>::max()};
+    std::uint64_t workers{std::max(1U, std::thread::hardware_concurrency())};
+};
+
+struct SelectedExecutor {
+    std::string requested;
+    std::string selected;
+    std::string source;
+    std::string message;
+    bool fallback{};
+};
+
+class CliError final : public std::runtime_error {
+public:
+    CliError(ExitCode code, std::string message)
+        : std::runtime_error(std::move(message)), code_(code) {}
+    [[nodiscard]] ExitCode code() const noexcept { return code_; }
+
+private:
+    ExitCode code_;
 };
 
 const CommandSpec* find_command(std::string_view name) {
@@ -115,31 +161,175 @@ std::optional<std::string_view> option_value(const Invocation& invocation, std::
     return std::nullopt;
 }
 
+std::string json_string(std::string_view value) {
+    std::string escaped{"\""};
+    for (const char character : value) {
+        switch (character) {
+            case '\"':
+                escaped += "\\\"";
+                break;
+            case '\\':
+                escaped += "\\\\";
+                break;
+            case '\b':
+                escaped += "\\b";
+                break;
+            case '\f':
+                escaped += "\\f";
+                break;
+            case '\n':
+                escaped += "\\n";
+                break;
+            case '\r':
+                escaped += "\\r";
+                break;
+            case '\t':
+                escaped += "\\t";
+                break;
+            default:
+                if (static_cast<unsigned char>(character) < 0x20U) {
+                    constexpr char hexadecimal[] = "0123456789abcdef";
+                    escaped += "\\u00";
+                    escaped += hexadecimal[(static_cast<unsigned char>(character) >> 4U) & 0x0fU];
+                    escaped += hexadecimal[static_cast<unsigned char>(character) & 0x0fU];
+                } else {
+                    escaped += character;
+                }
+        }
+    }
+    escaped += '\"';
+    return escaped;
+}
+
+std::uint64_t parse_positive_integer(std::string_view value) {
+    std::uint64_t parsed{};
+    const auto result = std::from_chars(value.data(), value.data() + value.size(), parsed);
+    if (value.empty() || result.ec != std::errc{} || result.ptr != value.data() + value.size() ||
+        parsed == 0) {
+        throw CliError(ExitCode::invalid_arguments, "expected a positive integer");
+    }
+    return parsed;
+}
+
+ExecutionOptions execution_options(const Invocation& invocation) {
+    ExecutionOptions options;
+    if (const auto value = option_value(invocation, "--memory-ceiling")) {
+        options.memory_ceiling = parse_positive_integer(*value);
+    }
+    if (const auto value = option_value(invocation, "--texel-ceiling")) {
+        options.texel_ceiling = parse_positive_integer(*value);
+    }
+    if (const auto value = option_value(invocation, "--workers")) {
+        options.workers = parse_positive_integer(*value);
+    }
+    return options;
+}
+
+SelectedExecutor select_executor(const Invocation& invocation) {
+    ctex::exec::ExecutorRegistry registry;
+    registry.add(std::make_shared<ctex::exec::CpuReferenceExecutor>());
+
+    const auto requested_by_flag = option_value(invocation, "--executor");
+    const char* environment = std::getenv(ctex::exec::executor_environment_variable.data());
+    const std::optional<std::string_view> requested_by_environment =
+        environment == nullptr || std::string_view(environment).empty()
+            ? std::nullopt
+            : std::optional<std::string_view>{environment};
+    const std::string_view requested =
+        requested_by_flag.value_or(requested_by_environment.value_or(std::string_view{"auto"}));
+    const std::string source = requested_by_flag.has_value()          ? "flag"
+                               : requested_by_environment.has_value() ? "environment"
+                                                                      : "default";
+
+    if (requested == "cpu" || requested == "auto") {
+        const ctex::exec::ExecutorSelection selected =
+            requested == "cpu" ? registry.select("cpu") : registry.select_automatic();
+        return {.requested = std::string(requested),
+                .selected = selected.executor->descriptor().identifier,
+                .source = source,
+                .message = selected.message,
+                .fallback = false};
+    }
+
+    const ctex::exec::ExecutorSelection fallback = registry.select_automatic();
+    const std::string message =
+        requested == "host"
+            ? "host execution is not attached; fell back to CPU reference"
+            : "unknown executor '" + std::string(requested) + "'; fell back to CPU reference";
+    return {.requested = std::string(requested),
+            .selected = fallback.executor->descriptor().identifier,
+            .source = source,
+            .message = message,
+            .fallback = true};
+}
+
+bool wants_json_report(int argc, char** argv) {
+    for (int index = 1; index + 1 < argc; ++index) {
+        if (std::string_view(argv[index]) == "--report" &&
+            std::string_view(argv[index + 1]) == "json") {
+            return true;
+        }
+    }
+    return false;
+}
+
+std::string executor_report_fields(const SelectedExecutor& executor) {
+    return "\"executor\":" + json_string(executor.selected) +
+           ",\"executor_requested\":" + json_string(executor.requested) +
+           ",\"executor_source\":" + json_string(executor.source) +
+           ",\"fallback\":" + (executor.fallback ? "true" : "false") +
+           ",\"executor_message\":" + json_string(executor.message);
+}
+
+void emit_parse_failure_json(int argc, char** argv, std::string_view diagnostic) {
+    const std::string_view command = argc > 1 ? std::string_view(argv[1]) : std::string_view{};
+    std::cout << "{\"command\":" << json_string(command)
+              << ",\"diagnostic\":" << json_string(diagnostic)
+              << ",\"exit_code\":" << static_cast<int>(ExitCode::invalid_arguments)
+              << ",\"status\":\"invalid_arguments\"}\n";
+}
+
+void print_option(const OptionSpec& option, std::ostream& output, bool command_option) {
+    output << "  " << option.name;
+    if (!option.value.empty()) {
+        output << ' ' << option.value;
+    }
+    if (!option.description.empty()) {
+        output << "  " << option.description;
+    }
+    if (command_option && option.required) {
+        output << " (required)";
+    } else if (command_option) {
+        output << " (optional; default: not set)";
+    } else if (!option.default_value.empty()) {
+        output << " (default: " << option.default_value << ')';
+    }
+    output << '\n';
+}
+
+void print_global_options(std::ostream& output) {
+    for (const OptionSpec& option : global_options) {
+        print_option(option, output, false);
+    }
+}
+
 void print_usage(std::ostream& output) {
     output << "CyberTexel headless command line\n\n"
               "Usage: cybertexel <command> [options]\n\nCommands:\n";
     for (const CommandSpec& command : commands) {
         output << "  " << command.name << "\t" << command.summary << '\n';
     }
-    output << "\nGlobal options:\n"
-              "  --report text|json       report format (default: text)\n"
-              "  --quiet                  suppress non-diagnostic prose\n"
-              "  --executor cpu|auto|host executor (default: CTEX_EXECUTOR or cpu)\n"
-              "  --memory-ceiling BYTES   maximum working bytes (default: unlimited)\n"
-              "  --texel-ceiling COUNT    maximum processed texels (default: unlimited)\n"
-              "  --workers COUNT          worker bound (default: hardware concurrency)\n"
-              "  --help                   show help\n";
+    output << "\nGlobal options:\n";
+    print_global_options(output);
 }
 
 void print_command_help(const CommandSpec& command, std::ostream& output) {
     output << "Usage: cybertexel " << command.name << " [options]\n\n"
            << command.summary << ".\n\nOptions:\n";
     for (const OptionSpec& option : command.options) {
-        output << "  " << option.name << ' ' << option.value;
-        output << (option.required ? " (required)" : " (optional)") << '\n';
+        print_option(option, output, true);
     }
-    output << "  --report text|json\n  --quiet\n  --executor cpu|auto|host\n"
-              "  --memory-ceiling BYTES\n  --texel-ceiling COUNT\n  --workers COUNT\n  --help\n";
+    print_global_options(output);
 }
 
 bool is_positive_integer(std::string_view value) {
@@ -245,111 +435,245 @@ std::optional<Invocation> parse_invocation(int argc, char** argv, std::string& e
     return invocation;
 }
 
-int dispatch(const Invocation& invocation) {
-    const auto read_input = [&](std::string_view option) -> std::optional<std::vector<std::byte>> {
-        const std::filesystem::path path{*option_value(invocation, option)};
-        std::ifstream stream(path, std::ios::binary | std::ios::ate);
-        if (!stream) {
-            std::cerr << "could not read input '" << path.string() << "'\n";
-            return std::nullopt;
-        }
-        const std::streampos end = stream.tellg();
-        if (end < 0) {
-            std::cerr << "could not determine input size for '" << path.string() << "'\n";
-            return std::nullopt;
-        }
-        std::vector<std::byte> bytes(static_cast<std::size_t>(end));
-        stream.seekg(0);
-        if (!bytes.empty() && !stream.read(reinterpret_cast<char*>(bytes.data()),
-                                           static_cast<std::streamsize>(bytes.size()))) {
-            std::cerr << "could not read complete input '" << path.string() << "'\n";
-            return std::nullopt;
-        }
-        return bytes;
-    };
-    const auto input_text = [](const std::vector<std::byte>& bytes) {
-        return std::string_view(reinterpret_cast<const char*>(bytes.data()), bytes.size());
-    };
-    const bool json = option_value(invocation, "--report") == "json";
-    if (invocation.command->name == "validate") {
-        const auto bytes = read_input("--input");
-        if (!bytes.has_value()) {
-            return static_cast<int>(ExitCode::missing_input);
-        }
-        const std::string_view kind = *option_value(invocation, "--kind");
-        try {
-            if (kind == "document") {
-                static_cast<void>(ctex::io::read_project_container(*bytes));
-            } else if (kind == "material") {
-                static_cast<void>(ctex::doc::deserialize_smart_material(input_text(*bytes)));
-            } else {
-                static_cast<void>(ctex::paint::deserialize_stroke_preset(input_text(*bytes)));
-            }
-        } catch (const std::exception& error) {
-            std::cerr << "invalid " << kind << ": " << error.what() << '\n';
-            return static_cast<int>(ExitCode::invalid_arguments);
-        }
-        if (json) {
-            std::cout << "{\"command\":\"validate\",\"executor\":\"cpu\",\"kind\":\"" << kind
-                      << "\",\"status\":\"valid\"}\n";
-        } else if (!invocation.quiet) {
-            std::cout << "valid " << kind << '\n';
-        }
-        return static_cast<int>(ExitCode::success);
+std::vector<std::byte> read_input(const std::filesystem::path& path,
+                                  const ExecutionOptions& options) {
+    std::ifstream stream(path, std::ios::binary | std::ios::ate);
+    if (!stream) {
+        throw CliError(ExitCode::missing_input, "could not read input '" + path.string() + "'");
     }
-    if (invocation.command->name == "info") {
-        const auto bytes = read_input("--document");
-        if (!bytes.has_value()) {
-            return static_cast<int>(ExitCode::missing_input);
-        }
-        try {
-            const ctex::io::ProjectContainerReadResult result =
-                ctex::io::read_project_container(*bytes);
-            const auto& container = result.container;
-            std::size_t decoded_bytes = 0;
-            std::size_t occupied_tiles = 0;
-            for (const ctex::io::StoredTiledImage& image : container.tiled_images) {
-                decoded_bytes += static_cast<std::size_t>(image.width) * image.height *
-                                 image.format.bytes_per_pixel();
-                occupied_tiles += image.occupied_tiles.size();
-            }
-            if (json) {
-                std::cout << "{\"assets\":" << container.assets.size()
-                          << ",\"command\":\"info\",\"decoded_image_bytes\":" << decoded_bytes
-                          << ",\"executor\":\"cpu\",\"file_bytes\":" << bytes->size()
-                          << ",\"newer_schema\":" << (result.report.newer_schema ? "true" : "false")
-                          << ",\"occupied_tiles\":" << occupied_tiles
-                          << ",\"opaque_sections\":" << container.opaque_sections.size()
-                          << ",\"resources\":" << container.resources.size() << ",\"schema\":\""
-                          << container.schema_version.major << '.' << container.schema_version.minor
-                          << '.' << container.schema_version.patch
-                          << "\",\"status\":\"ok\",\"tiled_images\":"
-                          << container.tiled_images.size()
-                          << ",\"unknown_parts\":" << result.report.unknown_parts.size() << "}\n";
-            } else if (!invocation.quiet) {
-                std::cout << "schema: " << container.schema_version.major << '.'
-                          << container.schema_version.minor << '.' << container.schema_version.patch
-                          << "\ntiled images: " << container.tiled_images.size()
-                          << "\noccupied tiles: " << occupied_tiles
-                          << "\nresources: " << container.resources.size()
-                          << "\nassets: " << container.assets.size()
-                          << "\ndecoded image bytes: " << decoded_bytes << '\n';
-            }
-            return static_cast<int>(ExitCode::success);
-        } catch (const std::exception& error) {
-            std::cerr << "invalid document: " << error.what() << '\n';
-            return static_cast<int>(ExitCode::invalid_arguments);
-        }
+    const std::streampos end = stream.tellg();
+    if (end < 0) {
+        throw CliError(ExitCode::missing_input,
+                       "could not determine input size for '" + path.string() + "'");
     }
-    if (json) {
-        std::cout << "{\"command\":\"" << invocation.command->name
-                  << "\",\"executor\":\"cpu\",\"status\":\"unsupported\"}\n";
+    const auto input_bytes = static_cast<std::uint64_t>(end);
+    if (input_bytes > options.memory_ceiling) {
+        throw CliError(ExitCode::over_budget,
+                       "input '" + path.string() + "' requires " + std::to_string(input_bytes) +
+                           " bytes; memory ceiling is " + std::to_string(options.memory_ceiling));
+    }
+    if (input_bytes > std::numeric_limits<std::size_t>::max()) {
+        throw CliError(ExitCode::over_budget, "input size exceeds this platform's address space");
+    }
+    std::vector<std::byte> bytes(static_cast<std::size_t>(input_bytes));
+    stream.seekg(0);
+    if (!bytes.empty() && !stream.read(reinterpret_cast<char*>(bytes.data()),
+                                       static_cast<std::streamsize>(bytes.size()))) {
+        throw CliError(ExitCode::missing_input,
+                       "could not read complete input '" + path.string() + "'");
+    }
+    return bytes;
+}
+
+std::string_view input_text(const std::vector<std::byte>& bytes) {
+    return {reinterpret_cast<const char*>(bytes.data()), bytes.size()};
+}
+
+ctex::io::ProjectContainerReadLimits project_limits(const ExecutionOptions& options) {
+    ctex::io::ProjectContainerReadLimits limits;
+    const std::uint64_t maximum_size = std::numeric_limits<std::size_t>::max();
+    const auto ceiling = static_cast<std::size_t>(std::min(options.memory_ceiling, maximum_size));
+    limits.maximum_input_bytes = ceiling;
+    limits.maximum_total_allocation_bytes = ceiling;
+    return limits;
+}
+
+std::uint64_t checked_product(std::uint64_t left, std::uint64_t right,
+                              std::string_view description) {
+    if (right != 0 && left > std::numeric_limits<std::uint64_t>::max() / right) {
+        throw CliError(ExitCode::over_budget,
+                       std::string(description) + " exceeds the supported counter range");
+    }
+    return left * right;
+}
+
+struct ContainerMetrics {
+    std::uint64_t texels{};
+    std::uint64_t decoded_bytes{};
+    std::uint64_t occupied_tiles{};
+};
+
+ContainerMetrics measure_container(const ctex::io::ProjectContainer& container,
+                                   const ExecutionOptions& options) {
+    ContainerMetrics metrics;
+    for (const ctex::io::StoredTiledImage& image : container.tiled_images) {
+        const std::uint64_t image_texels =
+            checked_product(image.width, image.height, "texel count");
+        if (image_texels >
+            options.texel_ceiling - std::min(options.texel_ceiling, metrics.texels)) {
+            throw CliError(ExitCode::over_budget, "document exceeds texel ceiling " +
+                                                      std::to_string(options.texel_ceiling));
+        }
+        metrics.texels += image_texels;
+        const std::uint64_t image_bytes =
+            checked_product(image_texels, image.format.bytes_per_pixel(), "decoded image size");
+        if (image_bytes > std::numeric_limits<std::uint64_t>::max() - metrics.decoded_bytes) {
+            throw CliError(ExitCode::over_budget, "decoded image size exceeds counter range");
+        }
+        metrics.decoded_bytes += image_bytes;
+        metrics.occupied_tiles += image.occupied_tiles.size();
+    }
+    return metrics;
+}
+
+using SteadyTime = std::chrono::steady_clock::time_point;
+
+double elapsed_milliseconds(SteadyTime started) {
+    return std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - started)
+        .count();
+}
+
+std::string standard_report_fields(const Invocation& invocation, const SelectedExecutor& executor,
+                                   const ExecutionOptions& options, ExitCode exit_code,
+                                   std::string_view status, double elapsed_ms) {
+    return "\"command\":" + json_string(invocation.command->name) +
+           ",\"status\":" + json_string(status) +
+           ",\"exit_code\":" + std::to_string(static_cast<int>(exit_code)) + ',' +
+           executor_report_fields(executor) +
+           ",\"limits\":{\"memory_bytes\":" + std::to_string(options.memory_ceiling) +
+           ",\"texels\":" + std::to_string(options.texel_ceiling) +
+           ",\"workers\":" + std::to_string(options.workers) + '}' +
+           ",\"clamped_parameters\":[],\"outputs\":[],\"timings_ms\":{\"total\":" +
+           std::to_string(elapsed_ms) + '}';
+}
+
+void emit_error_report(const Invocation& invocation, const SelectedExecutor& executor,
+                       const ExecutionOptions& options, const CliError& error, double elapsed_ms) {
+    if (option_value(invocation, "--report") == "json") {
+        std::cout << '{'
+                  << standard_report_fields(invocation, executor, options, error.code(), "error",
+                                            elapsed_ms)
+                  << ",\"diagnostic\":" << json_string(error.what()) << "}\n";
+    }
+}
+
+int validate_command(const Invocation& invocation, const SelectedExecutor& executor,
+                     const ExecutionOptions& options, SteadyTime started) {
+    const std::filesystem::path path{*option_value(invocation, "--input")};
+    const std::vector<std::byte> bytes = read_input(path, options);
+    const std::string_view kind = *option_value(invocation, "--kind");
+    try {
+        if (kind == "document") {
+            static_cast<void>(ctex::io::read_project_container(bytes, project_limits(options)));
+        } else if (kind == "material") {
+            static_cast<void>(ctex::doc::deserialize_smart_material(input_text(bytes)));
+        } else {
+            static_cast<void>(ctex::paint::deserialize_stroke_preset(input_text(bytes)));
+        }
+    } catch (const ctex::io::ProjectContainerError& error) {
+        const ExitCode code = error.code() == ctex::io::ProjectContainerErrorCode::over_limit
+                                  ? ExitCode::over_budget
+                                  : ExitCode::invalid_arguments;
+        throw CliError(code, "invalid " + std::string(kind) + ": " + error.what());
+    } catch (const std::exception& error) {
+        throw CliError(ExitCode::invalid_arguments,
+                       "invalid " + std::string(kind) + ": " + error.what());
+    }
+
+    if (option_value(invocation, "--report") == "json") {
+        std::cout << '{'
+                  << standard_report_fields(invocation, executor, options, ExitCode::success,
+                                            "valid", elapsed_milliseconds(started))
+                  << ",\"inputs\":[{\"kind\":" << json_string(kind)
+                  << ",\"path\":" << json_string(path.string())
+                  << "}],\"operations\":[\"read\",\"validate\"],\"kind\":" << json_string(kind)
+                  << "}\n";
     } else if (!invocation.quiet) {
-        std::cout << "CyberTexel " << invocation.command->name << "\n";
+        std::cout << "valid " << kind << "\nexecutor: " << executor.selected;
+        if (executor.fallback) {
+            std::cout << " (fallback from " << executor.requested << ')';
+        }
+        std::cout << '\n';
     }
-    std::cerr << "command '" << invocation.command->name
-              << "' is not implemented yet (roadmap task 15.2)\n";
-    return static_cast<int>(ExitCode::unsupported_operation);
+    return static_cast<int>(ExitCode::success);
+}
+
+int info_command(const Invocation& invocation, const SelectedExecutor& executor,
+                 const ExecutionOptions& options, SteadyTime started) {
+    const std::filesystem::path path{*option_value(invocation, "--document")};
+    const std::vector<std::byte> bytes = read_input(path, options);
+    ctex::io::ProjectContainerReadResult result;
+    try {
+        result = ctex::io::read_project_container(bytes, project_limits(options));
+    } catch (const ctex::io::ProjectContainerError& error) {
+        const ExitCode code = error.code() == ctex::io::ProjectContainerErrorCode::over_limit
+                                  ? ExitCode::over_budget
+                                  : ExitCode::invalid_arguments;
+        throw CliError(code, "invalid document: " + std::string(error.what()));
+    }
+    const auto& container = result.container;
+    const ContainerMetrics metrics = measure_container(container, options);
+    const std::string schema = std::to_string(container.schema_version.major) + '.' +
+                               std::to_string(container.schema_version.minor) + '.' +
+                               std::to_string(container.schema_version.patch);
+    if (option_value(invocation, "--report") == "json") {
+        std::cout << '{'
+                  << standard_report_fields(invocation, executor, options, ExitCode::success, "ok",
+                                            elapsed_milliseconds(started))
+                  << ",\"inputs\":[{\"kind\":\"document\",\"path\":" << json_string(path.string())
+                  << "}],\"operations\":[\"read\",\"inspect\"]"
+                  << ",\"assets\":" << container.assets.size()
+                  << ",\"decoded_image_bytes\":" << metrics.decoded_bytes
+                  << ",\"file_bytes\":" << bytes.size()
+                  << ",\"newer_schema\":" << (result.report.newer_schema ? "true" : "false")
+                  << ",\"occupied_tiles\":" << metrics.occupied_tiles
+                  << ",\"opaque_sections\":" << container.opaque_sections.size()
+                  << ",\"resources\":" << container.resources.size()
+                  << ",\"schema\":" << json_string(schema) << ",\"texels\":" << metrics.texels
+                  << ",\"tiled_images\":" << container.tiled_images.size()
+                  << ",\"unknown_parts\":" << result.report.unknown_parts.size() << "}\n";
+    } else if (!invocation.quiet) {
+        std::cout << "schema: " << schema << "\ntiled images: " << container.tiled_images.size()
+                  << "\noccupied tiles: " << metrics.occupied_tiles
+                  << "\nresources: " << container.resources.size()
+                  << "\nassets: " << container.assets.size()
+                  << "\ndecoded image bytes: " << metrics.decoded_bytes
+                  << "\nexecutor: " << executor.selected;
+        if (executor.fallback) {
+            std::cout << " (fallback from " << executor.requested << ')';
+        }
+        std::cout << '\n';
+    }
+    return static_cast<int>(ExitCode::success);
+}
+
+int dispatch(const Invocation& invocation) {
+    const auto started = std::chrono::steady_clock::now();
+    const SelectedExecutor executor = select_executor(invocation);
+    const ExecutionOptions options = execution_options(invocation);
+    try {
+        if (invocation.command->name == "validate") {
+            return validate_command(invocation, executor, options, started);
+        }
+        if (invocation.command->name == "info") {
+            return info_command(invocation, executor, options, started);
+        }
+        const std::string diagnostic = "command '" + std::string(invocation.command->name) +
+                                       "' is not implemented yet (roadmap task 15.2)";
+        if (option_value(invocation, "--report") == "json") {
+            std::cout << '{'
+                      << standard_report_fields(invocation, executor, options,
+                                                ExitCode::unsupported_operation, "unsupported",
+                                                elapsed_milliseconds(started))
+                      << ",\"inputs\":[],\"operations\":[],\"diagnostic\":"
+                      << json_string(diagnostic) << "}\n";
+        } else if (!invocation.quiet) {
+            std::cout << "CyberTexel " << invocation.command->name
+                      << "\nexecutor: " << executor.selected << '\n';
+        }
+        std::cerr << diagnostic << '\n';
+        return static_cast<int>(ExitCode::unsupported_operation);
+    } catch (const CliError& error) {
+        std::cerr << error.what() << '\n';
+        emit_error_report(invocation, executor, options, error, elapsed_milliseconds(started));
+        return static_cast<int>(error.code());
+    } catch (const std::exception& error) {
+        const CliError internal(ExitCode::internal_error,
+                                "internal error: " + std::string(error.what()));
+        std::cerr << internal.what() << '\n';
+        emit_error_report(invocation, executor, options, internal, elapsed_milliseconds(started));
+        return static_cast<int>(internal.code());
+    }
 }
 
 }  // namespace
@@ -363,6 +687,9 @@ int main(int argc, char** argv) {
     const std::optional invocation = parse_invocation(argc, argv, error);
     if (!invocation.has_value()) {
         std::cerr << error << '\n';
+        if (wants_json_report(argc, argv)) {
+            emit_parse_failure_json(argc, argv, error);
+        }
         return static_cast<int>(ExitCode::invalid_arguments);
     }
     return dispatch(*invocation);

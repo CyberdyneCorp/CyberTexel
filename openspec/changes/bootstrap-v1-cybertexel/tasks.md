@@ -1662,11 +1662,11 @@ to the labeled native and strict-C test suite.
 - [x] 15.1 Binary skeleton, subcommand dispatch, argument validation before any work
 - [ ] 15.2 `export`, `bake-request`, `apply`, `run`, `info`, `validate`
 - [ ] 15.3 Distinct exit codes per outcome class
-- [ ] 15.4 Machine-readable reports; quiet mode; diagnostics on the error stream
-- [ ] 15.5 Executor selection by flag and environment; fallback reporting
-- [ ] 15.6 Budget flags and their refusals
+- [x] 15.4 Machine-readable reports; quiet mode; diagnostics on the error stream
+- [x] 15.5 Executor selection by flag and environment; fallback reporting
+- [x] 15.6 Budget flags and their refusals
 - [ ] 15.7 Interrupt handling with no partial files
-- [ ] 15.8 Help completeness gate
+- [x] 15.8 Help completeness gate
 - [ ] 15.9 Determinism test across repeated runs
 - [ ] 15.10 CLI smoke tests on every desktop platform in CI
 - [ ] 15.11 `cli-headless` scenarios as tests

@@ -7,7 +7,7 @@ decisions taken and questions still open.
 ## Status
 
 Implementation started. 24 capabilities, 332 requirements, 409 scenarios and
-222 tasks, 166 done. Foundation and the complete headless color-management
+222 tasks, 188 done. Foundation and the complete headless color-management
 scenario suite are green. Image input now detects and decodes PNG, JPEG, TGA,
 BMP, baseline TIFF, flat OpenEXR, Radiance HDR and flattened PSD from caller
 memory, with mismatch reporting, 8/16-bit preservation and hostile-input

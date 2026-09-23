@@ -24,6 +24,23 @@ Shared options select text or JSON reporting, quiet output, the executor,
 memory and texel ceilings, and the worker bound. Values are checked before
 dispatch; invalid input is named on the error stream.
 
+`--executor` takes `cpu`, `auto`, or `host` and overrides `CTEX_EXECUTOR`.
+Without the flag, the environment value is used; without either, automatic
+selection chooses the best available executor. The standalone binary always
+registers the CPU reference executor. A requested host executor therefore
+falls back to CPU and records the request, selection source, selected executor,
+fallback, and reason in the report.
+
+`--memory-ceiling`, `--texel-ceiling`, and `--workers` require positive integer
+values. Input size and project-reader allocations are checked against the
+memory ceiling before work proceeds. `info` also totals logical image texels
+with checked arithmetic and refuses a document above the texel ceiling. JSON
+reports include the effective limits, resolved inputs, operations, outputs,
+clamped parameters, executor decision, exit code, diagnostic when applicable,
+and elapsed time. With `--quiet`, text reports are suppressed; diagnostics
+remain on standard error. Supplying `--report json` keeps the JSON document by
+itself on standard output, including for argument and runtime failures.
+
 The stable process outcomes begin with:
 
 | Code | Outcome |
@@ -38,4 +55,6 @@ The stable process outcomes begin with:
 | 70 | internal error |
 
 `just test-cli` builds the executable and runs its process-level regression
-suite.
+suite. The suite also treats command help as an interface: every implemented
+command option and every global option must appear in `--help`, together with
+accepted values and defaults.
