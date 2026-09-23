@@ -10,6 +10,7 @@
 #include <ctex/exec/executor.hpp>
 #include <ctex/io/project_container.hpp>
 #include <ctex/io/texture_document.hpp>
+#include <ctex/io/texture_export.hpp>
 #include <ctex/paint/stroke_preset.hpp>
 #include <filesystem>
 #include <fstream>
@@ -61,9 +62,12 @@ struct CommandSpec {
 };
 
 constexpr std::array export_options{
-    OptionSpec{"--document", "PATH", true}, OptionSpec{"--output", "DIRECTORY", true},
-    OptionSpec{"--preset", "NAME", true}, OptionSpec{"--mesh", "PATH", false},
-    OptionSpec{"--mesh-policy", "keep|clear|reproject", false}};
+    OptionSpec{"--document", "PATH", true, "input project"},
+    OptionSpec{"--output", "DIRECTORY", true, "new output directory"},
+    OptionSpec{"--preset", "NAME", true, "built-in export preset"},
+    OptionSpec{"--mesh", "PATH", false, "replacement mesh (reserved; unsupported)"},
+    OptionSpec{"--mesh-policy", "keep|clear|reproject", false,
+               "replacement policy (requires --mesh)"}};
 constexpr std::array bake_options{OptionSpec{"--document", "PATH", true},
                                   OptionSpec{"--provider", "NAME", true},
                                   OptionSpec{"--output", "PATH", true}};
@@ -843,6 +847,251 @@ int apply_command(const Invocation& invocation, const SelectedExecutor& executor
     }
 }
 
+const ctex::io::ExportPreset& require_export_preset(std::string_view identity) {
+    for (const ctex::io::ExportPreset& preset : ctex::io::built_in_export_presets()) {
+        if (preset.identifier == identity) return preset;
+    }
+    std::string message = "unknown export preset '" + std::string(identity) + "'; available:";
+    for (const ctex::io::ExportPreset& preset : ctex::io::built_in_export_presets()) {
+        message += ' ' + preset.identifier;
+    }
+    throw CliError(ExitCode::invalid_arguments, std::move(message));
+}
+
+std::uint64_t checked_sum(std::uint64_t left, std::uint64_t right, std::string_view description) {
+    if (right > std::numeric_limits<std::uint64_t>::max() - left) {
+        throw CliError(ExitCode::over_budget,
+                       std::string(description) + " exceeds the supported counter range");
+    }
+    return left + right;
+}
+
+void require_export_budget(const ctex::doc::TextureDocument& document,
+                           const ctex::io::TextureExportReport& plan, std::uint64_t input_bytes,
+                           const ExecutionOptions& options) {
+    std::uint64_t total_texels{};
+    std::uint64_t estimated_outputs{};
+    std::uint64_t maximum_working{};
+    for (const ctex::io::TextureExportReportEntry& output : plan.outputs) {
+        const std::uint64_t texels = checked_product(output.width, output.height, "export texels");
+        total_texels = checked_sum(total_texels, texels, "export texels");
+        estimated_outputs =
+            checked_sum(estimated_outputs, output.estimated_size_bytes, "export output size");
+        maximum_working =
+            std::max(maximum_working, checked_product(texels, 128, "export working memory"));
+    }
+    if (total_texels > options.texel_ceiling) {
+        throw CliError(ExitCode::over_budget, "export requires " + std::to_string(total_texels) +
+                                                  " texels; texel ceiling is " +
+                                                  std::to_string(options.texel_ceiling));
+    }
+    std::uint64_t required =
+        checked_sum(input_bytes, document.memory_report().total_resident_bytes, "export memory");
+    required = checked_sum(required, estimated_outputs, "export memory");
+    required = checked_sum(required, maximum_working, "export memory");
+    if (required > options.memory_ceiling) {
+        throw CliError(ExitCode::over_budget,
+                       "export requires an estimated " + std::to_string(required) +
+                           " bytes; memory ceiling is " + std::to_string(options.memory_ceiling));
+    }
+}
+
+void validate_export_destination(const std::filesystem::path& destination) {
+    if (destination.empty() || destination.filename().empty()) {
+        throw CliError(ExitCode::invalid_arguments, "export output must name a new directory");
+    }
+    std::error_code error;
+    const std::filesystem::file_status status = std::filesystem::symlink_status(destination, error);
+    if (error && error != std::errc::no_such_file_or_directory) {
+        throw CliError(ExitCode::internal_error,
+                       "could not inspect export output: " + error.message());
+    }
+    if (status.type() != std::filesystem::file_type::not_found) {
+        throw CliError(ExitCode::invalid_arguments,
+                       "export output already exists: '" + destination.string() + "'");
+    }
+    std::filesystem::path parent = destination.parent_path();
+    if (parent.empty()) parent = ".";
+    error.clear();
+    if (!std::filesystem::is_directory(parent, error) || error) {
+        throw CliError(
+            ExitCode::invalid_arguments,
+            "export output parent is not a readable directory: '" + parent.string() + "'");
+    }
+}
+
+class StagedOutputDirectory {
+public:
+    explicit StagedOutputDirectory(std::filesystem::path destination)
+        : destination_(std::move(destination)) {
+        validate_export_destination(destination_);
+        std::error_code error;
+        std::filesystem::path parent = destination_.parent_path();
+        if (parent.empty()) parent = ".";
+        const auto nonce = std::chrono::steady_clock::now().time_since_epoch().count();
+        for (std::uint32_t attempt = 0; attempt < 1024; ++attempt) {
+            staging_ = parent / ("." + destination_.filename().string() + ".ctex-stage-" +
+                                 std::to_string(nonce) + '-' + std::to_string(attempt));
+            error.clear();
+            if (std::filesystem::create_directory(staging_, error)) return;
+            if (error) {
+                throw CliError(ExitCode::internal_error,
+                               "could not create staged export directory: " + error.message());
+            }
+        }
+        throw CliError(ExitCode::internal_error,
+                       "could not reserve a unique staged export directory");
+    }
+
+    StagedOutputDirectory(const StagedOutputDirectory&) = delete;
+    StagedOutputDirectory& operator=(const StagedOutputDirectory&) = delete;
+
+    ~StagedOutputDirectory() {
+        if (!published_) {
+            std::error_code ignored;
+            std::filesystem::remove_all(staging_, ignored);
+        }
+    }
+
+    void write(const ctex::io::InMemoryTextureExport& output) const {
+        const std::filesystem::path relative{output.relative_path};
+        if (relative.empty() || relative.is_absolute() ||
+            std::ranges::any_of(relative, [](const auto& part) { return part == ".."; })) {
+            throw CliError(ExitCode::internal_error,
+                           "export planner produced an unsafe relative path");
+        }
+        const std::filesystem::path path = staging_ / relative;
+        std::error_code error;
+        std::filesystem::create_directories(path.parent_path(), error);
+        if (error) {
+            throw CliError(ExitCode::internal_error,
+                           "could not create export subdirectory: " + error.message());
+        }
+        if (output.bytes.size() >
+            static_cast<std::size_t>(std::numeric_limits<std::streamsize>::max())) {
+            throw CliError(ExitCode::over_budget,
+                           "encoded export exceeds this platform's file-stream limit");
+        }
+        std::ofstream stream(path, std::ios::binary | std::ios::trunc);
+        stream.write(reinterpret_cast<const char*>(output.bytes.data()),
+                     static_cast<std::streamsize>(output.bytes.size()));
+        if (!stream) {
+            throw CliError(ExitCode::internal_error,
+                           "could not write staged export '" + output.relative_path + "'");
+        }
+    }
+
+    void publish() {
+        std::error_code error;
+        std::filesystem::rename(staging_, destination_, error);
+        if (error) {
+            throw CliError(ExitCode::internal_error,
+                           "could not publish export directory: " + error.message());
+        }
+        published_ = true;
+    }
+
+private:
+    std::filesystem::path destination_;
+    std::filesystem::path staging_;
+    bool published_{};
+};
+
+std::string export_outputs_json(const ctex::io::TextureExportResult& result,
+                                const std::filesystem::path& output_directory) {
+    std::string json{"["};
+    for (std::size_t index = 0; index < result.buffers.size(); ++index) {
+        if (index != 0) json += ',';
+        const ctex::io::InMemoryTextureExport& output = result.buffers[index];
+        json +=
+            "{\"kind\":\"texture\",\"path\":" +
+            json_string((output_directory / output.relative_path).string()) +
+            ",\"bytes\":" + std::to_string(output.bytes.size()) +
+            ",\"width\":" + std::to_string(output.width) +
+            ",\"height\":" + std::to_string(output.height) +
+            ",\"format\":" + json_string(ctex::io::export_image_format_name(output.format)) +
+            ",\"color_space\":" + json_string(ctex::image::color_space_name(output.color_space)) +
+            ",\"bit_depth\":" + std::to_string(static_cast<unsigned>(output.bit_depth)) + '}';
+    }
+    return json + ']';
+}
+
+int export_command(const Invocation& invocation, const SelectedExecutor& executor,
+                   const ExecutionOptions& options, SteadyTime started) {
+    const std::filesystem::path document_path{*option_value(invocation, "--document")};
+    const std::filesystem::path output_directory{*option_value(invocation, "--output")};
+    const std::string_view preset_identity = *option_value(invocation, "--preset");
+    if (option_value(invocation, "--mesh").has_value()) {
+        throw CliError(ExitCode::unsupported_operation,
+                       "export mesh replacement is not implemented yet");
+    }
+    if (option_value(invocation, "--mesh-policy").has_value()) {
+        throw CliError(ExitCode::invalid_arguments, "--mesh-policy requires --mesh");
+    }
+    const ctex::io::ExportPreset& preset = require_export_preset(preset_identity);
+    validate_export_destination(output_directory);
+    const std::vector<std::byte> project_bytes = read_input(document_path, options);
+    try {
+        ctex::io::ProjectContainer project =
+            ctex::io::read_project_container(project_bytes, project_limits(options)).container;
+        static_cast<void>(measure_container(project, options));
+        const std::string document_identity = only_texture_document_identity(project);
+        const ctex::doc::TextureDocument document = ctex::io::unpack_texture_document(
+            project, document_identity, texture_document_limits(options));
+        ctex::io::TextureExportOptions export_options;
+        export_options.dry_run = true;
+        const std::string project_name = document_path.stem().string();
+        const ctex::io::TextureExportResult plan = ctex::io::export_texture_document_to_memory(
+            project_name, document, preset, export_options);
+        require_export_budget(document, plan.report, project_bytes.size(), options);
+        export_options.dry_run = false;
+        const ctex::io::TextureExportResult result = ctex::io::export_texture_document_to_memory(
+            project_name, document, preset, export_options);
+        StagedOutputDirectory staging(output_directory);
+        for (const ctex::io::InMemoryTextureExport& output : result.buffers) {
+            staging.write(output);
+        }
+        staging.publish();
+
+        if (option_value(invocation, "--report") == "json") {
+            std::cout << '{'
+                      << standard_report_fields(invocation, executor, options, ExitCode::success,
+                                                "ok", elapsed_milliseconds(started))
+                      << ",\"outputs\":" << export_outputs_json(result, output_directory)
+                      << ",\"inputs\":[{\"kind\":\"document\",\"path\":"
+                      << json_string(document_path.string())
+                      << "}],\"operations\":[\"read\",\"open\",\"plan\",\"encode\",\"publish\"]"
+                      << ",\"document_asset\":" << json_string(document_identity)
+                      << ",\"preset\":" << json_string(preset.identifier) << "}\n";
+        } else if (!invocation.quiet) {
+            std::cout << "exported " << result.buffers.size() << " textures to "
+                      << output_directory.string() << "\nexecutor: " << executor.selected << '\n';
+        }
+        return static_cast<int>(ExitCode::success);
+    } catch (const CliError&) {
+        throw;
+    } catch (const ctex::io::ProjectContainerError& error) {
+        const ExitCode code = error.code() == ctex::io::ProjectContainerErrorCode::over_limit
+                                  ? ExitCode::over_budget
+                                  : ExitCode::invalid_arguments;
+        throw CliError(code, "could not export document: " + std::string(error.what()));
+    } catch (const ctex::io::TextureDocumentIoError& error) {
+        throw CliError(ExitCode::invalid_arguments,
+                       "invalid texture document: " + std::string(error.what()));
+    } catch (const ctex::io::TextureExportError& error) {
+        const ExitCode code = error.code() == ctex::io::TextureExportErrorCode::over_limit
+                                  ? ExitCode::over_budget
+                                  : ExitCode::invalid_arguments;
+        throw CliError(code, "could not export textures: " + std::string(error.what()));
+    } catch (const ctex::io::ExportPlanError& error) {
+        throw CliError(ExitCode::invalid_arguments,
+                       "could not plan texture export: " + std::string(error.what()));
+    } catch (const ctex::io::ExportPresetError& error) {
+        throw CliError(ExitCode::invalid_arguments,
+                       "invalid export preset: " + std::string(error.what()));
+    }
+}
+
 int dispatch(const Invocation& invocation) {
     const auto started = std::chrono::steady_clock::now();
     const SelectedExecutor executor = select_executor(invocation);
@@ -856,6 +1105,9 @@ int dispatch(const Invocation& invocation) {
         }
         if (invocation.command->name == "apply") {
             return apply_command(invocation, executor, options, started);
+        }
+        if (invocation.command->name == "export") {
+            return export_command(invocation, executor, options, started);
         }
         const std::string diagnostic = "command '" + std::string(invocation.command->name) +
                                        "' is not implemented yet (roadmap task 15.2)";

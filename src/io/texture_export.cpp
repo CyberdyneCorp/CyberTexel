@@ -2,6 +2,7 @@
 #include <array>
 #include <cmath>
 #include <cstring>
+#include <ctex/doc/document.hpp>
 #include <ctex/image/color.hpp>
 #include <ctex/image/tiled_image.hpp>
 #include <ctex/io/texture_encode.hpp>
@@ -14,6 +15,139 @@ namespace ctex::io {
 namespace {
 
 struct ExportCancelled {};
+
+std::size_t texel_count(std::uint32_t width, std::uint32_t height, std::string_view subject);
+
+double decode_channel_component(std::span<const std::byte> pixel, image::ChannelType type,
+                                std::size_t component) {
+    const std::size_t bytes_per_channel = image::PixelFormat{type, 1}.bytes_per_channel();
+    const std::byte* source = pixel.data() + component * bytes_per_channel;
+    if (type == image::ChannelType::uint8_unorm) {
+        return std::to_integer<std::uint8_t>(*source) /
+               static_cast<double>(std::numeric_limits<std::uint8_t>::max());
+    }
+    if (type == image::ChannelType::uint16_unorm) {
+        std::uint16_t value{};
+        std::memcpy(&value, source, sizeof(value));
+        return value / static_cast<double>(std::numeric_limits<std::uint16_t>::max());
+    }
+    float value{};
+    std::memcpy(&value, source, sizeof(value));
+    return value;
+}
+
+ExportSampleValue sample_channel(const doc::TextureChannels& channels, std::string_view identity,
+                                 std::uint32_t x, std::uint32_t y) {
+    const doc::ChannelDescriptor& descriptor = channels.descriptor(identity);
+    ExportSampleValue result{.component_count = descriptor.component_count};
+    if (!channels.is_enabled(identity)) {
+        std::ranges::copy(descriptor.default_value, result.components.begin());
+        return result;
+    }
+    const image::TiledImage& pixels = channels.pixels(identity);
+    const std::span<const std::byte> pixel = pixels.read_pixel(x, y);
+    for (std::size_t component = 0; component < descriptor.component_count; ++component) {
+        result.components[component] =
+            decode_channel_component(pixel, pixels.format().channel_type, component);
+    }
+    return result;
+}
+
+ExportChannelSample sample_texture_set(const doc::TextureSet& texture_set,
+                                       std::optional<std::uint32_t> udim, std::uint32_t x,
+                                       std::uint32_t y) {
+    const doc::TextureChannels& channels =
+        udim.has_value() ? texture_set.udim_channels(*udim) : texture_set.channels();
+    ExportChannelSample result;
+    for (const std::string& identity : channels.semantic_ids()) {
+        result.registered_channels.emplace(identity, sample_channel(channels, identity, x, y));
+    }
+    const auto value = [&](std::string_view identity) -> const ExportSampleValue& {
+        return result.registered_channels.find(identity)->second;
+    };
+    const ExportSampleValue& base_color = value("pbr.base_color");
+    result.base_color = {base_color.components[0], base_color.components[1],
+                         base_color.components[2]};
+    result.opacity = value("pbr.opacity").components[0];
+    result.roughness = value("pbr.roughness").components[0];
+    result.metallic = value("pbr.metallic").components[0];
+    const ExportSampleValue& normal = value("pbr.normal");
+    result.normal = {normal.components[0], normal.components[1], normal.components[2]};
+    result.height = value("pbr.height").components[0];
+    result.occlusion = value("pbr.occlusion").components[0];
+    const ExportSampleValue& emission = value("pbr.emission");
+    result.emission = {emission.components[0], emission.components[1], emission.components[2]};
+    result.subsurface = value("pbr.subsurface").components[0];
+    return result;
+}
+
+ExportPixelSource document_pixel_source(const doc::TextureDocument& document,
+                                        const PlannedTextureExport& output) {
+    if (output.layer_identifiers.size() != output.texture_set_identifiers.size()) {
+        throw TextureExportError(TextureExportErrorCode::invalid_source,
+                                 "document export requires one layer selection per texture set");
+    }
+    if (!output.atlas_identifier.has_value()) {
+        if (output.texture_set_identifiers.size() != 1) {
+            throw TextureExportError(TextureExportErrorCode::invalid_source,
+                                     "non-atlas document export requires one texture set");
+        }
+        const doc::TextureSet* texture_set =
+            &document.texture_set(output.texture_set_identifiers.front());
+        return {.width = texture_set->descriptor().width,
+                .height = texture_set->descriptor().height,
+                .sample =
+                    [texture_set, udim = output.udim_tile](std::uint32_t x, std::uint32_t y) {
+                        return sample_texture_set(*texture_set, udim, x, y);
+                    },
+                .coverage = {}};
+    }
+
+    struct AtlasSampleRegion {
+        ExportAtlasRegion region;
+        const doc::TextureSet* texture_set{};
+    };
+    std::vector<AtlasSampleRegion> regions;
+    regions.reserve(output.atlas_regions.size());
+    std::vector<std::uint8_t> coverage(
+        texel_count(output.width, output.height, "document atlas export"));
+    for (const ExportAtlasRegion& region : output.atlas_regions) {
+        regions.push_back({.region = region,
+                           .texture_set = &document.texture_set(region.texture_set_identifier)});
+        for (std::uint32_t y = region.y; y < region.y + region.height; ++y) {
+            std::fill_n(
+                coverage.begin() + static_cast<std::ptrdiff_t>(
+                                       static_cast<std::size_t>(y) * output.width + region.x),
+                region.width, 1);
+        }
+    }
+    return {
+        .width = output.width,
+        .height = output.height,
+        .sample =
+            [regions = std::move(regions)](std::uint32_t x, std::uint32_t y) {
+                for (const AtlasSampleRegion& region : regions) {
+                    const std::uint64_t right =
+                        static_cast<std::uint64_t>(region.region.x) + region.region.width;
+                    const std::uint64_t bottom =
+                        static_cast<std::uint64_t>(region.region.y) + region.region.height;
+                    if (x < region.region.x || y < region.region.y || x >= right || y >= bottom) {
+                        continue;
+                    }
+                    const doc::TextureSetDescriptor descriptor = region.texture_set->descriptor();
+                    const std::uint32_t local_x =
+                        static_cast<std::uint32_t>(static_cast<std::uint64_t>(x - region.region.x) *
+                                                   descriptor.width / region.region.width);
+                    const std::uint32_t local_y =
+                        static_cast<std::uint32_t>(static_cast<std::uint64_t>(y - region.region.y) *
+                                                   descriptor.height / region.region.height);
+                    return sample_texture_set(*region.texture_set, std::nullopt, local_x, local_y);
+                }
+                return ExportChannelSample{};
+            },
+        .coverage = std::move(coverage),
+    };
+}
 
 void cancellation_point(const TextureExportCancellation& cancellation) {
     if (cancellation && cancellation()) {
@@ -496,6 +630,23 @@ TextureExportResult export_textures_to_memory(const ExportSourceCatalogue& catal
         result.report.cancelled = true;
     }
     return result;
+}
+
+TextureExportResult export_texture_document_to_memory(
+    std::string project_name, const doc::TextureDocument& document, const ExportPreset& preset,
+    const TextureExportOptions& options, const TextureExportProgressCallback& progress,
+    const TextureExportCancellation& cancellation) {
+    if (options.plan.layer_scope != ExportLayerScope::flatten_visible) {
+        throw TextureExportError(
+            TextureExportErrorCode::invalid_option,
+            "live document export currently supports only flattened visible layers");
+    }
+    const ExportSourceCatalogue catalogue =
+        export_source_catalogue(std::move(project_name), document);
+    return export_textures_to_memory(
+        catalogue, preset, options,
+        [&](const PlannedTextureExport& output) { return document_pixel_source(document, output); },
+        progress, cancellation);
 }
 
 std::string texture_export_report_json(const TextureExportReport& report) {

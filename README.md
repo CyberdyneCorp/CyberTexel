@@ -452,8 +452,10 @@ The installed-wheel [Python examples](docs/examples.md) and their
 compare generated artifacts with committed outputs.
 
 The native build also produces the [headless `cybertexel` command line](docs/headless-cli.md).
-Its six command routes and argument contracts are present; engine operations
-remain roadmap work under task 15.2.
+Its six command routes and argument contracts are present. `info`, `validate`,
+`apply`, and flattened texture `export` are operational; bake-provider dispatch,
+script execution, and replacement-mesh export remain roadmap work under task
+15.2.
 
 `just build` uses the native `headless` CMake preset. Shipped build presets also
 cover `linux-x64`, `macos-universal`, `windows-x64`, `ios-arm64` and

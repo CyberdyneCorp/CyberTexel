@@ -4,6 +4,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstdlib>
+#include <ctex/doc/document.hpp>
 #include <ctex/io/image_io.hpp>
 #include <ctex/io/texture_export.hpp>
 #include <filesystem>
@@ -292,6 +293,47 @@ bool jpeg_quality_is_reported() {
                   "machine-readable report omitted JPEG quality");
 }
 
+bool live_document_channels_export_without_a_host_provider() {
+    doc::TextureDocument document;
+    doc::TextureSet& texture_set =
+        document.create_texture_set({.display_name = "Body",
+                                     .partition_kind = doc::PartitionSourceKind::material,
+                                     .partition_key = "body",
+                                     .uv_set = "uv0",
+                                     .width = 2,
+                                     .height = 1,
+                                     .default_bit_depth = 8,
+                                     .udim_tiling = false});
+    texture_set.channels().enable("pbr.base_color", 8);
+    texture_set.channels().enable("pbr.opacity", 8);
+    const std::array first{std::byte{64}, std::byte{128}, std::byte{255}};
+    const std::array second{std::byte{255}, std::byte{0}, std::byte{64}};
+    const std::array transparent{std::byte{32}};
+    texture_set.channels().pixels("pbr.base_color").write_pixel(0, 0, first);
+    texture_set.channels().pixels("pbr.base_color").write_pixel(1, 0, second);
+    texture_set.channels().pixels("pbr.opacity").write_pixel(1, 0, transparent);
+
+    TextureExportOptions options;
+    options.padding_radius = 0;
+    const TextureExportResult result = export_texture_document_to_memory(
+        "Live document", document, built_in_export_preset("base-color"), options);
+    if (!expect(result.buffers.size() == 1 && result.report.outputs.size() == 1,
+                "live document export did not produce its planned output")) {
+        return false;
+    }
+    const auto decoded = decode_image_memory(
+        {.bytes = result.buffers.front().bytes, .source_name = "live-document.png"});
+    return expect(channel(decoded.pixels, 0, 0, 0) == 137 &&
+                      channel(decoded.pixels, 0, 0, 1) == 188 &&
+                      channel(decoded.pixels, 0, 0, 2) == 255,
+                  "live document base colour did not receive the declared sRGB transfer") &&
+           expect(channel(decoded.pixels, 1, 0, 3) == 32,
+                  "live document opacity was not sampled from channel storage") &&
+           expect(result.report.outputs.front().texture_set_identifiers ==
+                      std::vector<std::string>{texture_set.id()},
+                  "live document export report lost the texture-set identity");
+}
+
 bool write_report(std::string_view path) {
     TextureExportOptions options;
     options.dry_run = true;
@@ -337,7 +379,8 @@ int main(int argc, char** argv) {
                    dry_run_reports_every_output_without_sampling() &&
                    cancellation_after_eight_of_twenty_keeps_only_complete_buffers() &&
                    packed_and_derived_presets_encode_their_declared_slots() &&
-                   registered_data_channels_skip_color_transfer() && jpeg_quality_is_reported()
+                   registered_data_channels_skip_color_transfer() && jpeg_quality_is_reported() &&
+                   live_document_channels_export_without_a_host_provider()
                ? 0
                : 1;
 }

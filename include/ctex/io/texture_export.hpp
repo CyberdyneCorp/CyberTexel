@@ -11,6 +11,10 @@
 #include <string>
 #include <vector>
 
+namespace ctex::doc {
+class TextureDocument;
+}
+
 namespace ctex::io {
 
 enum class ExportResampleFilter : std::uint8_t { bilinear };
@@ -108,6 +112,13 @@ private:
     const ExportSourceCatalogue& catalogue, const ExportPreset& preset,
     const TextureExportOptions& options, const ExportPixelProvider& pixel_provider = {},
     const TextureExportProgressCallback& progress = {},
+    const TextureExportCancellation& cancellation = {});
+
+// Exports the document's current flattened channel state. Layer-specific export
+// remains a host-provided pixel-source operation.
+[[nodiscard]] TextureExportResult export_texture_document_to_memory(
+    std::string project_name, const doc::TextureDocument& document, const ExportPreset& preset,
+    const TextureExportOptions& options, const TextureExportProgressCallback& progress = {},
     const TextureExportCancellation& cancellation = {});
 
 [[nodiscard]] std::string texture_export_report_json(const TextureExportReport& report);

@@ -212,13 +212,13 @@ quiet = run("info", "--document", str(document), "--quiet")
 assert quiet.returncode == 0 and quiet.stdout == "" and quiet.stderr == ""
 
 unsupported = run(
-    "export",
+    "bake-request",
     "--document",
     str(document),
-    "--preset",
-    "base-color",
+    "--provider",
+    "fixture-provider",
     "--output",
-    "textures",
+    "baked.ctex",
     "--report",
     "json",
 )
@@ -248,6 +248,84 @@ with tempfile.TemporaryDirectory(prefix="ctex-cli-apply-") as temporary:
     assert generated.returncode == 0 and generated.stderr == ""
     texture_set = generated.stdout.strip()
     source_bytes = source.read_bytes()
+
+    export_directory = directory / "textures"
+    exported = run(
+        "export",
+        "--document",
+        str(source),
+        "--preset",
+        "base-color",
+        "--output",
+        str(export_directory),
+        "--report",
+        "json",
+    )
+    export_report = json.loads(exported.stdout)
+    assert exported.returncode == 0 and exported.stderr == ""
+    assert export_report["status"] == "ok" and export_report["preset"] == "base-color"
+    assert export_report["operations"] == ["read", "open", "plan", "encode", "publish"]
+    assert len(export_report["outputs"]) == 2
+    for exported_texture in export_report["outputs"]:
+        path = Path(exported_texture["path"])
+        assert path.is_file() and path.is_relative_to(export_directory)
+        assert exported_texture | {
+            "kind": "texture",
+            "bytes": path.stat().st_size,
+            "width": 8,
+            "height": 8,
+            "format": "PNG",
+            "bit_depth": 8,
+        } == exported_texture
+    assert source.read_bytes() == source_bytes
+
+    repeated_export = run(
+        "export",
+        "--document",
+        str(source),
+        "--preset",
+        "base-color",
+        "--output",
+        str(export_directory),
+        "--report",
+        "json",
+    )
+    assert repeated_export.returncode == 2
+    assert json.loads(repeated_export.stdout)["outputs"] == []
+    assert "already exists" in repeated_export.stderr
+
+    unknown_export = directory / "unknown-export"
+    unknown_preset = run(
+        "export",
+        "--document",
+        str(source),
+        "--preset",
+        "missing-preset",
+        "--output",
+        str(unknown_export),
+        "--report",
+        "json",
+    )
+    assert unknown_preset.returncode == 2 and not unknown_export.exists()
+    assert "available:" in unknown_preset.stderr and "base-color" in unknown_preset.stderr
+
+    bounded_export = directory / "bounded-export"
+    over_texel_budget = run(
+        "export",
+        "--document",
+        str(source),
+        "--preset",
+        "base-color",
+        "--output",
+        str(bounded_export),
+        "--texel-ceiling",
+        "1",
+        "--report",
+        "json",
+    )
+    assert over_texel_budget.returncode == 7 and not bounded_export.exists()
+    assert json.loads(over_texel_budget.stdout)["outputs"] == []
+
     output = directory / "applied.ctex"
     applied = run(
         "apply",

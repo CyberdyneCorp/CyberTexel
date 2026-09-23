@@ -41,6 +41,13 @@ checked while sampling, resizing and converting rows and between outputs. The
 current output is appended only after encoding completes, so the result never
 contains a partial buffer.
 
+`export_texture_document_to_memory()` supplies the provider for a live
+`TextureDocument`. It reads enabled channel storage at its declared integer or
+floating-point representation, uses channel defaults when storage is disabled,
+handles base, UDIM and atlas plans, and then delegates to the same export path.
+The adapter exports the document's current flattened visible channel state;
+layer-specific selections still require an explicit host pixel provider.
+
 ## Channel and colour handling
 
 The pixel provider supplies an `ExportChannelSample` for each source texel.

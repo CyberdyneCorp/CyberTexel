@@ -23,9 +23,19 @@ packed or readable relative to the input project; otherwise the command returns
 the missing-resource outcome without touching its output. Repeated applications
 receive deterministic suffixes while retaining their preset origin.
 
-`export`, `bake-request`, and `run` currently return the unsupported-operation
-outcome until the remaining parts of roadmap task 15.2 supply those operations;
-they never create partial output in this state.
+`export` opens that same live document, resolves a built-in export preset,
+samples the document's current flattened typed channels, and encodes every
+planned texture through the native export pipeline. It writes into a new staged
+directory and publishes that directory only after all outputs are complete, so
+an error cannot expose a partial output set. Its JSON report identifies every
+file with byte size, dimensions, format, colour space and bit depth. Existing
+output directories are refused instead of being merged or overwritten. Mesh
+replacement arguments remain reserved and return the unsupported-operation
+outcome until the replacement-mesh input path is implemented.
+
+`bake-request` and `run` currently return the unsupported-operation outcome
+until the remaining parts of roadmap task 15.2 supply those operations; they
+never create partial output in this state.
 
 Run `cybertexel --help` for the command list or
 `cybertexel <command> --help` for required and optional command arguments.
