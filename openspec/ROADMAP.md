@@ -382,6 +382,11 @@ pinned inputs and their raster checkpoint images through atomic recovery.
 Recovered-container assessment reports every unsupported algorithm without
 substitution and whether checkpoint fallback survived. Mapping this public path
 reduces the task-14.8 gap to 7 runtime requirements.
+Persistent editable decals, text and surface paths now retain placement,
+material and attachment source data in the texture set. Edits atomically
+invalidate the union of dependent tiles, create one undo step and remain
+explicitly rasterized. Canonical project assets and strict-C save/reopen tests
+complete task 20.4 and reduce the task-14.8 gap to 6 runtime requirements.
 
 ## Milestones
 

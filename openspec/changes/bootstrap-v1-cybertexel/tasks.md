@@ -1330,6 +1330,15 @@ version-catalogue assessment that names unavailable edits without substituting
 another algorithm and reports checkpoint fallback. C++ and strict-C autosave
 fixtures reduce the task-14.8 gap to 7 requirements.
 
+Task 20.4 adds a texture-set editable-authoring store for decals, text and
+surface paths. Placement frames, UTF-8 text, supplied-font identities, attached
+path control points, widths and material parameters round-trip through a
+bounded canonical project asset. Revision-checked edits invalidate the union of
+old and new dependent tiles and create one atomic undo step; rasterization is a
+separate inspectable host request. Surface paths derive frames from their mesh
+attachments and evaluate through the canonical stroke resolver. C++ and
+strict-C save/reopen fixtures reduce the exact task-14.8 gap to 6 requirements.
+
 ## 1. Foundation
 
 - [x] 1.1 CMake project, C++20, warnings as errors, presets for headless, macOS, Linux, Windows, iOS, Android
@@ -1608,6 +1617,6 @@ fixtures reduce the task-14.8 gap to 7 requirements.
 - [ ] 20.1 Versioned operation records, pinned input assets and checkpoint storage; expose through C ABI and bindings and round-trip in project-io
 - [x] 20.2 Same-resolution recovery versus resolution-independent replay eligibility; clone/blur/smear source snapshots and checkpoint-only policy
 - [ ] 20.3 Atomic undoable resize with explicit replay/resample/cancel policy and mixed-layer fixtures
-- [ ] 20.4 Persistent editable decals, text and surface paths; parameter editing, invalidation, save/reopen and undo
+- [x] 20.4 Persistent editable decals, text and surface paths; parameter editing, invalidation, save/reopen and undo
 - [ ] 20.5 Reprojection preflight, distance/angle/visibility limits, ambiguity and hole policy, tangent conversion and cancellation
 - [ ] 20.6 `editable-authoring` scenarios as tests

@@ -7,6 +7,7 @@
 #include <cmath>
 #include <cstdio>
 #include <cstring>
+#include <ctex/doc/editable_authoring.hpp>
 #include <ctex/doc/material_graph.hpp>
 #include <ctex/doc/mesh_replacement.hpp>
 #include <ctex/doc/smart_material.hpp>
@@ -23,6 +24,7 @@
 #include <ctex/image/channel_expansion.hpp>
 #include <ctex/image/color_policy.hpp>
 #include <ctex/image/resampling.hpp>
+#include <ctex/io/editable_authoring.hpp>
 #include <ctex/io/image_io.hpp>
 #include <ctex/io/operation_record.hpp>
 #include <ctex/io/preset_library.hpp>
@@ -45,6 +47,7 @@
 #include <ctex/paint/coverage.hpp>
 #include <ctex/paint/decal_stencil.hpp>
 #include <ctex/paint/deposition.hpp>
+#include <ctex/paint/editable_surface_path.hpp>
 #include <ctex/paint/fill.hpp>
 #include <ctex/paint/masking.hpp>
 #include <ctex/paint/particle.hpp>
@@ -7414,6 +7417,274 @@ void write_project_container_outputs(const PreparedProjectContainer& prepared, v
     }
 }
 
+[[noreturn]] void throw_editable_authoring_error(const ctex::doc::EditableAuthoringError& error) {
+    switch (error.code()) {
+        case ctex::doc::EditableAuthoringErrorCode::no_undo:
+            throw_boundary(CTEX_RESULT_NO_UNDO, CTEX_DIAGNOSTIC_INVALID_EDITABLE_AUTHORING,
+                           error.what());
+        case ctex::doc::EditableAuthoringErrorCode::no_redo:
+            throw_boundary(CTEX_RESULT_NO_REDO, CTEX_DIAGNOSTIC_INVALID_EDITABLE_AUTHORING,
+                           error.what());
+        case ctex::doc::EditableAuthoringErrorCode::stale_entry:
+            throw_boundary(CTEX_RESULT_STALE_STATE, CTEX_DIAGNOSTIC_INVALID_EDITABLE_AUTHORING,
+                           error.what());
+        case ctex::doc::EditableAuthoringErrorCode::missing_entry:
+            throw_boundary(CTEX_RESULT_MISSING_RESOURCE, CTEX_DIAGNOSTIC_INVALID_EDITABLE_AUTHORING,
+                           error.what());
+        case ctex::doc::EditableAuthoringErrorCode::invalid_entry:
+        case ctex::doc::EditableAuthoringErrorCode::duplicate_entry:
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_INVALID_EDITABLE_AUTHORING,
+                           error.what());
+    }
+    throw_boundary(CTEX_RESULT_INTERNAL_ERROR, CTEX_DIAGNOSTIC_UNEXPECTED_EXCEPTION,
+                   "unknown editable-authoring failure");
+}
+
+[[noreturn]] void throw_editable_authoring_io_error(
+    const ctex::io::EditableAuthoringIoError& error) {
+    throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_INVALID_EDITABLE_AUTHORING,
+                   error.what());
+}
+
+void append_editable_parameters(ctex::doc::EditableAuthoringEntry& result,
+                                const ctex_editable_entry_descriptor& descriptor) {
+    result.material_parameters.reserve(descriptor.material_parameter_count);
+    for (std::size_t index = 0; index < descriptor.material_parameter_count; ++index) {
+        const auto& source = descriptor.material_parameters[index];
+        validate_structure_size(source.size, CTEX_EDITABLE_MATERIAL_PARAMETER_DESCRIPTOR_V1_SIZE,
+                                CTEX_EDITABLE_MATERIAL_PARAMETER_DESCRIPTOR_CURRENT_SIZE,
+                                "editable material parameter size");
+        if (source.identifier == nullptr) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                           "editable material parameter identifier is null");
+        }
+        result.material_parameters.push_back(
+            {.identifier = source.identifier,
+             .component_count = static_cast<std::uint8_t>(source.component_count),
+             .value = {source.value[0], source.value[1], source.value[2], source.value[3]}});
+    }
+}
+
+void append_editable_surface_points(ctex::doc::EditableAuthoringEntry& result,
+                                    const ctex_editable_entry_descriptor& descriptor) {
+    result.surface_points.reserve(descriptor.surface_point_count);
+    for (std::size_t index = 0; index < descriptor.surface_point_count; ++index) {
+        const auto& source = descriptor.surface_points[index];
+        validate_structure_size(source.size, CTEX_EDITABLE_SURFACE_POINT_DESCRIPTOR_V1_SIZE,
+                                CTEX_EDITABLE_SURFACE_POINT_DESCRIPTOR_CURRENT_SIZE,
+                                "editable surface point size");
+        result.surface_points.push_back(
+            {.position = {source.position.x, source.position.y, source.position.z},
+             .normal = {source.normal.x, source.normal.y, source.normal.z},
+             .triangle = source.triangle,
+             .barycentric = {source.barycentric[0], source.barycentric[1], source.barycentric[2]},
+             .width = source.width});
+    }
+}
+
+void append_editable_tiles(ctex::doc::EditableAuthoringEntry& result,
+                           const ctex_editable_entry_descriptor& descriptor) {
+    result.dependent_tiles.reserve(descriptor.dependent_tile_count);
+    for (std::size_t index = 0; index < descriptor.dependent_tile_count; ++index) {
+        const auto& source = descriptor.dependent_tiles[index];
+        validate_structure_size(source.size, CTEX_EDITABLE_TILE_DEPENDENCY_DESCRIPTOR_V1_SIZE,
+                                CTEX_EDITABLE_TILE_DEPENDENCY_DESCRIPTOR_CURRENT_SIZE,
+                                "editable tile dependency size");
+        if (source.semantic_id == nullptr) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                           "editable tile semantic identity is null");
+        }
+        result.dependent_tiles.push_back(
+            {.semantic_id = source.semantic_id, .tile_x = source.tile_x, .tile_y = source.tile_y});
+    }
+}
+
+ctex::doc::EditableAuthoringEntry editable_entry(const ctex_editable_entry_descriptor& descriptor,
+                                                 bool adding) {
+    validate_structure_size(descriptor.size, CTEX_EDITABLE_ENTRY_DESCRIPTOR_V1_SIZE,
+                            CTEX_EDITABLE_ENTRY_DESCRIPTOR_CURRENT_SIZE,
+                            "editable entry descriptor size");
+    if (descriptor.identifier == nullptr || descriptor.material_identity == nullptr ||
+        (descriptor.material_parameters == nullptr && descriptor.material_parameter_count != 0) ||
+        (descriptor.surface_points == nullptr && descriptor.surface_point_count != 0) ||
+        (descriptor.dependent_tiles == nullptr && descriptor.dependent_tile_count != 0)) {
+        throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                       "editable entry contains a required null pointer");
+    }
+    if (adding && descriptor.expected_revision != 0) {
+        throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_INVALID_EDITABLE_AUTHORING,
+                       "new editable entry expected_revision must be zero");
+    }
+    ctex::doc::EditableAuthoringEntry result{
+        .identifier = descriptor.identifier,
+        .kind = static_cast<ctex::doc::EditableEntryKind>(descriptor.kind),
+        .revision = adding ? 1U : descriptor.expected_revision,
+        .placement = {.position = {descriptor.placement.position.x, descriptor.placement.position.y,
+                                   descriptor.placement.position.z},
+                      .normal = {descriptor.placement.normal.x, descriptor.placement.normal.y,
+                                 descriptor.placement.normal.z},
+                      .rotation_radians = descriptor.placement.rotation_radians,
+                      .uniform_scale = descriptor.placement.uniform_scale,
+                      .axis_scale = {descriptor.placement.axis_scale.x,
+                                     descriptor.placement.axis_scale.y}},
+        .material_identity = descriptor.material_identity,
+        .material_parameters = {},
+        .text = descriptor.text == nullptr ? "" : descriptor.text,
+        .font_identity = descriptor.font_identity == nullptr ? "" : descriptor.font_identity,
+        .mesh_revision = descriptor.mesh_revision,
+        .surface_points = {},
+        .dependent_tiles = {},
+    };
+    append_editable_parameters(result, descriptor);
+    append_editable_surface_points(result, descriptor);
+    append_editable_tiles(result, descriptor);
+    ctex::doc::validate_editable_authoring_entry(result);
+    return result;
+}
+
+void append_editable_tile_json(std::string& output, const ctex::doc::EditableTileDependency& tile) {
+    output += "{\"semantic\":";
+    append_json_text(output, tile.semantic_id);
+    output +=
+        ",\"x\":" + std::to_string(tile.tile_x) + ",\"y\":" + std::to_string(tile.tile_y) + "}";
+}
+
+std::string editable_entry_json(const ctex::doc::EditableAuthoringEntry& entry,
+                                std::uint64_t document_revision,
+                                std::span<const ctex::doc::EditableTileDependency> invalidated,
+                                std::size_t undo_steps, std::size_t redo_steps,
+                                std::string_view action) {
+    std::string output = "{\"action\":";
+    append_json_text(output, action);
+    output += ",\"id\":";
+    append_json_text(output, entry.identifier);
+    output += ",\"kind\":" + std::to_string(static_cast<std::uint32_t>(entry.kind)) +
+              ",\"revision\":" + std::to_string(entry.revision) +
+              ",\"document_revision\":" + std::to_string(document_revision) + ",\"material\":";
+    append_json_text(output, entry.material_identity);
+    output += ",\"text\":";
+    append_json_text(output, entry.text);
+    output += ",\"font\":";
+    append_json_text(output, entry.font_identity);
+    output += ",\"mesh_revision\":" + std::to_string(entry.mesh_revision) + ",\"parameters\":[";
+    for (std::size_t index = 0; index < entry.material_parameters.size(); ++index) {
+        if (index != 0) output.push_back(',');
+        const auto& parameter = entry.material_parameters[index];
+        output += "{\"id\":";
+        append_json_text(output, parameter.identifier);
+        output += ",\"components\":" + std::to_string(parameter.component_count) + ",\"values\":[";
+        for (std::size_t component = 0; component < parameter.component_count; ++component) {
+            if (component != 0) output.push_back(',');
+            output += std::to_string(parameter.value[component]);
+        }
+        output += "]}";
+    }
+    output += "],\"surface_points\":[";
+    for (std::size_t index = 0; index < entry.surface_points.size(); ++index) {
+        if (index != 0) output.push_back(',');
+        const auto& point = entry.surface_points[index];
+        output += "{\"triangle\":" + std::to_string(point.triangle) +
+                  ",\"width\":" + std::to_string(point.width) + "}";
+    }
+    output += "],\"invalidated_tiles\":[";
+    for (std::size_t index = 0; index < invalidated.size(); ++index) {
+        if (index != 0) output.push_back(',');
+        append_editable_tile_json(output, invalidated[index]);
+    }
+    output += "],\"undo_steps\":" + std::to_string(undo_steps) +
+              ",\"redo_steps\":" + std::to_string(redo_steps) + "}";
+    return output;
+}
+
+ctex_editable_entry_info editable_entry_info(const ctex::doc::EditableAuthoringEntry& entry,
+                                             const ctex::doc::EditableAuthoringStore& store,
+                                             std::size_t invalidated_count,
+                                             std::size_t report_size) {
+    return {.size = CTEX_EDITABLE_ENTRY_INFO_CURRENT_SIZE,
+            .kind = static_cast<std::uint32_t>(entry.kind),
+            .entry_present = 1,
+            .entry_revision = entry.revision,
+            .document_revision = store.revision(),
+            .entry_count = store.entries().size(),
+            .material_parameter_count = entry.material_parameters.size(),
+            .surface_point_count = entry.surface_points.size(),
+            .invalidated_tile_count = invalidated_count,
+            .undo_step_count = store.undo_step_count(),
+            .redo_step_count = store.redo_step_count(),
+            .required_report_size = report_size};
+}
+
+const ctex::doc::EditableAuthoringEntry* find_editable_entry(
+    const ctex::doc::EditableAuthoringStore& store, std::string_view identifier) {
+    const auto found = std::ranges::find(store.entries(), identifier,
+                                         &ctex::doc::EditableAuthoringEntry::identifier);
+    return found == store.entries().end() ? nullptr : &*found;
+}
+
+std::string editable_mutation_json(const ctex::doc::EditableAuthoringStore& store,
+                                   const ctex::doc::EditableMutationReport& mutation,
+                                   std::string_view action) {
+    if (const auto* entry = find_editable_entry(store, mutation.identifier); entry != nullptr) {
+        return editable_entry_json(*entry, store.revision(), mutation.invalidated_tiles,
+                                   store.undo_step_count(), store.redo_step_count(), action);
+    }
+    std::string output = "{\"action\":";
+    append_json_text(output, action);
+    output += ",\"id\":";
+    append_json_text(output, mutation.identifier);
+    output += ",\"entry_present\":false,\"document_revision\":" + std::to_string(store.revision()) +
+              ",\"invalidated_tiles\":[";
+    for (std::size_t index = 0; index < mutation.invalidated_tiles.size(); ++index) {
+        if (index != 0) output.push_back(',');
+        append_editable_tile_json(output, mutation.invalidated_tiles[index]);
+    }
+    output += "],\"undo_steps\":" + std::to_string(store.undo_step_count()) +
+              ",\"redo_steps\":" + std::to_string(store.redo_step_count()) + "}";
+    return output;
+}
+
+ctex_editable_entry_info editable_mutation_info(const ctex::doc::EditableAuthoringStore& store,
+                                                const ctex::doc::EditableMutationReport& mutation,
+                                                std::size_t report_size) {
+    if (const auto* entry = find_editable_entry(store, mutation.identifier); entry != nullptr) {
+        return editable_entry_info(*entry, store, mutation.invalidated_tiles.size(), report_size);
+    }
+    return {.size = CTEX_EDITABLE_ENTRY_INFO_CURRENT_SIZE,
+            .kind = 0,
+            .entry_present = 0,
+            .entry_revision = 0,
+            .document_revision = store.revision(),
+            .entry_count = store.entries().size(),
+            .material_parameter_count = 0,
+            .surface_point_count = 0,
+            .invalidated_tile_count = mutation.invalidated_tiles.size(),
+            .undo_step_count = store.undo_step_count(),
+            .redo_step_count = store.redo_step_count(),
+            .required_report_size = report_size};
+}
+
+void validate_editable_output(ctex_editable_entry_info* out_info, char* report_output,
+                              std::size_t report_output_size, std::size_t required_size) {
+    if (out_info == nullptr) {
+        throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                       "out_info=null");
+    }
+    validate_structure_size(out_info->size, CTEX_EDITABLE_ENTRY_INFO_V1_SIZE,
+                            CTEX_EDITABLE_ENTRY_INFO_CURRENT_SIZE, "editable entry info size");
+    validate_string_buffer(report_output, report_output_size, required_size);
+}
+
+const ctex::io::StandaloneAsset& editable_asset(const ctex::io::ProjectContainer& project,
+                                                std::string_view identifier) {
+    const auto found =
+        std::ranges::find(project.assets, identifier, &ctex::io::StandaloneAsset::identifier);
+    if (found == project.assets.end() || found->kind != ctex::io::editable_authoring_asset_kind) {
+        throw_boundary(CTEX_RESULT_MISSING_RESOURCE, CTEX_DIAGNOSTIC_INVALID_EDITABLE_AUTHORING,
+                       "editable-authoring project asset is missing: " + std::string(identifier));
+    }
+    return *found;
+}
+
 ctex::io::ProjectAutosaveConfig project_autosave_config(
     const ctex_project_autosave_config_descriptor& descriptor) {
     validate_structure_size(descriptor.size, CTEX_PROJECT_AUTOSAVE_CONFIG_DESCRIPTOR_V1_SIZE,
@@ -12893,6 +13164,310 @@ extern "C" ctex_result ctex_project_container_assess_operation_replay(
             }
         } catch (const ctex::io::OperationRecordError& error) {
             throw_operation_record_error(error);
+        } catch (const ctex::io::ProjectContainerError& error) {
+            throw_project_container_error(error);
+        }
+    });
+}
+
+extern "C" ctex_result ctex_texture_set_editable_entry_add(
+    ctex_document* document, const char* texture_set_id,
+    const ctex_editable_entry_descriptor* descriptor, ctex_editable_entry_info* out_info,
+    char* report_output, std::size_t report_output_size) {
+    return call_boundary("ctex_texture_set_editable_entry_add", [&] {
+        if (document == nullptr || descriptor == nullptr) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                           document == nullptr ? "document=null" : "descriptor=null");
+        }
+        try {
+            ctex::doc::EditableAuthoringStore& live =
+                require_texture_set(*document, texture_set_id).editable_authoring();
+            ctex::doc::EditableAuthoringStore candidate = live;
+            const ctex::doc::EditableMutationReport mutation =
+                candidate.add(editable_entry(*descriptor, true));
+            const std::string report = editable_mutation_json(candidate, mutation, "add");
+            validate_editable_output(out_info, report_output, report_output_size,
+                                     report.size() + 1);
+            const ctex_editable_entry_info info =
+                editable_mutation_info(candidate, mutation, report.size() + 1);
+            live = std::move(candidate);
+            *out_info = info;
+            if (report_output != nullptr) {
+                std::memcpy(report_output, report.c_str(), report.size() + 1);
+            }
+        } catch (const ctex::doc::EditableAuthoringError& error) {
+            throw_editable_authoring_error(error);
+        }
+    });
+}
+
+extern "C" ctex_result ctex_texture_set_editable_entry_edit(
+    ctex_document* document, const char* texture_set_id,
+    const ctex_editable_entry_descriptor* descriptor, ctex_editable_entry_info* out_info,
+    char* report_output, std::size_t report_output_size) {
+    return call_boundary("ctex_texture_set_editable_entry_edit", [&] {
+        if (document == nullptr || descriptor == nullptr) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                           document == nullptr ? "document=null" : "descriptor=null");
+        }
+        try {
+            ctex::doc::EditableAuthoringStore& live =
+                require_texture_set(*document, texture_set_id).editable_authoring();
+            ctex::doc::EditableAuthoringStore candidate = live;
+            ctex::doc::EditableAuthoringEntry replacement = editable_entry(*descriptor, false);
+            const ctex::doc::EditableMutationReport mutation =
+                candidate.edit(std::move(replacement), descriptor->expected_revision);
+            const std::string report = editable_mutation_json(candidate, mutation, "edit");
+            validate_editable_output(out_info, report_output, report_output_size,
+                                     report.size() + 1);
+            const ctex_editable_entry_info info =
+                editable_mutation_info(candidate, mutation, report.size() + 1);
+            live = std::move(candidate);
+            *out_info = info;
+            if (report_output != nullptr) {
+                std::memcpy(report_output, report.c_str(), report.size() + 1);
+            }
+        } catch (const ctex::doc::EditableAuthoringError& error) {
+            throw_editable_authoring_error(error);
+        }
+    });
+}
+
+extern "C" ctex_result ctex_texture_set_editable_entry_inspect(
+    const ctex_document* document, const char* texture_set_id, const char* entry_identifier,
+    ctex_editable_entry_info* out_info, char* report_output, std::size_t report_output_size) {
+    return call_boundary("ctex_texture_set_editable_entry_inspect", [&] {
+        if (document == nullptr || entry_identifier == nullptr) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                           "document and entry_identifier are required");
+        }
+        try {
+            const auto& store = require_texture_set(*document, texture_set_id).editable_authoring();
+            const auto& entry = store.entry(entry_identifier);
+            const std::string report =
+                editable_entry_json(entry, store.revision(), entry.dependent_tiles,
+                                    store.undo_step_count(), store.redo_step_count(), "inspect");
+            validate_editable_output(out_info, report_output, report_output_size,
+                                     report.size() + 1);
+            *out_info =
+                editable_entry_info(entry, store, entry.dependent_tiles.size(), report.size() + 1);
+            if (report_output != nullptr) {
+                std::memcpy(report_output, report.c_str(), report.size() + 1);
+            }
+        } catch (const ctex::doc::EditableAuthoringError& error) {
+            throw_editable_authoring_error(error);
+        }
+    });
+}
+
+extern "C" ctex_result ctex_texture_set_editable_entry_plan_rasterization(
+    const ctex_document* document, const char* texture_set_id, const char* entry_identifier,
+    ctex_editable_entry_info* out_info, char* report_output, std::size_t report_output_size) {
+    return call_boundary("ctex_texture_set_editable_entry_plan_rasterization", [&] {
+        if (document == nullptr || entry_identifier == nullptr) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                           "document and entry_identifier are required");
+        }
+        try {
+            const auto& store = require_texture_set(*document, texture_set_id).editable_authoring();
+            const auto plan = store.rasterization_plan(entry_identifier);
+            const std::string report =
+                editable_entry_json(plan.entry, plan.document_revision, plan.invalidated_tiles,
+                                    store.undo_step_count(), store.redo_step_count(), "rasterize");
+            validate_editable_output(out_info, report_output, report_output_size,
+                                     report.size() + 1);
+            *out_info = editable_entry_info(plan.entry, store, plan.invalidated_tiles.size(),
+                                            report.size() + 1);
+            if (report_output != nullptr) {
+                std::memcpy(report_output, report.c_str(), report.size() + 1);
+            }
+        } catch (const ctex::doc::EditableAuthoringError& error) {
+            throw_editable_authoring_error(error);
+        }
+    });
+}
+
+template <typename Apply>
+ctex_result editable_history_boundary(const char* operation, ctex_document* document,
+                                      const char* texture_set_id,
+                                      ctex_editable_entry_info* out_info, char* report_output,
+                                      std::size_t report_output_size, Apply apply) {
+    return call_boundary(operation, [&] {
+        if (document == nullptr) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                           "document=null");
+        }
+        try {
+            ctex::doc::EditableAuthoringStore& live =
+                require_texture_set(*document, texture_set_id).editable_authoring();
+            ctex::doc::EditableAuthoringStore candidate = live;
+            const ctex::doc::EditableMutationReport mutation = apply(candidate);
+            const std::string report = editable_mutation_json(candidate, mutation, operation);
+            validate_editable_output(out_info, report_output, report_output_size,
+                                     report.size() + 1);
+            const ctex_editable_entry_info info =
+                editable_mutation_info(candidate, mutation, report.size() + 1);
+            live = std::move(candidate);
+            *out_info = info;
+            if (report_output != nullptr) {
+                std::memcpy(report_output, report.c_str(), report.size() + 1);
+            }
+        } catch (const ctex::doc::EditableAuthoringError& error) {
+            throw_editable_authoring_error(error);
+        }
+    });
+}
+
+extern "C" ctex_result ctex_texture_set_editable_entry_undo(ctex_document* document,
+                                                            const char* texture_set_id,
+                                                            ctex_editable_entry_info* out_info,
+                                                            char* report_output,
+                                                            std::size_t report_output_size) {
+    return editable_history_boundary(
+        "undo", document, texture_set_id, out_info, report_output, report_output_size,
+        [](ctex::doc::EditableAuthoringStore& store) { return store.undo(); });
+}
+
+extern "C" ctex_result ctex_texture_set_editable_entry_redo(ctex_document* document,
+                                                            const char* texture_set_id,
+                                                            ctex_editable_entry_info* out_info,
+                                                            char* report_output,
+                                                            std::size_t report_output_size) {
+    return editable_history_boundary(
+        "redo", document, texture_set_id, out_info, report_output, report_output_size,
+        [](ctex::doc::EditableAuthoringStore& store) { return store.redo(); });
+}
+
+extern "C" ctex_result ctex_texture_set_editable_surface_path_resolve(
+    const ctex_document* document, const char* texture_set_id, const char* entry_identifier,
+    const ctex_stroke_settings_descriptor* settings, ctex_resolved_stroke_info* out_info,
+    ctex_resolved_stamp* stamps, std::size_t stamp_capacity, std::size_t* out_stamp_count,
+    ctex_swept_segment* swept_segments, std::size_t swept_segment_capacity,
+    std::size_t* out_swept_segment_count) {
+    return call_boundary("ctex_texture_set_editable_surface_path_resolve", [&] {
+        if (document == nullptr || entry_identifier == nullptr || settings == nullptr ||
+            out_info == nullptr || out_stamp_count == nullptr ||
+            out_swept_segment_count == nullptr) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                           "document, entry, settings, info and output counts are required");
+        }
+        validate_structure_size(out_info->size, CTEX_RESOLVED_STROKE_INFO_V1_SIZE,
+                                CTEX_RESOLVED_STROKE_INFO_CURRENT_SIZE, "out_info.size");
+        try {
+            const auto& entry = require_texture_set(*document, texture_set_id)
+                                    .editable_authoring()
+                                    .entry(entry_identifier);
+            const ctex::paint::ResolvedStroke resolved =
+                ctex::paint::evaluate_editable_surface_path(entry, stroke_settings(*settings));
+            *out_stamp_count = resolved.stamps.size();
+            *out_swept_segment_count = resolved.swept_segments.size();
+            validate_output_array(stamps, stamp_capacity, resolved.stamps.size(), "stamps");
+            validate_output_array(swept_segments, swept_segment_capacity,
+                                  resolved.swept_segments.size(), "swept_segments");
+            *out_info = {.size = CTEX_RESOLVED_STROKE_INFO_CURRENT_SIZE,
+                         .reconstruction_version = resolved.reconstruction_version,
+                         .tip_mode = static_cast<std::uint32_t>(resolved.tip_mode),
+                         .symmetry_instance_count = resolved.symmetry_instance_count,
+                         .stamp_count = resolved.stamps.size(),
+                         .swept_segment_count = resolved.swept_segments.size()};
+            if (stamps != nullptr) {
+                std::transform(resolved.stamps.begin(), resolved.stamps.end(), stamps,
+                               [&](const ctex::paint::Stamp& stamp) {
+                                   return capi_stamp(stamp, settings->tip_resource_identity);
+                               });
+            }
+            if (swept_segments != nullptr) {
+                std::transform(resolved.swept_segments.begin(), resolved.swept_segments.end(),
+                               swept_segments, [](ctex::paint::SweptSegment segment) {
+                                   return ctex_swept_segment{segment.start_stamp_ordinal,
+                                                             segment.end_stamp_ordinal};
+                               });
+            }
+        } catch (const ctex::doc::EditableAuthoringError& error) {
+            throw_editable_authoring_error(error);
+        } catch (const ctex::paint::StrokeResolutionError& error) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_INVALID_STROKE,
+                           error.what());
+        }
+    });
+}
+
+extern "C" ctex_result ctex_project_container_upsert_editable_authoring(
+    const void* project_encoded, std::size_t project_encoded_size,
+    const ctex_project_container_read_limits_descriptor* limits, const ctex_document* document,
+    const char* texture_set_id, const char* asset_identifier, ctex_project_container_info* out_info,
+    void* project_output, std::size_t project_output_size, char* report_output,
+    std::size_t report_output_size) {
+    return call_boundary("ctex_project_container_upsert_editable_authoring", [&] {
+        if (document == nullptr || asset_identifier == nullptr || out_info == nullptr) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                           "document, asset_identifier and out_info are required");
+        }
+        validate_structure_size(out_info->size, CTEX_PROJECT_CONTAINER_INFO_V1_SIZE,
+                                CTEX_PROJECT_CONTAINER_INFO_CURRENT_SIZE,
+                                "project container info size");
+        try {
+            auto project = ctex::io::read_project_container(
+                project_container_bytes(project_encoded, project_encoded_size),
+                project_container_limits(limits));
+            ctex::io::upsert_editable_authoring(
+                project.container, asset_identifier,
+                require_texture_set(*document, texture_set_id).editable_authoring());
+            PreparedProjectContainer prepared =
+                prepare_project_container(project_container_result(std::move(project.container)));
+            validate_project_container_outputs(prepared, project_output, project_output_size,
+                                               report_output, report_output_size);
+            *out_info = prepared.info;
+            write_project_container_outputs(prepared, project_output, report_output);
+        } catch (const ctex::io::EditableAuthoringIoError& error) {
+            throw_editable_authoring_io_error(error);
+        } catch (const ctex::io::ProjectContainerError& error) {
+            throw_project_container_error(error);
+        }
+    });
+}
+
+extern "C" ctex_result ctex_project_container_restore_editable_authoring(
+    const void* project_encoded, std::size_t project_encoded_size,
+    const ctex_project_container_read_limits_descriptor* limits, const char* asset_identifier,
+    ctex_document* document, const char* texture_set_id, ctex_editable_entry_info* out_info,
+    char* report_output, std::size_t report_output_size) {
+    return call_boundary("ctex_project_container_restore_editable_authoring", [&] {
+        if (document == nullptr || asset_identifier == nullptr) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                           "document and asset_identifier are required");
+        }
+        try {
+            const auto project = ctex::io::read_project_container(
+                project_container_bytes(project_encoded, project_encoded_size),
+                project_container_limits(limits));
+            ctex::doc::EditableAuthoringStore candidate = ctex::io::unpack_editable_authoring(
+                editable_asset(project.container, asset_identifier));
+            std::string report = "{\"action\":\"restore\",\"asset\":";
+            append_json_text(report, asset_identifier);
+            report += ",\"entry_count\":" + std::to_string(candidate.entries().size()) + "}";
+            validate_editable_output(out_info, report_output, report_output_size,
+                                     report.size() + 1);
+            ctex_editable_entry_info info{.size = CTEX_EDITABLE_ENTRY_INFO_CURRENT_SIZE,
+                                          .kind = 0,
+                                          .entry_present = 0,
+                                          .entry_revision = 0,
+                                          .document_revision = candidate.revision(),
+                                          .entry_count = candidate.entries().size(),
+                                          .material_parameter_count = 0,
+                                          .surface_point_count = 0,
+                                          .invalidated_tile_count = 0,
+                                          .undo_step_count = 0,
+                                          .redo_step_count = 0,
+                                          .required_report_size = report.size() + 1};
+            require_texture_set(*document, texture_set_id).editable_authoring() =
+                std::move(candidate);
+            *out_info = info;
+            if (report_output != nullptr) {
+                std::memcpy(report_output, report.c_str(), report.size() + 1);
+            }
+        } catch (const ctex::io::EditableAuthoringIoError& error) {
+            throw_editable_authoring_io_error(error);
         } catch (const ctex::io::ProjectContainerError& error) {
             throw_project_container_error(error);
         }

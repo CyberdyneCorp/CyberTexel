@@ -4,6 +4,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <ctex/doc/channels.hpp>
+#include <ctex/doc/editable_authoring.hpp>
 #include <ctex/doc/layer_compositor.hpp>
 #include <ctex/doc/layer_operations.hpp>
 #include <ctex/doc/layer_stack.hpp>
@@ -191,6 +192,12 @@ public:
     void clear_channels();
     [[nodiscard]] LayerStack& layer_stack() noexcept { return layer_stack_; }
     [[nodiscard]] const LayerStack& layer_stack() const noexcept { return layer_stack_; }
+    [[nodiscard]] EditableAuthoringStore& editable_authoring() noexcept {
+        return editable_authoring_;
+    }
+    [[nodiscard]] const EditableAuthoringStore& editable_authoring() const noexcept {
+        return editable_authoring_;
+    }
     [[nodiscard]] LayerChannelParticipation channel_participation(
         std::string_view entry_identifier, std::string_view semantic_id,
         std::span<const LayerMaskSample> mask_samples = {}) const;
@@ -259,6 +266,7 @@ private:
     TextureChannels channels_;
     std::pmr::map<std::uint32_t, TextureChannels> udim_tiles_;
     LayerStack layer_stack_;
+    EditableAuthoringStore editable_authoring_;
     TileHistory tile_history_;
     std::shared_ptr<TextureSetMemoryState> memory_state_;
     std::pmr::vector<AppliedPresetApplication> preset_applications_;

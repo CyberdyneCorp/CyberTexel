@@ -97,7 +97,8 @@ typedef enum ctex_diagnostic_code {
     CTEX_DIAGNOSTIC_INVALID_SHADER_EMISSION = 58,
     CTEX_DIAGNOSTIC_INVALID_MESH_MAP = 59,
     CTEX_DIAGNOSTIC_INVALID_TILE_HISTORY = 60,
-    CTEX_DIAGNOSTIC_INVALID_OPERATION_RECORD = 61
+    CTEX_DIAGNOSTIC_INVALID_OPERATION_RECORD = 61,
+    CTEX_DIAGNOSTIC_INVALID_EDITABLE_AUTHORING = 62
 } ctex_diagnostic_code;
 
 typedef enum ctex_log_severity {
@@ -4785,6 +4786,98 @@ typedef struct ctex_project_operation_replay_info {
 #define CTEX_PROJECT_OPERATION_REPLAY_INFO_CURRENT_SIZE \
     ((uint32_t)sizeof(ctex_project_operation_replay_info))
 
+typedef enum ctex_editable_entry_kind {
+    CTEX_EDITABLE_ENTRY_DECAL = 0,
+    CTEX_EDITABLE_ENTRY_TEXT = 1,
+    CTEX_EDITABLE_ENTRY_SURFACE_PATH = 2
+} ctex_editable_entry_kind;
+
+typedef struct ctex_editable_placement_frame {
+    ctex_vec3d position;
+    ctex_vec3d normal;
+    double rotation_radians;
+    double uniform_scale;
+    ctex_vec2d axis_scale;
+} ctex_editable_placement_frame;
+
+typedef struct ctex_editable_material_parameter_descriptor {
+    uint32_t size;
+    const char* identifier;
+    uint32_t component_count;
+    double value[4];
+} ctex_editable_material_parameter_descriptor;
+
+#define CTEX_EDITABLE_MATERIAL_PARAMETER_DESCRIPTOR_V1_SIZE \
+    ((uint32_t)sizeof(ctex_editable_material_parameter_descriptor))
+#define CTEX_EDITABLE_MATERIAL_PARAMETER_DESCRIPTOR_CURRENT_SIZE \
+    ((uint32_t)sizeof(ctex_editable_material_parameter_descriptor))
+
+typedef struct ctex_editable_tile_dependency_descriptor {
+    uint32_t size;
+    const char* semantic_id;
+    uint32_t tile_x;
+    uint32_t tile_y;
+} ctex_editable_tile_dependency_descriptor;
+
+#define CTEX_EDITABLE_TILE_DEPENDENCY_DESCRIPTOR_V1_SIZE \
+    ((uint32_t)sizeof(ctex_editable_tile_dependency_descriptor))
+#define CTEX_EDITABLE_TILE_DEPENDENCY_DESCRIPTOR_CURRENT_SIZE \
+    ((uint32_t)sizeof(ctex_editable_tile_dependency_descriptor))
+
+typedef struct ctex_editable_surface_point_descriptor {
+    uint32_t size;
+    ctex_vec3d position;
+    ctex_vec3d normal;
+    uint32_t triangle;
+    double barycentric[3];
+    double width;
+} ctex_editable_surface_point_descriptor;
+
+#define CTEX_EDITABLE_SURFACE_POINT_DESCRIPTOR_V1_SIZE \
+    ((uint32_t)sizeof(ctex_editable_surface_point_descriptor))
+#define CTEX_EDITABLE_SURFACE_POINT_DESCRIPTOR_CURRENT_SIZE \
+    ((uint32_t)sizeof(ctex_editable_surface_point_descriptor))
+
+typedef struct ctex_editable_entry_descriptor {
+    uint32_t size;
+    const char* identifier;
+    uint32_t kind;
+    uint64_t expected_revision;
+    ctex_editable_placement_frame placement;
+    const char* material_identity;
+    const ctex_editable_material_parameter_descriptor* material_parameters;
+    size_t material_parameter_count;
+    const char* text;
+    const char* font_identity;
+    uint64_t mesh_revision;
+    const ctex_editable_surface_point_descriptor* surface_points;
+    size_t surface_point_count;
+    const ctex_editable_tile_dependency_descriptor* dependent_tiles;
+    size_t dependent_tile_count;
+} ctex_editable_entry_descriptor;
+
+#define CTEX_EDITABLE_ENTRY_DESCRIPTOR_V1_SIZE ((uint32_t)sizeof(ctex_editable_entry_descriptor))
+#define CTEX_EDITABLE_ENTRY_DESCRIPTOR_CURRENT_SIZE \
+    ((uint32_t)sizeof(ctex_editable_entry_descriptor))
+
+typedef struct ctex_editable_entry_info {
+    uint32_t size;
+    uint32_t kind;
+    uint32_t entry_present;
+    uint64_t entry_revision;
+    uint64_t document_revision;
+    size_t entry_count;
+    size_t material_parameter_count;
+    size_t surface_point_count;
+    size_t invalidated_tile_count;
+    size_t undo_step_count;
+    size_t redo_step_count;
+    size_t required_report_size;
+} ctex_editable_entry_info;
+
+#define CTEX_EDITABLE_ENTRY_INFO_V1_SIZE ((uint32_t)sizeof(ctex_editable_entry_info))
+#define CTEX_EDITABLE_ENTRY_INFO_CURRENT_SIZE ((uint32_t)sizeof(ctex_editable_entry_info))
+
 typedef struct ctex_preset_shelf_entry_descriptor {
     uint32_t size;
     const char* asset_identifier;
@@ -5781,6 +5874,51 @@ CTEX_API ctex_result ctex_project_container_assess_operation_replay(
     const ctex_project_container_read_limits_descriptor* limits,
     const ctex_operation_replay_assessment_descriptor* descriptor,
     ctex_project_operation_replay_info* out_info, char* report_output, size_t report_output_size);
+
+/* Retains decal, text, and surface-path source data independently of rasterization. */
+CTEX_API ctex_result ctex_texture_set_editable_entry_add(
+    ctex_document* document, const char* texture_set_id,
+    const ctex_editable_entry_descriptor* descriptor, ctex_editable_entry_info* out_info,
+    char* report_output, size_t report_output_size);
+CTEX_API ctex_result ctex_texture_set_editable_entry_edit(
+    ctex_document* document, const char* texture_set_id,
+    const ctex_editable_entry_descriptor* descriptor, ctex_editable_entry_info* out_info,
+    char* report_output, size_t report_output_size);
+CTEX_API ctex_result ctex_texture_set_editable_entry_inspect(
+    const ctex_document* document, const char* texture_set_id, const char* entry_identifier,
+    ctex_editable_entry_info* out_info, char* report_output, size_t report_output_size);
+CTEX_API ctex_result ctex_texture_set_editable_entry_plan_rasterization(
+    const ctex_document* document, const char* texture_set_id, const char* entry_identifier,
+    ctex_editable_entry_info* out_info, char* report_output, size_t report_output_size);
+CTEX_API ctex_result ctex_texture_set_editable_entry_undo(ctex_document* document,
+                                                          const char* texture_set_id,
+                                                          ctex_editable_entry_info* out_info,
+                                                          char* report_output,
+                                                          size_t report_output_size);
+CTEX_API ctex_result ctex_texture_set_editable_entry_redo(ctex_document* document,
+                                                          const char* texture_set_id,
+                                                          ctex_editable_entry_info* out_info,
+                                                          char* report_output,
+                                                          size_t report_output_size);
+CTEX_API ctex_result ctex_texture_set_editable_surface_path_resolve(
+    const ctex_document* document, const char* texture_set_id, const char* entry_identifier,
+    const ctex_stroke_settings_descriptor* settings, ctex_resolved_stroke_info* out_info,
+    ctex_resolved_stamp* stamps, size_t stamp_capacity, size_t* out_stamp_count,
+    ctex_swept_segment* swept_segments, size_t swept_segment_capacity,
+    size_t* out_swept_segment_count);
+
+/* Saves and restores the editable store as one versioned project asset. */
+CTEX_API ctex_result ctex_project_container_upsert_editable_authoring(
+    const void* project_encoded, size_t project_encoded_size,
+    const ctex_project_container_read_limits_descriptor* limits, const ctex_document* document,
+    const char* texture_set_id, const char* asset_identifier, ctex_project_container_info* out_info,
+    void* project_output, size_t project_output_size, char* report_output,
+    size_t report_output_size);
+CTEX_API ctex_result ctex_project_container_restore_editable_authoring(
+    const void* project_encoded, size_t project_encoded_size,
+    const ctex_project_container_read_limits_descriptor* limits, const char* asset_identifier,
+    ctex_document* document, const char* texture_set_id, ctex_editable_entry_info* out_info,
+    char* report_output, size_t report_output_size);
 
 /*
  * Returns every built-in node schema and the documented scalar/vector math

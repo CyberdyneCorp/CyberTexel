@@ -226,5 +226,11 @@ pinned inputs and raster checkpoint images survive atomic recovery publication.
 The recovered-container assessment names unsupported algorithm versions and
 whether checkpoint fallback remains available through C. This reduces the exact
 remaining gap to 7 runtime requirements.
+Persistent decal, text and surface-path entries now expose atomic editing,
+dependent-tile invalidation, explicit rasterization planning, undo/redo and
+lossless project save/reopen through C. Surface paths resolve through the
+canonical stroke model. Mapping persistent editable placement reduces the exact
+remaining gap to 6 runtime requirements; mesh-replacement reprojection keeps the
+separate editable-surface-path requirement open.
 The gate is not part of the aggregate `just check` until that count reaches zero;
 its unit tests run in the normal tooling suite throughout the migration.

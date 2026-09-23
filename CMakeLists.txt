@@ -163,6 +163,7 @@ ctex_add_module(
     SOURCES
         src/doc/channels.cpp
         src/doc/document.cpp
+        src/doc/editable_authoring.cpp
         src/doc/layer_compositor.cpp
         src/doc/layer_operations.cpp
         src/doc/layer_stack.cpp
@@ -189,6 +190,7 @@ ctex_add_module(
         src/paint/coverage.cpp
         src/paint/decal_stencil.cpp
         src/paint/deposition.cpp
+        src/paint/editable_surface_path.cpp
         src/paint/fill.cpp
         src/paint/masking.cpp
         src/paint/parameters.cpp
@@ -234,6 +236,7 @@ ctex_add_module(
     DEPENDS doc image
     SOURCES
         src/io/io.cpp
+        src/io/editable_authoring.cpp
         src/io/export_preset.cpp
         src/io/export_plan.cpp
         src/io/texture_encode.cpp
@@ -479,6 +482,10 @@ if(BUILD_TESTING)
         ctex_configure_c_target(ctex_capi_operation_record_test)
         target_link_libraries(ctex_capi_operation_record_test PRIVATE cybertexel_c)
         add_test(NAME c-abi-operation-record COMMAND ctex_capi_operation_record_test)
+        add_executable(ctex_capi_editable_authoring_test tests/capi/editable_authoring_test.c)
+        ctex_configure_c_target(ctex_capi_editable_authoring_test)
+        target_link_libraries(ctex_capi_editable_authoring_test PRIVATE cybertexel_c)
+        add_test(NAME c-abi-editable-authoring COMMAND ctex_capi_editable_authoring_test)
         add_executable(ctex_capi_material_graph_catalogue_test
                        tests/capi/material_graph_catalogue_test.c)
         ctex_configure_c_target(ctex_capi_material_graph_catalogue_test)
@@ -681,6 +688,10 @@ if(BUILD_TESTING)
     ctex_configure_cpp_target(ctex_operation_record_test)
     target_link_libraries(ctex_operation_record_test PRIVATE cybertexel)
     add_test(NAME operation-record COMMAND ctex_operation_record_test)
+    add_executable(ctex_editable_authoring_test tests/io/editable_authoring_test.cpp)
+    ctex_configure_cpp_target(ctex_editable_authoring_test)
+    target_link_libraries(ctex_editable_authoring_test PRIVATE cybertexel)
+    add_test(NAME editable-authoring COMMAND ctex_editable_authoring_test)
     add_executable(ctex_standalone_asset_test tests/io/standalone_asset_test.cpp)
     ctex_configure_cpp_target(ctex_standalone_asset_test)
     target_link_libraries(ctex_standalone_asset_test PRIVATE cybertexel)
@@ -1677,6 +1688,8 @@ if(BUILD_TESTING)
         project-container
         project-autosave
         c-abi-project-autosave
+        editable-authoring
+        c-abi-editable-authoring
         standalone-asset
         operation-record
         c-abi-operation-record
@@ -1690,6 +1703,11 @@ if(BUILD_TESTING)
         io-scenario-matrix
         project-container-determinism
         PROPERTIES LABELS project-io-scenario
+    )
+    set_tests_properties(
+        editable-authoring
+        c-abi-editable-authoring
+        PROPERTIES LABELS "project-io-scenario;paint-tools-scenario;editable-authoring-scenario"
     )
     set_tests_properties(
         texture-export-formats texture-export-plan texture-export-execution

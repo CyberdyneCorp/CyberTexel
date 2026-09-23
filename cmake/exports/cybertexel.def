@@ -330,3 +330,12 @@ EXPORTS
     ctex_project_container_upsert_operation_record
     ctex_project_container_get_operation_record
     ctex_project_container_assess_operation_replay
+    ctex_texture_set_editable_entry_add
+    ctex_texture_set_editable_entry_edit
+    ctex_texture_set_editable_entry_inspect
+    ctex_texture_set_editable_entry_plan_rasterization
+    ctex_texture_set_editable_entry_undo
+    ctex_texture_set_editable_entry_redo
+    ctex_texture_set_editable_surface_path_resolve
+    ctex_project_container_upsert_editable_authoring
+    ctex_project_container_restore_editable_authoring

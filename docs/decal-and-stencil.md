@@ -24,8 +24,9 @@ value suitable for later undo integration. Editing does not rasterize.
 reports editable revision zero.
 
 This implements the retained tool-level entry required by roadmap item 10.5.
-Project serialization, document tile invalidation and undo/redo integration
-remain scheduled together in editable-authoring task 20.4.
+The document-level store, project serialization, dependent-tile invalidation
+and undo/redo integration are described in `editable-authoring.md` and complete
+task 20.4. Mesh-replacement reprojection remains task 20.5.
 
 `ctex_paint_rasterize_decal` exposes the same explicit rasterization through the
 public C boundary. Hosts retain the placement and pinned material descriptors,
