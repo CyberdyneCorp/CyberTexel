@@ -53,6 +53,9 @@ record and round-trips it through project storage.
 `08_brush_stroke.py` resolves timestamped input samples, evaluates geometric
 coverage and deposition, and applies the resulting brush through the native
 multi-channel paint-tool path.
+`09_end_to_end_material_export.py` carries the fixture mesh and AO map through a
+texture set, generated mask, canonical graph, applied smart material and actual
+PNG texture export.
 Full capability example coverage remains roadmap work. Every numbered script
 declares a literal `CAPABILITIES` tuple;
 `just gate-example-coverage` compares those declarations with

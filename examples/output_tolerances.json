@@ -26,6 +26,10 @@
     "08_brush_stroke/brush_stroke.png": {
       "maximum_absolute_error": 0,
       "mode": "pixels"
+    },
+    "09_end_to_end_material_export/fixture_body_BaseColor.png": {
+      "maximum_absolute_error": 0,
+      "mode": "pixels"
     }
   },
   "schema": 1

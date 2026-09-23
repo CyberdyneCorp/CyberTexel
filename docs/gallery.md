@@ -99,3 +99,17 @@ brush tool. It covers `stroke-model`, `paint-engine` and `paint-tools`.
 
 The [paint summary](../examples/outputs/08_brush_stroke/summary.json) records the
 resolved stamp and segment counts together with coverage and write statistics.
+
+## `09_end_to_end_material_export`
+
+Carries the UV fixture and its ambient-occlusion map through a texture set and
+generated mask, embeds a canonical material graph in a smart material, applies
+the material as a document layer, and exports the shaded base colour through the
+native texture-export pipeline. It covers `smart-materials` and `texture-export`
+and is the worked end-to-end pipeline example.
+
+![Exported smart material](../examples/outputs/09_end_to_end_material_export/fixture_body_BaseColor.png)
+
+The [pipeline summary](../examples/outputs/09_end_to_end_material_export/summary.json)
+records the material application, model size, generated filename and decoded
+output shape.

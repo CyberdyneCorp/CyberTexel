@@ -1679,7 +1679,7 @@ to the labeled native and strict-C test suite.
 - [x] 16.4 Committed outputs and the CI comparison at stated tolerances
 - [ ] 16.5 Example coverage gate over capabilities
 - [x] 16.6 Determinism: explicit seeds, identical output across runs
-- [ ] 16.7 End-to-end example: mesh and maps through layers, graph, smart material, export
+- [x] 16.7 End-to-end example: mesh and maps through layers, graph, smart material, export
 - [x] 16.8 Host-executed route example with a software stand-in
 - [ ] 16.9 Examples runnable against any executor as a parity check
 - [x] 16.10 Published gallery in the documentation

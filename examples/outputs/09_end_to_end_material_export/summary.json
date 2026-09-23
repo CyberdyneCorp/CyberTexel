@@ -1,0 +1,17 @@
+{
+  "application_id": "example-application",
+  "capabilities": [
+    "smart-materials",
+    "texture-export"
+  ],
+  "export_path": "fixture_Body_BaseColor.png",
+  "material_bytes": 1988,
+  "mesh_triangles": 2,
+  "mesh_vertices": 4,
+  "output_shape": [
+    32,
+    32,
+    4
+  ],
+  "smart_material_entry_count": 1
+}
