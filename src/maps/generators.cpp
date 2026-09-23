@@ -3,8 +3,10 @@
 #include <cmath>
 #include <cstring>
 #include <ctex/maps/generators.hpp>
+#include <optional>
 #include <set>
 #include <stdexcept>
+#include <vector>
 
 namespace ctex::maps {
 namespace {
@@ -68,17 +70,57 @@ struct EvaluationParameters {
     double scratch_width{1.0 / 24.0};
 };
 
-double component(const MeshMapSet& maps, MeshMapKind kind, double u, double v,
+/// The maps one generator reads, each resolved and validated once.
+///
+/// `MeshMapSet::sample` resolves the map, revalidates its tangent binding and
+/// recomputes its staleness per call. Those are loop invariants for a dense
+/// sweep, so a generator binds what it needs before the loop and samples
+/// through the bound samplers.
+struct BoundMaps {
+    std::optional<MeshMapSet::BoundSampler> ambient_occlusion;
+    std::optional<MeshMapSet::BoundSampler> curvature;
+    std::optional<MeshMapSet::BoundSampler> thickness;
+    std::optional<MeshMapSet::BoundSampler> position;
+    std::optional<MeshMapSet::BoundSampler> direction;
+};
+
+BoundMaps bind_maps(MeshMapGeneratorKind kind, const MeshMapSet& maps) {
+    BoundMaps bound;
+    for (MeshMapKind required : mesh_map_generator_info(kind).required_maps) {
+        switch (required) {
+            case MeshMapKind::ambient_occlusion:
+                bound.ambient_occlusion = maps.bind_sampler(required);
+                break;
+            case MeshMapKind::curvature:
+                bound.curvature = maps.bind_sampler(required);
+                break;
+            case MeshMapKind::thickness:
+                bound.thickness = maps.bind_sampler(required);
+                break;
+            case MeshMapKind::position:
+                bound.position = maps.bind_sampler(required);
+                break;
+            case MeshMapKind::world_space_direction:
+                bound.direction = maps.bind_sampler(required);
+                break;
+            default:
+                throw std::invalid_argument("generator requires a map it cannot bind");
+        }
+    }
+    return bound;
+}
+
+double component(const std::optional<MeshMapSet::BoundSampler>& sampler, double u, double v,
                  std::size_t index = 0) {
-    return maps.sample(kind, u, v).sample.values[index];
+    return sampler->at(u, v).values[index];
 }
 
 double saturate(double value) { return std::clamp(value, 0.0, 1.0); }
 
-double scratches_value(const MeshMapSet& maps, double u, double v,
+double scratches_value(const BoundMaps& maps, double u, double v,
                        const EvaluationParameters& parameters) {
-    const MeshMapSample position = maps.sample(MeshMapKind::position, u, v).sample;
-    const MeshMapSample direction = maps.sample(MeshMapKind::world_space_direction, u, v).sample;
+    const MeshMapSample position = maps.position->at(u, v);
+    const MeshMapSample direction = maps.direction->at(u, v);
     const double phase =
         (position.values[0] * 31.0 + position.values[1] * 7.0 + position.values[2] * 13.0) *
         parameters.scratch_scale;
@@ -88,27 +130,27 @@ double scratches_value(const MeshMapSet& maps, double u, double v,
     return line * saturate(grazing);
 }
 
-double baseline_value(MeshMapGeneratorKind kind, const MeshMapSet& maps, double u, double v,
+double baseline_value(MeshMapGeneratorKind kind, const BoundMaps& maps, double u, double v,
                       const EvaluationParameters& parameters) {
     switch (kind) {
         case MeshMapGeneratorKind::ambient_occlusion:
-            return saturate(1.0 - component(maps, MeshMapKind::ambient_occlusion, u, v));
+            return saturate(1.0 - component(maps.ambient_occlusion, u, v));
         case MeshMapGeneratorKind::curvature:
-            return saturate(component(maps, MeshMapKind::curvature, u, v));
+            return saturate(component(maps.curvature, u, v));
         case MeshMapGeneratorKind::thickness:
-            return saturate(1.0 - component(maps, MeshMapKind::thickness, u, v));
+            return saturate(1.0 - component(maps.thickness, u, v));
         case MeshMapGeneratorKind::position_gradient:
-            return saturate(component(maps, MeshMapKind::position, u, v, 1));
+            return saturate(component(maps.position, u, v, 1));
         case MeshMapGeneratorKind::world_space_direction:
-            return saturate(component(maps, MeshMapKind::world_space_direction, u, v, 1));
+            return saturate(component(maps.direction, u, v, 1));
         case MeshMapGeneratorKind::dirt: {
-            const double occlusion = 1.0 - component(maps, MeshMapKind::ambient_occlusion, u, v);
-            const double concavity = (0.5 - component(maps, MeshMapKind::curvature, u, v)) * 2.0 *
-                                     parameters.curvature_weight;
+            const double occlusion = 1.0 - component(maps.ambient_occlusion, u, v);
+            const double concavity =
+                (0.5 - component(maps.curvature, u, v)) * 2.0 * parameters.curvature_weight;
             return saturate(std::max(occlusion, concavity));
         }
         case MeshMapGeneratorKind::edge_wear: {
-            const double curvature = component(maps, MeshMapKind::curvature, u, v);
+            const double curvature = component(maps.curvature, u, v);
             return saturate((curvature - parameters.edge_threshold) /
                             (1.0 - parameters.edge_threshold));
         }
@@ -118,10 +160,15 @@ double baseline_value(MeshMapGeneratorKind kind, const MeshMapSet& maps, double 
     throw std::invalid_argument("mesh-map generator kind is invalid");
 }
 
-double generator_value(MeshMapGeneratorKind kind, const MeshMapSet& maps, double u, double v,
+double generator_value(MeshMapGeneratorKind kind, const BoundMaps& maps, double u, double v,
                        const EvaluationParameters& parameters) {
-    const double baseline = baseline_value(kind, maps, u, v, parameters);
-    return saturate(std::pow(saturate(baseline), parameters.contrast) * parameters.strength);
+    const double baseline = saturate(baseline_value(kind, maps, u, v, parameters));
+    // pow(x, 1.0) is x, and contrast defaults to 1.0. Taking the branch keeps a
+    // transcendental out of the per-texel path in the common case; the result is
+    // bit-identical because std::pow(x, 1.0) is exact.
+    const double shaped =
+        parameters.contrast == 1.0 ? baseline : std::pow(baseline, parameters.contrast);
+    return saturate(shaped * parameters.strength);
 }
 
 MeshMapGeneratorParameterReport resolve_parameters(
@@ -172,11 +219,9 @@ EvaluationParameters evaluation_parameters(const MeshMapGeneratorParameterReport
             .scratch_width = resolved_value(report, "width", 1.0 / 24.0)};
 }
 
-void write_float(image::TiledImage& image, std::uint32_t x, std::uint32_t y, double value) {
+void encode_float(std::byte* target, double value) {
     const float encoded = static_cast<float>(value);
-    std::array<std::byte, sizeof(encoded)> pixel{};
-    std::memcpy(pixel.data(), &encoded, sizeof(encoded));
-    image.write_pixel(x, y, pixel);
+    std::memcpy(target, &encoded, sizeof(encoded));
 }
 
 }  // namespace
@@ -253,11 +298,32 @@ MeshMapGeneratorResult generate_mesh_map_mask(
     auto mask = std::make_shared<image::TiledImage>(
         width, height,
         image::PixelFormat{.channel_type = image::ChannelType::float32, .channel_count = 1});
-    for (std::uint32_t y = 0; y < height; ++y) {
-        const double v = 1.0 - (static_cast<double>(y) + 0.5) / static_cast<double>(height);
-        for (std::uint32_t x = 0; x < width; ++x) {
-            const double u = (static_cast<double>(x) + 0.5) / static_cast<double>(width);
-            write_float(*mask, x, y, generator_value(kind, maps, u, v, evaluation));
+    const BoundMaps bound = bind_maps(kind, maps);
+    // One tile at a time: filling densely through write_pixel would publish a
+    // revision and a change-index update for every texel.
+    std::vector<std::byte> tile_pixels;
+    for (std::uint32_t tile_y = 0; tile_y < mask->tile_rows(); ++tile_y) {
+        for (std::uint32_t tile_x = 0; tile_x < mask->tile_columns(); ++tile_x) {
+            const image::TileCoordinate tile{tile_x, tile_y};
+            const image::TileExtent extent = mask->tile_extent(tile);
+            const std::uint32_t origin_x = tile_x * mask->tile_size();
+            const std::uint32_t origin_y = tile_y * mask->tile_size();
+            tile_pixels.assign(
+                static_cast<std::size_t>(extent.width) * extent.height * mask->pixel_bytes(),
+                std::byte{});
+            for (std::uint32_t row = 0; row < extent.height; ++row) {
+                const std::uint32_t y = origin_y + row;
+                const double v = 1.0 - (static_cast<double>(y) + 0.5) / static_cast<double>(height);
+                std::byte* target = tile_pixels.data() + static_cast<std::size_t>(row) *
+                                                             extent.width * mask->pixel_bytes();
+                for (std::uint32_t column = 0; column < extent.width; ++column) {
+                    const std::uint32_t x = origin_x + column;
+                    const double u = (static_cast<double>(x) + 0.5) / static_cast<double>(width);
+                    encode_float(target + static_cast<std::size_t>(column) * mask->pixel_bytes(),
+                                 generator_value(kind, bound, u, v, evaluation));
+                }
+            }
+            mask->write_tile(tile, tile_pixels);
         }
     }
     mask->clear_dirty();

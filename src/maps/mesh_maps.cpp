@@ -467,14 +467,27 @@ MeshMapReadResult MeshMapSet::sample(MeshMapKind kind, double u, double v) const
     if (!std::isfinite(u) || !std::isfinite(v) || u < 0.0 || u > 1.0 || v < 0.0 || v > 1.0) {
         throw std::invalid_argument("mesh map sample coordinates must be normalized and finite");
     }
-    const MeshMapDescriptor& descriptor = map(kind);
-    validate_tangent_binding(descriptor, tangent_frame_, uv_set_);
+    const BoundSampler sampler = bind_sampler(kind);
+    return {.sample = sampler.at(u, v), .staleness = sampler.staleness()};
+}
+
+MeshMapSample MeshMapSet::BoundSampler::at(double u, double v) const {
+    if (!std::isfinite(u) || !std::isfinite(v) || u < 0.0 || u > 1.0 || v < 0.0 || v > 1.0) {
+        throw std::invalid_argument("mesh map sample coordinates must be normalized and finite");
+    }
+    const MeshMapDescriptor& descriptor = *descriptor_;
     const double x = u * static_cast<double>(descriptor.pixels->width() - 1);
     const double y = (1.0 - v) * static_cast<double>(descriptor.pixels->height() - 1);
-    const MeshMapSample filtered = is_identifier_map(kind) ? nearest_sample(descriptor, x, y)
-                                                           : bilinear_sample(descriptor, x, y);
-    return {.sample = convert_normal_convention(descriptor, filtered),
-            .staleness = staleness(descriptor, mesh_revision_)};
+    const MeshMapSample filtered = is_identifier_map(descriptor.kind)
+                                       ? nearest_sample(descriptor, x, y)
+                                       : bilinear_sample(descriptor, x, y);
+    return convert_normal_convention(descriptor, filtered);
+}
+
+MeshMapSet::BoundSampler MeshMapSet::bind_sampler(MeshMapKind kind) const {
+    const MeshMapDescriptor& descriptor = map(kind);
+    validate_tangent_binding(descriptor, tangent_frame_, uv_set_);
+    return {descriptor, staleness(descriptor, mesh_revision_)};
 }
 
 MeshMapMemoryReport MeshMapSet::memory_report() const {

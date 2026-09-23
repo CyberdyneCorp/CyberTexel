@@ -2,7 +2,12 @@
   "baselines": {
     "desktop-delta-query": 0.0036249402910470963,
     "desktop-emission": 0.06866699550300837,
-    "desktop-tile-readback": 0.03870902583003044
+    "desktop-paint-sync-readback": 0.0,
+    "desktop-tile-readback": 0.03870902583003044,
+    "desktop-undo-sync-readback": 0.0,
+    "desktop-visible-median": 7.856357999999999,
+    "desktop-visible-p95": 11.644129,
+    "desktop-visible-p99": 11.97742
   },
   "commit": "febc2a329d74a92adb30f6f34ef786a4c77a1e8f",
   "device_id": "macbook-pro-m3-pro-18gpu-36gb",

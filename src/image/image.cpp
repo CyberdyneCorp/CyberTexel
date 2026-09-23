@@ -362,8 +362,8 @@ std::span<const std::byte> TiledImage::read_pixel(std::uint32_t x, std::uint32_t
         throw std::out_of_range("pixel coordinate is outside the image");
     }
     const TileCoordinate coordinate{x / tile_size_, y / tile_size_};
-    const auto tile = ensure_resident(tile_index(coordinate));
-    if (!tile) {
+    const TileStorage* tile = resident_tile(tile_index(coordinate));
+    if (tile == nullptr) {
         return clear_pixel_;
     }
     return std::span<const std::byte>(*tile).subspan(pixel_offset(x, y), pixel_bytes_);
@@ -410,6 +410,70 @@ void TiledImage::write_pixel(std::uint32_t x, std::uint32_t y, std::span<const s
     }
     discard_backing(index);
     std::copy(pixel.begin(), pixel.end(), tile.begin() + pixel_offset(x, y));
+    ++revision_;
+    ++tile_generations_[index];
+    tile_revisions_[index] = revision_;
+    dirty_[index] = true;
+}
+
+void TiledImage::write_tile(TileCoordinate tile, std::span<const std::byte> pixels) {
+    const TileExtent extent = tile_extent(tile);
+    const std::size_t expected =
+        static_cast<std::size_t>(extent.width) * extent.height * pixel_bytes_;
+    if (pixels.size() != expected) {
+        throw std::invalid_argument("tile pixel span does not match the tile extent");
+    }
+    const std::size_t index = tile_index(tile);
+    // A tile that already holds these bytes is unchanged, matching write_pixel's
+    // per-texel contract: no revision is published for a write that changes
+    // nothing.
+    if (tiles_[index] != nullptr) {
+        const std::shared_ptr<TileStorage> resident = ensure_resident(index);
+        const std::size_t row_bytes = static_cast<std::size_t>(extent.width) * pixel_bytes_;
+        const std::size_t stride = static_cast<std::size_t>(tile_size_) * pixel_bytes_;
+        bool identical = true;
+        for (std::uint32_t row = 0; row < extent.height && identical; ++row) {
+            const std::byte* source = pixels.data() + static_cast<std::size_t>(row) * row_bytes;
+            const std::byte* target = resident->data() + static_cast<std::size_t>(row) * stride;
+            identical = std::equal(source, source + row_bytes, target);
+        }
+        if (identical) {
+            return;
+        }
+    }
+    if (tile_generations_[index] == std::numeric_limits<Generation>::max()) {
+        throw std::overflow_error("tile generation space is exhausted");
+    }
+    const bool revision_exhausted = revision_ == std::numeric_limits<Revision>::max();
+    if (revision_exhausted && revision_epoch_ == std::numeric_limits<RevisionEpoch>::max()) {
+        throw std::overflow_error("image revision epoch space is exhausted");
+    }
+    auto& storage = allocate_tile(index);
+    if (revision_exhausted) {
+        std::pmr::map<Revision, TileCoordinate> next_index(memory_resource_);
+        next_index.emplace(1, tile);
+        begin_new_revision_epoch();
+        changed_tiles_by_revision_.swap(next_index);
+    } else {
+        const Revision next_revision = revision_ + 1;
+        const auto [unused, inserted] = changed_tiles_by_revision_.emplace(next_revision, tile);
+        static_cast<void>(unused);
+        if (!inserted) {
+            throw std::logic_error("tile change index revision collision");
+        }
+        const Revision previous_revision = tile_revisions_[index];
+        if (previous_revision != 0) {
+            changed_tiles_by_revision_.erase(previous_revision);
+        }
+    }
+    discard_backing(index);
+    const std::size_t row_bytes = static_cast<std::size_t>(extent.width) * pixel_bytes_;
+    const std::size_t stride = static_cast<std::size_t>(tile_size_) * pixel_bytes_;
+    for (std::uint32_t row = 0; row < extent.height; ++row) {
+        const std::byte* source = pixels.data() + static_cast<std::size_t>(row) * row_bytes;
+        std::copy(source, source + row_bytes,
+                  storage.begin() + static_cast<std::ptrdiff_t>(row) * stride);
+    }
     ++revision_;
     ++tile_generations_[index];
     tile_revisions_[index] = revision_;
@@ -486,6 +550,13 @@ TileStorage& TiledImage::allocate_tile(std::size_t index) {
                                 .y = static_cast<std::uint32_t>(index / tile_columns_)});
     tile = std::move(allocation);
     return *tile;
+}
+
+const TileStorage* TiledImage::resident_tile(std::size_t index) const {
+    if (tiles_[index] || !backed_tiles_[index]) {
+        return tiles_[index].get();
+    }
+    return ensure_resident(index).get();
 }
 
 std::shared_ptr<TileStorage> TiledImage::ensure_resident(std::size_t index) const {

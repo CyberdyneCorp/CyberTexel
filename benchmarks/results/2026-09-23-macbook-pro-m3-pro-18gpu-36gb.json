@@ -1,7 +1,7 @@
 {
   "channels": 4,
   "command": "just bench",
-  "commit": "febc2a329d74a92adb30f6f34ef786a4c77a1e8f",
+  "commit": "3b13bc2afbcdb45a8010650922dff8e841c4c158",
   "date": "2026-09-23",
   "device_id": "macbook-pro-m3-pro-18gpu-36gb",
   "layers": 8,
@@ -11,28 +11,28 @@
       "budget_id": "desktop-delta-query",
       "configuration": "interactive-4k",
       "unit": "ms",
-      "value": 0.0036249402910470963
+      "value": 0.005832989700138569
     },
     {
       "batch_size": 1,
       "budget_id": "desktop-tile-readback",
       "configuration": "interactive-4k",
       "unit": "ms",
-      "value": 0.09762495756149292
+      "value": 0.049708993174135685
     },
     {
       "batch_size": 1,
       "budget_id": "desktop-emission",
       "configuration": "batch-4k",
       "unit": "ms",
-      "value": 0.07404200732707977
+      "value": 0.06995792500674725
     },
     {
       "batch_size": 1,
       "budget_id": "desktop-generator",
       "configuration": "batch-4k",
       "unit": "ms",
-      "value": 5090.320000075735
+      "value": 2248.4092499362305
     }
   ],
   "mesh_triangles": 250632,
@@ -44,10 +44,10 @@
     "every tablet budget needs a run on the iPad Pro M4 (task 17.13)"
   ],
   "notes": [
-    "The position-gradient generator cost is purely per texel: 206-225 ns/texel measured at 512, 1024 and 2048 square, and unchanged between a 2,048-triangle and a 250,632-triangle mesh. Meeting the 100 ms budget needs roughly 6 ns/texel, so the reference generator is about thirty-five times short and is single-threaded.",
-    "Stamp scaling holds: the identical 64-texel-radius stamp plans the same 16 touched tiles and deposits the same 12,892 texels on a 2048-square and a 16384-square canvas, whose canvas tile counts differ 64-fold (1,024 against 65,536)."
+    "The position-gradient generator improved from 4855 ms to 2248 ms with byte-identical output, by binding each required map once instead of re-resolving, revalidating and recomputing its staleness per texel; by filling whole tiles through TiledImage::write_tile instead of publishing a revision per texel through write_pixel; by branching around std::pow at the default contrast of 1.0; and by dropping a shared_ptr copy from the pixel read path that bought no lifetime.",
+    "It still fails the 100 ms ceiling at roughly 134 ns/texel. The remaining cost is the four bilinear corner fetches per output texel, each of which decodes every channel of the source map when a generator reads one: 12 decode_component calls per generated texel where 4 would do. Narrowing that, and then running tile rows in parallel, is what the budget needs."
   ],
-  "recorded_utc": "2026-09-23T20:18:26+00:00",
+  "recorded_utc": "2026-09-23T21:34:21+00:00",
   "schema": 1,
   "stamp_scaling": {
     "canvas_tile_counts": {
@@ -56,8 +56,8 @@
     },
     "configuration": "stamp-scaling",
     "metric": "median_ms",
-    "resolution_16384_ms": 6.164625054225326,
-    "resolution_2048_ms": 6.171916960738599,
+    "resolution_16384_ms": 6.244624964892864,
+    "resolution_2048_ms": 6.182041950523853,
     "samples": 30,
     "stamp_radius_texels": 64,
     "tile_size": 64,

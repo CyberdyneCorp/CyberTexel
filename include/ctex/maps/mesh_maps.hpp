@@ -186,6 +186,34 @@ public:
         const mesh::MeshBinding& mesh);
     [[nodiscard]] std::vector<MeshMapStaleness> stale_maps() const;
     [[nodiscard]] MeshMapReadResult sample(MeshMapKind kind, double u, double v) const;
+
+    /// A sampler bound to one map, validated once.
+    ///
+    /// `sample` resolves the map, revalidates its tangent binding and recomputes
+    /// its staleness on every call. That is right for a one-off read and wrong
+    /// for a dense sweep, where all three are loop invariants. A consumer that
+    /// samples the same map many times binds it once and reads through this.
+    ///
+    /// The sampler borrows its map: it is valid only while the set still holds
+    /// that map unchanged.
+    class BoundSampler {
+    public:
+        [[nodiscard]] MeshMapSample at(double u, double v) const;
+        [[nodiscard]] const std::optional<MeshMapStaleness>& staleness() const noexcept {
+            return staleness_;
+        }
+
+    private:
+        friend class MeshMapSet;
+        BoundSampler(const MeshMapDescriptor& descriptor, std::optional<MeshMapStaleness> staleness)
+            : descriptor_(&descriptor), staleness_(std::move(staleness)) {}
+
+        const MeshMapDescriptor* descriptor_;
+        std::optional<MeshMapStaleness> staleness_;
+    };
+
+    /// Resolve and validate a map once for repeated sampling.
+    [[nodiscard]] BoundSampler bind_sampler(MeshMapKind kind) const;
     [[nodiscard]] MeshMapMemoryReport memory_report() const;
     [[nodiscard]] MeshMapReleaseResult release_map(MeshMapKind kind);
     [[nodiscard]] MeshMapReleaseResult release_all_maps();

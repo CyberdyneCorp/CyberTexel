@@ -142,6 +142,19 @@ public:
 
     [[nodiscard]] std::span<const std::byte> read_pixel(std::uint32_t x, std::uint32_t y) const;
     void write_pixel(std::uint32_t x, std::uint32_t y, std::span<const std::byte> pixel);
+    /// Write one tile's pixels in a single operation.
+    ///
+    /// `write_pixel` is the authored-edit path: it reads the existing texel,
+    /// compares it, and publishes one revision per changed texel. Filling an
+    /// image densely through it costs a revision-index update per texel. This
+    /// writes a whole tile and publishes exactly one revision for it, which is
+    /// what a generator or any other dense producer wants.
+    ///
+    /// `pixels` is the tile's rows in image order, tightly packed at the tile's
+    /// own extent, which is clipped at the image's right and bottom edges. The
+    /// tile is left untouched when the supplied bytes already match it, so the
+    /// no-change contract is the same one `write_pixel` honours per texel.
+    void write_tile(TileCoordinate tile, std::span<const std::byte> pixels);
     [[nodiscard]] bool can_clear() const noexcept;
     void clear();
     [[nodiscard]] RevisionCursor reset_revision_history();
@@ -152,6 +165,13 @@ private:
     [[nodiscard]] std::size_t pixel_offset(std::uint32_t x, std::uint32_t y) const noexcept;
     [[nodiscard]] TileStorage& allocate_tile(std::size_t index);
     [[nodiscard]] std::shared_ptr<TileStorage> ensure_resident(std::size_t index) const;
+    /// The resident storage for a tile, without taking a reference to it.
+    ///
+    /// `read_pixel` returns a span aliasing this storage, so the span already
+    /// outlives any `shared_ptr` temporary the read might have taken: copying
+    /// one buys no lifetime and costs two atomic operations per read. Callers
+    /// that genuinely need ownership use `ensure_resident`.
+    [[nodiscard]] const TileStorage* resident_tile(std::size_t index) const;
     [[nodiscard]] TileBackingKey backing_key(std::size_t index) const noexcept;
     void discard_backing(std::size_t index) noexcept;
     void begin_new_revision_epoch() noexcept;
