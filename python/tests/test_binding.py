@@ -13,6 +13,28 @@ GRAY8_PNG = bytes.fromhex(
 
 
 class BindingTest(unittest.TestCase):
+    def test_raw_capi_exposes_the_complete_generated_surface(self) -> None:
+        version = cybertexel.capi.ctex_get_version()
+        required = cybertexel.capi.c_size_t()
+        operations = {
+            name
+            for name, value in vars(cybertexel.capi).items()
+            if name.startswith("ctex_")
+            and hasattr(value, "argtypes")
+            and not isinstance(value, type)
+        }
+        result = cybertexel.capi.ctex_project_container_create_empty(
+            None, 0, cybertexel.capi.byref(required)
+        )
+        self.assertEqual(
+            (version.major, version.minor, version.patch),
+            tuple(map(int, cybertexel.native_version().split("."))),
+        )
+        self.assertEqual(result, cybertexel.capi.CTEX_RESULT_SUCCESS)
+        self.assertGreater(required.value, 40)
+        self.assertEqual(len(operations), 347)
+        self.assertIn("ctex_image_decode_layered_memory", operations)
+
     def test_version_and_numpy_decode(self) -> None:
         decoded = cybertexel.decode_image(
             GRAY8_PNG,

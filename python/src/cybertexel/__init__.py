@@ -1,3 +1,4 @@
+from . import capi
 from ._native import native_version
 from .document import Document, TextureSet
 from .errors import (
@@ -44,6 +45,7 @@ from .mesh import (
 
 __all__ = [
     "BufferTooSmallError",
+    "capi",
     "CancelledError",
     "ChannelSemantic",
     "CompletedResource",

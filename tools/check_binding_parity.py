@@ -27,6 +27,10 @@ def python_operations(source: str) -> set[str]:
     return set(re.findall(r'_signature\(\s*library,\s*"(ctex_[A-Za-z0-9_]+)"', source))
 
 
+def generated_python_operations(source: str) -> set[str]:
+    return set(re.findall(r"^\s*(ctex_[A-Za-z0-9_]+)\.argtypes\s*=", source, re.MULTILINE))
+
+
 def rust_operations(source: str) -> set[str]:
     extern_blocks = re.findall(
         r'(?:unsafe\s+)?extern\s+"C"\s*\{(.*?)\}', source, re.DOTALL
@@ -58,6 +62,15 @@ def rust_surface_matches_header(root: Path) -> bool:
     return f"//! C header SHA-256: {digest}" in source.read_text(encoding="utf-8")
 
 
+def python_surface_matches_header(root: Path) -> bool:
+    header = root / "include" / "ctex" / "capi.h"
+    source = root / "python" / "src" / "cybertexel" / "capi.py"
+    if not source.is_file():
+        return False
+    digest = hashlib.sha256(header.read_bytes()).hexdigest()
+    return f"# C header SHA-256: {digest}" in source.read_text(encoding="utf-8")
+
+
 def binding_operations(root: Path) -> dict[str, set[str]]:
     abi = load_abi_checker(root)
     header = (root / "include" / "ctex" / "capi.h").read_text(encoding="utf-8")
@@ -65,12 +78,18 @@ def binding_operations(root: Path) -> dict[str, set[str]]:
     python_source = (root / "python" / "src" / "cybertexel" / "_native.py").read_text(
         encoding="utf-8"
     )
+    generated_python = root / "python" / "src" / "cybertexel" / "capi.py"
     rust_source = (root / "rust" / "cybertexel-sys" / "src" / "lib.rs").read_text(
         encoding="utf-8"
     )
     return {
         "c": c_operations,
-        "python": python_operations(python_source),
+        "python": python_operations(python_source)
+        | (
+            generated_python_operations(generated_python.read_text(encoding="utf-8"))
+            if generated_python.is_file()
+            else set()
+        ),
         "rust": rust_operations(rust_source),
         "swift": c_operations if swift_imports_complete_c_header(root) else set(),
     }
@@ -89,6 +108,11 @@ def check(root: Path) -> list[str]:
         failures.append(
             "rust binding was not generated from the current C header: "
             "run python3 tools/generate_rust_sys.py"
+        )
+    if not python_surface_matches_header(root):
+        failures.append(
+            "python binding was not generated from the current C header: "
+            "run just generate-python-capi"
         )
     return failures
 

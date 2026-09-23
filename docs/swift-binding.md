@@ -21,7 +21,8 @@ Reference types retain snapshot and readback handles plus their allocated tile
 buffers until destruction. Pending output throws instead of exposing bytes.
 The [binding parity gate](binding-parity.md) verifies that the system module
 continues to import the complete public C header; the macOS and iOS package tests
-then compile and link that imported surface.
+then compile and link that imported surface. Together with the generated Python
+and Rust raw layers, this completes task 14.13.
 
 Build and test the macOS package, then link its native and Swift layers into an
 iOS arm64 check executable, with:

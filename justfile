@@ -155,6 +155,9 @@ test-rust-binding: (_require "cargo" "Rust stable") (_require "cmake" "3.24")
 generate-rust-sys: (_require "bindgen" "bindgen-cli 0.72.1")
     python3 tools/generate_rust_sys.py
 
+generate-python-capi: (_require "uv" "Python tool runner")
+    python3 tools/generate_python_capi.py
+
 test-preset-shelf-library: build
     ctest --test-dir build/headless --output-on-failure -R '^preset-shelf-library$'
 

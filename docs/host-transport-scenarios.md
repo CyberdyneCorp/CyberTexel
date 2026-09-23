@@ -19,7 +19,7 @@ the later cross-capability task for integrations that do not exist yet.
 | Unchanged large document | `host-transport-delta`, `host-transport-snapshot` | The 16K current-cursor path visits no index entries and fits a zero-byte snapshot budget |
 | Previewing a stroke | `host-transport-preview` | Isolated preview pixels use the normal delta, snapshot, layout, conversion and readback types |
 | Caching a compiled pipeline | `host-transport-identity` | A reconstructed or reordered plan resolves the same structured pipeline cache identity |
-| A Rust host synchronizes | Deferred to 14.13 | Safe Rust, Swift and Python reachability lands with the binding-parity gate |
+| A Rust host synchronizes | `test-rust-binding`, `test-swift-binding`, `test-python-binding`, `gate-binding-parity` | Safe Rust, Swift and Python all reach the host transport and the complete raw C operation set |
 | Synchronization budget | `host-transport-delta`; numeric gate deferred to 17.6 | Work-count invariants are executable now; reference-device latency limits land with performance gates |
 | Saving during painting | `host-transport-snapshot`, `host-transport-readback`, `c-abi-host-transport-snapshot`; save integration deferred to 12.3–12.4 | The transport returns pinned R while R+1 advances; public asynchronous readbacks retain R and release it after success, cancellation, failure or destruction |
 | Slow reader retains old tiles | `host-transport-snapshot` | Unique pinned bytes remain reported, admission respects the ceiling, and release restores capacity |

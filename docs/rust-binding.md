@@ -30,7 +30,7 @@ snapshot-to-readback conversion, boxed tile buffers and `Drop` encode the native
 lifetime rules without exposing raw pointers. Pending readback output returns a
 typed error. The [binding parity gate](binding-parity.md) compares every C
 operation with the public `cybertexel-sys` declarations. The raw Rust surface is
-complete; task 14.13 remains open on Python parity.
+complete, and task 14.13 is complete across all three official bindings.
 
 Run formatting, Clippy, unit tests, compile-fail tests and the unsafe-boundary
 audit with:

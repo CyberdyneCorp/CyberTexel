@@ -22,8 +22,11 @@ submission and completion values, and exposes pinned snapshots with explicit
 asynchronous host readback. Pending readback buffers cannot be read through the
 Python API; successful completion atomically publishes independent `bytes`
 objects. The [binding parity gate](binding-parity.md) requires a typed ctypes
-signature for every C operation; task 14.13 remains open while that generated or
-maintained raw surface is incomplete.
+signature for every C operation. `cybertexel.capi` is generated from the public
+header with ctypesgen 1.1.1, ships in the wheel, honors
+`CYBERTEXEL_LIBRARY` for development, and exposes all 347 raw operations and
+their descriptor types. The header digest and clean-wheel smoke test prevent a
+stale or unloadable generated surface.
 
 `MeshMapSet.generate_mask()` returns a caller-owned `float32` NumPy array and
 uses generator defaults. Missing required maps fail before allocation and raise

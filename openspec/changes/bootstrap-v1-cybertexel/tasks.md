@@ -1404,6 +1404,13 @@ contain unsafe code in its boundary module and pass its ownership, threading and
 host-transport tests. Rust now has zero missing operations; Python remains at
 323.
 
+Task 14.13 is complete. The committed `cybertexel.capi` module generates typed
+ctypes declarations for all 347 operations and their descriptors from the same
+public header, honors the development-library override and loads from the clean
+wheel's bundled library. Both generated language surfaces pin the header digest;
+Swift imports that header directly. The parity gate is green, and the Python
+wheel, macOS/iOS Swift package and Rust workspace suites all pass.
+
 ## 1. Foundation
 
 - [x] 1.1 CMake project, C++20, warnings as errors, presets for headless, macOS, Linux, Windows, iOS, Android
@@ -1612,7 +1619,7 @@ host-transport tests. Rust now has zero missing operations; Python remains at
 - [x] 14.10 Swift package with a system target, idiomatic layer, automatic handle lifetime
 - [x] 14.11 Rust `-sys` and safe crates, typed errors, `Send`/`Sync` matching the contract
 - [x] 14.12 Host-executed route and host transport reachable from all three bindings
-- [ ] 14.13 Binding parity gate
+- [x] 14.13 Binding parity gate
 - [ ] 14.14 `c-abi` and `language-bindings` scenarios as tests
 
 ## 15. Command line

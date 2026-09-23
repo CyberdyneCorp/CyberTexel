@@ -26,6 +26,7 @@ class BindingParityTests(unittest.TestCase):
         with (
             mock.patch.object(CHECK, "binding_operations", return_value=operations),
             mock.patch.object(CHECK, "rust_surface_matches_header", return_value=True),
+            mock.patch.object(CHECK, "python_surface_matches_header", return_value=True),
         ):
             self.assertEqual(
                 CHECK.check(Path("repo")),
@@ -48,6 +49,15 @@ _signature(
 library.ctex_untyped()
 '''
         self.assertEqual(CHECK.python_operations(source), {"ctex_one", "ctex_two"})
+
+    def test_python_generated_surface_requires_typed_functions(self) -> None:
+        source = '''
+ctex_one = _lib.get("ctex_one", "cdecl")
+ctex_one.argtypes = []
+ctex_one.restype = c_uint
+ctex_untyped = _lib.get("ctex_untyped", "cdecl")
+'''
+        self.assertEqual(CHECK.generated_python_operations(source), {"ctex_one"})
 
     def test_rust_extracts_only_public_extern_declarations(self) -> None:
         source = '''
@@ -88,6 +98,20 @@ pub fn ctex_wrapper() {}
             self.assertTrue(CHECK.rust_surface_matches_header(root))
             header.write_text("void ctex_two(void);\n", encoding="utf-8")
             self.assertFalse(CHECK.rust_surface_matches_header(root))
+
+    def test_python_generated_surface_is_pinned_to_the_header(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            header = root / "include" / "ctex" / "capi.h"
+            source = root / "python" / "src" / "cybertexel" / "capi.py"
+            header.parent.mkdir(parents=True)
+            source.parent.mkdir(parents=True)
+            header.write_text("void ctex_one(void);\n", encoding="utf-8")
+            digest = hashlib.sha256(header.read_bytes()).hexdigest()
+            source.write_text(f"# C header SHA-256: {digest}\n", encoding="utf-8")
+            self.assertTrue(CHECK.python_surface_matches_header(root))
+            source.write_text("# stale\n", encoding="utf-8")
+            self.assertFalse(CHECK.python_surface_matches_header(root))
 
 
 if __name__ == "__main__":
