@@ -403,6 +403,11 @@ symbols; the other 298 are named individually against task 16.12.
 The first release slice is macOS, Linux and iPad. The shipped macOS universal
 release build is byte-identical across two builds of one commit, so task 18.3
 carries no documented variance.
+The desktop WGSL and mobile MSL reference hosts now execute an emitted pass plan
+on real `wgpu` and Metal devices, publish the completion revision and drive the
+explicit transport path. Both were run on the M3 Pro and agree on the rendered
+texel across two device APIs. Task 18.4 is complete; task 18.2 stays open for
+the residency-traffic and input-to-visible instrumentation it also requires.
 
 ## Milestones
 
@@ -530,6 +535,14 @@ differ between two builds of one commit. The shipped `macos-universal` release
 build is identical, so the gate builds the shipped preset twice at one fixed
 path — the build directory is not itself allowed to be the differing input — and
 `docs/reproducible-builds.md` currently documents no variance. Task 18.3.
+
+**2026-09-23 — Reference hosts prove the contract before they paint.** Task
+18.2 requires hosts that exercise the host-executed route on real device APIs
+and are built in CI, and separately requires device instrumentation. The hosts
+landed first as the smallest programs that honestly execute an emitted plan on
+`wgpu` and Metal, because that is what makes a pass-plan change fail in CI. An
+absent adapter exits 3 and is reported unmeasured, never passed. Pointer input,
+undo and export on a device follow with the numeric budgets in 17.12-17.14.
 
 ## Open questions
 

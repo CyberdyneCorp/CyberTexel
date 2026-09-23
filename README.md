@@ -10,7 +10,8 @@ graph that compiles to shaders, re-derive smart materials on a new model from it
 mesh maps, and export channel-packed texture sets using data-driven presets.
 
 The library **does not own a GPU device** in its primary path. It emits shaders
-and an ordered pass plan, and the host runs them on its existing device. Painted
+and an ordered pass plan, and the host runs them on its existing device. The
+[reference hosts](hosts/) do exactly that over `wgpu` and Metal. Painted
 tiles stay on that device; completion records publish revisions, and explicit
 asynchronous readback serves save, export and CPU access. Rust/`wgpu` desktop
 apps, Swift/Metal iPad apps, Python scripts and the headless CLI all drive the
@@ -30,7 +31,7 @@ What is **not** done, stated plainly:
 
 | | |
 |---|---|
-| **Reference hosts** | The desktop WGSL and mobile Metal hosts that paint on a real device do not exist yet (task 18.2). Every host-executed test in this repository uses a software stand-in. |
+| **Reference hosts** | [Both hosts](hosts/) execute an emitted pass plan on a real device API and have been run on the M3 Pro. They are not painting applications: pointer input, undo and export on a device remain part of task 18.2. |
 | **Performance numbers** | No figure has been measured on the named reference devices. `just gate-budgets` refuses to decide without dated result JSON from an exact device, and reports absent hardware as unmeasured (tasks 17.5, 17.10, 17.12–17.14). |
 | **Example breadth** | The numbered Python examples exercise 55 of the 353 public C ABI symbols. The other 298 are named individually in [`examples/feature_coverage.json`](examples/feature_coverage.json) (task 16.12). |
 | **Platform packages** | macOS, Linux and iPad are the first release slice (task 18.1); Windows and Android packaging follow in task 18.6. The Windows library, CLI and Python wheel are built and tested in CI today. |
