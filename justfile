@@ -488,10 +488,14 @@ gate-parity:
     just build
     ./build/headless/ctex_executor_parity_gate
 
-# Budgeted operations measured on a named reference device.
-# Device-dependent: run where the hardware exists.
-gate-budgets:
-    @just _unimplemented gate-budgets 17.6
+# Validate the budget policy everywhere, then decide measurements only on an
+# exact named reference device. Set CTEX_DEVICE_GATE_RESULTS to its result JSON.
+gate-budgets: (_require "python3" "3.10")
+    python3 tests/tools/test_device_gate.py
+    python3 tools/device_gate.py validate
+    python3 tools/device_gate.py document
+    @if [ -z "${CTEX_DEVICE_GATE_RESULTS:-}" ]; then printf 'missing prerequisite: CTEX_DEVICE_GATE_RESULTS (dated reference-device result JSON)\n' >&2; exit 2; fi
+    @if [ -n "${CTEX_DEVICE_GATE_BASELINES:-}" ]; then python3 tools/device_gate.py gate --results "$CTEX_DEVICE_GATE_RESULTS" --baselines "$CTEX_DEVICE_GATE_BASELINES"; else python3 tools/device_gate.py gate --results "$CTEX_DEVICE_GATE_RESULTS"; fi
 
 # --- aggregate ---------------------------------------------------------------
 

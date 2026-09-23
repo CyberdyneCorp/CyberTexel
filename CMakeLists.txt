@@ -407,6 +407,21 @@ if(BUILD_TESTING)
             PROPERTIES LABELS "cli-headless-scenario"
         )
     endif()
+    add_test(
+        NAME device-gate-policy
+        COMMAND "${CTEX_PYTHON3_EXECUTABLE}"
+                "${PROJECT_SOURCE_DIR}/tests/tools/test_device_gate.py"
+    )
+    add_test(
+        NAME device-gate-scenario-matrix
+        COMMAND "${CTEX_PYTHON3_EXECUTABLE}"
+                "${PROJECT_SOURCE_DIR}/tests/tools/check_device_gate_scenario_matrix.py"
+    )
+    set_tests_properties(
+        device-gate-policy
+        device-gate-scenario-matrix
+        PROPERTIES LABELS "device-gate-scenario"
+    )
     add_executable(ctex_version_test tests/version_test.c)
     target_include_directories(
         ctex_version_test

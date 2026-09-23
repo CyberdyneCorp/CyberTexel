@@ -1485,6 +1485,20 @@ reopens its canonical output. The device-gate example asserts the pass, fail,
 informational, unmeasured and unreachable decision vocabulary while explicitly
 refusing to present deterministic policy fixtures as hardware measurements.
 
+Tasks 17.1–17.4, 17.6–17.9 and 17.11 are complete. The versioned device-gate
+manifest names the exact M3 Pro desktop and M4 iPad targets, thirty numeric time,
+memory, interaction, sustained-workload and residency budgets, and four complete
+document configurations. Its generated repository document never promotes a
+developer-machine timing: absent hardware is unmeasured, cross-device data is
+informational, below-floor data is unreachable, incomplete batch attribution
+fails, and coverage counts only actual decisions. The gate requires dated,
+commit-pinned result JSON and can regenerate the table with those results. A
+checked fifteen-row scenario matrix exercises the policy, including delayed
+pipeline-stage attribution, final-five-minute mobile enforcement and zero-byte
+synchronous readback ceilings. Tasks 17.5 and 17.10 remain open until the real
+reference-host runner records the scaling pair and first regression baseline;
+the hardware-dependent tasks 17.12–17.14 remain explicitly unmeasured.
+
 Editable-authoring group 20 is complete. Versioned operation records retain
 algorithm and preset versions, seeds, channel descriptors, mesh identity,
 pinned input bytes and checkpoint identities in canonical project-container
@@ -1760,17 +1774,17 @@ threading and per-binding example evidence.
 
 ## 17. Performance gate
 
-- [ ] 17.1 Declare the reference devices with their full configuration
-- [ ] 17.2 Budget table as a repository document updated by the gate
-- [ ] 17.3 Budgets for stamp, stroke, composite, emission, generator, delta query, tile readback, smart material, export
-- [ ] 17.4 Memory budgets alongside time budgets
+- [x] 17.1 Declare the reference devices with their full configuration
+- [x] 17.2 Budget table as a repository document updated by the gate
+- [x] 17.3 Budgets for stamp, stroke, composite, emission, generator, delta query, tile readback, smart material, export
+- [x] 17.4 Memory budgets alongside time budgets
 - [ ] 17.5 Scaling verification: a stamp costs what it touches, not what the canvas holds
-- [ ] 17.6 Absolute-floor comparison; unreachable budgets reported rather than passed
-- [ ] 17.7 Batch attribution so a batch cannot stand in for the operation it names
-- [ ] 17.8 Coverage counted over what the gate decides
-- [ ] 17.9 Unmeasured cases reported, never substituted
+- [x] 17.6 Absolute-floor comparison; unreachable budgets reported rather than passed
+- [x] 17.7 Batch attribution so a batch cannot stand in for the operation it names
+- [x] 17.8 Coverage counted over what the gate decides
+- [x] 17.9 Unmeasured cases reported, never substituted
 - [ ] 17.10 Regression detection against the recorded baseline
-- [ ] 17.11 `device-gate` scenarios as tests
+- [x] 17.11 `device-gate` scenarios as tests
 - [ ] 17.12 End-to-end input-to-visible median/p95/p99 budgets and pipeline-stage measurements on both reference hosts
 - [ ] 17.13 Twenty-minute mobile benchmark, final-five-minute budgets and pressure/suspend/device-loss fixtures
 - [ ] 17.14 Transfer-byte and synchronous-wait instrumentation; ordinary resident paint/undo has zero synchronous pixel readbacks
