@@ -1,0 +1,11 @@
+{
+  "capabilities": [
+    "c-abi",
+    "language-bindings",
+    "project-io"
+  ],
+  "container_bytes": 100,
+  "container_sha256": "3c38af39a4705d2b05d14316b48629524a8826f431739bf33ec7f484167a32f0",
+  "executor": "cpu",
+  "version": "0.1.0"
+}

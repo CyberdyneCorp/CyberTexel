@@ -1411,6 +1411,15 @@ wheel's bundled library. Both generated language surfaces pin the header digest;
 Swift imports that header directly. The parity gate is green, and the Python
 wheel, macOS/iOS Swift package and Rust workspace suites all pass.
 
+Tasks 16.1 and 16.2 are complete. The fixture set now contains valid UV and UDIM
+meshes, a four-image mesh-map set, brush alpha, reference image and OFL-licensed
+Roboto variable font. Every asset has a pinned digest, origin, licence and human
+attribution, and the generated PNGs reproduce byte-identically. The installed-
+wheel runner discovers numbered scripts and provides tested assert, committed-
+output compare and CPU-only update modes. The first example exercises versioned
+C ABI project-container creation; full capability coverage, visual outputs and
+the gallery remain separate open tasks.
+
 ## 1. Foundation
 
 - [x] 1.1 CMake project, C++20, warnings as errors, presets for headless, macOS, Linux, Windows, iOS, Android
@@ -1638,8 +1647,8 @@ wheel, macOS/iOS Swift package and Rust workspace suites all pass.
 
 ## 16. Examples
 
-- [ ] 16.1 Fixture assets: meshes with UVs and UDIM layouts, a mesh map set, alphas, images, fonts — with provenance recorded
-- [ ] 16.2 Runner (`examples/run_all.py`) with assert, compare and update modes
+- [x] 16.1 Fixture assets: meshes with UVs and UDIM layouts, a mesh map set, alphas, images, fonts — with provenance recorded
+- [x] 16.2 Runner (`examples/run_all.py`) with assert, compare and update modes
 - [ ] 16.3 One numbered example per capability, each asserting its result
 - [ ] 16.4 Committed outputs and the CI comparison at stated tolerances
 - [ ] 16.5 Example coverage gate over capabilities

@@ -386,8 +386,9 @@ test-texture-export-execution: build
 test-shader-emission-scenarios: (_require "spirv-val" "SPIRV-Tools") build
     ctest --test-dir build/headless --output-on-failure -L '^shader-emission-scenario$'
 
-examples:
-    @just _unimplemented examples 16.2
+examples: test-python-binding
+    python3 tools/check_example_fixtures.py
+    python3 tools/run_python_examples.py compare
 
 bench:
     @just _unimplemented bench 17.3

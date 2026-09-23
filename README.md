@@ -447,6 +447,9 @@ just check        # everything that needs no device
 just build test examples
 ```
 
+The installed-wheel [Python examples](docs/examples.md) use provenance-recorded
+fixtures and compare their generated artifacts with committed outputs.
+
 `just build` uses the native `headless` CMake preset. Shipped build presets also
 cover `linux-x64`, `macos-universal`, `windows-x64`, `ios-arm64` and
 `android-arm64`; the Android preset reads `ANDROID_NDK_HOME`.

@@ -1,0 +1,10 @@
+{
+  "width": 8,
+  "height": 8,
+  "maps": [
+    {"file": "ambient_occlusion.png", "kind": "ambient-occlusion", "channels": "openness"},
+    {"file": "curvature.png", "kind": "curvature", "channels": "signed-remapped"},
+    {"file": "normal_opengl.png", "kind": "tangent-space-normal", "channels": "+X,+Y,+Z"},
+    {"file": "position.png", "kind": "position", "channels": "X,Y,Z-remapped"}
+  ]
+}
