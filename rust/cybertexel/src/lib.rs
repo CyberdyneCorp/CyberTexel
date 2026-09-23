@@ -2,8 +2,10 @@
 
 mod ffi;
 mod host;
+mod layers;
 
 pub use host::*;
+pub use layers::{LayerChannel, LayerEntry, LayerKind};
 
 use std::cell::Cell;
 use std::fmt;
@@ -149,6 +151,24 @@ impl Document {
             .set_channel_enabled(&texture_set.identifier, semantic_id, bit_depth)
     }
 
+    /// Append a complete ordered batch of layer entries.
+    ///
+    /// The whole batch is validated against the resulting stack before any of
+    /// it is published, so a batch that would produce an invalid stack changes
+    /// nothing.
+    pub fn append_layers(
+        &mut self,
+        texture_set: &TextureSet,
+        entries: &[LayerEntry],
+    ) -> Result<(), Error> {
+        self.handle.layer_append(&texture_set.identifier, entries)
+    }
+
+    /// The canonical layer-stack snapshot as JSON, including its revision.
+    pub fn inspect_layers(&self, texture_set: &TextureSet) -> Result<String, Error> {
+        self.handle.layer_inspect(&texture_set.identifier)
+    }
+
     pub fn write_channel_pixel(
         &mut self,
         texture_set: &TextureSet,
@@ -281,6 +301,51 @@ mod tests {
         assert_eq!(result.published_revision, Some(1));
         assert_eq!(session.committed_generation("paint").unwrap(), Some(1));
         assert!(session.resource_is_held("paint", 1).unwrap());
+    }
+
+    #[test]
+    fn a_layer_batch_is_validated_before_any_of_it_is_published() {
+        let mut document = Document::new().unwrap();
+        let texture_set = document
+            .create_texture_set("Stack", "stack", 32, 32)
+            .unwrap();
+        document
+            .set_channel_enabled(&texture_set, "pbr.base_color", 0)
+            .unwrap();
+        document
+            .append_layers(
+                &texture_set,
+                &[
+                    LayerEntry {
+                        kind: LayerKind::Group,
+                        ..LayerEntry::paint("group.metal", "Metal")
+                    },
+                    LayerEntry {
+                        parent_identifier: Some("group.metal".to_string()),
+                        channels: vec![LayerChannel {
+                            semantic_id: "pbr.base_color".to_string(),
+                            enabled: true,
+                            opacity: 0.5,
+                        }],
+                        ..LayerEntry::paint("paint.rust", "Rust")
+                    },
+                ],
+            )
+            .unwrap();
+        let before = document.inspect_layers(&texture_set).unwrap();
+        assert!(before.contains("group.metal"), "{before}");
+        assert!(before.contains("paint.rust"), "{before}");
+
+        // A batch naming an absent parent is refused and changes nothing.
+        let refused = document.append_layers(
+            &texture_set,
+            &[LayerEntry {
+                parent_identifier: Some("group.absent".to_string()),
+                ..LayerEntry::paint("paint.orphan", "Orphan")
+            }],
+        );
+        assert!(refused.is_err());
+        assert_eq!(document.inspect_layers(&texture_set).unwrap(), before);
     }
 
     #[test]

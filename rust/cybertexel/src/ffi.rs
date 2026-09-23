@@ -10,6 +10,7 @@ use crate::host::{
     HostRecovery, HostResource, ReadbackStatus, ReleasedResource, ReplaySemantics, RevisionCursor,
     ShaderTarget,
 };
+use crate::layers::LayerEntry;
 use crate::{Error, ResultCode, TextureSet, Version};
 
 pub(crate) struct DocumentHandle(NonNull<sys::ctex_document>);
@@ -868,6 +869,126 @@ unsafe fn check(result: sys::ctex_result) -> Result<(), Error> {
 
 fn c_string(value: &str) -> Result<CString, Error> {
     CString::new(value).map_err(|_| Error::InteriorNul)
+}
+
+impl DocumentHandle {
+    /// Append a complete ordered batch, validated against the resulting stack.
+    pub(crate) fn layer_append(
+        &self,
+        texture_set_id: &str,
+        entries: &[LayerEntry],
+    ) -> Result<(), Error> {
+        if entries.is_empty() {
+            return Err(Error::InvalidNativeState(
+                "a layer batch carries at least one entry".into(),
+            ));
+        }
+        let texture_set_id = c_string(texture_set_id)?;
+        // Every CString and channel array must outlive the call.
+        let mut retained: Vec<CString> = Vec::new();
+        let mut channel_storage: Vec<Vec<sys::ctex_layer_channel_descriptor>> = Vec::new();
+        for entry in entries {
+            let mut channels = Vec::with_capacity(entry.channels.len());
+            for channel in &entry.channels {
+                let semantic = c_string(&channel.semantic_id)?;
+                channels.push(sys::ctex_layer_channel_descriptor {
+                    size: std::mem::size_of::<sys::ctex_layer_channel_descriptor>() as u32,
+                    semantic_id: semantic.as_ptr(),
+                    enabled: u32::from(channel.enabled),
+                    opacity: channel.opacity,
+                });
+                retained.push(semantic);
+            }
+            channel_storage.push(channels);
+        }
+        let mut descriptors = Vec::with_capacity(entries.len());
+        for (index, entry) in entries.iter().enumerate() {
+            let identifier = c_string(&entry.identifier)?;
+            let display_name = c_string(&entry.display_name)?;
+            let blend_mode = c_string(&entry.blend_mode)?;
+            let parent = entry
+                .parent_identifier
+                .as_deref()
+                .map(c_string)
+                .transpose()?;
+            let target = entry
+                .target_identifier
+                .as_deref()
+                .map(c_string)
+                .transpose()?;
+            let source = entry
+                .source_identifier
+                .as_deref()
+                .map(c_string)
+                .transpose()?;
+            let channels = &channel_storage[index];
+            descriptors.push(sys::ctex_layer_entry_descriptor {
+                size: std::mem::size_of::<sys::ctex_layer_entry_descriptor>() as u32,
+                identifier: identifier.as_ptr(),
+                display_name: display_name.as_ptr(),
+                kind: entry.kind as u32,
+                parent_identifier: parent.as_ref().map_or(std::ptr::null(), |v| v.as_ptr()),
+                target_identifier: target.as_ref().map_or(std::ptr::null(), |v| v.as_ptr()),
+                source_identifier: source.as_ref().map_or(std::ptr::null(), |v| v.as_ptr()),
+                enabled: u32::from(entry.enabled),
+                opacity: entry.opacity,
+                blend_mode: blend_mode.as_ptr(),
+                channels: if channels.is_empty() {
+                    std::ptr::null()
+                } else {
+                    channels.as_ptr()
+                },
+                channel_count: channels.len(),
+            });
+            retained.push(identifier);
+            retained.push(display_name);
+            retained.push(blend_mode);
+            retained.extend(parent);
+            retained.extend(target);
+            retained.extend(source);
+        }
+        unsafe {
+            check(sys::ctex_texture_set_layer_append(
+                self.0.as_ptr(),
+                texture_set_id.as_ptr(),
+                descriptors.as_ptr(),
+                descriptors.len(),
+            ))?;
+        }
+        drop(retained);
+        Ok(())
+    }
+
+    /// The canonical stack snapshot as JSON, including its revision.
+    pub(crate) fn layer_inspect(&self, texture_set_id: &str) -> Result<String, Error> {
+        let texture_set_id = c_string(texture_set_id)?;
+        let mut required: usize = 0;
+        unsafe {
+            check(sys::ctex_texture_set_layer_inspect(
+                self.0.as_ptr(),
+                texture_set_id.as_ptr(),
+                std::ptr::null_mut(),
+                0,
+                &mut required,
+            ))?;
+        }
+        let mut buffer = vec![0u8; required];
+        unsafe {
+            check(sys::ctex_texture_set_layer_inspect(
+                self.0.as_ptr(),
+                texture_set_id.as_ptr(),
+                buffer.as_mut_ptr().cast(),
+                buffer.len(),
+                &mut required,
+            ))?;
+        }
+        let end = buffer
+            .iter()
+            .position(|byte| *byte == 0)
+            .unwrap_or(buffer.len());
+        String::from_utf8(buffer[..end].to_vec())
+            .map_err(|_| Error::InvalidNativeState("layer snapshot is not UTF-8".into()))
+    }
 }
 
 #[cfg(test)]
