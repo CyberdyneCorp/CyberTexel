@@ -1,0 +1,21 @@
+{
+  "capabilities": [
+    "mesh-and-texture-sets",
+    "mesh-maps",
+    "texture-document"
+  ],
+  "import_resolution_mismatch": true,
+  "map_shape": [
+    8,
+    8
+  ],
+  "mask_maximum": 0.7997080087661743,
+  "mask_mean": 0.40782347321510315,
+  "mask_minimum": 0.012867647223174572,
+  "mask_shape": [
+    32,
+    32
+  ],
+  "mesh_triangles": 2,
+  "mesh_vertices": 4
+}

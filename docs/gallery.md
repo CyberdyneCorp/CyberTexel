@@ -25,3 +25,15 @@ zero.
 
 The machine-readable [image summary](../examples/outputs/02_image_io/summary.json)
 records the source and preview shapes and asserted channel means.
+
+## `03_mesh_map_generator`
+
+Loads the checked UV quad into a texture document, imports the ambient-occlusion
+fixture as a mesh map and evaluates the built-in mask generator at the texture
+set resolution. It covers `mesh-and-texture-sets`, `mesh-maps` and
+`texture-document`.
+
+![Generated ambient-occlusion mask](../examples/outputs/03_mesh_map_generator/ambient_occlusion_mask.png)
+
+The [generator summary](../examples/outputs/03_mesh_map_generator/summary.json)
+records mesh counts, source/output resolutions and asserted mask statistics.

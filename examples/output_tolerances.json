@@ -6,6 +6,10 @@
     "02_image_io/checker_preview.png": {
       "maximum_absolute_error": 0,
       "mode": "pixels"
+    },
+    "03_mesh_map_generator/ambient_occlusion_mask.png": {
+      "maximum_absolute_error": 0,
+      "mode": "pixels"
     }
   },
   "schema": 1

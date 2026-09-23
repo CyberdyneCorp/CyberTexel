@@ -1424,6 +1424,10 @@ are linked from a checked documentation gallery; full capability coverage
 remains a separate open task. The example-coverage gate is live rather than a
 placeholder: it reads literal declarations from every numbered script, compares
 them with the capability index and reports every missing capability by name.
+The third example carries the checked UV quad and AO fixture through mesh ingest,
+a texture document, external map binding and deterministic mask generation. Nine
+of 24 capabilities now have numbered example evidence; the gate names the
+remaining 15.
 
 Editable-authoring group 20 is complete. Versioned operation records retain
 algorithm and preset versions, seeds, channel descriptors, mesh identity,

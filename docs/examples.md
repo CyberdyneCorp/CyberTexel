@@ -40,7 +40,9 @@ python3 tools/check_example_fixtures.py
 The first example, `01_version_and_project_container.py`, exercises the raw
 Python C ABI, version synchronization and canonical project-container creation.
 `02_image_io.py` demonstrates the public NumPy decode/encode path and produces
-the first visual gallery output. Full capability example coverage remains
-roadmap work. Every numbered script declares a literal `CAPABILITIES` tuple;
+the first visual gallery output. `03_mesh_map_generator.py` carries the checked
+UV quad and AO fixture through a texture document and deterministic generator.
+Full capability example coverage remains roadmap work. Every numbered script
+declares a literal `CAPABILITIES` tuple;
 `just gate-example-coverage` compares those declarations with
 `abi/capi-capabilities.json` and names every missing capability.
