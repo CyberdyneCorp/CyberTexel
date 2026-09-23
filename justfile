@@ -241,6 +241,26 @@ test-examples-scenarios: build
 test-build-packaging-scenarios: build
     ctest --test-dir build/headless --output-on-failure -L '^build-packaging-scenario$'
 
+# Desktop WGSL reference host: runs the emitted pass plan on a real wgpu device.
+# Exit code 3 means no adapter was available, which is unmeasured, not a pass.
+host-desktop: host-desktop-build
+    cargo run --manifest-path hosts/desktop-wgpu/Cargo.toml --release -- \
+        --report build/reference-hosts/desktop-wgsl.json
+
+# Build and lint the desktop reference host without requiring a device.
+host-desktop-build: (_require "cargo" "Rust stable")
+    cargo fmt --manifest-path hosts/desktop-wgpu/Cargo.toml -- --check
+    cargo clippy --manifest-path hosts/desktop-wgpu/Cargo.toml --all-targets -- -D warnings
+    cargo build --manifest-path hosts/desktop-wgpu/Cargo.toml --release
+
+# Mobile MSL reference host: runs on macOS Metal and cross-builds for iPad.
+# Exit code 3 means no Metal device was available, which is unmeasured.
+host-ipad: (_require "swift" "Swift 5.9") (_require "cmake" "3.24")
+    python3 tools/run_metal_reference_host.py
+
+# Both reference hosts. Task 18.2.
+hosts: host-desktop host-ipad
+
 test-stroke-reconstruction: build
     ctest --test-dir build/headless --output-on-failure -R '^stroke-reconstruction$'
 
@@ -518,6 +538,11 @@ gate-example-coverage:
     python3 tests/tools/test_check_example_coverage.py
     python3 tools/check_example_coverage.py
 
+# Both reference hosts account for every structural field the emitted pass
+# plan carries, and CI invokes them. Task 18.2.
+gate-reference-hosts: (_require "python3" "3.10")
+    python3 tools/check_reference_hosts.py
+
 # The justfile is the single definition of every routine command, every named
 # gate is reachable, and CI invokes recipes rather than repeating them.
 gate-task-runner: (_require "python3" "3.10")
@@ -555,7 +580,7 @@ gate-budgets: (_require "python3" "3.10")
 # runs before pushing.
 check: spec-validate gate-capability-index gate-paint-parameter-audit gate-layering gate-licence \
        gate-version-consistency gate-determinism gate-binding-parity \
-       gate-example-coverage gate-abi-diff gate-task-runner format-check
+       gate-example-coverage gate-abi-diff gate-task-runner gate-reference-hosts format-check
 
 # Everything that can be checked before there is any code.
 check-spec: spec-validate gate-capability-index

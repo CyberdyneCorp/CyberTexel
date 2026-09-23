@@ -25,7 +25,7 @@ apply them are `just` recipes, and CI invokes the same recipes.
 | Version drift | `build-packaging-version-policy` | A package declaring a version other than `VERSION` fails naming the package. |
 | Removed symbol | `build-packaging-abi-policy` | Removing an exported symbol without a major bump fails the diff naming the symbol. |
 | Unexercised package | `build-packaging-package-scope` | An in-scope package without a recorded smoke-test outcome, or without its archive, fails rather than being published. |
-| Host-executed route stays honest | task 18.2 | Outstanding: the desktop WGSL and mobile Metal reference hosts are not built in CI yet, so this scenario has no evidence and the gate reports it. |
+| Host-executed route stays honest | `build-packaging-reference-hosts` | Both reference hosts parse the plan strictly and must name every structural field it carries; CI builds and runs them, so a plan change fails until they are updated. |
 | Unreachable budget | `device-gate-policy` | A declared floor that no configuration reaches is reported as unreachable by the budget gate, never recorded as passed. |
 | Repeat build | `build-packaging-task-runner` | `just gate-reproducible` builds the shipped preset twice at one path and fails on any artifact difference that `docs/reproducible-builds.md` does not name. |
 
@@ -38,9 +38,12 @@ platforms deliberately deferred with the decision that deferred them.
 18.6 delivers `windows-x64` and `android-arm64`; the gate reports them by name
 rather than leaving them absent.
 
-## Open evidence
+## Reference hosts
 
-The reference-host requirement is delivered by task 18.2. Until the desktop
-WGSL and mobile Metal hosts build in CI, `build-packaging-scenario-matrix`
-carries that row and this section names it, so the capability is not presented
-as complete.
+[`hosts/`](../hosts) carries the desktop WGSL host over `wgpu` and the mobile
+MSL host over Metal. Both execute an emitted pass plan on a real device API,
+report completion so the library publishes the revision, and drive the explicit
+transport path. `just gate-reference-hosts` fails when either host stops
+accounting for a field the emitted plan carries; CI builds both on macOS and
+Linux and runs them where an adapter exists. A runner without one reports the
+run as unmeasured, which is never a pass.

@@ -1538,6 +1538,34 @@ remains open: eight of the nine build-packaging policy suites are green and the
 matrix correctly reports "Host-executed route stays honest" as still without
 evidence, because the reference hosts are task 18.2.
 
+2026-09-23: Task 18.2 has its hosts. `hosts/desktop-wgpu` is a Rust binary over
+`wgpu` consuming WGSL; `hosts/ipad-metal` is a SwiftPM executable over Metal
+consuming the unified MSL module, building for macOS and cross-building for iPad
+arm64. Each asks the library for a material program, parses the pass plan
+strictly, creates the declared resource, honours the declared vertex layout,
+render target, load operation and draw command, executes on the device, reports
+completion so the library publishes the revision, and then drives the transport
+path: cursor, budgeted snapshot, tile memory layout, a pending readback that
+publishes nothing, and completion with the exact tile payloads. Both were run on
+the MacBook Pro M3 Pro and produced the same rendered texel through two
+independent device APIs. Exit code 3 reports an absent adapter as unmeasured,
+never as a pass.
+
+Two contract details surfaced only against real drivers and are recorded in the
+hosts: a text shader artifact crosses the C ABI with a terminating NUL that Naga
+and the Metal compiler both reject, and the MSL target emits one unified module
+in the vertex artifact with an empty fragment artifact. A third is engine
+behaviour, not a defect: writing a texel equal to the stored value produces no
+delta, so a host that paints a constant material must write a differing texel to
+exercise readback.
+
+`just gate-reference-hosts` makes "the pass plan's contents change" fail at check
+time as well as run time: every structural field the emitted plan carries must be
+named in both host sources. That completed task 18.4 — all ten build-packaging
+policy suites and all twenty-two scenarios now map to executable evidence. Task
+18.2 itself stays open: the residency-traffic and input-to-visible
+instrumentation it also requires is the unmeasured work in tasks 17.12–17.14.
+
 Editable-authoring group 20 is complete. Versioned operation records retain
 algorithm and preset versions, seeds, channel descriptors, mesh identity,
 pinned input bytes and checkpoint identities in canonical project-container
@@ -1834,7 +1862,7 @@ threading and per-binding example evidence.
 - [ ] 18.1 macOS, Linux and iOS packages with header, library, licence, attribution; smoke test each
 - [ ] 18.2 Desktop WGSL and mobile MSL reference hosts in slice A, built in CI, run on named devices with residency-traffic and input-to-visible instrumentation
 - [x] 18.3 Reproducible build verification and documentation of any unavoidable variance
-- [ ] 18.4 `build-packaging` scenarios as tests
+- [x] 18.4 `build-packaging` scenarios as tests
 - [ ] 18.5 After all delivery slices and groups 1–20 pass, archive this change and fold its requirements into `openspec/specs/`
 - [ ] 18.6 Windows and Android packages, smoke tests and the Android device matrix
 

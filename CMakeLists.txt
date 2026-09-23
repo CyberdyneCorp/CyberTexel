@@ -518,6 +518,11 @@ if(BUILD_TESTING)
                 "${PROJECT_SOURCE_DIR}/tests/tools/test_check_packages.py"
     )
     add_test(
+        NAME build-packaging-reference-hosts
+        COMMAND "${CTEX_PYTHON3_EXECUTABLE}"
+                "${PROJECT_SOURCE_DIR}/tools/check_reference_hosts.py"
+    )
+    add_test(
         NAME build-packaging-scenario-matrix
         COMMAND "${CTEX_PYTHON3_EXECUTABLE}"
                 "${PROJECT_SOURCE_DIR}/tests/tools/check_build_packaging_scenario_matrix.py"
@@ -531,11 +536,13 @@ if(BUILD_TESTING)
         build-packaging-abi-policy
         build-packaging-package-builder
         build-packaging-package-scope
+        build-packaging-reference-hosts
         build-packaging-scenario-matrix
         PROPERTIES LABELS "build-packaging-scenario"
     )
     set_tests_properties(
         build-packaging-task-runner
+        build-packaging-reference-hosts
         PROPERTIES WORKING_DIRECTORY "${PROJECT_SOURCE_DIR}"
     )
     set_tests_properties(

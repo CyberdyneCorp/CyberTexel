@@ -1,0 +1,18 @@
+[package]
+name = "cybertexel-host-desktop"
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+publish = false
+description = "Desktop WGSL reference host: runs an emitted CyberTexel pass plan on a real wgpu device."
+
+[dependencies]
+cybertexel = { path = "../../rust/cybertexel" }
+pollster = "0.4"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+wgpu = "30"
+
+[[bin]]
+name = "cybertexel-host-desktop"
+path = "src/main.rs"

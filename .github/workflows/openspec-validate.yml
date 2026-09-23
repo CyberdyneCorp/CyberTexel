@@ -107,6 +107,8 @@ jobs:
       run: just test-examples-scenarios
     - name: Build and packaging scenarios
       run: just test-build-packaging-scenarios
+    - name: Reference host contract
+      run: just gate-reference-hosts
     - name: Test suite
       run: just test
 
@@ -235,6 +237,45 @@ jobs:
       with:
         name: cybertexel-android
         path: dist/*.zip
+
+  # Task 18.2: the reference hosts link real device APIs. Exit code 3 means the
+  # runner had no adapter, which is unmeasured, not a pass.
+  reference-hosts:
+    name: reference-host-${{ matrix.host }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+        - os: macos-15-intel
+          host: desktop-wgsl
+          recipe: host-desktop
+        - os: ubuntu-latest
+          host: desktop-wgsl-linux
+          recipe: host-desktop
+        - os: macos-15-intel
+          host: mobile-msl
+          recipe: host-ipad
+    runs-on: ${{ matrix.os }}
+    steps:
+    - uses: actions/checkout@v4
+    - uses: actions/setup-python@v5
+      with:
+        python-version: '3.12'
+    - uses: extractions/setup-just@v2
+    - name: Install graphics dependencies
+      if: runner.os == 'Linux'
+      run: sudo apt-get update && sudo apt-get install -y libvulkan1 mesa-vulkan-drivers vulkan-tools
+    - name: Install pkg-config
+      if: matrix.recipe == 'host-ipad'
+      run: brew install pkgconf
+    - name: Run the reference host
+      run: just ${{ matrix.recipe }}
+    - uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: reference-host-${{ matrix.host }}
+        path: build/reference-hosts/*.json
+        if-no-files-found: ignore
 
   swift-package:
     name: swift-package-macos-ios
