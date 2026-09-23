@@ -12,6 +12,10 @@ if TYPE_CHECKING:
 
 from ._native import (
     LIB,
+    AtlasDescriptor,
+    AtlasInfo,
+    AtlasRegion,
+    AtlasRegionDescriptor,
     ChannelDescriptor,
     ChannelInfo,
     LayerChannelDescriptor,
@@ -19,8 +23,45 @@ from ._native import (
     PaintPreviewInfo,
     ProjectContainerInfo,
     TextureSetDescriptor,
+    UdimPixelWriteDescriptor,
+    UdimWriteInfo,
     check,
 )
+
+
+@dataclass(frozen=True)
+class UdimWriteReport:
+    """What one absolute-UV write batch changed.
+
+    Logical occupancy and physical memory are reported separately: a tile can be
+    declared without being allocated until something is written into it.
+    """
+
+    changed_tile_count: int
+    allocated_tile_count: int
+    changed_pixel_count: int
+
+
+@dataclass(frozen=True)
+class AtlasRegionPlacement:
+    """One texture set's non-overlapping place in an atlas."""
+
+    texture_set_id: str
+    x: int
+    y: int
+    width: int
+    height: int
+
+
+@dataclass(frozen=True)
+class Atlas:
+    """A validated grouping of texture sets into one deterministic output."""
+
+    identifier: str
+    display_name: str
+    width: int
+    height: int
+    regions: tuple[AtlasRegionPlacement, ...]
 
 
 class LayerKind(IntEnum):
@@ -296,7 +337,14 @@ class Document:
         width: int,
         height: int,
         default_bit_depth: int = 8,
+        udim: bool = False,
     ) -> TextureSet:
+        """Create a texture set bound to a mesh partition and named UV set.
+
+        `udim` opts into sparse UDIM storage, where tiles are addressed by the
+        standard 1001-based numbering and allocated on demand.
+        """
+
         descriptor = TextureSetDescriptor(
             ctypes.sizeof(TextureSetDescriptor),
             display_name.encode("utf-8"),
@@ -306,7 +354,7 @@ class Document:
             width,
             height,
             default_bit_depth,
-            0,
+            1 if udim else 0,
         )
         check(
             LIB.ctex_document_create_texture_set(
@@ -646,4 +694,226 @@ class Document:
                 len(encoded),
                 int(source_deletion_policy),
             )
+        )
+
+    def ensure_udim_tiles(
+        self, texture_set: TextureSet, tile_numbers: Sequence[int]
+    ) -> int:
+        """Declare standard UDIM tiles and return how many were newly allocated.
+
+        Declaring a tile makes it logically occupied; physical storage follows
+        on demand, so the returned count is allocation, not occupancy.
+        """
+
+        if not tile_numbers:
+            raise ValueError("declare at least one UDIM tile")
+        numbers = (ctypes.c_uint32 * len(tile_numbers))(*tile_numbers)
+        allocated = ctypes.c_size_t()
+        check(
+            LIB.ctex_texture_set_ensure_udim_tiles(
+                self._require_open(),
+                texture_set.identifier.encode("utf-8"),
+                numbers,
+                len(tile_numbers),
+                ctypes.byref(allocated),
+            )
+        )
+        return allocated.value
+
+    def udim_tiles(self, texture_set: TextureSet) -> list[int]:
+        """Every occupied UDIM tile number, in ascending order."""
+
+        handle = self._require_open()
+        identifier = texture_set.identifier.encode("utf-8")
+        count = ctypes.c_size_t()
+        check(
+            LIB.ctex_texture_set_get_udim_tiles(
+                handle, identifier, None, 0, ctypes.byref(count)
+            )
+        )
+        if count.value == 0:
+            return []
+        numbers = (ctypes.c_uint32 * count.value)()
+        check(
+            LIB.ctex_texture_set_get_udim_tiles(
+                handle, identifier, numbers, count.value, ctypes.byref(count)
+            )
+        )
+        return list(numbers[: count.value])
+
+    def write_udim_pixels(
+        self,
+        texture_set: TextureSet,
+        semantic_id: str,
+        writes: Sequence[tuple[float, float, bytes]],
+    ) -> UdimWriteReport:
+        """Write pixels addressed in absolute UV, which may cross tile borders.
+
+        Each write is `(u, v, pixel)`. The batch is one operation, so writes
+        that land in several tiles are still reported together.
+        """
+
+        if not writes:
+            raise ValueError("a UDIM write batch carries at least one pixel")
+        descriptors = (UdimPixelWriteDescriptor * len(writes))()
+        retained: list[object] = []
+        for index, (u, v, pixel) in enumerate(writes):
+            buffer = ctypes.create_string_buffer(pixel, len(pixel))
+            retained.append(buffer)
+            descriptors[index].size = ctypes.sizeof(UdimPixelWriteDescriptor)
+            descriptors[index].u = u
+            descriptors[index].v = v
+            descriptors[index].pixel = ctypes.cast(buffer, ctypes.c_void_p)
+            descriptors[index].pixel_size = len(pixel)
+        info = UdimWriteInfo()
+        info.size = ctypes.sizeof(UdimWriteInfo)
+        check(
+            LIB.ctex_texture_set_write_udim_pixels(
+                self._require_open(),
+                texture_set.identifier.encode("utf-8"),
+                semantic_id.encode("utf-8"),
+                descriptors,
+                len(writes),
+                ctypes.byref(info),
+            )
+        )
+        return UdimWriteReport(
+            changed_tile_count=info.changed_tile_count,
+            allocated_tile_count=info.allocated_tile_count,
+            changed_pixel_count=info.changed_pixel_count,
+        )
+
+    def read_udim_pixel(
+        self,
+        texture_set: TextureSet,
+        semantic_id: str,
+        tile_number: int,
+        x: int,
+        y: int,
+    ) -> bytes:
+        """Read one texel from an occupied UDIM tile by checked tile number."""
+
+        handle = self._require_open()
+        identifier = texture_set.identifier.encode("utf-8")
+        semantic = semantic_id.encode("utf-8")
+        required = ctypes.c_size_t()
+        check(
+            LIB.ctex_texture_set_read_udim_pixel(
+                handle, identifier, semantic, tile_number, x, y, None, 0,
+                ctypes.byref(required),
+            )
+        )
+        pixel = ctypes.create_string_buffer(required.value)
+        check(
+            LIB.ctex_texture_set_read_udim_pixel(
+                handle, identifier, semantic, tile_number, x, y, pixel,
+                required.value, ctypes.byref(required),
+            )
+        )
+        return pixel.raw[: required.value]
+
+    def create_atlas(
+        self,
+        identifier: str,
+        display_name: str,
+        *,
+        width: int,
+        height: int,
+        regions: Sequence[AtlasRegionPlacement],
+    ) -> None:
+        """Group existing texture sets into validated, non-overlapping regions."""
+
+        if not regions:
+            raise ValueError("an atlas carries at least one region")
+        retained: list[object] = []
+        native = (AtlasRegionDescriptor * len(regions))()
+        for index, region in enumerate(regions):
+            encoded = region.texture_set_id.encode("utf-8")
+            retained.append(encoded)
+            native[index].size = ctypes.sizeof(AtlasRegionDescriptor)
+            native[index].texture_set_id = encoded
+            native[index].x = region.x
+            native[index].y = region.y
+            native[index].width = region.width
+            native[index].height = region.height
+        descriptor = AtlasDescriptor()
+        descriptor.size = ctypes.sizeof(AtlasDescriptor)
+        descriptor.identifier = identifier.encode("utf-8")
+        descriptor.display_name = display_name.encode("utf-8")
+        descriptor.width = width
+        descriptor.height = height
+        descriptor.regions = native
+        descriptor.region_count = len(regions)
+        check(
+            LIB.ctex_document_create_atlas(self._require_open(), ctypes.byref(descriptor))
+        )
+
+    def atlas_ids(self) -> list[str]:
+        """Every atlas identifier the document carries."""
+
+        handle = self._require_open()
+        required = ctypes.c_size_t()
+        count = ctypes.c_size_t()
+        check(
+            LIB.ctex_document_get_atlas_ids(
+                handle, None, 0, ctypes.byref(required), ctypes.byref(count)
+            )
+        )
+        if required.value == 0:
+            return []
+        buffer = ctypes.create_string_buffer(required.value)
+        check(
+            LIB.ctex_document_get_atlas_ids(
+                handle, buffer, required.value, ctypes.byref(required),
+                ctypes.byref(count),
+            )
+        )
+        names = buffer.raw[: required.value].split(b"\0")
+        return [name.decode("utf-8") for name in names if name][: count.value]
+
+    def atlas(self, identifier: str) -> Atlas:
+        """Read one atlas, its extent and its ordered non-overlapping regions."""
+
+        handle = self._require_open()
+        atlas_id = identifier.encode("utf-8")
+        info = AtlasInfo()
+        info.size = ctypes.sizeof(AtlasInfo)
+        check(LIB.ctex_document_get_atlas(handle, atlas_id, ctypes.byref(info), None, 0, None, 0, None, 0))
+        regions = (AtlasRegion * info.region_count)()
+        display = ctypes.create_string_buffer(info.required_display_name_size)
+        identifiers = ctypes.create_string_buffer(info.required_texture_set_id_size)
+        check(
+            LIB.ctex_document_get_atlas(
+                handle,
+                atlas_id,
+                ctypes.byref(info),
+                regions,
+                info.region_count,
+                display,
+                len(display),
+                identifiers,
+                len(identifiers),
+            )
+        )
+        raw = identifiers.raw
+        return Atlas(
+            identifier=identifier,
+            display_name=display.value.decode("utf-8"),
+            width=info.width,
+            height=info.height,
+            regions=tuple(
+                AtlasRegionPlacement(
+                    texture_set_id=raw[
+                        region.texture_set_id_offset : region.texture_set_id_offset
+                        + region.texture_set_id_size
+                    ]
+                    .split(b"\0")[0]
+                    .decode("utf-8"),
+                    x=region.x,
+                    y=region.y,
+                    width=region.width,
+                    height=region.height,
+                )
+                for region in regions
+            ),
         )

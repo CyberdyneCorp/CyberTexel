@@ -3,6 +3,8 @@ from typing import TYPE_CHECKING
 from . import capi
 from ._native import native_version
 from .document import (
+    Atlas,
+    AtlasRegionPlacement,
     Document,
     LayerChannel,
     LayerEntry,
@@ -10,6 +12,7 @@ from .document import (
     SourceDeletionPolicy,
     TextureChannel,
     TextureSet,
+    UdimWriteReport,
 )
 from .errors import (
     BufferTooSmallError,
@@ -103,6 +106,8 @@ __all__ = [
     "CompletedResource",
     "CompletionDisposition",
     "CompletionResult",
+    "Atlas",
+    "AtlasRegionPlacement",
     "CyberTexelError",
     "DecodedImage",
     "Document",
@@ -111,6 +116,7 @@ __all__ = [
     "LayerKind",
     "SourceDeletionPolicy",
     "TextureChannel",
+    "UdimWriteReport",
     "HostExecutionSession",
     "HostMaterialProgram",
     "HostReadback",

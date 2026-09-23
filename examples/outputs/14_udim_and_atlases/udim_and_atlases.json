@@ -1,0 +1,34 @@
+{
+  "atlas": {
+    "display_name": "Body atlas",
+    "height": 64,
+    "region_count": 2,
+    "width": 128
+  },
+  "capabilities": [
+    "mesh-and-texture-sets"
+  ],
+  "changed_pixel_count": 2,
+  "changed_tile_count": 2,
+  "newly_allocated_tiles": 2,
+  "occupied_tiles": [
+    1001,
+    1002
+  ],
+  "overlap_refused": true,
+  "tile_1001_texel": [
+    200,
+    32,
+    32
+  ],
+  "tile_1002_texel": [
+    32,
+    64,
+    200
+  ],
+  "undeclared_tile_reads_default": [
+    128,
+    128,
+    128
+  ]
+}

@@ -157,3 +157,15 @@ the stack revision unchanged, then edits and removes entries. It covers
 The [stack summary](../examples/outputs/13_layer_stack/layer_stack.json) records
 the resolved channels, the entries before and after removal, the refused batch
 and the edited blend mode.
+
+## `14_udim_and_atlases`
+
+Declares sparse UDIM tiles, writes texels addressed in absolute UV so one batch
+crosses a tile border, reads them back by checked tile number, shows that an
+undeclared tile reads the channel default without becoming occupied, then groups
+two texture sets into a validated atlas and proves overlapping regions are
+refused. It covers `mesh-and-texture-sets`.
+
+The [UDIM and atlas summary](../examples/outputs/14_udim_and_atlases/udim_and_atlases.json)
+records the occupied tiles, the write report, both recovered texels and the
+atlas extent.

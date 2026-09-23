@@ -158,6 +158,71 @@ class LayerEntryDescriptor(ctypes.Structure):
     ]
 
 
+
+class UdimPixelWriteDescriptor(ctypes.Structure):
+    _fields_ = [
+        ("size", ctypes.c_uint32),
+        ("u", ctypes.c_double),
+        ("v", ctypes.c_double),
+        ("pixel", ctypes.c_void_p),
+        ("pixel_size", ctypes.c_size_t),
+    ]
+
+
+class UdimWriteInfo(ctypes.Structure):
+    _fields_ = [
+        ("size", ctypes.c_uint32),
+        ("changed_tile_count", ctypes.c_size_t),
+        ("allocated_tile_count", ctypes.c_size_t),
+        ("changed_pixel_count", ctypes.c_size_t),
+    ]
+
+
+class AtlasRegionDescriptor(ctypes.Structure):
+    _fields_ = [
+        ("size", ctypes.c_uint32),
+        ("texture_set_id", ctypes.c_char_p),
+        ("x", ctypes.c_uint32),
+        ("y", ctypes.c_uint32),
+        ("width", ctypes.c_uint32),
+        ("height", ctypes.c_uint32),
+    ]
+
+
+class AtlasDescriptor(ctypes.Structure):
+    _fields_ = [
+        ("size", ctypes.c_uint32),
+        ("identifier", ctypes.c_char_p),
+        ("display_name", ctypes.c_char_p),
+        ("width", ctypes.c_uint32),
+        ("height", ctypes.c_uint32),
+        ("regions", ctypes.POINTER(AtlasRegionDescriptor)),
+        ("region_count", ctypes.c_size_t),
+    ]
+
+
+class AtlasInfo(ctypes.Structure):
+    _fields_ = [
+        ("size", ctypes.c_uint32),
+        ("width", ctypes.c_uint32),
+        ("height", ctypes.c_uint32),
+        ("region_count", ctypes.c_size_t),
+        ("required_display_name_size", ctypes.c_size_t),
+        ("required_texture_set_id_size", ctypes.c_size_t),
+    ]
+
+
+class AtlasRegion(ctypes.Structure):
+    _fields_ = [
+        ("texture_set_id_offset", ctypes.c_size_t),
+        ("texture_set_id_size", ctypes.c_size_t),
+        ("x", ctypes.c_uint32),
+        ("y", ctypes.c_uint32),
+        ("width", ctypes.c_uint32),
+        ("height", ctypes.c_uint32),
+    ]
+
+
 class PaintPreviewInfo(ctypes.Structure):
     _fields_ = [
         ("size", ctypes.c_uint32),
@@ -477,6 +542,93 @@ def _load() -> ctypes.CDLL:
             ctypes.c_void_p,
             ctypes.c_void_p,
             ctypes.c_size_t,
+            ctypes.POINTER(ctypes.c_size_t),
+        ],
+        ctypes.c_uint32,
+    )
+    _signature(
+        library,
+        "ctex_texture_set_ensure_udim_tiles",
+        [
+            ctypes.c_void_p,
+            ctypes.c_char_p,
+            ctypes.POINTER(ctypes.c_uint32),
+            ctypes.c_size_t,
+            ctypes.POINTER(ctypes.c_size_t),
+        ],
+        ctypes.c_uint32,
+    )
+    _signature(
+        library,
+        "ctex_texture_set_get_udim_tiles",
+        [
+            ctypes.c_void_p,
+            ctypes.c_char_p,
+            ctypes.POINTER(ctypes.c_uint32),
+            ctypes.c_size_t,
+            ctypes.POINTER(ctypes.c_size_t),
+        ],
+        ctypes.c_uint32,
+    )
+    _signature(
+        library,
+        "ctex_texture_set_read_udim_pixel",
+        [
+            ctypes.c_void_p,
+            ctypes.c_char_p,
+            ctypes.c_char_p,
+            ctypes.c_uint32,
+            ctypes.c_uint32,
+            ctypes.c_uint32,
+            ctypes.c_void_p,
+            ctypes.c_size_t,
+            ctypes.POINTER(ctypes.c_size_t),
+        ],
+        ctypes.c_uint32,
+    )
+    _signature(
+        library,
+        "ctex_texture_set_write_udim_pixels",
+        [
+            ctypes.c_void_p,
+            ctypes.c_char_p,
+            ctypes.c_char_p,
+            ctypes.POINTER(UdimPixelWriteDescriptor),
+            ctypes.c_size_t,
+            ctypes.POINTER(UdimWriteInfo),
+        ],
+        ctypes.c_uint32,
+    )
+    _signature(
+        library,
+        "ctex_document_create_atlas",
+        [ctypes.c_void_p, ctypes.POINTER(AtlasDescriptor)],
+        ctypes.c_uint32,
+    )
+    _signature(
+        library,
+        "ctex_document_get_atlas",
+        [
+            ctypes.c_void_p,
+            ctypes.c_char_p,
+            ctypes.POINTER(AtlasInfo),
+            ctypes.POINTER(AtlasRegion),
+            ctypes.c_size_t,
+            ctypes.c_char_p,
+            ctypes.c_size_t,
+            ctypes.c_char_p,
+            ctypes.c_size_t,
+        ],
+        ctypes.c_uint32,
+    )
+    _signature(
+        library,
+        "ctex_document_get_atlas_ids",
+        [
+            ctypes.c_void_p,
+            ctypes.c_char_p,
+            ctypes.c_size_t,
+            ctypes.POINTER(ctypes.c_size_t),
             ctypes.POINTER(ctypes.c_size_t),
         ],
         ctypes.c_uint32,
