@@ -404,7 +404,8 @@ OperationReplayAssessment assess_operation_replay(
 
 doc::ResolutionReplaySource resolution_replay_source(const EditableOperationRecord& record,
                                                      const OperationReplayAssessment& assessment) {
-    doc::ResolutionReplayDisposition disposition;
+    doc::ResolutionReplayDisposition disposition =
+        doc::ResolutionReplayDisposition::unsupported_algorithm;
     switch (assessment.disposition) {
         case OperationReplayDisposition::replay_resolution_independent:
             disposition = doc::ResolutionReplayDisposition::resolution_independent;

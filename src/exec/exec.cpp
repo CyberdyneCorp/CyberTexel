@@ -1,6 +1,8 @@
 #include <algorithm>
 #include <cstdlib>
 #include <ctex/exec/executor.hpp>
+#include <optional>
+#include <string>
 #include <tuple>
 #include <utility>
 
@@ -9,6 +11,22 @@ namespace {
 
 bool is_available(const ExecutorDescriptor& descriptor) {
     return descriptor.availability == ExecutorAvailability::available;
+}
+
+std::optional<std::string> process_environment_value(const char* name) {
+#if defined(_WIN32)
+    char* value{};
+    std::size_t size{};
+    if (_dupenv_s(&value, &size, name) != 0 || value == nullptr) {
+        return std::nullopt;
+    }
+    std::string result(value);
+    std::free(value);
+    return result;
+#else
+    const char* value = std::getenv(name);
+    return value == nullptr ? std::nullopt : std::optional<std::string>{value};
+#endif
 }
 
 int automatic_rank(ExecutorRoute route) {
@@ -145,9 +163,9 @@ ExecutorSelection ExecutorRegistry::select_from_environment(
 }
 
 ExecutorSelection ExecutorRegistry::select_process_default() const {
-    const char* value = std::getenv(executor_environment_variable.data());
-    return select_from_environment(
-        value == nullptr ? std::nullopt : std::optional<std::string_view>{std::string_view(value)});
+    const std::optional<std::string> value =
+        process_environment_value(executor_environment_variable.data());
+    return select_from_environment(value ? std::optional<std::string_view>{*value} : std::nullopt);
 }
 
 void ExecutorRegistry::pin_default(std::string_view identifier) {
