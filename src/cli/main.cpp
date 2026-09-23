@@ -1,6 +1,13 @@
 #include <array>
 #include <charconv>
+#include <cstddef>
+#include <cstdint>
 #include <cstdlib>
+#include <ctex/doc/smart_material.hpp>
+#include <ctex/io/project_container.hpp>
+#include <ctex/paint/stroke_preset.hpp>
+#include <filesystem>
+#include <fstream>
 #include <iostream>
 #include <limits>
 #include <optional>
@@ -239,7 +246,101 @@ std::optional<Invocation> parse_invocation(int argc, char** argv, std::string& e
 }
 
 int dispatch(const Invocation& invocation) {
+    const auto read_input = [&](std::string_view option) -> std::optional<std::vector<std::byte>> {
+        const std::filesystem::path path{*option_value(invocation, option)};
+        std::ifstream stream(path, std::ios::binary | std::ios::ate);
+        if (!stream) {
+            std::cerr << "could not read input '" << path.string() << "'\n";
+            return std::nullopt;
+        }
+        const std::streampos end = stream.tellg();
+        if (end < 0) {
+            std::cerr << "could not determine input size for '" << path.string() << "'\n";
+            return std::nullopt;
+        }
+        std::vector<std::byte> bytes(static_cast<std::size_t>(end));
+        stream.seekg(0);
+        if (!bytes.empty() && !stream.read(reinterpret_cast<char*>(bytes.data()),
+                                           static_cast<std::streamsize>(bytes.size()))) {
+            std::cerr << "could not read complete input '" << path.string() << "'\n";
+            return std::nullopt;
+        }
+        return bytes;
+    };
+    const auto input_text = [](const std::vector<std::byte>& bytes) {
+        return std::string_view(reinterpret_cast<const char*>(bytes.data()), bytes.size());
+    };
     const bool json = option_value(invocation, "--report") == "json";
+    if (invocation.command->name == "validate") {
+        const auto bytes = read_input("--input");
+        if (!bytes.has_value()) {
+            return static_cast<int>(ExitCode::missing_input);
+        }
+        const std::string_view kind = *option_value(invocation, "--kind");
+        try {
+            if (kind == "document") {
+                static_cast<void>(ctex::io::read_project_container(*bytes));
+            } else if (kind == "material") {
+                static_cast<void>(ctex::doc::deserialize_smart_material(input_text(*bytes)));
+            } else {
+                static_cast<void>(ctex::paint::deserialize_stroke_preset(input_text(*bytes)));
+            }
+        } catch (const std::exception& error) {
+            std::cerr << "invalid " << kind << ": " << error.what() << '\n';
+            return static_cast<int>(ExitCode::invalid_arguments);
+        }
+        if (json) {
+            std::cout << "{\"command\":\"validate\",\"executor\":\"cpu\",\"kind\":\"" << kind
+                      << "\",\"status\":\"valid\"}\n";
+        } else if (!invocation.quiet) {
+            std::cout << "valid " << kind << '\n';
+        }
+        return static_cast<int>(ExitCode::success);
+    }
+    if (invocation.command->name == "info") {
+        const auto bytes = read_input("--document");
+        if (!bytes.has_value()) {
+            return static_cast<int>(ExitCode::missing_input);
+        }
+        try {
+            const ctex::io::ProjectContainerReadResult result =
+                ctex::io::read_project_container(*bytes);
+            const auto& container = result.container;
+            std::size_t decoded_bytes = 0;
+            std::size_t occupied_tiles = 0;
+            for (const ctex::io::StoredTiledImage& image : container.tiled_images) {
+                decoded_bytes += static_cast<std::size_t>(image.width) * image.height *
+                                 image.format.bytes_per_pixel();
+                occupied_tiles += image.occupied_tiles.size();
+            }
+            if (json) {
+                std::cout << "{\"assets\":" << container.assets.size()
+                          << ",\"command\":\"info\",\"decoded_image_bytes\":" << decoded_bytes
+                          << ",\"executor\":\"cpu\",\"file_bytes\":" << bytes->size()
+                          << ",\"newer_schema\":" << (result.report.newer_schema ? "true" : "false")
+                          << ",\"occupied_tiles\":" << occupied_tiles
+                          << ",\"opaque_sections\":" << container.opaque_sections.size()
+                          << ",\"resources\":" << container.resources.size() << ",\"schema\":\""
+                          << container.schema_version.major << '.' << container.schema_version.minor
+                          << '.' << container.schema_version.patch
+                          << "\",\"status\":\"ok\",\"tiled_images\":"
+                          << container.tiled_images.size()
+                          << ",\"unknown_parts\":" << result.report.unknown_parts.size() << "}\n";
+            } else if (!invocation.quiet) {
+                std::cout << "schema: " << container.schema_version.major << '.'
+                          << container.schema_version.minor << '.' << container.schema_version.patch
+                          << "\ntiled images: " << container.tiled_images.size()
+                          << "\noccupied tiles: " << occupied_tiles
+                          << "\nresources: " << container.resources.size()
+                          << "\nassets: " << container.assets.size()
+                          << "\ndecoded image bytes: " << decoded_bytes << '\n';
+            }
+            return static_cast<int>(ExitCode::success);
+        } catch (const std::exception& error) {
+            std::cerr << "invalid document: " << error.what() << '\n';
+            return static_cast<int>(ExitCode::invalid_arguments);
+        }
+    }
     if (json) {
         std::cout << "{\"command\":\"" << invocation.command->name
                   << "\",\"executor\":\"cpu\",\"status\":\"unsupported\"}\n";

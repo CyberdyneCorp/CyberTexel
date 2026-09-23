@@ -10,10 +10,13 @@ It is windowless and defines six command routes:
 - `info` reports document contents and estimated sizes;
 - `validate` checks a document, material, or preset without producing output.
 
-The current skeleton implements complete command selection and argument
-validation. After a valid invocation reaches its selected route it returns the
-unsupported-operation outcome until roadmap task 15.2 supplies that operation.
-It never creates output in this state.
+The current implementation provides complete command selection and argument
+validation. `validate` fully parses project documents, smart materials and
+stroke presets. `info` parses project containers and reports their schema,
+tiled-image storage, occupied tiles, decoded image size, resources, assets and
+forward-preserved sections. The four mutating routes currently return the
+unsupported-operation outcome until roadmap task 15.2 supplies those operations;
+they never create partial output in this state.
 
 Run `cybertexel --help` for the command list or
 `cybertexel <command> --help` for required and optional command arguments.

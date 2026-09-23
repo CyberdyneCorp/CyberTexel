@@ -4,11 +4,13 @@
 from __future__ import annotations
 
 import json
+from pathlib import Path
 import subprocess
 import sys
 
 
 BINARY = sys.argv[1]
+ROOT = Path(sys.argv[2])
 COMMANDS = ("export", "bake-request", "apply", "run", "info", "validate")
 
 
@@ -38,15 +40,42 @@ duplicate = run(
 )
 assert duplicate.returncode == 2 and "duplicate option" in duplicate.stderr
 
+document = ROOT / "examples" / "outputs" / "01_version_and_project_container" / "empty.ctex"
 dispatched = run(
-    "info", "--document", "asset.ctex", "--report", "json", "--quiet"
+    "info", "--document", str(document), "--report", "json", "--quiet"
 )
-assert dispatched.returncode == 4
+assert dispatched.returncode == 0
 assert json.loads(dispatched.stdout) == {
+    "assets": 0,
     "command": "info",
+    "decoded_image_bytes": 0,
     "executor": "cpu",
-    "status": "unsupported",
+    "file_bytes": 100,
+    "newer_schema": False,
+    "occupied_tiles": 0,
+    "opaque_sections": 0,
+    "resources": 0,
+    "schema": "0.1.0",
+    "status": "ok",
+    "tiled_images": 0,
+    "unknown_parts": 0,
 }
-assert "roadmap task 15.2" in dispatched.stderr
+assert dispatched.stderr == ""
+
+validated = run(
+    "validate",
+    "--input",
+    str(document),
+    "--kind",
+    "document",
+    "--report",
+    "json",
+)
+assert validated.returncode == 0 and validated.stderr == ""
+assert json.loads(validated.stdout)["status"] == "valid"
+
+missing_input = run("info", "--document", "does-not-exist.ctex")
+assert missing_input.returncode == 3
+assert "could not read input" in missing_input.stderr
 
 print("headless CLI skeleton passed")

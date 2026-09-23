@@ -371,7 +371,7 @@ if(BUILD_TESTING)
     add_test(
         NAME cli-headless-skeleton
         COMMAND "${CTEX_PYTHON3_EXECUTABLE}" "${PROJECT_SOURCE_DIR}/tests/cli/skeleton_test.py"
-                $<TARGET_FILE:cybertexel_cli>
+                $<TARGET_FILE:cybertexel_cli> "${PROJECT_SOURCE_DIR}"
     )
     add_executable(ctex_version_test tests/version_test.c)
     target_include_directories(
