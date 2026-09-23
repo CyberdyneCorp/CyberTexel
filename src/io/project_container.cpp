@@ -184,7 +184,7 @@ struct UnsupportedResourceSection : std::runtime_error {
 
 #if defined(_WIN32)
 using NativeFile = HANDLE;
-constexpr NativeFile invalid_native_file = INVALID_HANDLE_VALUE;
+const NativeFile invalid_native_file = INVALID_HANDLE_VALUE;
 
 std::uint64_t process_identity() noexcept { return GetCurrentProcessId(); }
 

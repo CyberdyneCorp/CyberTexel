@@ -18,10 +18,14 @@ class Writer {
 public:
     void u8(std::uint8_t value) { bytes_.push_back(static_cast<std::byte>(value)); }
     void u32(std::uint32_t value) {
-        for (unsigned shift = 0; shift < 32; shift += 8) u8(value >> shift);
+        for (unsigned shift = 0; shift < 32; shift += 8) {
+            u8(static_cast<std::uint8_t>(value >> shift));
+        }
     }
     void u64(std::uint64_t value) {
-        for (unsigned shift = 0; shift < 64; shift += 8) u8(value >> shift);
+        for (unsigned shift = 0; shift < 64; shift += 8) {
+            u8(static_cast<std::uint8_t>(value >> shift));
+        }
     }
     void f64(double value) { u64(std::bit_cast<std::uint64_t>(value)); }
     void bytes(std::span<const std::byte> value) {
