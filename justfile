@@ -389,6 +389,7 @@ test-shader-emission-scenarios: (_require "spirv-val" "SPIRV-Tools") build
 examples: test-python-binding
     python3 tools/check_example_fixtures.py
     python3 tools/run_python_examples.py compare
+    python3 tools/check_example_gallery.py
 
 bench:
     @just _unimplemented bench 17.3

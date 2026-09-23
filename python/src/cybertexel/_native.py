@@ -44,6 +44,22 @@ class DecodedImageInfo(ctypes.Structure):
     ]
 
 
+class ImageEncodeDescriptor(ctypes.Structure):
+    _fields_ = [
+        ("size", ctypes.c_uint32),
+        ("width", ctypes.c_uint32),
+        ("height", ctypes.c_uint32),
+        ("channel_count", ctypes.c_uint32),
+        ("scalar_representation", ctypes.c_uint32),
+        ("input_bit_depth", ctypes.c_uint32),
+        ("row_stride_bytes", ctypes.c_size_t),
+        ("color_space", ctypes.c_uint32),
+        ("output_format", ctypes.c_uint32),
+        ("output_bit_depth", ctypes.c_uint32),
+        ("jpeg_quality", ctypes.c_uint32),
+    ]
+
+
 class TextureSetDescriptor(ctypes.Structure):
     _fields_ = [
         ("size", ctypes.c_uint32),
@@ -270,6 +286,19 @@ def _load() -> ctypes.CDLL:
             ctypes.c_uint32,
             ctypes.POINTER(ImageDecodeLimits),
             ctypes.POINTER(DecodedImageInfo),
+            ctypes.c_void_p,
+            ctypes.c_size_t,
+            ctypes.POINTER(ctypes.c_size_t),
+        ],
+        ctypes.c_uint32,
+    )
+    _signature(
+        library,
+        "ctex_image_encode_memory",
+        [
+            ctypes.c_void_p,
+            ctypes.c_size_t,
+            ctypes.POINTER(ImageEncodeDescriptor),
             ctypes.c_void_p,
             ctypes.c_size_t,
             ctypes.POINTER(ctypes.c_size_t),

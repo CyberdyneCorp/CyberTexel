@@ -14,13 +14,15 @@ just examples
 `examples/run_all.py` has three modes:
 
 - `assert` runs each script and requires it to succeed and produce output;
-- `compare` additionally requires an exact match with `examples/outputs/`;
+- `compare` checks against `examples/outputs/` using the declared tolerance;
 - `update` replaces committed CPU-reference outputs after an intentional change.
 
 Updates are refused for non-CPU executors. The runner fixes `PYTHONHASHSEED` and
 publishes `CTEX_EXAMPLE_SEED=1729`; stochastic examples must consume that seed.
-Output tolerances and cross-executor comparison are added with the remaining
-example-output and parity tasks.
+`examples/output_tolerances.json` declares comparison policy. Reports and
+binary artifacts require an exact byte match. PNG previews compare decoded
+pixels at their stated maximum absolute channel error, currently zero. See the
+[published gallery](gallery.md) for the committed visual results.
 
 ## Fixtures
 
@@ -35,7 +37,8 @@ python3 examples/fixtures/generate_images.py
 python3 tools/check_example_fixtures.py
 ```
 
-The current first example, `01_version_and_project_container.py`, exercises the
-raw Python C ABI, version synchronization and canonical project-container
-creation. It commits both the binary container and a JSON summary. More numbered
-examples and visual gallery outputs remain roadmap work.
+The first example, `01_version_and_project_container.py`, exercises the raw
+Python C ABI, version synchronization and canonical project-container creation.
+`02_image_io.py` demonstrates the public NumPy decode/encode path and produces
+the first visual gallery output. Full capability example coverage remains
+roadmap work.

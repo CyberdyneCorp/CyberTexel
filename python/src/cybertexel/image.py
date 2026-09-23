@@ -7,7 +7,13 @@ from enum import IntEnum
 import numpy as np
 import numpy.typing as npt
 
-from ._native import LIB, DecodedImageInfo, ImageDecodeLimits, check
+from ._native import (
+    LIB,
+    DecodedImageInfo,
+    ImageDecodeLimits,
+    ImageEncodeDescriptor,
+    check,
+)
 
 
 class ChannelSemantic(IntEnum):
@@ -26,6 +32,19 @@ class InputColorSpace(IntEnum):
     AUTOMATIC = 0
     LINEAR_REC709 = 1
     SRGB_REC709 = 2
+
+
+class ColorSpace(IntEnum):
+    LINEAR_REC709 = 0
+    SRGB_REC709 = 1
+
+
+class ImageFileFormat(IntEnum):
+    PNG = 1
+    JPEG = 2
+    TIFF = 4
+    OPENEXR = 5
+    TGA = 8
 
 
 @dataclass(frozen=True)
@@ -113,3 +132,60 @@ def decode_image(
         color_space_source=info.color_space_source,
         uninterpretable_profile=bool(info.uninterpretable_profile),
     )
+
+
+def encode_image(
+    pixels: npt.ArrayLike,
+    *,
+    color_space: ColorSpace = ColorSpace.SRGB_REC709,
+    output_format: ImageFileFormat = ImageFileFormat.PNG,
+    output_bit_depth: int | None = None,
+    jpeg_quality: int = 90,
+) -> bytes:
+    """Encode a two- or three-dimensional NumPy-compatible pixel array."""
+
+    array = np.asarray(pixels)
+    if array.ndim == 2:
+        array = array[:, :, np.newaxis]
+    if array.ndim != 3 or not all(array.shape):
+        raise ValueError("pixels must have non-zero height, width and channel dimensions")
+    if array.shape[2] < 1 or array.shape[2] > 4:
+        raise ValueError("pixels must have between one and four channels")
+
+    formats = {
+        np.dtype(np.uint8): (0, 8),
+        np.dtype(np.uint16): (0, 16),
+        np.dtype(np.float32): (1, 32),
+    }
+    if array.dtype not in formats:
+        raise TypeError("pixels must use uint8, uint16 or float32 components")
+    array = np.ascontiguousarray(array)
+    scalar_representation, input_bit_depth = formats[array.dtype]
+    selected_depth = input_bit_depth if output_bit_depth is None else output_bit_depth
+    descriptor = ImageEncodeDescriptor(
+        ctypes.sizeof(ImageEncodeDescriptor),
+        array.shape[1],
+        array.shape[0],
+        array.shape[2],
+        scalar_representation,
+        input_bit_depth,
+        array.strides[0],
+        int(color_space),
+        int(output_format),
+        selected_depth,
+        jpeg_quality,
+    )
+    required = ctypes.c_size_t()
+    arguments = (
+        ctypes.c_void_p(array.ctypes.data),
+        array.nbytes,
+        ctypes.byref(descriptor),
+    )
+    check(LIB.ctex_image_encode_memory(*arguments, None, 0, ctypes.byref(required)))
+    encoded = ctypes.create_string_buffer(required.value)
+    check(
+        LIB.ctex_image_encode_memory(
+            *arguments, encoded, len(encoded), ctypes.byref(required)
+        )
+    )
+    return encoded.raw[: required.value]

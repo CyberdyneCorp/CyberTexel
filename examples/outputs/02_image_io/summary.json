@@ -1,0 +1,21 @@
+{
+  "capabilities": [
+    "image-io",
+    "language-bindings"
+  ],
+  "channel_mean": [
+    130.0,
+    59.0,
+    62.5
+  ],
+  "decoded_shape": [
+    8,
+    8,
+    3
+  ],
+  "preview_shape": [
+    128,
+    128,
+    3
+  ]
+}

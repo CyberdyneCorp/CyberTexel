@@ -34,7 +34,15 @@ from .host import (
     SnapshotPool,
     emit_default_host_material,
 )
-from .image import ChannelSemantic, DecodedImage, InputColorSpace, decode_image
+from .image import (
+    ChannelSemantic,
+    ColorSpace,
+    DecodedImage,
+    ImageFileFormat,
+    InputColorSpace,
+    decode_image,
+    encode_image,
+)
 from .mesh import (
     Mesh,
     MeshMapGeneratorKind,
@@ -48,6 +56,7 @@ __all__ = [
     "capi",
     "CancelledError",
     "ChannelSemantic",
+    "ColorSpace",
     "CompletedResource",
     "CompletionDisposition",
     "CompletionResult",
@@ -58,6 +67,7 @@ __all__ = [
     "HostMaterialProgram",
     "HostReadback",
     "HostResource",
+    "ImageFileFormat",
     "InputColorSpace",
     "InvalidArgumentError",
     "Mesh",
@@ -84,6 +94,7 @@ __all__ = [
     "TextureSet",
     "UnsupportedOperationError",
     "decode_image",
+    "encode_image",
     "emit_default_host_material",
     "native_version",
 ]

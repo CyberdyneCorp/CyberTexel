@@ -1411,14 +1411,17 @@ wheel's bundled library. Both generated language surfaces pin the header digest;
 Swift imports that header directly. The parity gate is green, and the Python
 wheel, macOS/iOS Swift package and Rust workspace suites all pass.
 
-Tasks 16.1 and 16.2 are complete. The fixture set now contains valid UV and UDIM
+Tasks 16.1, 16.2, 16.4, 16.6 and 16.10 are complete. The fixture set now contains valid UV and UDIM
 meshes, a four-image mesh-map set, brush alpha, reference image and OFL-licensed
 Roboto variable font. Every asset has a pinned digest, origin, licence and human
 attribution, and the generated PNGs reproduce byte-identically. The installed-
 wheel runner discovers numbered scripts and provides tested assert, committed-
-output compare and CPU-only update modes. The first example exercises versioned
-C ABI project-container creation; full capability coverage, visual outputs and
-the gallery remain separate open tasks.
+output compare and CPU-only update modes. Compare mode executes every example
+twice and rejects byte-level nondeterminism before applying the declared output
+tolerance. The first examples exercise versioned C ABI project-container
+creation and public NumPy image decode/encode. Their complete committed outputs
+are linked from a checked documentation gallery; full capability coverage
+remains a separate open task.
 
 ## 1. Foundation
 
@@ -1650,13 +1653,13 @@ the gallery remain separate open tasks.
 - [x] 16.1 Fixture assets: meshes with UVs and UDIM layouts, a mesh map set, alphas, images, fonts — with provenance recorded
 - [x] 16.2 Runner (`examples/run_all.py`) with assert, compare and update modes
 - [ ] 16.3 One numbered example per capability, each asserting its result
-- [ ] 16.4 Committed outputs and the CI comparison at stated tolerances
+- [x] 16.4 Committed outputs and the CI comparison at stated tolerances
 - [ ] 16.5 Example coverage gate over capabilities
-- [ ] 16.6 Determinism: explicit seeds, identical output across runs
+- [x] 16.6 Determinism: explicit seeds, identical output across runs
 - [ ] 16.7 End-to-end example: mesh and maps through layers, graph, smart material, export
 - [ ] 16.8 Host-executed route example with a software stand-in
 - [ ] 16.9 Examples runnable against any executor as a parity check
-- [ ] 16.10 Published gallery in the documentation
+- [x] 16.10 Published gallery in the documentation
 - [ ] 16.11 `examples` scenarios as tests
 
 ## 17. Performance gate

@@ -3,6 +3,7 @@ from __future__ import annotations
 import importlib.util
 import tempfile
 import unittest
+from unittest import mock
 from pathlib import Path
 
 
@@ -52,6 +53,53 @@ class ExampleRunnerTests(unittest.TestCase):
             script.write_text(EXAMPLE.replace('"cpu"', '"host"'), encoding="utf-8")
             with self.assertRaisesRegex(RUNNER.ExampleFailure, "only be updated"):
                 RUNNER.run_example(script, "update", "host", root / "outputs")
+
+    def test_compare_rejects_non_deterministic_output(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            script = root / "01_fixture.py"
+            script.write_text(
+                EXAMPLE.replace('"stable\\n"', '__import__("os").urandom(8).hex()'),
+                encoding="utf-8",
+            )
+            with self.assertRaisesRegex(RUNNER.ExampleFailure, "not deterministic"):
+                RUNNER.run_example(script, "compare", "cpu", root / "outputs")
+
+    def test_pixel_tolerance_accepts_encoded_byte_differences(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            actual = root / "actual"
+            expected = root / "expected"
+            actual.mkdir()
+            expected.mkdir()
+            (actual / "preview.png").write_bytes(b"actual")
+            (expected / "preview.png").write_bytes(b"expected")
+            tolerances = {
+                "default": {"mode": "bytes"},
+                "overrides": {
+                    "02_image_io/preview.png": {
+                        "mode": "pixels",
+                        "maximum_absolute_error": 1,
+                    }
+                },
+            }
+            with mock.patch.object(RUNNER, "_maximum_pixel_difference", return_value=1):
+                RUNNER.compare_outputs(
+                    actual,
+                    expected,
+                    example_name="02_image_io",
+                    tolerances=tolerances,
+                )
+            with (
+                mock.patch.object(RUNNER, "_maximum_pixel_difference", return_value=2),
+                self.assertRaisesRegex(RUNNER.ExampleFailure, "maximum pixel error 2"),
+            ):
+                RUNNER.compare_outputs(
+                    actual,
+                    expected,
+                    example_name="02_image_io",
+                    tolerances=tolerances,
+                )
 
 
 if __name__ == "__main__":

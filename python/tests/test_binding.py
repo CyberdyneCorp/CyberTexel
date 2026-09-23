@@ -48,6 +48,26 @@ class BindingTest(unittest.TestCase):
         np.testing.assert_array_equal(decoded.pixels[:, :, 0], [[17, 230]])
         self.assertTrue(decoded.extension_mismatch)
 
+    def test_numpy_encode_round_trip_owns_its_result(self) -> None:
+        pixels = np.array(
+            [[[255, 0, 0], [0, 255, 0]], [[0, 0, 255], [255, 255, 255]]],
+            dtype=np.uint8,
+        )
+        encoded = cybertexel.encode_image(pixels)
+        pixels.fill(0)
+        decoded = cybertexel.decode_image(encoded, source_name="result.png")
+        self.assertTrue(encoded.startswith(b"\x89PNG\r\n\x1a\n"))
+        np.testing.assert_array_equal(
+            decoded.pixels,
+            [[[255, 0, 0], [0, 255, 0]], [[0, 0, 255], [255, 255, 255]]],
+        )
+
+    def test_numpy_encode_rejects_unsupported_shapes_and_types(self) -> None:
+        with self.assertRaisesRegex(ValueError, "between one and four channels"):
+            cybertexel.encode_image(np.zeros((2, 2, 5), dtype=np.uint8))
+        with self.assertRaisesRegex(TypeError, "uint8, uint16 or float32"):
+            cybertexel.encode_image(np.zeros((2, 2, 3), dtype=np.float64))
+
     def test_document_channel_snapshot_is_numpy_owned(self) -> None:
         document = cybertexel.Document()
         texture_set = document.create_texture_set(
