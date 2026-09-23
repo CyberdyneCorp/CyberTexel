@@ -1627,6 +1627,26 @@ redo reporting exchanged storage and copied bytes, the history budget report,
 mesh construction and mesh-derived texture sets. The value types live outside
 the FFI boundary, so the audited containment holds at 54 markers in one file.
 
+2026-09-23: Task 18.1 is complete. `just package-linux` now builds in the same
+Ubuntu container CI uses when it runs off Linux, so the Linux package is
+exercised without waiting for a CI run — and doing that immediately found the
+reason it had never gone green. The Linux preset did not build with GCC at all:
+38 `-Wmissing-field-initializers` errors across eight test files and one
+`-Wmaybe-uninitialized`.
+
+The 38 are GCC reporting every member a C++20 designated initializer omits. The
+standard value-initializes those members, which is exactly what the descriptors
+rely on, and Clang and MSVC do not warn. That warning is now off for GCC only,
+with the reason recorded next to it; every other warning remains an error on
+every compiler. The `-Wmaybe-uninitialized` was a `-O3` false positive on an
+inline aggregate temporary and was fixed by naming the expected value, which
+reads better anyway. Two C files also had genuinely partial array and descriptor
+initializers, now spelled out.
+
+`just gate-packages` decides all three in-scope platforms: linux-x64 and
+macos-universal with executed smoke tests and ios-arm64 linked. Windows and
+Android remain named deferrals under task 18.6.
+
 Editable-authoring group 20 is complete. Versioned operation records retain
 algorithm and preset versions, seeds, channel descriptors, mesh identity,
 pinned input bytes and checkpoint identities in canonical project-container
@@ -1920,7 +1940,7 @@ threading and per-binding example evidence.
 
 ## 18. Release
 
-- [ ] 18.1 macOS, Linux and iOS packages with header, library, licence, attribution; smoke test each
+- [x] 18.1 macOS, Linux and iOS packages with header, library, licence, attribution; smoke test each
 - [ ] 18.2 Desktop WGSL and mobile MSL reference hosts in slice A, built in CI, run on named devices with residency-traffic and input-to-visible instrumentation
 - [x] 18.3 Reproducible build verification and documentation of any unavoidable variance
 - [x] 18.4 `build-packaging` scenarios as tests

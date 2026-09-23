@@ -27,7 +27,8 @@ ctex_texture_set_descriptor descriptor(const std::string& name, const std::strin
             .uv_set = "UV0",
             .width = 16,
             .height = 16,
-            .default_bit_depth = 8};
+            .default_bit_depth = 8,
+            .udim_tiling = 0};
 }
 
 void populate_document(ctex_document* document, std::string prefix, std::barrier<>& start,

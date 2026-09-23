@@ -96,17 +96,17 @@ bool fan_out_emits_one_expression_and_three_references() {
 
     const auto emitted = ctex::emit::emit_wgsl_expressions(graph, registry);
     constexpr std::string_view result_name = "ctex_n2_s76616c7565";
+    const std::vector<ctex::emit::ShaderNodeAttribution> expected_attributions{
+        ctex::emit::ShaderNodeAttribution{std::string(result_name), "test.constant[2]",
+                                          "test.constant", 2, "value"}};
     return expect(emission_calls == 1,
                   "fan-out invoked the node emission callback more than once") &&
            expect(occurrences(emitted.source, "3.75000000000000000e-01") == 1,
                   "fan-out duplicated the node expression") &&
            expect(occurrences(emitted.source, result_name) == 4,
                   "fan-out did not declare once and reference the result three times") &&
-           expect(
-               emitted.node_attributions ==
-                   std::vector<ctex::emit::ShaderNodeAttribution>{
-                       {std::string(result_name), "test.constant[2]", "test.constant", 2, "value"}},
-               "fan-out debug metadata did not identify its one emitted declaration") &&
+           expect(emitted.node_attributions == expected_attributions,
+                  "fan-out debug metadata did not identify its one emitted declaration") &&
            expect(
                emitted.resource_identifiers == std::vector<std::string>{"fixture/shared-resource"},
                "fan-out duplicated or lost the node resource dependency");

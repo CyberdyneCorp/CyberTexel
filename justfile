@@ -62,8 +62,29 @@ package-native: (_require "python3" "3.10") (_require "cmake" "3.24") (_require 
     else preset=linux-x64; fi
     python3 tools/build_platform_package.py "$preset"
 
-package-linux: (_require "python3" "3.10") (_require "cmake" "3.24") (_require "ninja" "1.10")
-    python3 tools/build_platform_package.py linux-x64
+# On Linux this builds directly; elsewhere it builds in the same container CI
+# uses, so the Linux package is exercised without waiting for a CI run.
+package-linux:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    if [[ "$(uname -s)" == "Linux" ]]; then
+        just _require python3 3.10
+        just _require cmake 3.24
+        just _require ninja 1.10
+        python3 tools/build_platform_package.py linux-x64
+    else
+        if ! command -v docker >/dev/null 2>&1; then
+            printf 'missing prerequisite: docker (needed to build the Linux package off Linux)\n' >&2
+            exit 1
+        fi
+        mkdir -p dist build/packages
+        docker build --tag cybertexel-package-toolchain \
+            --file tools/docker/package.Dockerfile tools/docker
+        docker run --rm \
+            --mount "type=bind,source=$PWD,target=/src" \
+            cybertexel-package-toolchain \
+            bash -lc 'cd /src && python3 tools/build_platform_package.py linux-x64'
+    fi
 
 package-macos: (_require "python3" "3.10") (_require "cmake" "3.24") (_require "ninja" "1.10")
     python3 tools/build_platform_package.py macos-universal

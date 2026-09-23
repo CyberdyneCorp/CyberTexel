@@ -331,7 +331,8 @@ bool create_mesh_state_fixture(MeshStateFixture& fixture) {
 
 std::vector<std::byte> add_texture_document(const std::vector<std::byte>& base,
                                             ctex_document* document) {
-    ctex_project_container_info info{.size = CTEX_PROJECT_CONTAINER_INFO_CURRENT_SIZE};
+    ctex_project_container_info info{};
+    info.size = CTEX_PROJECT_CONTAINER_INFO_CURRENT_SIZE;
     if (ctex_project_container_upsert_texture_document(base.data(), base.size(), nullptr, document,
                                                        "document/main", &info, nullptr, 0, nullptr,
                                                        0) != CTEX_RESULT_SUCCESS) {
@@ -370,8 +371,10 @@ bool document_mesh_state_round_trip() {
                 .pixel_bytes = sizeof(pixels),
             },
     };
-    ctex_mesh_map_import_info import_info{.size = CTEX_MESH_MAP_IMPORT_INFO_CURRENT_SIZE};
-    ctex_mesh_map_set_info set_info{.size = CTEX_MESH_MAP_SET_INFO_CURRENT_SIZE};
+    ctex_mesh_map_import_info import_info{};
+    import_info.size = CTEX_MESH_MAP_IMPORT_INFO_CURRENT_SIZE;
+    ctex_mesh_map_set_info set_info{};
+    set_info.size = CTEX_MESH_MAP_SET_INFO_CURRENT_SIZE;
     if (!expect(ctex_mesh_map_set_import_external(fixture.source_maps, &imported, &import_info) ==
                     CTEX_RESULT_SUCCESS,
                 "mesh-state source map import failed") ||
@@ -397,7 +400,8 @@ bool document_mesh_state_round_trip() {
         .map_sets = source_sets,
         .map_set_count = 1,
     };
-    ctex_project_container_info project_info{.size = CTEX_PROJECT_CONTAINER_INFO_CURRENT_SIZE};
+    ctex_project_container_info project_info{};
+    project_info.size = CTEX_PROJECT_CONTAINER_INFO_CURRENT_SIZE;
     if (!expect(!project.empty(), "texture document could not be added to mesh-state project") ||
         !expect(ctex_project_container_upsert_document_mesh_state(
                     project.data(), project.size(), nullptr, &state, &project_info, nullptr, 0,
@@ -414,7 +418,8 @@ bool document_mesh_state_round_trip() {
         return false;
     }
 
-    ctex_document_mesh_state_info state_info{.size = CTEX_DOCUMENT_MESH_STATE_INFO_CURRENT_SIZE};
+    ctex_document_mesh_state_info state_info{};
+    state_info.size = CTEX_DOCUMENT_MESH_STATE_INFO_CURRENT_SIZE;
     if (!expect(ctex_project_container_get_document_mesh_state_info(
                     saved.data(), saved.size(), nullptr, "document/main", &state_info, nullptr, 0,
                     nullptr, 0) == CTEX_RESULT_SUCCESS,
@@ -436,7 +441,8 @@ bool document_mesh_state_round_trip() {
     }
 
     ctex_mesh_map_set* restore_sets[] = {fixture.restored_maps};
-    ctex_mesh_map_sample_info sample{.size = CTEX_MESH_MAP_SAMPLE_INFO_CURRENT_SIZE};
+    ctex_mesh_map_sample_info sample{};
+    sample.size = CTEX_MESH_MAP_SAMPLE_INFO_CURRENT_SIZE;
     return expect(ctex_project_container_restore_document_mesh_state(
                       saved.data(), saved.size(), nullptr, "document/main", restore_sets, 1) ==
                       CTEX_RESULT_SUCCESS,

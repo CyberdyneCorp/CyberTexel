@@ -17,6 +17,15 @@ function(ctex_configure_c_target target)
         endif()
     else()
         target_compile_options(${target} PRIVATE -Wall -Wextra -Wpedantic)
+        if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+            # A C++20 designated initializer value-initializes the members it
+            # omits; that is the standard's guarantee and the idiom this
+            # codebase's descriptors rely on. GCC still reports every omitted
+            # member under -Wextra, which Clang and MSVC do not. The warning
+            # carries no information here, so it is off for GCC only and every
+            # other warning stays an error.
+            target_compile_options(${target} PRIVATE -Wno-missing-field-initializers)
+        endif()
         if(CTEX_WARNINGS_AS_ERRORS)
             target_compile_options(${target} PRIVATE -Werror)
         endif()
@@ -48,6 +57,15 @@ function(ctex_configure_cpp_target target)
         endif()
     else()
         target_compile_options(${target} PRIVATE -Wall -Wextra -Wpedantic)
+        if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+            # A C++20 designated initializer value-initializes the members it
+            # omits; that is the standard's guarantee and the idiom this
+            # codebase's descriptors rely on. GCC still reports every omitted
+            # member under -Wextra, which Clang and MSVC do not. The warning
+            # carries no information here, so it is off for GCC only and every
+            # other warning stays an error.
+            target_compile_options(${target} PRIVATE -Wno-missing-field-initializers)
+        endif()
         if(CTEX_WARNINGS_AS_ERRORS)
             target_compile_options(${target} PRIVATE -Werror)
         endif()

@@ -24,7 +24,8 @@ ctex_texture_set_descriptor descriptor(const char* name, const char* key, std::u
             .uv_set = "UV0",
             .width = 16,
             .height = 16,
-            .default_bit_depth = bit_depth};
+            .default_bit_depth = bit_depth,
+            .udim_tiling = 0};
 }
 
 }  // namespace

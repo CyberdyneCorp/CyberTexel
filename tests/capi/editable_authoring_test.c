@@ -77,8 +77,8 @@ int main(void) {
     ctex_editable_entry_descriptor path = {0};
     ctex_stroke_settings_descriptor stroke = {0};
     ctex_resolved_stroke_info stroke_info = {0};
-    ctex_resolved_stamp stamps[64] = {{0}};
-    ctex_swept_segment swept_segments[64] = {{0}};
+    ctex_resolved_stamp stamps[64] = {0};
+    ctex_swept_segment swept_segments[64] = {0};
     size_t stamp_count = 0;
     size_t segment_count = 0;
     ctex_project_container_info saved_info = {0};
