@@ -14,21 +14,30 @@ and an ordered pass plan, and the host runs them on its existing device. Painted
 tiles stay on that device; completion records publish revisions, and explicit
 asynchronous readback serves save, export and CPU access. Rust/`wgpu` desktop
 apps, Swift/Metal iPad apps, Python scripts and the headless CLI all drive the
-same engine through its public contract. These are specified behaviors; the
-majority of the engine remains roadmap work.
+same engine through its public contract.
 
-**Status.** Foundation implementation. The specification lives in [`openspec/`](openspec/);
-the founding change is
+## Status
+
+All twenty-four capabilities are implemented and reachable through the stable
+C ABI and the Python, Swift and Rust bindings. The specification lives in
+[`openspec/`](openspec/); the founding change is
 [`openspec/changes/bootstrap-v1-cybertexel/`](openspec/changes/bootstrap-v1-cybertexel/)
-— proposal, design, twenty-four capability specs and the task plan. The strict
-C++20 foundation, module gates, tiled image storage and headless colour
-management are in place; remaining capabilities follow the delivery order.
-`openspec/specs/` fills as the change is delivered and archived.
+— proposal, design, twenty-four capability specs and the task plan, whose
+checkboxes are the authority on what is done. `openspec/specs/` fills when that
+change is archived.
 
-The first delivery slice is a working desktop and mobile painting workflow:
-brush/eraser, tiled undo, save/reopen and PNG export on a real model. Resource
-use and input-to-visible latency are measured before expanding the tool and
-material catalogue. See [the roadmap](openspec/ROADMAP.md).
+What is **not** done, stated plainly:
+
+| | |
+|---|---|
+| **Reference hosts** | The desktop WGSL and mobile Metal hosts that paint on a real device do not exist yet (task 18.2). Every host-executed test in this repository uses a software stand-in. |
+| **Performance numbers** | No figure has been measured on the named reference devices. `just gate-budgets` refuses to decide without dated result JSON from an exact device, and reports absent hardware as unmeasured (tasks 17.5, 17.10, 17.12–17.14). |
+| **Example breadth** | The numbered Python examples exercise 55 of the 353 public C ABI symbols. The other 298 are named individually in [`examples/feature_coverage.json`](examples/feature_coverage.json) (task 16.12). |
+| **Platform packages** | macOS, Linux and iPad are the first release slice (task 18.1); Windows and Android packaging follow in task 18.6. The Windows library, CLI and Python wheel are built and tested in CI today. |
+
+No claim about mobile responsiveness, memory efficiency or device parity is
+satisfied by a headless CPU test, and the gates are written so that one cannot
+stand in for the other. See [the roadmap](openspec/ROADMAP.md).
 
 ## Main features
 
@@ -339,10 +348,10 @@ The current implementation provides:
   [mesh and texture sets](docs/mesh-and-texture-sets-scenarios.md), plus combined
   [stroke-model and paint-engine](docs/paint-scenarios.md) scenario suites.
 
-Remaining advanced image IO, mesh/texture-set extensions, paint-tool scenario
-closure, host-transport binding/performance integrations, full cross-binding
-parity, and delivery workflow stages remain roadmap work and
-are not presented as implemented APIs yet.
+Every item above is reachable through the C ABI and the three bindings, and each
+capability's OpenSpec scenarios are mapped to a labeled, executable suite. What
+remains is listed under [Status](#status): the reference hosts, the device
+measurements they enable, the remaining platform packages and example breadth.
 
 ## Architecture
 
@@ -405,9 +414,10 @@ The opt-in [provider example](examples/cyber_remesher_and_uv/README.md) shows
 that integration against the sibling's stable C ABI without changing the
 default dependency graph.
 
-## Planned capabilities
+## Capabilities
 
-Twenty-four, specified before any code exists:
+Twenty-four, each specified before it was written and each mapped to executable
+evidence:
 
 | | |
 |---|---|
@@ -451,18 +461,27 @@ just build test examples
 
 The installed-wheel [Python examples](docs/examples.md) and their
 [committed gallery](docs/gallery.md) use provenance-recorded fixtures and
-compare generated artifacts with committed outputs.
+compare generated artifacts with committed outputs. `just examples` records
+which C ABI symbols each example actually called and decides that trace against
+the capability manifest, so
+[which features the examples exercise](docs/examples-scenarios.md#feature-coverage)
+is measured rather than declared.
 
-The native build also produces the [headless `cybertexel` command line](docs/headless-cli.md).
-Its six command routes and argument contracts are present. `info`, `validate`,
-`apply`, Python `run`, and flattened texture `export` are operational;
-bake-provider dispatch and replacement-mesh export remain roadmap work under
-task 15.2. The CLI target is desktop-only; mobile presets install the library
-and bindings without trying to package an executable bundle.
+The native build also produces the [headless `cybertexel` command line](docs/headless-cli.md):
+`export`, `bake-request`, `apply`, `run`, `info` and `validate`, each with
+distinct exit codes, machine-readable reports, executor selection, budget flags
+and interrupt handling that leaves no partial file. The CLI target is
+desktop-only; mobile presets install the library and bindings without trying to
+package an executable bundle.
 
-`just build` uses the native `headless` CMake preset. Shipped build presets also
-cover `linux-x64`, `macos-universal`, `windows-x64`, `ios-arm64` and
-`android-arm64`; the Android preset reads `ANDROID_NDK_HOME`.
+`just build` uses the native `headless` CMake preset, which is a debug build.
+Shipped build presets cover `linux-x64`, `macos-universal`, `windows-x64`,
+`ios-arm64` and `android-arm64`; the Android preset reads `ANDROID_NDK_HOME`.
+`just gate-packages` decides the platforms
+[`release/platforms.json`](release/platforms.json) declares in scope and reports
+the deferred ones by name, and `just gate-reproducible` builds the shipped
+preset twice and compares the libraries byte for byte against
+[the documented variances](docs/reproducible-builds.md).
 
 The current library and binding version is defined only in [`VERSION`](VERSION).
 The version gate checks CMake, the C ABI, the future container writer and the
