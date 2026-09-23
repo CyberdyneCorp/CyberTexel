@@ -53,6 +53,22 @@ volatile std::sig_atomic_t interrupt_requested = 0;
 
 extern "C" void handle_interrupt(int) { interrupt_requested = 1; }
 
+std::optional<std::string> environment_value(const char* name) {
+#if defined(_WIN32)
+    char* value{};
+    std::size_t size{};
+    if (_dupenv_s(&value, &size, name) != 0 || value == nullptr) {
+        return std::nullopt;
+    }
+    std::string result(value);
+    std::free(value);
+    return result;
+#else
+    const char* value = std::getenv(name);
+    return value == nullptr ? std::nullopt : std::optional<std::string>{value};
+#endif
+}
+
 struct OptionSpec {
     std::string_view name;
     std::string_view value;
@@ -256,11 +272,11 @@ SelectedExecutor select_executor(const Invocation& invocation) {
     registry.add(std::make_shared<ctex::exec::CpuReferenceExecutor>());
 
     const auto requested_by_flag = option_value(invocation, "--executor");
-    const char* environment = std::getenv(ctex::exec::executor_environment_variable.data());
+    const std::optional<std::string> environment =
+        environment_value(ctex::exec::executor_environment_variable.data());
     const std::optional<std::string_view> requested_by_environment =
-        environment == nullptr || std::string_view(environment).empty()
-            ? std::nullopt
-            : std::optional<std::string_view>{environment};
+        !environment || environment->empty() ? std::nullopt
+                                             : std::optional<std::string_view>{*environment};
     const std::string_view requested =
         requested_by_flag.value_or(requested_by_environment.value_or(std::string_view{"auto"}));
     const std::string source = requested_by_flag.has_value()          ? "flag"
@@ -1087,8 +1103,8 @@ private:
 };
 
 std::string python_executable() {
-    const char* configured = std::getenv("CTEX_PYTHON");
-    if (configured != nullptr && !std::string_view(configured).empty()) return configured;
+    const std::optional<std::string> configured = environment_value("CTEX_PYTHON");
+    if (configured && !configured->empty()) return *configured;
 #if defined(_WIN32)
     return "python";
 #else
@@ -1297,15 +1313,15 @@ int export_command(const Invocation& invocation, const SelectedExecutor& executo
         const std::string document_identity = only_texture_document_identity(project);
         const ctex::doc::TextureDocument document = ctex::io::unpack_texture_document(
             project, document_identity, texture_document_limits(options));
-        ctex::io::TextureExportOptions export_options;
-        export_options.dry_run = true;
+        ctex::io::TextureExportOptions texture_export_options;
+        texture_export_options.dry_run = true;
         const std::string project_name = document_path.stem().string();
         const ctex::io::TextureExportResult plan = ctex::io::export_texture_document_to_memory(
-            project_name, document, preset, export_options);
+            project_name, document, preset, texture_export_options);
         require_export_budget(document, plan.report, project_bytes.size(), options);
-        export_options.dry_run = false;
+        texture_export_options.dry_run = false;
         const ctex::io::TextureExportResult result = ctex::io::export_texture_document_to_memory(
-            project_name, document, preset, export_options);
+            project_name, document, preset, texture_export_options);
         throw_if_interrupted();
         StagedOutputDirectory staging(output_directory);
         for (const ctex::io::InMemoryTextureExport& output : result.buffers) {

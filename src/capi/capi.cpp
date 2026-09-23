@@ -1434,9 +1434,10 @@ ctex_paint_preview_info paint_preview_info(const ctex_paint_preview_session& ses
         .width = pixels.width(),
         .height = pixels.height(),
         .component_count = format.channel_count,
-        .scalar_representation = format.channel_type == ctex::image::ChannelType::float32
-                                     ? CTEX_SCALAR_REPRESENTATION_FLOATING_POINT
-                                     : CTEX_SCALAR_REPRESENTATION_UNSIGNED_NORMALIZED,
+        .scalar_representation =
+            static_cast<std::uint32_t>(format.channel_type == ctex::image::ChannelType::float32
+                                           ? CTEX_SCALAR_REPRESENTATION_FLOATING_POINT
+                                           : CTEX_SCALAR_REPRESENTATION_UNSIGNED_NORMALIZED),
         .bit_depth = static_cast<std::uint32_t>(format.bytes_per_channel() * 8),
         .pixel_byte_count = pixel_byte_count,
         .resolved_dilation_radius = session.preview.dilation_radius(),
@@ -4087,7 +4088,8 @@ ctex_paint_dilation_session_info capi_dilation_session_info(
     const ctex_paint_dilation_session& session, std::size_t pixel_count) {
     return {
         .size = CTEX_PAINT_DILATION_SESSION_INFO_CURRENT_SIZE,
-        .state = session.finished ? CTEX_PAINT_DILATION_FINAL : CTEX_PAINT_DILATION_PROVISIONAL,
+        .state = static_cast<std::uint32_t>(session.finished ? CTEX_PAINT_DILATION_FINAL
+                                                             : CTEX_PAINT_DILATION_PROVISIONAL),
         .tile_count = session.tiles.size(),
         .required_pixel_count = pixel_count,
         .dilation_pass_count = session.dilation_pass_count,
@@ -5768,9 +5770,10 @@ void set_paint_colour_id_info(ctex_paint_colour_id_info& info,
         .tolerance_clamped =
             selection.parameter_report.clamp_for(ctex::paint::colour_id_tolerance_parameter.name)
                 .has_value(),
-        .status = selection.status == ctex::paint::ColourIdSelectionStatus::matched
-                      ? CTEX_PAINT_COLOUR_ID_SELECTION_MATCHED
-                      : CTEX_PAINT_COLOUR_ID_SELECTION_EMPTY,
+        .status = static_cast<std::uint32_t>(selection.status ==
+                                                     ctex::paint::ColourIdSelectionStatus::matched
+                                                 ? CTEX_PAINT_COLOUR_ID_SELECTION_MATCHED
+                                                 : CTEX_PAINT_COLOUR_ID_SELECTION_EMPTY),
         .selected_texel_count = selection.selected_texel_count,
         .required_value_count = selection.values.size(),
     };
@@ -5987,15 +5990,16 @@ void copy_paint_parameter_catalogue(std::span<const PaintParameterCatalogueEntry
     for (std::size_t index = 0; index < source.size(); ++index) {
         const PaintParameterCatalogueEntry& entry = source[index];
         const std::size_t name_size = entry.descriptor.name.size() + 1;
-        parameters[index] = {.size = CTEX_PAINT_PARAMETER_DESCRIPTOR_CURRENT_SIZE,
-                             .context = entry.context,
-                             .value_kind = entry.integral ? CTEX_PAINT_PARAMETER_INTEGER
-                                                          : CTEX_PAINT_PARAMETER_CONTINUOUS,
-                             .default_value = entry.descriptor.default_value,
-                             .minimum = entry.descriptor.minimum,
-                             .maximum = entry.descriptor.maximum,
-                             .name_offset = offset,
-                             .name_size = name_size};
+        parameters[index] = {
+            .size = CTEX_PAINT_PARAMETER_DESCRIPTOR_CURRENT_SIZE,
+            .context = entry.context,
+            .value_kind = static_cast<std::uint32_t>(
+                entry.integral ? CTEX_PAINT_PARAMETER_INTEGER : CTEX_PAINT_PARAMETER_CONTINUOUS),
+            .default_value = entry.descriptor.default_value,
+            .minimum = entry.descriptor.minimum,
+            .maximum = entry.descriptor.maximum,
+            .name_offset = offset,
+            .name_size = name_size};
         std::memcpy(names + offset, entry.descriptor.name.data(), entry.descriptor.name.size());
         names[offset + entry.descriptor.name.size()] = '\0';
         offset += name_size;
@@ -8576,9 +8580,9 @@ void set_preset_application_info(ctex_preset_application_info& out_info,
                                  std::size_t undo_step_count) {
     out_info = {
         .size = CTEX_PRESET_APPLICATION_INFO_CURRENT_SIZE,
-        .kind = kind == ctex::doc::AppliedPresetKind::smart_material
-                    ? CTEX_APPLIED_PRESET_SMART_MATERIAL
-                    : CTEX_APPLIED_PRESET_SMART_MASK,
+        .kind = static_cast<std::uint32_t>(kind == ctex::doc::AppliedPresetKind::smart_material
+                                               ? CTEX_APPLIED_PRESET_SMART_MATERIAL
+                                               : CTEX_APPLIED_PRESET_SMART_MASK),
         .schema_version = report.origin.schema_version,
         .entry_count = report.entry_identifiers.size(),
         .application_count = application_count,
@@ -8738,10 +8742,10 @@ std::string_view graph_node_category_name(ctex::graph::NodeCategory category) no
 void append_graph_value_json(std::string& output, const ctex::graph::SocketValue& value) {
     if (std::holds_alternative<std::monostate>(value)) {
         output += "null";
-    } else if (const bool* scalar = std::get_if<bool>(&value)) {
-        output += *scalar ? "true" : "false";
-    } else if (const double* scalar = std::get_if<double>(&value)) {
-        output += std::to_string(*scalar);
+    } else if (const bool* boolean = std::get_if<bool>(&value)) {
+        output += *boolean ? "true" : "false";
+    } else if (const double* number = std::get_if<double>(&value)) {
+        output += std::to_string(*number);
     } else if (const auto* vector = std::get_if<ctex::graph::VectorValue>(&value)) {
         output += "[" + std::to_string(vector->x) + "," + std::to_string(vector->y) + "," +
                   std::to_string(vector->z) + "]";
@@ -9716,9 +9720,9 @@ ctex_transport_tile_version transport_tile_version(const ctex::xport::TileVersio
         .y = version.coordinate.y,
         .revision = version.revision,
         .generation = version.generation,
-        .residency = version.residency == ctex::xport::TileResidency::cpu
-                         ? CTEX_TRANSPORT_TILE_CPU
-                         : CTEX_TRANSPORT_TILE_HOST_DEVICE,
+        .residency = static_cast<std::uint32_t>(version.residency == ctex::xport::TileResidency::cpu
+                                                    ? CTEX_TRANSPORT_TILE_CPU
+                                                    : CTEX_TRANSPORT_TILE_HOST_DEVICE),
     };
 }
 
@@ -11764,10 +11768,10 @@ void query_transport_snapshot(ctex_transport_snapshot_pool& pool,
     }
     out_info = {
         .size = CTEX_TRANSPORT_SNAPSHOT_QUERY_INFO_CURRENT_SIZE,
-        .disposition =
+        .disposition = static_cast<std::uint32_t>(
             synchronized.delta.disposition == ctex::xport::DeltaQueryDisposition::complete
                 ? CTEX_TRANSPORT_DELTA_COMPLETE
-                : CTEX_TRANSPORT_FULL_RESYNCHRONIZATION_REQUIRED,
+                : CTEX_TRANSPORT_FULL_RESYNCHRONIZATION_REQUIRED),
         .synchronized_cursor = transport_cursor(synchronized.delta.synchronized_cursor),
         .current_cursor = transport_cursor(synchronized.delta.current_cursor),
         .changed_tile_count = synchronized.delta.changed_tiles.size(),
@@ -12590,9 +12594,10 @@ void image_decode_memory_boundary(const void* encoded, std::size_t encoded_size,
         .width = decoded.pixels.width(),
         .height = decoded.pixels.height(),
         .channel_count = format.channel_count,
-        .scalar_representation = format.channel_type == ctex::image::ChannelType::float32
-                                     ? CTEX_SCALAR_REPRESENTATION_FLOATING_POINT
-                                     : CTEX_SCALAR_REPRESENTATION_UNSIGNED_NORMALIZED,
+        .scalar_representation =
+            static_cast<std::uint32_t>(format.channel_type == ctex::image::ChannelType::float32
+                                           ? CTEX_SCALAR_REPRESENTATION_FLOATING_POINT
+                                           : CTEX_SCALAR_REPRESENTATION_UNSIGNED_NORMALIZED),
         .bit_depth = static_cast<std::uint32_t>(format.bytes_per_channel() * 8),
         .color_space = static_cast<std::uint32_t>(decoded.source_color_space),
         .detected_format = image_file_format(decoded.report.detected_format),
@@ -12759,9 +12764,10 @@ void write_layered_output(const ctex::io::LayeredDecodedImage& decoded,
             .width = layer.image.pixels.width(),
             .height = layer.image.pixels.height(),
             .channel_count = format.channel_count,
-            .scalar_representation = format.channel_type == ctex::image::ChannelType::float32
-                                         ? CTEX_SCALAR_REPRESENTATION_FLOATING_POINT
-                                         : CTEX_SCALAR_REPRESENTATION_UNSIGNED_NORMALIZED,
+            .scalar_representation =
+                static_cast<std::uint32_t>(format.channel_type == ctex::image::ChannelType::float32
+                                               ? CTEX_SCALAR_REPRESENTATION_FLOATING_POINT
+                                               : CTEX_SCALAR_REPRESENTATION_UNSIGNED_NORMALIZED),
             .bit_depth = static_cast<std::uint32_t>(format.bytes_per_channel() * 8),
             .color_space = static_cast<std::uint32_t>(layer.image.source_color_space),
             .name_offset = name_offset,
@@ -17733,9 +17739,10 @@ extern "C" ctex_result ctex_mesh_get_tangent_frame(const ctex_mesh* mesh,
         const std::size_t required_uv_set_size = frame.descriptor.uv_set.size() + 1;
         *out_info = {
             .size = CTEX_MESH_TANGENT_FRAME_INFO_CURRENT_SIZE,
-            .source = frame.source == ctex::mesh::TangentFrameSource::supplied
-                          ? CTEX_TANGENT_FRAME_SUPPLIED
-                          : CTEX_TANGENT_FRAME_GENERATED,
+            .source =
+                static_cast<std::uint32_t>(frame.source == ctex::mesh::TangentFrameSource::supplied
+                                               ? CTEX_TANGENT_FRAME_SUPPLIED
+                                               : CTEX_TANGENT_FRAME_GENERATED),
             .algorithm = static_cast<std::uint32_t>(frame.descriptor.algorithm),
             .algorithm_version = frame.descriptor.algorithm_version,
             .normal_orientation = static_cast<std::uint32_t>(frame.descriptor.normal_orientation),
@@ -18933,7 +18940,7 @@ extern "C" ctex_result ctex_texture_set_get_channel_info(
         result.preferred_bit_depth = descriptor.preferred_bit_depth;
         std::copy(descriptor.default_value.begin(), descriptor.default_value.end(),
                   result.default_value);
-        result.default_value_count = descriptor.default_value.size();
+        result.default_value_count = static_cast<std::uint32_t>(descriptor.default_value.size());
         result.classification = static_cast<std::uint32_t>(descriptor.classification);
         result.blending_policy = static_cast<std::uint32_t>(descriptor.blending_policy);
         result.evaluable = descriptor.evaluable ? 1U : 0U;
@@ -19955,9 +19962,10 @@ extern "C" ctex_result ctex_texture_set_query_channel_delta(
                 transport_cursor(synchronized_cursor));
             *out_info = {
                 .size = CTEX_TRANSPORT_DELTA_INFO_CURRENT_SIZE,
-                .disposition = delta.disposition == ctex::xport::DeltaQueryDisposition::complete
-                                   ? CTEX_TRANSPORT_DELTA_COMPLETE
-                                   : CTEX_TRANSPORT_FULL_RESYNCHRONIZATION_REQUIRED,
+                .disposition = static_cast<std::uint32_t>(
+                    delta.disposition == ctex::xport::DeltaQueryDisposition::complete
+                        ? CTEX_TRANSPORT_DELTA_COMPLETE
+                        : CTEX_TRANSPORT_FULL_RESYNCHRONIZATION_REQUIRED),
                 .synchronized_cursor = transport_cursor(delta.synchronized_cursor),
                 .current_cursor = transport_cursor(delta.current_cursor),
                 .changed_tile_count = delta.changed_tiles.size(),
