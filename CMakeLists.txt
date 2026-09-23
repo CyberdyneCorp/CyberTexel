@@ -475,6 +475,69 @@ if(BUILD_TESTING)
         examples-scenario-matrix
         PROPERTIES LABELS "examples-scenario"
     )
+    # `build-packaging` policy evidence. The gates themselves are just recipes;
+    # these tests decide the rules those recipes apply.
+    add_test(
+        NAME build-packaging-task-runner
+        COMMAND "${CTEX_PYTHON3_EXECUTABLE}"
+                "${PROJECT_SOURCE_DIR}/tools/check_task_runner.py"
+    )
+    add_test(
+        NAME build-packaging-layering-policy
+        COMMAND "${CTEX_PYTHON3_EXECUTABLE}"
+                "${PROJECT_SOURCE_DIR}/tests/tools/test_check_layering.py"
+    )
+    add_test(
+        NAME build-packaging-licence-policy
+        COMMAND "${CTEX_PYTHON3_EXECUTABLE}"
+                "${PROJECT_SOURCE_DIR}/tests/tools/test_check_licenses.py"
+    )
+    add_test(
+        NAME build-packaging-determinism-policy
+        COMMAND "${CTEX_PYTHON3_EXECUTABLE}"
+                "${PROJECT_SOURCE_DIR}/tests/tools/test_check_determinism.py"
+    )
+    add_test(
+        NAME build-packaging-version-policy
+        COMMAND "${CTEX_PYTHON3_EXECUTABLE}"
+                "${PROJECT_SOURCE_DIR}/tests/tools/test_check_version.py"
+    )
+    add_test(
+        NAME build-packaging-abi-policy
+        COMMAND "${CTEX_PYTHON3_EXECUTABLE}"
+                "${PROJECT_SOURCE_DIR}/tests/tools/test_check_abi.py"
+    )
+    add_test(
+        NAME build-packaging-package-builder
+        COMMAND "${CTEX_PYTHON3_EXECUTABLE}"
+                "${PROJECT_SOURCE_DIR}/tests/tools/test_build_platform_package.py"
+    )
+    add_test(
+        NAME build-packaging-package-scope
+        COMMAND "${CTEX_PYTHON3_EXECUTABLE}"
+                "${PROJECT_SOURCE_DIR}/tests/tools/test_check_packages.py"
+    )
+    add_test(
+        NAME build-packaging-scenario-matrix
+        COMMAND "${CTEX_PYTHON3_EXECUTABLE}"
+                "${PROJECT_SOURCE_DIR}/tests/tools/check_build_packaging_scenario_matrix.py"
+    )
+    set_tests_properties(
+        build-packaging-task-runner
+        build-packaging-layering-policy
+        build-packaging-licence-policy
+        build-packaging-determinism-policy
+        build-packaging-version-policy
+        build-packaging-abi-policy
+        build-packaging-package-builder
+        build-packaging-package-scope
+        build-packaging-scenario-matrix
+        PROPERTIES LABELS "build-packaging-scenario"
+    )
+    set_tests_properties(
+        build-packaging-task-runner
+        PROPERTIES WORKING_DIRECTORY "${PROJECT_SOURCE_DIR}"
+    )
     set_tests_properties(
         examples-capability-coverage
         examples-readability

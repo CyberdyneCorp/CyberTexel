@@ -1514,6 +1514,30 @@ the iOS arm64 package. Linux, Windows and Android recipes are wired into CI, but
 the task remains open until their package and smoke jobs provide successful
 platform evidence.
 
+2026-09-23: Task 16.11 maps all fifteen `examples` scenarios to a labeled
+`examples-scenario` suite that runs without a wheel, and adds the missing
+readability evidence. Example feature coverage is now a recorded decision: a
+sitecustomize shim wraps the loaded C ABI and records a symbol when an example
+calls it, `just examples` writes one trace per example, and the gate compares
+their union with the capability manifest. The eleven examples exercise 55 of 353
+symbols; the other 298 are named individually in `examples/feature_coverage.json`
+against task 16.12 rather than being absent.
+
+2026-09-23: The first release slice is macOS, Linux and iPad.
+`release/platforms.json` declares those three in scope and records the decision
+that defers `windows-x64` and `android-arm64` to the new task 18.6; the package
+gate decides one platform or all and reports the deferred ones by name. Task 18.3
+is complete: `just gate-reproducible` builds the shipped preset twice at one
+fixed path and compares every produced library, and the macOS universal release
+build is byte-identical with no documented variance. The Debug `headless` preset
+is not reproducible — its debug info and Mach-O UUID differ — which is why the
+gate's subject is the shipped preset. A new task-runner gate checks that every
+gate the specification names is a recipe, that an unimplemented gate names its
+task, and that no CI step repeats a command a recipe already defines. Task 18.4
+remains open: eight of the nine build-packaging policy suites are green and the
+matrix correctly reports "Host-executed route stays honest" as still without
+evidence, because the reference hosts are task 18.2.
+
 Editable-authoring group 20 is complete. Versioned operation records retain
 algorithm and preset versions, seeds, channel descriptors, mesh identity,
 pinned input bytes and checkpoint identities in canonical project-container
@@ -1807,11 +1831,12 @@ threading and per-binding example evidence.
 
 ## 18. Release
 
-- [ ] 18.1 Platform packages with header, library, licence, attribution; smoke test each
+- [ ] 18.1 macOS, Linux and iOS packages with header, library, licence, attribution; smoke test each
 - [ ] 18.2 Desktop WGSL and mobile MSL reference hosts in slice A, built in CI, run on named devices with residency-traffic and input-to-visible instrumentation
-- [ ] 18.3 Reproducible build verification and documentation of any unavoidable variance
+- [x] 18.3 Reproducible build verification and documentation of any unavoidable variance
 - [ ] 18.4 `build-packaging` scenarios as tests
 - [ ] 18.5 After all delivery slices and groups 1–20 pass, archive this change and fold its requirements into `openspec/specs/`
+- [ ] 18.6 Windows and Android packages, smoke tests and the Android device matrix
 
 ## 19. Resource residency
 

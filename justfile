@@ -237,6 +237,10 @@ test-resource-residency-scenarios: build
 test-examples-scenarios: build
     ctest --test-dir build/headless --output-on-failure -L '^examples-scenario$'
 
+# `build-packaging` policy evidence: the rules the gate recipes apply.
+test-build-packaging-scenarios: build
+    ctest --test-dir build/headless --output-on-failure -L '^build-packaging-scenario$'
+
 test-stroke-reconstruction: build
     ctest --test-dir build/headless --output-on-failure -R '^stroke-reconstruction$'
 
@@ -514,6 +518,22 @@ gate-example-coverage:
     python3 tests/tools/test_check_example_coverage.py
     python3 tools/check_example_coverage.py
 
+# The justfile is the single definition of every routine command, every named
+# gate is reachable, and CI invokes recipes rather than repeating them.
+gate-task-runner: (_require "python3" "3.10")
+    python3 tools/check_task_runner.py
+
+# Platform packages this release slice claims, each smoke-tested by a program
+# that links it. Deferred platforms are reported by name with their decision.
+gate-packages preset="": (_require "python3" "3.10")
+    python3 tests/tools/test_check_packages.py
+    @if [ -n "{{preset}}" ]; then python3 tools/check_packages.py --preset "{{preset}}"; else python3 tools/check_packages.py; fi
+
+# The same commit built twice produces identical libraries, or the differing
+# input is named in docs/reproducible-builds.md.
+gate-reproducible: (_require "python3" "3.10") (_require "cmake" "3.24") (_require "ninja" "1.10")
+    python3 tools/check_reproducible_build.py
+
 # Every available executor agrees with the CPU reference within the declared
 # tolerance; compiled routes without a device are reported as unmeasured.
 gate-parity:
@@ -535,7 +555,7 @@ gate-budgets: (_require "python3" "3.10")
 # runs before pushing.
 check: spec-validate gate-capability-index gate-paint-parameter-audit gate-layering gate-licence \
        gate-version-consistency gate-determinism gate-binding-parity \
-       gate-example-coverage gate-abi-diff format-check
+       gate-example-coverage gate-abi-diff gate-task-runner format-check
 
 # Everything that can be checked before there is any code.
 check-spec: spec-validate gate-capability-index

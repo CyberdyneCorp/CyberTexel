@@ -7,7 +7,9 @@ decisions taken and questions still open.
 ## Status
 
 Implementation started. 24 capabilities, 332 requirements, 409 scenarios and
-222 tasks, 188 done. Foundation and the complete headless color-management
+223 tasks, 212 done. Every capability's runtime work is delivered; what remains
+is the reference hosts, the device measurements they enable, the release
+packages and example breadth. Foundation and the complete headless color-management
 scenario suite are green. Image input now detects and decodes PNG, JPEG, TGA,
 BMP, baseline TIFF, flat OpenEXR, Radiance HDR and flattened PSD from caller
 memory, with mismatch reporting, 8/16-bit preservation and hostile-input
@@ -393,6 +395,14 @@ report holes and ambiguity before explicit policy selection; commit stages every
 channel, converts tangent normals, rejects stale source revisions and publishes
 the replacement atomically. This completes task 20.5 and reduces the task-14.8
 gap to 5 runtime requirements.
+The C ABI coverage gate now passes: every runtime capability has public C ABI
+operation evidence, closing task 14.8's remaining gap.
+Example feature coverage is now decided from recorded C ABI call traces rather
+than declarations. The eleven numbered examples exercise 55 of the 353 manifest
+symbols; the other 298 are named individually against task 16.12.
+The first release slice is macOS, Linux and iPad. The shipped macOS universal
+release build is byte-identical across two builds of one commit, so task 18.3
+carries no documented variance.
 
 ## Milestones
 
@@ -493,6 +503,33 @@ Rec. 709 encodings. Radiance cubes use roughness-indexed mips; irradiance cubes
 store the cosine integral before division by pi. Missing environments select a
 fixed sky/ground fallback, while channel inspection remains entirely unlit.
 Task 6.15 and capability `shader-emission`.
+
+**2026-09-23 — The first release slice is macOS, Linux and iPad; Windows and
+Android follow.** `build-packaging` requires five platform packages. Narrowing
+the slice concentrates the reference-host and device work on one Metal mobile
+target and two desktops rather than five packaging matrices at once.
+`release/platforms.json` declares the three in scope and records the deferral of
+`windows-x64` and `android-arm64` by name, so the gate reports them rather than
+omitting them; task 18.1 stays open until the three land and task 18.6 carries
+the other two. The Windows library, CLI and wheel jobs stay in CI — only
+packaging and the reference hosts are deferred. Open question 8 is unchanged:
+an iPad result still cannot stand in for Android runtime validation, and that
+validation is now explicitly task 18.6.
+
+**2026-09-23 — Examples prove coverage by call trace, not by declaration.** The
+capability gate only required one example per capability, which 55 of 353 C ABI
+symbols satisfied. A `sitecustomize` shim now records a symbol when an example
+calls it, and the gate decides the union of those traces against the capability
+manifest. Uncovered symbols are named individually with the task that closes
+them, matching `device-gate`'s rule that an unmeasured case is reported and
+never substituted. Tasks 16.11 and 16.12.
+
+**2026-09-23 — Reproducibility is a property of the shipped preset.** The Debug
+`headless` preset is not byte-reproducible: its debug info and Mach-O `LC_UUID`
+differ between two builds of one commit. The shipped `macos-universal` release
+build is identical, so the gate builds the shipped preset twice at one fixed
+path — the build directory is not itself allowed to be the differing input — and
+`docs/reproducible-builds.md` currently documents no variance. Task 18.3.
 
 ## Open questions
 

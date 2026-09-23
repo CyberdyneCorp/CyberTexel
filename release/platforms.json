@@ -1,0 +1,28 @@
+{
+  "schema": 1,
+  "note": "Platforms the release gate decides now, and the ones deliberately deferred. build-packaging requires all five; a deferred platform is reported by name and keeps its task open rather than being counted as passed.",
+  "in_scope": [
+    {
+      "preset": "linux-x64",
+      "kind": "desktop",
+      "recipe": "package-linux",
+      "smoke_test": "executed"
+    },
+    {
+      "preset": "macos-universal",
+      "kind": "desktop",
+      "recipe": "package-macos",
+      "smoke_test": "executed"
+    },
+    {
+      "preset": "ios-arm64",
+      "kind": "mobile",
+      "recipe": "package-ios",
+      "smoke_test": "linked"
+    }
+  ],
+  "deferred": {
+    "windows-x64": "Decision 2026-09-23 — the first release slice is macOS, Linux and iPad; Windows packaging is task 18.6.",
+    "android-arm64": "Decision 2026-09-23 — the first release slice is macOS, Linux and iPad; Android packaging and its device matrix are task 18.6."
+  }
+}
