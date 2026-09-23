@@ -12629,6 +12629,198 @@ extern "C" ctex_result ctex_image_decode_memory_bounded(
     });
 }
 
+namespace {
+
+struct LayeredBufferSizes {
+    std::size_t names{};
+    std::size_t pixels{};
+};
+
+void validate_layered_decode_arguments(const void* encoded, std::size_t encoded_size,
+                                       const char* source_name,
+                                       const ctex_layered_image_decode_descriptor* descriptor,
+                                       const ctex_image_decode_control_descriptor* control,
+                                       const ctex_image_decode_execution_info* execution_info,
+                                       const ctex_layered_image_decode_info* info) {
+    if ((encoded == nullptr && encoded_size != 0) || source_name == nullptr ||
+        descriptor == nullptr || info == nullptr) {
+        throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                       "encoded, source_name, descriptor and out_info are required");
+    }
+    validate_structure_size(descriptor->size, CTEX_LAYERED_IMAGE_DECODE_DESCRIPTOR_V1_SIZE,
+                            CTEX_LAYERED_IMAGE_DECODE_DESCRIPTOR_CURRENT_SIZE, "descriptor.size");
+    validate_structure_size(info->size, CTEX_LAYERED_IMAGE_DECODE_INFO_V1_SIZE,
+                            CTEX_LAYERED_IMAGE_DECODE_INFO_CURRENT_SIZE, "out_info.size");
+    if (execution_info != nullptr) {
+        validate_structure_size(execution_info->size, CTEX_IMAGE_DECODE_EXECUTION_INFO_V1_SIZE,
+                                CTEX_IMAGE_DECODE_EXECUTION_INFO_CURRENT_SIZE,
+                                "out_execution_info.size");
+    }
+    validate_image_decode_control(control);
+    if (descriptor->mode > CTEX_LAYERED_IMAGE_DECODE_INDIVIDUAL ||
+        descriptor->maximum_image_count == 0) {
+        throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_INVALID_DESCRIPTOR_VALUE,
+                       "layered decode mode or maximum_image_count is invalid");
+    }
+}
+
+ctex::io::LayeredDecodedImage run_layered_decode(
+    std::span<const std::byte> bytes, const char* source_name,
+    const ctex_layered_image_decode_descriptor& descriptor,
+    const ctex_image_decode_limits_descriptor* limits, ImageDecodeObserver& observer,
+    ctex_image_decode_execution_info* execution_info) {
+    try {
+        return ctex::io::decode_layered_image_memory(
+            {.image = {.bytes = bytes,
+                       .source_name = source_name,
+                       .intended_channel = channel_semantic(descriptor.intended_channel),
+                       .color_space = input_color_space(descriptor.input_color_space),
+                       .limits = image_decode_limits(limits),
+                       .control = observer.core_control()},
+             .mode = descriptor.mode == CTEX_LAYERED_IMAGE_DECODE_COMPOSITE
+                         ? ctex::io::LayeredDecodeMode::composite
+                         : ctex::io::LayeredDecodeMode::individual,
+             .maximum_image_count = descriptor.maximum_image_count});
+    } catch (const ctex::io::ImageIoError& error) {
+        write_image_decode_execution_info(observer, execution_info);
+        throw_image_io_error(error);
+    }
+}
+
+LayeredBufferSizes layered_buffer_sizes(const ctex::io::LayeredDecodedImage& decoded) {
+    LayeredBufferSizes result;
+    for (const ctex::io::DecodedImageLayer& layer : decoded.images) {
+        if (layer.name.size() == std::numeric_limits<std::size_t>::max() ||
+            result.names > std::numeric_limits<std::size_t>::max() - layer.name.size() - 1) {
+            throw_boundary(CTEX_RESULT_OVER_BUDGET, CTEX_DIAGNOSTIC_IMAGE_LIMIT_EXCEEDED,
+                           "layered image name buffer size overflow");
+        }
+        result.names += layer.name.size() + 1;
+        const std::size_t layer_bytes = decoded_image_size(layer.image.pixels);
+        if (result.pixels > std::numeric_limits<std::size_t>::max() - layer_bytes) {
+            throw_boundary(CTEX_RESULT_OVER_BUDGET, CTEX_DIAGNOSTIC_IMAGE_LIMIT_EXCEEDED,
+                           "layered image pixel buffer size overflow");
+        }
+        result.pixels += layer_bytes;
+    }
+    return result;
+}
+
+void validate_layered_output_buffers(const ctex::io::LayeredDecodedImage& decoded,
+                                     LayeredBufferSizes sizes,
+                                     ctex_layered_decoded_image_info* image_infos,
+                                     std::size_t image_info_capacity, char* name_buffer,
+                                     std::size_t name_buffer_size, void* pixel_buffer,
+                                     std::size_t pixel_buffer_size) {
+    const bool any_output =
+        image_infos != nullptr || name_buffer != nullptr || pixel_buffer != nullptr;
+    const bool all_outputs =
+        image_infos != nullptr && name_buffer != nullptr && pixel_buffer != nullptr;
+    if (any_output && !all_outputs) {
+        throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                       "image_infos, name_buffer and pixel_buffer must be supplied together");
+    }
+    if (image_infos == nullptr && image_info_capacity != 0) {
+        throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                       "image_infos=null with nonzero image_info_capacity");
+    }
+    if (image_infos != nullptr && image_info_capacity < decoded.images.size()) {
+        throw_boundary(CTEX_RESULT_BUFFER_TOO_SMALL, CTEX_DIAGNOSTIC_BUFFER_TOO_SMALL,
+                       "image_info_capacity is smaller than required_image_info_count");
+    }
+    validate_string_buffer(name_buffer, name_buffer_size, sizes.names);
+    validate_string_buffer(static_cast<char*>(pixel_buffer), pixel_buffer_size, sizes.pixels);
+}
+
+void write_layered_output(const ctex::io::LayeredDecodedImage& decoded,
+                          ctex_layered_decoded_image_info* image_infos, char* name_buffer,
+                          void* pixel_buffer) {
+    if (image_infos == nullptr) return;
+    std::size_t name_offset = 0;
+    std::size_t pixel_offset = 0;
+    for (std::size_t index = 0; index < decoded.images.size(); ++index) {
+        const ctex::io::DecodedImageLayer& layer = decoded.images[index];
+        const ctex::image::PixelFormat format = layer.image.pixels.format();
+        const std::size_t layer_bytes = decoded_image_size(layer.image.pixels);
+        image_infos[index] = {
+            .size = CTEX_LAYERED_DECODED_IMAGE_INFO_CURRENT_SIZE,
+            .origin_x = layer.origin_x,
+            .origin_y = layer.origin_y,
+            .width = layer.image.pixels.width(),
+            .height = layer.image.pixels.height(),
+            .channel_count = format.channel_count,
+            .scalar_representation = format.channel_type == ctex::image::ChannelType::float32
+                                         ? CTEX_SCALAR_REPRESENTATION_FLOATING_POINT
+                                         : CTEX_SCALAR_REPRESENTATION_UNSIGNED_NORMALIZED,
+            .bit_depth = static_cast<std::uint32_t>(format.bytes_per_channel() * 8),
+            .color_space = static_cast<std::uint32_t>(layer.image.source_color_space),
+            .name_offset = name_offset,
+            .name_size = layer.name.size(),
+            .pixel_offset = pixel_offset,
+            .pixel_size = layer_bytes,
+        };
+        std::memcpy(name_buffer + name_offset, layer.name.c_str(), layer.name.size() + 1);
+        copy_decoded_pixels(layer.image.pixels,
+                            static_cast<std::byte*>(pixel_buffer) + pixel_offset);
+        name_offset += layer.name.size() + 1;
+        pixel_offset += layer_bytes;
+    }
+}
+
+void image_decode_layered_memory_boundary(const void* encoded, std::size_t encoded_size,
+                                          const char* source_name,
+                                          const ctex_layered_image_decode_descriptor* descriptor,
+                                          const ctex_image_decode_limits_descriptor* limits,
+                                          const ctex_image_decode_control_descriptor* control,
+                                          ctex_image_decode_execution_info* execution_info,
+                                          ctex_layered_image_decode_info* info,
+                                          ctex_layered_decoded_image_info* image_infos,
+                                          std::size_t image_info_capacity, char* name_buffer,
+                                          std::size_t name_buffer_size, void* pixel_buffer,
+                                          std::size_t pixel_buffer_size) {
+    validate_layered_decode_arguments(encoded, encoded_size, source_name, descriptor, control,
+                                      execution_info, info);
+    const auto bytes = encoded_size == 0
+                           ? std::span<const std::byte>{}
+                           : std::span(static_cast<const std::byte*>(encoded), encoded_size);
+    ImageDecodeObserver observer{.control = control};
+    ctex::io::LayeredDecodedImage decoded =
+        run_layered_decode(bytes, source_name, *descriptor, limits, observer, execution_info);
+    const LayeredBufferSizes sizes = layered_buffer_sizes(decoded);
+    *info = {
+        .size = CTEX_LAYERED_IMAGE_DECODE_INFO_CURRENT_SIZE,
+        .detected_format = image_file_format(decoded.format),
+        .source_was_layered = decoded.source_was_layered ? 1U : 0U,
+        .image_count = decoded.images.size(),
+        .required_image_info_count = decoded.images.size(),
+        .required_name_buffer_size = sizes.names,
+        .required_pixel_buffer_size = sizes.pixels,
+    };
+    validate_layered_output_buffers(decoded, sizes, image_infos, image_info_capacity, name_buffer,
+                                    name_buffer_size, pixel_buffer, pixel_buffer_size);
+    write_layered_output(decoded, image_infos, name_buffer, pixel_buffer);
+    write_image_decode_execution_info(observer, execution_info);
+}
+
+}  // namespace
+
+extern "C" ctex_result ctex_image_decode_layered_memory(
+    const void* encoded, std::size_t encoded_size, const char* source_name,
+    const ctex_layered_image_decode_descriptor* descriptor,
+    const ctex_image_decode_limits_descriptor* limits,
+    const ctex_image_decode_control_descriptor* control,
+    ctex_image_decode_execution_info* out_execution_info, ctex_layered_image_decode_info* out_info,
+    ctex_layered_decoded_image_info* image_infos, std::size_t image_info_capacity,
+    char* name_buffer, std::size_t name_buffer_size, void* pixel_buffer,
+    std::size_t pixel_buffer_size) {
+    return call_boundary("ctex_image_decode_layered_memory", [&] {
+        image_decode_layered_memory_boundary(encoded, encoded_size, source_name, descriptor, limits,
+                                             control, out_execution_info, out_info, image_infos,
+                                             image_info_capacity, name_buffer, name_buffer_size,
+                                             pixel_buffer, pixel_buffer_size);
+    });
+}
+
 extern "C" ctex_result ctex_image_expand_channels(
     const void* source_pixels, std::size_t source_pixel_buffer_size,
     const ctex_image_channel_expansion_descriptor* descriptor,

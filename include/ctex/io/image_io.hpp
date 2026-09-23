@@ -77,6 +77,27 @@ struct DecodedImage {
     DecodeReport report;
 };
 
+enum class LayeredDecodeMode : std::uint8_t { composite, individual };
+
+struct LayeredDecodeRequest {
+    DecodeRequest image;
+    LayeredDecodeMode mode = LayeredDecodeMode::composite;
+    std::size_t maximum_image_count = 256;
+};
+
+struct DecodedImageLayer {
+    std::string name;
+    std::int32_t origin_x{};
+    std::int32_t origin_y{};
+    DecodedImage image;
+};
+
+struct LayeredDecodedImage {
+    ImageFileFormat format{};
+    bool source_was_layered{};
+    std::vector<DecodedImageLayer> images;
+};
+
 struct PngEncodeOptions {
     image::ColorSpace color_space = image::ColorSpace::linear_rec709;
 };
@@ -96,6 +117,7 @@ private:
 [[nodiscard]] ImageFileFormat detect_image_format(std::span<const std::byte> bytes) noexcept;
 [[nodiscard]] std::string_view image_file_format_name(ImageFileFormat format) noexcept;
 [[nodiscard]] DecodedImage decode_image_memory(const DecodeRequest& request);
+[[nodiscard]] LayeredDecodedImage decode_layered_image_memory(const LayeredDecodeRequest& request);
 [[nodiscard]] std::vector<std::byte> encode_png_memory(const image::TiledImage& image,
                                                        PngEncodeOptions options = {});
 

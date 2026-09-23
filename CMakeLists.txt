@@ -238,6 +238,7 @@ ctex_add_module(
     DEPENDS doc image
     SOURCES
         src/io/io.cpp
+        src/io/layered_image_io.cpp
         src/io/editable_authoring.cpp
         src/io/export_preset.cpp
         src/io/export_plan.cpp
@@ -687,6 +688,12 @@ if(BUILD_TESTING)
     ctex_configure_cpp_target(ctex_png_io_test)
     target_link_libraries(ctex_png_io_test PRIVATE cybertexel)
     add_test(NAME png-io COMMAND ctex_png_io_test)
+
+    add_executable(ctex_layered_image_io_test tests/io/layered_image_io_test.cpp)
+    ctex_configure_cpp_target(ctex_layered_image_io_test)
+    target_include_directories(ctex_layered_image_io_test SYSTEM PRIVATE "${tinyexr_SOURCE_DIR}")
+    target_link_libraries(ctex_layered_image_io_test PRIVATE cybertexel tinyexr)
+    add_test(NAME layered-image-io COMMAND ctex_layered_image_io_test)
 
     add_executable(ctex_project_container_test tests/io/project_container_test.cpp)
     ctex_configure_cpp_target(ctex_project_container_test)

@@ -82,6 +82,7 @@
       {"requirement": "Bit depth and channel preservation", "symbols": ["ctex_image_decode_memory", "ctex_image_expand_channels"]},
       {"requirement": "Colour space on read", "symbols": ["ctex_image_decode_memory"]},
       {"requirement": "High dynamic range", "symbols": ["ctex_image_decode_memory"]},
+      {"requirement": "Layered sources", "symbols": ["ctex_image_decode_layered_memory"]},
       {"requirement": "Encoded formats", "symbols": ["ctex_image_encode_memory"]},
       {"requirement": "Decoding from memory", "symbols": ["ctex_image_decode_memory"]},
       {"requirement": "Every image source is untrusted", "symbols": ["ctex_image_decode_memory"]},

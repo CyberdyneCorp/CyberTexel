@@ -1370,6 +1370,15 @@ codec and tiled-image storage without publishing caller pixels. C++ and
 strict-C EXR/PNG fixtures cover progress, over-budget refusal and atomic early
 cancellation, reducing the exact task-14.8 gap to 2 requirements.
 
+Task 2.6 adds named, separately addressable PSD raster layers and multipart
+OpenEXR parts plus selectable composited output. PSD composites use the authored
+flattened appearance; multipart EXR composites use deterministic file-order
+source-over across the union data window. Aggregate image-count, decoded-byte,
+dimension and working-memory bounds apply before codec allocation, and the C ABI
+publishes metadata, UTF-8 names and pixels only after every caller buffer fits.
+C++ PSD/EXR and strict-C PSD fixtures reduce the exact task-14.8 gap to 1
+runtime requirement.
+
 ## 1. Foundation
 
 - [x] 1.1 CMake project, C++20, warnings as errors, presets for headless, macOS, Linux, Windows, iOS, Android
@@ -1390,7 +1399,7 @@ cancellation, reducing the exact task-14.8 gap to 2 requirements.
 - [x] 2.3 Bit depth and channel preservation; documented expansion rules
 - [ ] 2.4 Colour space on read: embedded profiles, caller declaration, the automatic rule
 - [x] 2.5 High dynamic range decoding without clamping
-- [ ] 2.6 Layered sources: PSD layers and multi-part EXR, composited or per-layer
+- [x] 2.6 Layered sources: PSD layers and multi-part EXR, composited or per-layer
 - [x] 2.7 Encoders with per-format options and the impossible-combination refusal
 - [x] 2.8 Decoding from memory buffers
 - [x] 2.9 Untrusted input bounds: dimension validation before allocation, configurable ceiling, named refusals

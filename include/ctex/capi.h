@@ -2658,6 +2658,58 @@ typedef struct ctex_decoded_image_info {
 #define CTEX_DECODED_IMAGE_INFO_V1_SIZE ((uint32_t)sizeof(ctex_decoded_image_info))
 #define CTEX_DECODED_IMAGE_INFO_CURRENT_SIZE ((uint32_t)sizeof(ctex_decoded_image_info))
 
+typedef enum ctex_layered_image_decode_mode {
+    CTEX_LAYERED_IMAGE_DECODE_COMPOSITE = 0,
+    CTEX_LAYERED_IMAGE_DECODE_INDIVIDUAL = 1
+} ctex_layered_image_decode_mode;
+
+typedef struct ctex_layered_image_decode_descriptor {
+    uint32_t size;
+    uint32_t mode;
+    uint32_t intended_channel;
+    uint32_t input_color_space;
+    size_t maximum_image_count;
+} ctex_layered_image_decode_descriptor;
+
+#define CTEX_LAYERED_IMAGE_DECODE_DESCRIPTOR_V1_SIZE \
+    ((uint32_t)sizeof(ctex_layered_image_decode_descriptor))
+#define CTEX_LAYERED_IMAGE_DECODE_DESCRIPTOR_CURRENT_SIZE \
+    ((uint32_t)sizeof(ctex_layered_image_decode_descriptor))
+
+typedef struct ctex_layered_image_decode_info {
+    uint32_t size;
+    uint32_t detected_format;
+    uint32_t source_was_layered;
+    size_t image_count;
+    size_t required_image_info_count;
+    size_t required_name_buffer_size;
+    size_t required_pixel_buffer_size;
+} ctex_layered_image_decode_info;
+
+#define CTEX_LAYERED_IMAGE_DECODE_INFO_V1_SIZE ((uint32_t)sizeof(ctex_layered_image_decode_info))
+#define CTEX_LAYERED_IMAGE_DECODE_INFO_CURRENT_SIZE \
+    ((uint32_t)sizeof(ctex_layered_image_decode_info))
+
+typedef struct ctex_layered_decoded_image_info {
+    uint32_t size;
+    int32_t origin_x;
+    int32_t origin_y;
+    uint32_t width;
+    uint32_t height;
+    uint32_t channel_count;
+    uint32_t scalar_representation;
+    uint32_t bit_depth;
+    uint32_t color_space;
+    size_t name_offset;
+    size_t name_size;
+    size_t pixel_offset;
+    size_t pixel_size;
+} ctex_layered_decoded_image_info;
+
+#define CTEX_LAYERED_DECODED_IMAGE_INFO_V1_SIZE ((uint32_t)sizeof(ctex_layered_decoded_image_info))
+#define CTEX_LAYERED_DECODED_IMAGE_INFO_CURRENT_SIZE \
+    ((uint32_t)sizeof(ctex_layered_decoded_image_info))
+
 typedef enum ctex_image_channel_expansion_rule {
     CTEX_IMAGE_CHANNEL_EXPANSION_IDENTITY = 0,
     CTEX_IMAGE_CHANNEL_EXPANSION_GRAYSCALE_TO_RGB = 1,
@@ -5904,6 +5956,22 @@ CTEX_API ctex_result ctex_image_decode_memory_bounded(
     const ctex_image_decode_control_descriptor* control,
     ctex_image_decode_execution_info* out_execution_info, ctex_decoded_image_info* out_info,
     void* pixel_buffer, size_t pixel_buffer_size, size_t* out_required_size);
+
+/*
+ * Decodes PSD layers or OpenEXR parts. COMPOSITE returns one flattened image;
+ * INDIVIDUAL returns source-named images and their signed source origins.
+ * Query required capacities with NULL output arrays/buffers and zero capacities.
+ * Names are UTF-8, NUL-terminated slices in name_buffer. Output publication is
+ * atomic: no image metadata, names or pixels are written unless all fit.
+ */
+CTEX_API ctex_result ctex_image_decode_layered_memory(
+    const void* encoded, size_t encoded_size, const char* source_name,
+    const ctex_layered_image_decode_descriptor* descriptor,
+    const ctex_image_decode_limits_descriptor* limits,
+    const ctex_image_decode_control_descriptor* control,
+    ctex_image_decode_execution_info* out_execution_info, ctex_layered_image_decode_info* out_info,
+    ctex_layered_decoded_image_info* image_infos, size_t image_info_capacity, char* name_buffer,
+    size_t name_buffer_size, void* pixel_buffer, size_t pixel_buffer_size);
 
 /*
  * Expands packed or row-strided pixels without changing component bit depth.

@@ -26,6 +26,97 @@ static uint32_t little_u32(const unsigned char* bytes) {
            ((uint32_t)bytes[3] << 24u);
 }
 
+static void put_u16(unsigned char* bytes, size_t* offset, uint16_t value) {
+    bytes[(*offset)++] = (unsigned char)(value >> 8u);
+    bytes[(*offset)++] = (unsigned char)value;
+}
+
+static void put_i16(unsigned char* bytes, size_t* offset, int16_t value) {
+    put_u16(bytes, offset, (uint16_t)value);
+}
+
+static void put_u32(unsigned char* bytes, size_t* offset, uint32_t value) {
+    bytes[(*offset)++] = (unsigned char)(value >> 24u);
+    bytes[(*offset)++] = (unsigned char)(value >> 16u);
+    bytes[(*offset)++] = (unsigned char)(value >> 8u);
+    bytes[(*offset)++] = (unsigned char)value;
+}
+
+static void put_i32(unsigned char* bytes, size_t* offset, int32_t value) {
+    put_u32(bytes, offset, (uint32_t)value);
+}
+
+static void put_bytes(unsigned char* bytes, size_t* offset, const char* value, size_t size) {
+    memcpy(bytes + *offset, value, size);
+    *offset += size;
+}
+
+static void put_layer_record(unsigned char* bytes, size_t* offset, const char* name,
+                             size_t name_size) {
+    static const int16_t channels[] = {0, 1, 2, -1};
+    size_t channel = 0;
+    const size_t padded_name_size = ((name_size + 4) / 4) * 4;
+    put_i32(bytes, offset, 0);
+    put_i32(bytes, offset, 0);
+    put_i32(bytes, offset, 1);
+    put_i32(bytes, offset, 1);
+    put_u16(bytes, offset, 4);
+    for (channel = 0; channel < 4; ++channel) {
+        put_i16(bytes, offset, channels[channel]);
+        put_u32(bytes, offset, 3);
+    }
+    put_bytes(bytes, offset, "8BIMnorm", 8);
+    bytes[(*offset)++] = 255;
+    bytes[(*offset)++] = 0;
+    bytes[(*offset)++] = 0;
+    bytes[(*offset)++] = 0;
+    put_u32(bytes, offset, (uint32_t)(8 + padded_name_size));
+    put_u32(bytes, offset, 0);
+    put_u32(bytes, offset, 0);
+    bytes[(*offset)++] = (unsigned char)name_size;
+    put_bytes(bytes, offset, name, name_size);
+    memset(bytes + *offset, 0, padded_name_size - name_size - 1);
+    *offset += padded_name_size - name_size - 1;
+}
+
+static void put_layer_pixels(unsigned char* bytes, size_t* offset, const unsigned char rgba[4]) {
+    size_t channel = 0;
+    for (channel = 0; channel < 4; ++channel) {
+        put_u16(bytes, offset, 0);
+        bytes[(*offset)++] = rgba[channel];
+    }
+}
+
+static size_t make_layered_psd(unsigned char* bytes) {
+    static const unsigned char top[] = {255, 0, 0, 128};
+    static const unsigned char bottom[] = {0, 0, 255, 255};
+    size_t offset = 0;
+    put_bytes(bytes, &offset, "8BPS", 4);
+    put_u16(bytes, &offset, 1);
+    memset(bytes + offset, 0, 6);
+    offset += 6;
+    put_u16(bytes, &offset, 4);
+    put_u32(bytes, &offset, 1);
+    put_u32(bytes, &offset, 1);
+    put_u16(bytes, &offset, 8);
+    put_u16(bytes, &offset, 3);
+    put_u32(bytes, &offset, 0);
+    put_u32(bytes, &offset, 0);
+    put_u32(bytes, &offset, 174);
+    put_u32(bytes, &offset, 170);
+    put_i16(bytes, &offset, 2);
+    put_layer_record(bytes, &offset, "Top", 3);
+    put_layer_record(bytes, &offset, "Bottom", 6);
+    put_layer_pixels(bytes, &offset, top);
+    put_layer_pixels(bytes, &offset, bottom);
+    put_u16(bytes, &offset, 0);
+    bytes[offset++] = 128;
+    bytes[offset++] = 0;
+    bytes[offset++] = 127;
+    bytes[offset++] = 255;
+    return offset;
+}
+
 static int decode_reports_content_and_caller_buffers(void) {
     ctex_decoded_image_info info = {.size = CTEX_DECODED_IMAGE_INFO_CURRENT_SIZE};
     size_t required_size = 0;
@@ -501,6 +592,68 @@ static int openexr_round_trip_preserves_hdr_values(void) {
                   decoded[3] == source[3]);
 }
 
+static int layered_decode_is_sized_named_and_atomic(void) {
+    unsigned char encoded[256] = {0};
+    const size_t encoded_size = make_layered_psd(encoded);
+    const ctex_layered_image_decode_descriptor descriptor = {
+        .size = CTEX_LAYERED_IMAGE_DECODE_DESCRIPTOR_CURRENT_SIZE,
+        .mode = CTEX_LAYERED_IMAGE_DECODE_INDIVIDUAL,
+        .intended_channel = CTEX_CHANNEL_SEMANTIC_BASE_COLOR,
+        .input_color_space = CTEX_INPUT_COLOR_SPACE_AUTOMATIC,
+        .maximum_image_count = 8,
+    };
+    ctex_layered_image_decode_info info = {
+        .size = CTEX_LAYERED_IMAGE_DECODE_INFO_CURRENT_SIZE,
+    };
+    ctex_layered_decoded_image_info image_infos[2] = {{0}};
+    char names[11] = {0};
+    unsigned char pixels[8] = {0};
+    char short_names[10];
+    memset(short_names, 0xa5, sizeof(short_names));
+
+    if (!expect(ctex_image_decode_layered_memory(encoded, encoded_size, "layers.psd", &descriptor,
+                                                 NULL, NULL, NULL, &info, NULL, 0, NULL, 0, NULL,
+                                                 0) == CTEX_RESULT_SUCCESS) ||
+        !expect(info.detected_format == CTEX_IMAGE_FILE_FORMAT_PSD &&
+                info.source_was_layered == 1 && info.image_count == 2 &&
+                info.required_image_info_count == 2 &&
+                info.required_name_buffer_size == sizeof(names) &&
+                info.required_pixel_buffer_size == sizeof(pixels))) {
+        return 0;
+    }
+    image_infos[0].width = 77;
+    if (!expect(ctex_image_decode_layered_memory(encoded, encoded_size, "layers.psd", &descriptor,
+                                                 NULL, NULL, NULL, &info, image_infos, 2, NULL, 0,
+                                                 NULL, 0) == CTEX_RESULT_INVALID_ARGUMENT) ||
+        !expect(image_infos[0].width == 77 &&
+                ctex_get_last_diagnostic_code() == CTEX_DIAGNOSTIC_NULL_ARGUMENT)) {
+        return 0;
+    }
+    if (!expect(ctex_image_decode_layered_memory(encoded, encoded_size, "layers.psd", &descriptor,
+                                                 NULL, NULL, NULL, &info, image_infos, 2,
+                                                 short_names, sizeof(short_names), pixels,
+                                                 sizeof(pixels)) == CTEX_RESULT_BUFFER_TOO_SMALL) ||
+        !expect(image_infos[0].width == 77 && (unsigned char)short_names[0] == 0xa5 &&
+                ctex_get_last_diagnostic_code() == CTEX_DIAGNOSTIC_BUFFER_TOO_SMALL)) {
+        return 0;
+    }
+    if (!expect(ctex_image_decode_layered_memory(encoded, encoded_size, "layers.psd", &descriptor,
+                                                 NULL, NULL, NULL, &info, image_infos, 2, names,
+                                                 sizeof(names), pixels,
+                                                 sizeof(pixels)) == CTEX_RESULT_SUCCESS)) {
+        return 0;
+    }
+    return expect(image_infos[0].size == CTEX_LAYERED_DECODED_IMAGE_INFO_CURRENT_SIZE &&
+                  image_infos[0].width == 1 && image_infos[0].height == 1 &&
+                  image_infos[0].channel_count == 4 && image_infos[0].bit_depth == 8 &&
+                  image_infos[0].name_offset == 0 && image_infos[0].name_size == 3 &&
+                  image_infos[0].pixel_offset == 0 && image_infos[0].pixel_size == 4 &&
+                  image_infos[1].name_offset == 4 && image_infos[1].name_size == 6 &&
+                  image_infos[1].pixel_offset == 4 && image_infos[1].pixel_size == 4) &&
+           expect(strcmp(names, "Top") == 0 && strcmp(names + 4, "Bottom") == 0) &&
+           expect(pixels[0] == 255 && pixels[3] == 128 && pixels[6] == 255 && pixels[7] == 255);
+}
+
 int main(void) {
     return decode_reports_content_and_caller_buffers() && decode_preserves_sixteen_bit_samples() &&
                    channel_expansion_preserves_depth_and_reports_rule() &&
@@ -513,7 +666,8 @@ int main(void) {
                    encode_round_trips_png_and_honours_stride() &&
                    encode_refuses_invalid_depth_and_small_output() &&
                    encode_honours_jpeg_quality() && decode_preserves_radiance_hdr_values() &&
-                   openexr_round_trip_preserves_hdr_values()
+                   openexr_round_trip_preserves_hdr_values() &&
+                   layered_decode_is_sized_named_and_atomic()
                ? 0
                : 1;
 }

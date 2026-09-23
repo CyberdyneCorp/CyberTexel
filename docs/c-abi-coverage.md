@@ -256,5 +256,10 @@ row progress, and cooperative cancellation without partial caller output. C++
 and strict-C fixtures cover a large OpenEXR plus the public callback boundary.
 Mapping that image-io requirement reduces the exact remaining gap to 2 runtime
 requirements.
+Named PSD layers and multipart OpenEXR parts now cross the boundary through
+`ctex_image_decode_layered_memory`, with selectable authored-composite or
+individual output, aggregate bounds, cancellation, and atomic caller-owned
+metadata/name/pixel buffers. Mapping layered sources reduces the exact remaining
+gap to 1 runtime requirement: the lossless project container.
 The gate is not part of the aggregate `just check` until that count reaches zero;
 its unit tests run in the normal tooling suite throughout the migration.

@@ -1,7 +1,7 @@
 # Image input and output
 
-The image path decodes PNG, JPEG, TGA, BMP, baseline TIFF, flat OpenEXR,
-Radiance HDR and flattened PSD entirely from caller-owned byte buffers. It
+The image path decodes PNG, JPEG, TGA, BMP, baseline TIFF, OpenEXR,
+Radiance HDR and PSD entirely from caller-owned byte buffers. It
 encodes PNG, JPEG, TGA, baseline TIFF and flat OpenEXR the same way. Detection
 uses signatures and validated structural markers rather than the filename; a
 misleading extension is reported but does not select the decoder. Unknown
@@ -48,20 +48,33 @@ progress callback to stop before the codec allocates. Cancelled work destroys
 all staged storage and never publishes a partial decoded image.
 
 JPEG, TGA and BMP decode to their native one-to-four-channel 8-bit layouts.
-Flattened PSD composites retain one-to-four 8-bit or 16-bit channels; importing
-individual PSD layers remains part of task 2.6. The baseline TIFF path accepts
+Flattened PSD composites retain one-to-four 8-bit or 16-bit channels. The
+layered path imports 8/16-bit RGB PSD raster layers with raw or PackBits channel
+storage as named RGBA images at their signed source origins; composited mode
+uses the file's authored flattened appearance rather than reconstructing blend
+effects. Unsupported adjustment/empty layers and ZIP-compressed layer channels
+are refused explicitly. The baseline TIFF path accepts
 little- or big-endian, uncompressed, contiguous, top-left grayscale,
 grayscale-alpha, RGB and RGBA strips. It retains unsigned 8/16-bit and float32
 samples and rejects unsupported compression, planar layouts, orientations or
 photometric interpretations by name. TIFF metadata fields unrelated to pixel
 layout are ignored safely.
 
-Flat OpenEXR and Radiance HDR headers are inspected against the same limits
+OpenEXR and Radiance HDR headers are inspected against the same limits
 before pixel allocation. They decode to native float32 storage without clamping:
 OpenEXR expands named colour channels to RGBA and Radiance HDR retains RGB.
 Automatic colour interpretation is linear Rec. 709; an explicit caller
-declaration remains authoritative. Multipart and deep OpenEXR inputs are refused
-until the layered-source API in task 2.6 lands.
+declaration remains authoritative. Multipart OpenEXR imports each named part as
+float32 RGBA at its data-window origin. Composited mode alpha-overs later file
+parts over earlier parts across the union of their data windows. Deep parts are
+refused because they are not two-dimensional image layers.
+
+Layered decoding enforces the image-count, aggregate decoded-byte, dimension,
+and working-memory ceilings before codec pixel allocation. Its conservative
+working bound includes codec planar storage, interleaved staging, padded tiles,
+tile metadata, and—in multipart composited mode—the union output. Progress and
+cancellation use the same synchronous phases as flat decoding, and no names,
+metadata, or pixels are published until the whole request succeeds.
 
 An explicit caller colour-space declaration overrides metadata. Otherwise an
 embedded PNG sRGB declaration is used, followed by the automatic semantic rule.
@@ -69,7 +82,7 @@ Unsupported ICC profiles are reported before the automatic rule is applied.
 
 LodePNG is pinned for memory-based 8/16-bit PNG encoding and decoding. The
 pinned stb implementation decodes JPEG, TGA, BMP, flattened PSD and Radiance
-HDR and encodes JPEG and TGA. Flat OpenEXR uses pinned TinyEXR and its bundled
+HDR and encodes JPEG and TGA. OpenEXR uses pinned TinyEXR and its bundled
 miniz implementation. Revisions and licence texts are recorded in the
 dependency manifest and third-party notices; baseline TIFF is implemented
 locally.

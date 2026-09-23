@@ -116,8 +116,9 @@ The current implementation provides:
   modifying committed document pixels.
 - Linear Rec. 709 and sRGB colour transforms, semantic input policies,
   preview-only 3D LUTs, ordered dithering, and promoted-precision operations.
-- Memory-buffer decoding for PNG, JPEG, TGA, BMP, baseline TIFF, flat OpenEXR,
-  Radiance HDR, and flattened PSD, with content-based detection, extension-
+- Memory-buffer decoding for PNG, JPEG, TGA, BMP, baseline TIFF, OpenEXR,
+  Radiance HDR, and PSD, including named PSD layers and multipart OpenEXR parts
+  in composited or individual mode, with content-based detection, extension-
   mismatch reporting, allocation limits, 8/16-bit preservation where carried,
   and unclamped floating-point HDR input. Memory encoding covers PNG, JPEG,
   TGA, baseline TIFF, and flat OpenEXR.
