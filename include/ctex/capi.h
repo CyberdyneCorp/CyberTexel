@@ -96,7 +96,8 @@ typedef enum ctex_diagnostic_code {
     CTEX_DIAGNOSTIC_INVALID_MATERIAL_GRAPH = 57,
     CTEX_DIAGNOSTIC_INVALID_SHADER_EMISSION = 58,
     CTEX_DIAGNOSTIC_INVALID_MESH_MAP = 59,
-    CTEX_DIAGNOSTIC_INVALID_TILE_HISTORY = 60
+    CTEX_DIAGNOSTIC_INVALID_TILE_HISTORY = 60,
+    CTEX_DIAGNOSTIC_INVALID_OPERATION_RECORD = 61
 } ctex_diagnostic_code;
 
 typedef enum ctex_log_severity {
@@ -4635,6 +4636,96 @@ typedef struct ctex_project_resource_descriptor {
 #define CTEX_PROJECT_RESOURCE_DESCRIPTOR_CURRENT_SIZE \
     ((uint32_t)sizeof(ctex_project_resource_descriptor))
 
+typedef enum ctex_operation_replay_class {
+    CTEX_OPERATION_REPLAY_CHECKPOINT_ONLY = 0,
+    CTEX_OPERATION_REPLAY_SAME_RESOLUTION = 1,
+    CTEX_OPERATION_REPLAY_RESOLUTION_INDEPENDENT = 2
+} ctex_operation_replay_class;
+
+typedef enum ctex_operation_payload_kind {
+    CTEX_OPERATION_PAYLOAD_RESOLVED_STAMPS = 0,
+    CTEX_OPERATION_PAYLOAD_EDITABLE_SOURCE_PATH = 1,
+    CTEX_OPERATION_PAYLOAD_OPAQUE_ALGORITHM_DATA = 2
+} ctex_operation_payload_kind;
+
+typedef struct ctex_operation_channel_descriptor {
+    uint32_t size;
+    const char* semantic_id;
+    uint32_t component_count;
+    uint32_t scalar_representation;
+    uint32_t bit_depth;
+    uint32_t color_space;
+    const double* default_value;
+    size_t default_value_count;
+} ctex_operation_channel_descriptor;
+
+#define CTEX_OPERATION_CHANNEL_DESCRIPTOR_V1_SIZE \
+    ((uint32_t)sizeof(ctex_operation_channel_descriptor))
+#define CTEX_OPERATION_CHANNEL_DESCRIPTOR_CURRENT_SIZE \
+    ((uint32_t)sizeof(ctex_operation_channel_descriptor))
+
+typedef struct ctex_pinned_operation_resource_descriptor {
+    uint32_t size;
+    const char* role;
+    const char* content_identity;
+    const void* bytes;
+    size_t byte_count;
+} ctex_pinned_operation_resource_descriptor;
+
+#define CTEX_PINNED_OPERATION_RESOURCE_DESCRIPTOR_V1_SIZE \
+    ((uint32_t)sizeof(ctex_pinned_operation_resource_descriptor))
+#define CTEX_PINNED_OPERATION_RESOURCE_DESCRIPTOR_CURRENT_SIZE \
+    ((uint32_t)sizeof(ctex_pinned_operation_resource_descriptor))
+
+typedef struct ctex_operation_record_descriptor {
+    uint32_t size;
+    const char* identifier;
+    const char* algorithm_identifier;
+    uint32_t algorithm_version;
+    const char* preset_identifier;
+    uint32_t preset_version;
+    uint32_t replay_class;
+    uint64_t input_document_revision;
+    uint64_t seed;
+    const char* mesh_content_identity;
+    double coordinate_frame[16];
+    uint32_t payload_kind;
+    uint32_t payload_version;
+    const ctex_operation_channel_descriptor* channels;
+    size_t channel_count;
+    const ctex_pinned_operation_resource_descriptor* pinned_resources;
+    size_t pinned_resource_count;
+    const char* const* checkpoint_image_identifiers;
+    size_t checkpoint_image_count;
+    const void* payload;
+    size_t payload_size;
+} ctex_operation_record_descriptor;
+
+#define CTEX_OPERATION_RECORD_DESCRIPTOR_V1_SIZE \
+    ((uint32_t)sizeof(ctex_operation_record_descriptor))
+#define CTEX_OPERATION_RECORD_DESCRIPTOR_CURRENT_SIZE \
+    ((uint32_t)sizeof(ctex_operation_record_descriptor))
+
+typedef struct ctex_operation_record_info {
+    uint32_t size;
+    uint32_t schema_version;
+    uint32_t replay_class;
+    uint32_t payload_kind;
+    uint32_t payload_version;
+    uint64_t input_document_revision;
+    uint64_t seed;
+    size_t channel_count;
+    size_t pinned_resource_count;
+    size_t checkpoint_image_count;
+    size_t pinned_resource_bytes;
+    size_t payload_size;
+    size_t canonical_size;
+    size_t report_size;
+} ctex_operation_record_info;
+
+#define CTEX_OPERATION_RECORD_INFO_V1_SIZE ((uint32_t)sizeof(ctex_operation_record_info))
+#define CTEX_OPERATION_RECORD_INFO_CURRENT_SIZE ((uint32_t)sizeof(ctex_operation_record_info))
+
 typedef struct ctex_preset_shelf_entry_descriptor {
     uint32_t size;
     const char* asset_identifier;
@@ -5598,6 +5689,30 @@ CTEX_API ctex_result ctex_project_asset_install(
     const ctex_project_asset_search_paths_descriptor* search_paths,
     ctex_project_container_info* out_info, void* library_output, size_t library_output_size,
     char* report_output, size_t report_output_size);
+
+/* Creates or validates a canonical, self-contained editable operation record. */
+CTEX_API ctex_result ctex_operation_record_create(
+    const ctex_operation_record_descriptor* descriptor, ctex_operation_record_info* out_info,
+    void* canonical_output, size_t canonical_output_size, char* report_output,
+    size_t report_output_size);
+CTEX_API ctex_result ctex_operation_record_inspect(const void* serialized, size_t serialized_size,
+                                                   ctex_operation_record_info* out_info,
+                                                   void* canonical_output,
+                                                   size_t canonical_output_size,
+                                                   char* report_output, size_t report_output_size);
+
+/* Atomically adds or replaces one operation-record asset in canonical project bytes. */
+CTEX_API ctex_result ctex_project_container_upsert_operation_record(
+    const void* project_encoded, size_t project_encoded_size,
+    const ctex_project_container_read_limits_descriptor* limits, const void* record_serialized,
+    size_t record_serialized_size, ctex_project_container_info* out_info, void* project_output,
+    size_t project_output_size, char* report_output, size_t report_output_size);
+
+/* Extracts one operation record from canonical project bytes. */
+CTEX_API ctex_result ctex_project_container_get_operation_record(
+    const void* project_encoded, size_t project_encoded_size,
+    const ctex_project_container_read_limits_descriptor* limits, const char* record_identifier,
+    void* record_output, size_t record_output_size, size_t* out_required_size);
 
 /*
  * Returns every built-in node schema and the documented scalar/vector math

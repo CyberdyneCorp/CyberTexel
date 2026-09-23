@@ -366,6 +366,10 @@ The public delta-query and explicit-readback operations are also the exact host
 transport paths that task 17 will benchmark. Mapping their C surface reduces the
 task-14.8 gap to 10 requirements without claiming the deferred numeric device
 gate.
+Versioned operation records now have a canonical bounded core format and C ABI.
+They own pinned input bytes, name raster checkpoint dependencies, and round-trip
+through the project container without consulting mutable shelf content. Task
+20.1 remains open until all three language bindings expose this surface.
 
 ## Milestones
 

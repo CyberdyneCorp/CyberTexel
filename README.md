@@ -130,7 +130,9 @@ The current implementation provides:
   the paint thread, quiesce against host lifecycle deadlines, and expose restart
   recovery candidates with their durable revision. The same container
   supports [referenced or self-contained standalone asset packages](docs/standalone-assets.md)
-  for materials, smart content, brushes, presets, and node groups.
+  for materials, smart content, brushes, presets, and node groups, plus
+  canonical [versioned operation records](docs/operation-records.md) with pinned
+  replay inputs and raster checkpoint dependencies.
 - Data-only [texture export presets](docs/export-presets.md) with a documented
   channel-token vocabulary, exact metallic/roughness derivations, registered
   channel and named mesh-map addressing, and six built-in PBR packing

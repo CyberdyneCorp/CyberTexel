@@ -240,6 +240,7 @@ ctex_add_module(
         src/io/texture_export.cpp
         src/io/project_container.cpp
         src/io/project_autosave.cpp
+        src/io/operation_record.cpp
         src/io/standalone_asset.cpp
         src/io/smart_material_package.cpp
         src/io/preset_library.cpp
@@ -474,6 +475,10 @@ if(BUILD_TESTING)
         target_link_libraries(ctex_capi_project_container_content_test PRIVATE cybertexel)
         add_test(NAME c-abi-project-container-content
                  COMMAND ctex_capi_project_container_content_test)
+        add_executable(ctex_capi_operation_record_test tests/capi/operation_record_test.c)
+        ctex_configure_c_target(ctex_capi_operation_record_test)
+        target_link_libraries(ctex_capi_operation_record_test PRIVATE cybertexel_c)
+        add_test(NAME c-abi-operation-record COMMAND ctex_capi_operation_record_test)
         add_executable(ctex_capi_material_graph_catalogue_test
                        tests/capi/material_graph_catalogue_test.c)
         ctex_configure_c_target(ctex_capi_material_graph_catalogue_test)
@@ -672,6 +677,10 @@ if(BUILD_TESTING)
     ctex_configure_cpp_target(ctex_project_autosave_test)
     target_link_libraries(ctex_project_autosave_test PRIVATE cybertexel)
     add_test(NAME project-autosave COMMAND ctex_project_autosave_test)
+    add_executable(ctex_operation_record_test tests/io/operation_record_test.cpp)
+    ctex_configure_cpp_target(ctex_operation_record_test)
+    target_link_libraries(ctex_operation_record_test PRIVATE cybertexel)
+    add_test(NAME operation-record COMMAND ctex_operation_record_test)
     add_executable(ctex_standalone_asset_test tests/io/standalone_asset_test.cpp)
     ctex_configure_cpp_target(ctex_standalone_asset_test)
     target_link_libraries(ctex_standalone_asset_test PRIVATE cybertexel)
@@ -1669,6 +1678,8 @@ if(BUILD_TESTING)
         project-autosave
         c-abi-project-autosave
         standalone-asset
+        operation-record
+        c-abi-operation-record
         export-presets
         texture-export-formats
         texture-export-plan

@@ -14,7 +14,7 @@ already present.
 
 | OpenSpec scenario | Executable evidence | Covered behavior |
 | --- | --- | --- |
-| Round trip | `project-container`, `standalone-asset` | Tiled pixels, resources, standalone assets and opaque sections round-trip exactly; complete layer/history/editable payloads extend this schema with tasks 3.9 and 20.1–20.4 |
+| Round trip | `project-container`, `standalone-asset`, `operation-record`, `c-abi-operation-record` | Tiled pixels, resources, standalone assets, versioned operation records with pinned inputs and raster checkpoints, and opaque sections round-trip exactly; complete layer/history/editable objects extend this schema with tasks 3.9 and 20.2–20.4 |
 | Newer file on an older build | `project-container` | Unknown newer sections and tile/resource encodings are reported, retained and re-saved byte-for-byte |
 | Probing a file | `project-container`, `version-consistency` | The fixed header exposes the shared schema version without decoding the body |
 | Sparse document | `project-container`, `project-autosave` | A 16K image with isolated painted tiles serializes only those occupied tiles and exact edge extents |
@@ -30,7 +30,7 @@ already present.
 | Declared size exceeds the file | `project-container` | Truncated declared section, record and payload sizes are rejected before declared-size allocation |
 | Fuzzing gate | `just fuzz-project-container` | A deterministic 20,000-input libFuzzer campaign runs with ASan/UBSan and bounded parser allocations |
 | Reproducible save | `project-container-determinism` | Two clean atomic saves of unchanged sparse content are byte-identical |
-| Older reader lacks a replay algorithm | `project-container` | Unknown versioned content stays opaque and raster checkpoints remain readable; explicit replay records and diagnostics complete with tasks 20.1–20.2 |
+| Older reader lacks a replay algorithm | `project-container`, `operation-record` | Unknown versioned content stays opaque and raster checkpoints remain readable; operation records name their algorithm and payload versions, while replay-eligibility diagnostics complete with task 20.2 |
 
 ## Texture export
 

@@ -16,6 +16,11 @@ while `save_project_snapshot_atomic` additionally compresses and atomically
 publishes the result. Those operations are intended for a worker, not the paint
 thread.
 
+Snapshot metadata retains standalone [operation records](operation-records.md)
+alongside their named checkpoint images. Because both are normal project
+sections, periodic autosave and recovery preserve their canonical bytes and
+pinned inputs without a separate replay sidecar.
+
 ## Periodic autosave
 
 `ProjectAutosaveSession` owns one worker and one stable recovery path. Its

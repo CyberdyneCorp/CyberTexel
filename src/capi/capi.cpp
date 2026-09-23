@@ -24,6 +24,7 @@
 #include <ctex/image/color_policy.hpp>
 #include <ctex/image/resampling.hpp>
 #include <ctex/io/image_io.hpp>
+#include <ctex/io/operation_record.hpp>
 #include <ctex/io/preset_library.hpp>
 #include <ctex/io/project_autosave.hpp>
 #include <ctex/io/project_container.hpp>
@@ -73,6 +74,7 @@
 #include <limits>
 #include <mutex>
 #include <new>
+#include <numeric>
 #include <optional>
 #include <stdexcept>
 #include <string>
@@ -6938,6 +6940,257 @@ void append_project_asset_json(std::string& output, const ctex::io::StandaloneAs
     output += ",\"payload_bytes\":" + std::to_string(asset.payload.size()) + "}";
 }
 
+[[noreturn]] void throw_operation_record_error(const ctex::io::OperationRecordError& error) {
+    throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_INVALID_OPERATION_RECORD,
+                   error.what());
+}
+
+void append_operation_channels(ctex::io::EditableOperationRecord& record,
+                               const ctex_operation_record_descriptor& descriptor) {
+    record.channels.reserve(descriptor.channel_count);
+    for (std::size_t index = 0; index < descriptor.channel_count; ++index) {
+        const ctex_operation_channel_descriptor& source = descriptor.channels[index];
+        validate_structure_size(source.size, CTEX_OPERATION_CHANNEL_DESCRIPTOR_V1_SIZE,
+                                CTEX_OPERATION_CHANNEL_DESCRIPTOR_CURRENT_SIZE,
+                                "operation channel descriptor size");
+        if (source.semantic_id == nullptr ||
+            (source.default_value == nullptr && source.default_value_count != 0)) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                           "operation channel contains a required null pointer");
+        }
+        const ctex::image::PixelFormat format = image_pixel_format(
+            source.component_count, source.scalar_representation, source.bit_depth);
+        record.channels.push_back(
+            {.semantic_id = source.semantic_id,
+             .format = format,
+             .color_space = color_space(source.color_space),
+             .default_value =
+                 source.default_value_count == 0
+                     ? std::vector<double>{}
+                     : std::vector<double>(source.default_value,
+                                           source.default_value + source.default_value_count)});
+    }
+}
+
+void append_pinned_operation_resources(ctex::io::EditableOperationRecord& record,
+                                       const ctex_operation_record_descriptor& descriptor) {
+    record.pinned_resources.reserve(descriptor.pinned_resource_count);
+    for (std::size_t index = 0; index < descriptor.pinned_resource_count; ++index) {
+        const ctex_pinned_operation_resource_descriptor& source =
+            descriptor.pinned_resources[index];
+        validate_structure_size(source.size, CTEX_PINNED_OPERATION_RESOURCE_DESCRIPTOR_V1_SIZE,
+                                CTEX_PINNED_OPERATION_RESOURCE_DESCRIPTOR_CURRENT_SIZE,
+                                "pinned operation resource descriptor size");
+        if (source.role == nullptr || source.content_identity == nullptr ||
+            (source.bytes == nullptr && source.byte_count != 0)) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                           "pinned operation resource contains a required null pointer");
+        }
+        const auto* begin = static_cast<const std::byte*>(source.bytes);
+        record.pinned_resources.push_back(
+            {.role = source.role,
+             .content_identity = source.content_identity,
+             .bytes = source.byte_count == 0
+                          ? std::vector<std::byte>{}
+                          : std::vector<std::byte>(begin, begin + source.byte_count)});
+    }
+}
+
+void append_operation_checkpoints(ctex::io::EditableOperationRecord& record,
+                                  const ctex_operation_record_descriptor& descriptor) {
+    record.checkpoint_image_identifiers.reserve(descriptor.checkpoint_image_count);
+    for (std::size_t index = 0; index < descriptor.checkpoint_image_count; ++index) {
+        if (descriptor.checkpoint_image_identifiers[index] == nullptr) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                           "checkpoint image identity is null");
+        }
+        record.checkpoint_image_identifiers.emplace_back(
+            descriptor.checkpoint_image_identifiers[index]);
+    }
+}
+
+ctex::io::EditableOperationRecord operation_record(
+    const ctex_operation_record_descriptor& descriptor) {
+    validate_structure_size(descriptor.size, CTEX_OPERATION_RECORD_DESCRIPTOR_V1_SIZE,
+                            CTEX_OPERATION_RECORD_DESCRIPTOR_CURRENT_SIZE,
+                            "operation record descriptor size");
+    if (descriptor.identifier == nullptr || descriptor.algorithm_identifier == nullptr ||
+        descriptor.preset_identifier == nullptr || descriptor.mesh_content_identity == nullptr ||
+        (descriptor.channels == nullptr && descriptor.channel_count != 0) ||
+        (descriptor.pinned_resources == nullptr && descriptor.pinned_resource_count != 0) ||
+        (descriptor.checkpoint_image_identifiers == nullptr &&
+         descriptor.checkpoint_image_count != 0) ||
+        (descriptor.payload == nullptr && descriptor.payload_size != 0)) {
+        throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                       "operation-record descriptor contains a required null pointer");
+    }
+    if (descriptor.replay_class > CTEX_OPERATION_REPLAY_RESOLUTION_INDEPENDENT ||
+        descriptor.payload_kind > CTEX_OPERATION_PAYLOAD_OPAQUE_ALGORITHM_DATA) {
+        throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_INVALID_ENUM_VALUE,
+                       "operation-record replay class or payload kind is invalid");
+    }
+    ctex::io::EditableOperationRecord record{
+        .identifier = descriptor.identifier,
+        .algorithm_identifier = descriptor.algorithm_identifier,
+        .algorithm_version = descriptor.algorithm_version,
+        .preset_identifier = descriptor.preset_identifier,
+        .preset_version = descriptor.preset_version,
+        .replay_class = static_cast<ctex::io::OperationReplayClass>(descriptor.replay_class),
+        .input_document_revision = descriptor.input_document_revision,
+        .seed = descriptor.seed,
+        .mesh_content_identity = descriptor.mesh_content_identity,
+        .payload_kind = static_cast<ctex::io::OperationPayloadKind>(descriptor.payload_kind),
+        .payload_version = descriptor.payload_version,
+    };
+    std::copy(std::begin(descriptor.coordinate_frame), std::end(descriptor.coordinate_frame),
+              record.coordinate_frame.begin());
+    append_operation_channels(record, descriptor);
+    append_pinned_operation_resources(record, descriptor);
+    append_operation_checkpoints(record, descriptor);
+    if (descriptor.payload_size != 0) {
+        const auto* begin = static_cast<const std::byte*>(descriptor.payload);
+        record.payload.assign(begin, begin + descriptor.payload_size);
+    }
+    try {
+        ctex::io::validate_operation_record(record);
+    } catch (const ctex::io::OperationRecordError& error) {
+        throw_operation_record_error(error);
+    }
+    return record;
+}
+
+void append_operation_record_json(std::string& output,
+                                  const ctex::io::EditableOperationRecord& record) {
+    output = "{\"schema_version\":" + std::to_string(record.schema_version) + ",\"id\":";
+    append_json_text(output, record.identifier);
+    output += ",\"algorithm\":";
+    append_json_text(output, record.algorithm_identifier);
+    output += ",\"algorithm_version\":" + std::to_string(record.algorithm_version) + ",\"preset\":";
+    append_json_text(output, record.preset_identifier);
+    output +=
+        ",\"preset_version\":" + std::to_string(record.preset_version) +
+        ",\"replay_class\":" + std::to_string(static_cast<std::uint32_t>(record.replay_class)) +
+        ",\"input_revision\":" + std::to_string(record.input_document_revision) +
+        ",\"seed\":" + std::to_string(record.seed) + ",\"mesh_content_identity\":";
+    append_json_text(output, record.mesh_content_identity);
+    output += ",\"coordinate_frame\":[";
+    for (std::size_t index = 0; index < record.coordinate_frame.size(); ++index) {
+        if (index != 0) output.push_back(',');
+        output += std::to_string(record.coordinate_frame[index]);
+    }
+    output +=
+        "],\"payload_kind\":" + std::to_string(static_cast<std::uint32_t>(record.payload_kind)) +
+        ",\"payload_version\":" + std::to_string(record.payload_version) +
+        ",\"payload_bytes\":" + std::to_string(record.payload.size()) + ",\"channels\":[";
+    for (std::size_t index = 0; index < record.channels.size(); ++index) {
+        if (index != 0) output.push_back(',');
+        const ctex::io::OperationChannelRecord& channel = record.channels[index];
+        output += "{\"semantic\":";
+        append_json_text(output, channel.semantic_id);
+        output += ",\"components\":" + std::to_string(channel.format.channel_count) +
+                  ",\"bit_depth\":" + std::to_string(channel.format.bytes_per_channel() * 8) + "}";
+    }
+    output += "],\"pinned_resources\":[";
+    for (std::size_t index = 0; index < record.pinned_resources.size(); ++index) {
+        if (index != 0) output.push_back(',');
+        const ctex::io::PinnedOperationResource& resource = record.pinned_resources[index];
+        output += "{\"role\":";
+        append_json_text(output, resource.role);
+        output += ",\"content_identity\":";
+        append_json_text(output, resource.content_identity);
+        output += ",\"bytes\":" + std::to_string(resource.bytes.size()) + "}";
+    }
+    output += "],\"checkpoint_images\":[";
+    for (std::size_t index = 0; index < record.checkpoint_image_identifiers.size(); ++index) {
+        if (index != 0) output.push_back(',');
+        append_json_text(output, record.checkpoint_image_identifiers[index]);
+    }
+    output += "]}";
+}
+
+struct PreparedOperationRecord {
+    ctex::io::EditableOperationRecord record;
+    std::vector<std::byte> canonical;
+    std::string report;
+    ctex_operation_record_info info{};
+};
+
+PreparedOperationRecord prepare_operation_record(ctex::io::EditableOperationRecord record) {
+    std::vector<std::byte> canonical;
+    try {
+        canonical = ctex::io::serialize_operation_record(record);
+    } catch (const ctex::io::OperationRecordError& error) {
+        throw_operation_record_error(error);
+    }
+    std::string report;
+    append_operation_record_json(report, record);
+    const std::size_t pinned_bytes = std::accumulate(
+        record.pinned_resources.begin(), record.pinned_resources.end(), std::size_t{0},
+        [](std::size_t total, const auto& resource) { return total + resource.bytes.size(); });
+    const ctex_operation_record_info info{
+        .size = CTEX_OPERATION_RECORD_INFO_CURRENT_SIZE,
+        .schema_version = record.schema_version,
+        .replay_class = static_cast<std::uint32_t>(record.replay_class),
+        .payload_kind = static_cast<std::uint32_t>(record.payload_kind),
+        .payload_version = record.payload_version,
+        .input_document_revision = record.input_document_revision,
+        .seed = record.seed,
+        .channel_count = record.channels.size(),
+        .pinned_resource_count = record.pinned_resources.size(),
+        .checkpoint_image_count = record.checkpoint_image_identifiers.size(),
+        .pinned_resource_bytes = pinned_bytes,
+        .payload_size = record.payload.size(),
+        .canonical_size = canonical.size(),
+        .report_size = report.size() + 1,
+    };
+    return {.record = std::move(record),
+            .canonical = std::move(canonical),
+            .report = std::move(report),
+            .info = info};
+}
+
+PreparedOperationRecord prepare_operation_record(std::span<const std::byte> serialized) {
+    try {
+        return prepare_operation_record(ctex::io::deserialize_operation_record(serialized));
+    } catch (const ctex::io::OperationRecordError& error) {
+        throw_operation_record_error(error);
+    }
+}
+
+void validate_operation_record_outputs(const PreparedOperationRecord& prepared, void* canonical,
+                                       std::size_t canonical_size, char* report,
+                                       std::size_t report_size) {
+    validate_string_buffer(static_cast<char*>(canonical), canonical_size,
+                           prepared.info.canonical_size);
+    validate_string_buffer(report, report_size, prepared.info.report_size);
+}
+
+void write_operation_record_outputs(const PreparedOperationRecord& prepared, void* canonical,
+                                    char* report) {
+    if (canonical != nullptr) {
+        std::memcpy(canonical, prepared.canonical.data(), prepared.canonical.size());
+    }
+    if (report != nullptr) {
+        std::memcpy(report, prepared.report.c_str(), prepared.info.report_size);
+    }
+}
+
+void upsert_operation_record_asset(ctex::io::ProjectContainer& project,
+                                   const ctex::io::EditableOperationRecord& record) {
+    ctex::io::StandaloneAsset asset = ctex::io::package_operation_record(record);
+    const auto existing =
+        std::ranges::find(project.assets, asset.identifier, &ctex::io::StandaloneAsset::identifier);
+    if (existing == project.assets.end()) {
+        project.assets.push_back(std::move(asset));
+        return;
+    }
+    if (existing->kind != ctex::io::operation_record_asset_kind) {
+        throw ctex::io::OperationRecordError(
+            "operation record identity belongs to another asset kind");
+    }
+    *existing = std::move(asset);
+}
+
 std::string project_container_report_json(const ctex::io::ProjectContainerReadResult& read) {
     const ctex::io::ProjectContainer& container = read.container;
     std::string output =
@@ -12344,6 +12597,131 @@ extern "C" ctex_result ctex_project_asset_install(
             validate_project_container_outputs(prepared, library_output, library_output_size,
                                                report_output, report_output_size);
             write_project_container_outputs(prepared, library_output, report_output);
+        } catch (const ctex::io::ProjectContainerError& error) {
+            throw_project_container_error(error);
+        }
+    });
+}
+
+extern "C" ctex_result ctex_operation_record_create(
+    const ctex_operation_record_descriptor* descriptor, ctex_operation_record_info* out_info,
+    void* canonical_output, std::size_t canonical_output_size, char* report_output,
+    std::size_t report_output_size) {
+    return call_boundary("ctex_operation_record_create", [&] {
+        if (descriptor == nullptr || out_info == nullptr) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                           descriptor == nullptr ? "descriptor=null" : "out_info=null");
+        }
+        validate_structure_size(out_info->size, CTEX_OPERATION_RECORD_INFO_V1_SIZE,
+                                CTEX_OPERATION_RECORD_INFO_CURRENT_SIZE,
+                                "operation record info size");
+        PreparedOperationRecord prepared = prepare_operation_record(operation_record(*descriptor));
+        *out_info = prepared.info;
+        validate_operation_record_outputs(prepared, canonical_output, canonical_output_size,
+                                          report_output, report_output_size);
+        write_operation_record_outputs(prepared, canonical_output, report_output);
+    });
+}
+
+extern "C" ctex_result ctex_operation_record_inspect(
+    const void* serialized, std::size_t serialized_size, ctex_operation_record_info* out_info,
+    void* canonical_output, std::size_t canonical_output_size, char* report_output,
+    std::size_t report_output_size) {
+    return call_boundary("ctex_operation_record_inspect", [&] {
+        if ((serialized == nullptr && serialized_size != 0) || out_info == nullptr) {
+            throw_boundary(
+                CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                out_info == nullptr ? "out_info=null" : "serialized=null with nonzero size");
+        }
+        validate_structure_size(out_info->size, CTEX_OPERATION_RECORD_INFO_V1_SIZE,
+                                CTEX_OPERATION_RECORD_INFO_CURRENT_SIZE,
+                                "operation record info size");
+        const auto bytes = serialized_size == 0
+                               ? std::span<const std::byte>{}
+                               : std::span<const std::byte>(
+                                     static_cast<const std::byte*>(serialized), serialized_size);
+        PreparedOperationRecord prepared = prepare_operation_record(bytes);
+        *out_info = prepared.info;
+        validate_operation_record_outputs(prepared, canonical_output, canonical_output_size,
+                                          report_output, report_output_size);
+        write_operation_record_outputs(prepared, canonical_output, report_output);
+    });
+}
+
+extern "C" ctex_result ctex_project_container_upsert_operation_record(
+    const void* project_encoded, std::size_t project_encoded_size,
+    const ctex_project_container_read_limits_descriptor* limits, const void* record_serialized,
+    std::size_t record_serialized_size, ctex_project_container_info* out_info, void* project_output,
+    std::size_t project_output_size, char* report_output, std::size_t report_output_size) {
+    return call_boundary("ctex_project_container_upsert_operation_record", [&] {
+        if ((record_serialized == nullptr && record_serialized_size != 0) || out_info == nullptr) {
+            throw_boundary(
+                CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                out_info == nullptr ? "out_info=null" : "record_serialized=null with nonzero size");
+        }
+        validate_structure_size(out_info->size, CTEX_PROJECT_CONTAINER_INFO_V1_SIZE,
+                                CTEX_PROJECT_CONTAINER_INFO_CURRENT_SIZE,
+                                "project container info size");
+        const auto record_bytes =
+            record_serialized_size == 0
+                ? std::span<const std::byte>{}
+                : std::span<const std::byte>(static_cast<const std::byte*>(record_serialized),
+                                             record_serialized_size);
+        PreparedOperationRecord record = prepare_operation_record(record_bytes);
+        try {
+            ctex::io::ProjectContainerReadResult project = ctex::io::read_project_container(
+                project_container_bytes(project_encoded, project_encoded_size),
+                project_container_limits(limits));
+            upsert_operation_record_asset(project.container, record.record);
+            PreparedProjectContainer prepared =
+                prepare_project_container(project_container_result(std::move(project.container)));
+            *out_info = prepared.info;
+            validate_project_container_outputs(prepared, project_output, project_output_size,
+                                               report_output, report_output_size);
+            write_project_container_outputs(prepared, project_output, report_output);
+        } catch (const ctex::io::OperationRecordError& error) {
+            throw_operation_record_error(error);
+        } catch (const ctex::io::ProjectContainerError& error) {
+            throw_project_container_error(error);
+        }
+    });
+}
+
+extern "C" ctex_result ctex_project_container_get_operation_record(
+    const void* project_encoded, std::size_t project_encoded_size,
+    const ctex_project_container_read_limits_descriptor* limits, const char* record_identifier,
+    void* record_output, std::size_t record_output_size, std::size_t* out_required_size) {
+    return call_boundary("ctex_project_container_get_operation_record", [&] {
+        if (record_identifier == nullptr || out_required_size == nullptr) {
+            throw_boundary(
+                CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                record_identifier == nullptr ? "record_identifier=null" : "out_required_size=null");
+        }
+        try {
+            const ctex::io::ProjectContainerReadResult project = ctex::io::read_project_container(
+                project_container_bytes(project_encoded, project_encoded_size),
+                project_container_limits(limits));
+            const auto asset =
+                std::ranges::find(project.container.assets, std::string_view(record_identifier),
+                                  [](const ctex::io::StandaloneAsset& value) {
+                                      return std::string_view(value.identifier);
+                                  });
+            if (asset == project.container.assets.end() ||
+                asset->kind != ctex::io::operation_record_asset_kind) {
+                throw_boundary(
+                    CTEX_RESULT_MISSING_RESOURCE, CTEX_DIAGNOSTIC_INVALID_OPERATION_RECORD,
+                    "project operation record is missing: " + std::string(record_identifier));
+            }
+            const std::vector<std::byte> canonical =
+                ctex::io::serialize_operation_record(ctex::io::unpack_operation_record(*asset));
+            *out_required_size = canonical.size();
+            validate_string_buffer(static_cast<char*>(record_output), record_output_size,
+                                   canonical.size());
+            if (record_output != nullptr) {
+                std::memcpy(record_output, canonical.data(), canonical.size());
+            }
+        } catch (const ctex::io::OperationRecordError& error) {
+            throw_operation_record_error(error);
         } catch (const ctex::io::ProjectContainerError& error) {
             throw_project_container_error(error);
         }

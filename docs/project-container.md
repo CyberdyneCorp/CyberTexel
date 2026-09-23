@@ -135,6 +135,13 @@ package containing one asset and its exact dependencies, while
 `ctex_project_asset_install` resolves any referenced resources through caller
 search paths and atomically returns an updated encoded library container.
 
+Versioned [operation records](operation-records.md) use the standalone asset
+section with kind `operation-record`. Their payload owns pinned replay inputs,
+while their tiled-image dependencies name raster checkpoints stored in the same
+container. Dedicated C entry points create, inspect, insert, replace, and
+retrieve these records without exposing C++ objects.
+
 The current in-memory `ProjectContainer` is the extensible framing, tiled pixel,
-portable resource, and standalone asset foundation. The complete document
-object schema is added by subsequent project-I/O roadmap tasks.
+portable resource, standalone asset, and operation-record foundation. The
+complete document object schema is added by subsequent project-I/O roadmap
+tasks.

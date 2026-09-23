@@ -323,3 +323,7 @@ EXPORTS
     ctex_texture_set_read_udim_pixel
     ctex_texture_set_register_channel
     ctex_texture_set_set_channel_enabled
+    ctex_operation_record_create
+    ctex_operation_record_inspect
+    ctex_project_container_upsert_operation_record
+    ctex_project_container_get_operation_record

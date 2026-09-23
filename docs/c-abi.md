@@ -606,6 +606,20 @@ two-call byte-and-report output contract as normalization. A null search-path
 descriptor can install a package only when all required resources are already
 packed.
 
+`ctex_operation_record_create` validates algorithm, preset, replay, channel,
+mesh-frame, pinned-input, checkpoint, and payload metadata and returns a
+canonical versioned record plus JSON inventory. `ctex_operation_record_inspect`
+applies the same validation to existing bytes. The inventory exposes content
+identities and byte counts but never duplicates pinned payload bytes.
+
+`ctex_project_container_upsert_operation_record` installs the canonical record
+as an `operation-record` standalone asset and refuses to replace an asset of a
+different kind. `ctex_project_container_get_operation_record` retrieves the
+named record only after validating agreement between the asset metadata,
+checkpoint dependencies, and payload. These functions follow the usual
+caller-owned sizing contract and are described with the binary format in
+[Versioned operation records](operation-records.md).
+
 ## Smart materials
 
 The smart-material boundary accepts the canonical versioned serialization used

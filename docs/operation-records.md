@@ -1,0 +1,59 @@
+# Versioned operation records
+
+An `EditableOperationRecord` captures the deterministic inputs needed to replay
+an eligible edit without consulting mutable shelf content. Each record carries
+its schema version, stable identity, algorithm and preset identities and
+versions, input document revision, deterministic seed, mesh content identity,
+finite coordinate frame, channel descriptors, and a versioned operation
+payload.
+
+The replay class is explicit:
+
+- `checkpoint_only` requires at least one raster checkpoint image;
+- `same_resolution` may replay only at the recorded document resolution; and
+- `resolution_independent` may be considered by a later resize/replay policy.
+
+The record format does not itself decide replay eligibility or perform replay.
+Those policies remain part of editable-authoring task 20.2.
+
+## Pinned inputs and checkpoints
+
+Pinned resources are copied into the record with a role and content identity.
+Replay therefore observes the recorded bytes even if a shelf file is edited or
+removed later. Resource roles and content identities must each be unique.
+
+Checkpoint images are named by stable tiled-image identifiers. Packaging a
+record as a project standalone asset records those identifiers as explicit image
+dependencies. Pinned resource bytes remain inside the operation-record payload,
+so they have no external project-resource dependency.
+
+Project containers store the asset with kind `operation-record`, format version
+1, and the canonical record bytes. The normal container framing, input limits,
+atomic save, snapshots, autosave, and recovery preserve the record and its
+raster dependencies without a separate sidecar.
+
+## Canonical binary format
+
+The little-endian format starts with `CTEXOPR\0` and a schema version. It is
+length-delimited, deterministic, and rejects truncated data, trailing bytes,
+unknown enum values, invalid channels, non-finite numeric values, duplicate
+identities, incomplete metadata, and configured input or aggregate payload
+limits. Serializing an unchanged record produces identical bytes.
+
+## C ABI
+
+`ctex_operation_record_create` validates a versioned descriptor and returns
+canonical bytes plus a JSON inventory through caller-owned buffers.
+`ctex_operation_record_inspect` validates existing bytes and returns the same
+canonical representation and inventory. Both use the standard sizing-call
+contract.
+
+`ctex_project_container_upsert_operation_record` inserts or replaces a record
+without replacing an asset of another kind.
+`ctex_project_container_get_operation_record` retrieves and validates a named
+record. Project-container read limits continue to bound the enclosing untrusted
+container; operation-record decoding additionally applies its own bounded
+defaults.
+
+Python, Swift, and Rust wrappers are still required before editable-authoring
+task 20.1 is complete.

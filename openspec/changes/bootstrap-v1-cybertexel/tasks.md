@@ -1306,6 +1306,14 @@ readback operations. Mapping those C entry points reduces the task-14.8 gap to
 10 requirements after the referenced-mesh correction; numeric device budgets
 remain open in group 17.
 
+Task 20.1 now has its core and C-boundary foundation. Canonical version-1
+operation records retain algorithm and preset versions, deterministic replay
+metadata, channel declarations, owned pinned input bytes, and explicit raster
+checkpoint dependencies. Core and strict-C fixtures prove deterministic
+serialization, bounded malformed-input refusal, immunity to later shelf-byte
+mutation, and lossless project-container round trips. The task remains open
+until Python, Swift, and Rust expose the same surface.
+
 ## 1. Foundation
 
 - [x] 1.1 CMake project, C++20, warnings as errors, presets for headless, macOS, Linux, Windows, iOS, Android
