@@ -244,6 +244,7 @@ ctex_add_module(
         src/io/export_plan.cpp
         src/io/texture_encode.cpp
         src/io/texture_export.cpp
+        src/io/texture_document.cpp
         src/io/project_container.cpp
         src/io/project_autosave.cpp
         src/io/operation_record.cpp
@@ -372,6 +373,7 @@ if(BUILD_TESTING)
         NAME cli-headless-skeleton
         COMMAND "${CTEX_PYTHON3_EXECUTABLE}" "${PROJECT_SOURCE_DIR}/tests/cli/skeleton_test.py"
                 $<TARGET_FILE:cybertexel_cli> "${PROJECT_SOURCE_DIR}"
+                $<TARGET_FILE:ctex_texture_document_io_test>
     )
     add_executable(ctex_version_test tests/version_test.c)
     target_include_directories(
@@ -709,6 +711,10 @@ if(BUILD_TESTING)
     ctex_configure_cpp_target(ctex_project_container_test)
     target_link_libraries(ctex_project_container_test PRIVATE cybertexel)
     add_test(NAME project-container COMMAND ctex_project_container_test)
+    add_executable(ctex_texture_document_io_test tests/io/texture_document_test.cpp)
+    ctex_configure_cpp_target(ctex_texture_document_io_test)
+    target_link_libraries(ctex_texture_document_io_test PRIVATE cybertexel)
+    add_test(NAME texture-document-io COMMAND ctex_texture_document_io_test)
     add_executable(ctex_project_autosave_test tests/io/project_autosave_test.cpp)
     ctex_configure_cpp_target(ctex_project_autosave_test)
     target_link_libraries(ctex_project_autosave_test PRIVATE cybertexel)
@@ -1731,6 +1737,7 @@ if(BUILD_TESTING)
     )
     set_tests_properties(
         project-container
+        texture-document-io
         project-autosave
         c-abi-project-autosave
         editable-authoring

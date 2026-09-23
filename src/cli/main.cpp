@@ -9,6 +9,7 @@
 #include <ctex/exec/cpu_reference.hpp>
 #include <ctex/exec/executor.hpp>
 #include <ctex/io/project_container.hpp>
+#include <ctex/io/texture_document.hpp>
 #include <ctex/paint/stroke_preset.hpp>
 #include <filesystem>
 #include <fstream>
@@ -478,6 +479,16 @@ ctex::io::ProjectContainerReadLimits project_limits(const ExecutionOptions& opti
     return limits;
 }
 
+ctex::io::TextureDocumentReadLimits texture_document_limits(const ExecutionOptions& options) {
+    ctex::io::TextureDocumentReadLimits limits;
+    const auto ceiling = static_cast<std::size_t>(
+        std::min(options.memory_ceiling,
+                 static_cast<std::uint64_t>(std::numeric_limits<std::size_t>::max())));
+    limits.maximum_payload_bytes = ceiling;
+    limits.maximum_embedded_blob_bytes = ceiling;
+    return limits;
+}
+
 std::uint64_t checked_product(std::uint64_t left, std::uint64_t right,
                               std::string_view description) {
     if (right != 0 && left > std::numeric_limits<std::uint64_t>::max() / right) {
@@ -491,6 +502,12 @@ struct ContainerMetrics {
     std::uint64_t texels{};
     std::uint64_t decoded_bytes{};
     std::uint64_t occupied_tiles{};
+    std::uint64_t documents{};
+    std::uint64_t texture_sets{};
+    std::uint64_t layer_entries{};
+    std::uint64_t atlases{};
+    std::uint64_t editable_entries{};
+    std::uint64_t preset_applications{};
 };
 
 ContainerMetrics measure_container(const ctex::io::ProjectContainer& container,
@@ -516,6 +533,24 @@ ContainerMetrics measure_container(const ctex::io::ProjectContainer& container,
     return metrics;
 }
 
+void add_document_metrics(ContainerMetrics& metrics,
+                          std::span<const ctex::io::TextureDocumentAssetInfo> documents) {
+    const auto add = [](std::uint64_t& total, std::size_t value) {
+        if (value > std::numeric_limits<std::uint64_t>::max() - total) {
+            throw CliError(ExitCode::over_budget, "document inventory count exceeds counter range");
+        }
+        total += value;
+    };
+    metrics.documents = documents.size();
+    for (const ctex::io::TextureDocumentAssetInfo& document : documents) {
+        add(metrics.texture_sets, document.texture_set_count);
+        add(metrics.layer_entries, document.layer_entry_count);
+        add(metrics.atlases, document.atlas_count);
+        add(metrics.editable_entries, document.editable_entry_count);
+        add(metrics.preset_applications, document.preset_application_count);
+    }
+}
+
 using SteadyTime = std::chrono::steady_clock::time_point;
 
 double elapsed_milliseconds(SteadyTime started) {
@@ -533,8 +568,8 @@ std::string standard_report_fields(const Invocation& invocation, const SelectedE
            ",\"limits\":{\"memory_bytes\":" + std::to_string(options.memory_ceiling) +
            ",\"texels\":" + std::to_string(options.texel_ceiling) +
            ",\"workers\":" + std::to_string(options.workers) + '}' +
-           ",\"clamped_parameters\":[],\"outputs\":[],\"timings_ms\":{\"total\":" +
-           std::to_string(elapsed_ms) + '}';
+           ",\"clamped_parameters\":[],\"timings_ms\":{\"total\":" + std::to_string(elapsed_ms) +
+           '}';
 }
 
 void emit_error_report(const Invocation& invocation, const SelectedExecutor& executor,
@@ -543,7 +578,7 @@ void emit_error_report(const Invocation& invocation, const SelectedExecutor& exe
         std::cout << '{'
                   << standard_report_fields(invocation, executor, options, error.code(), "error",
                                             elapsed_ms)
-                  << ",\"diagnostic\":" << json_string(error.what()) << "}\n";
+                  << ",\"outputs\":[],\"diagnostic\":" << json_string(error.what()) << "}\n";
     }
 }
 
@@ -554,7 +589,10 @@ int validate_command(const Invocation& invocation, const SelectedExecutor& execu
     const std::string_view kind = *option_value(invocation, "--kind");
     try {
         if (kind == "document") {
-            static_cast<void>(ctex::io::read_project_container(bytes, project_limits(options)));
+            const ctex::io::ProjectContainerReadResult project =
+                ctex::io::read_project_container(bytes, project_limits(options));
+            static_cast<void>(ctex::io::list_texture_documents(project.container,
+                                                               texture_document_limits(options)));
         } else if (kind == "material") {
             static_cast<void>(ctex::doc::deserialize_smart_material(input_text(bytes)));
         } else {
@@ -574,7 +612,7 @@ int validate_command(const Invocation& invocation, const SelectedExecutor& execu
         std::cout << '{'
                   << standard_report_fields(invocation, executor, options, ExitCode::success,
                                             "valid", elapsed_milliseconds(started))
-                  << ",\"inputs\":[{\"kind\":" << json_string(kind)
+                  << ",\"outputs\":[],\"inputs\":[{\"kind\":" << json_string(kind)
                   << ",\"path\":" << json_string(path.string())
                   << "}],\"operations\":[\"read\",\"validate\"],\"kind\":" << json_string(kind)
                   << "}\n";
@@ -593,16 +631,23 @@ int info_command(const Invocation& invocation, const SelectedExecutor& executor,
     const std::filesystem::path path{*option_value(invocation, "--document")};
     const std::vector<std::byte> bytes = read_input(path, options);
     ctex::io::ProjectContainerReadResult result;
+    std::vector<ctex::io::TextureDocumentAssetInfo> documents;
     try {
         result = ctex::io::read_project_container(bytes, project_limits(options));
+        documents =
+            ctex::io::list_texture_documents(result.container, texture_document_limits(options));
     } catch (const ctex::io::ProjectContainerError& error) {
         const ExitCode code = error.code() == ctex::io::ProjectContainerErrorCode::over_limit
                                   ? ExitCode::over_budget
                                   : ExitCode::invalid_arguments;
         throw CliError(code, "invalid document: " + std::string(error.what()));
+    } catch (const ctex::io::TextureDocumentIoError& error) {
+        throw CliError(ExitCode::invalid_arguments,
+                       "invalid document state: " + std::string(error.what()));
     }
     const auto& container = result.container;
-    const ContainerMetrics metrics = measure_container(container, options);
+    ContainerMetrics metrics = measure_container(container, options);
+    add_document_metrics(metrics, documents);
     const std::string schema = std::to_string(container.schema_version.major) + '.' +
                                std::to_string(container.schema_version.minor) + '.' +
                                std::to_string(container.schema_version.patch);
@@ -610,10 +655,16 @@ int info_command(const Invocation& invocation, const SelectedExecutor& executor,
         std::cout << '{'
                   << standard_report_fields(invocation, executor, options, ExitCode::success, "ok",
                                             elapsed_milliseconds(started))
-                  << ",\"inputs\":[{\"kind\":\"document\",\"path\":" << json_string(path.string())
-                  << "}],\"operations\":[\"read\",\"inspect\"]"
+                  << ",\"outputs\":[],\"inputs\":[{\"kind\":\"document\",\"path\":"
+                  << json_string(path.string()) << "}],\"operations\":[\"read\",\"inspect\"]"
                   << ",\"assets\":" << container.assets.size()
                   << ",\"decoded_image_bytes\":" << metrics.decoded_bytes
+                  << ",\"documents\":" << metrics.documents
+                  << ",\"texture_sets\":" << metrics.texture_sets
+                  << ",\"layer_entries\":" << metrics.layer_entries
+                  << ",\"atlases\":" << metrics.atlases
+                  << ",\"editable_entries\":" << metrics.editable_entries
+                  << ",\"preset_applications\":" << metrics.preset_applications
                   << ",\"file_bytes\":" << bytes.size()
                   << ",\"newer_schema\":" << (result.report.newer_schema ? "true" : "false")
                   << ",\"occupied_tiles\":" << metrics.occupied_tiles
@@ -626,7 +677,12 @@ int info_command(const Invocation& invocation, const SelectedExecutor& executor,
         std::cout << "schema: " << schema << "\ntiled images: " << container.tiled_images.size()
                   << "\noccupied tiles: " << metrics.occupied_tiles
                   << "\nresources: " << container.resources.size()
-                  << "\nassets: " << container.assets.size()
+                  << "\nassets: " << container.assets.size() << "\ndocuments: " << metrics.documents
+                  << "\ntexture sets: " << metrics.texture_sets
+                  << "\nlayer entries: " << metrics.layer_entries
+                  << "\natlases: " << metrics.atlases
+                  << "\neditable entries: " << metrics.editable_entries
+                  << "\npreset applications: " << metrics.preset_applications
                   << "\ndecoded image bytes: " << metrics.decoded_bytes
                   << "\nexecutor: " << executor.selected;
         if (executor.fallback) {
@@ -635,6 +691,156 @@ int info_command(const Invocation& invocation, const SelectedExecutor& executor,
         std::cout << '\n';
     }
     return static_cast<int>(ExitCode::success);
+}
+
+std::string only_texture_document_identity(const ctex::io::ProjectContainer& project) {
+    std::string identity;
+    for (const ctex::io::StandaloneAsset& asset : project.assets) {
+        if (asset.kind != ctex::io::texture_document_asset_kind) continue;
+        if (!identity.empty()) {
+            throw CliError(ExitCode::invalid_arguments,
+                           "project contains multiple texture documents; selection is ambiguous");
+        }
+        identity = asset.identifier;
+    }
+    if (identity.empty()) {
+        throw CliError(ExitCode::invalid_arguments,
+                       "project does not contain a live texture document");
+    }
+    return identity;
+}
+
+void require_preset_resources(const ctex::doc::SmartMaterialPreset& preset,
+                              const ctex::io::ProjectContainer& project,
+                              const std::filesystem::path& project_path) {
+    for (const ctex::doc::SmartMaterialResourceReference& required : preset.resource_references) {
+        const auto found =
+            std::ranges::find_if(project.resources, [&](const ctex::io::ProjectResource& resource) {
+                return resource.identifier == required.identifier;
+            });
+        if (found == project.resources.end()) {
+            throw CliError(
+                ExitCode::missing_resource,
+                "smart material requires missing resource '" + required.identifier + "'");
+        }
+        if (found->packed_bytes.has_value()) continue;
+        const std::filesystem::path resolved = project_path.parent_path() / found->relative_path;
+        std::ifstream stream(resolved, std::ios::binary);
+        if (!stream) {
+            throw CliError(ExitCode::missing_resource,
+                           "smart material resource '" + required.identifier +
+                               "' is unreadable at '" + resolved.string() + "'");
+        }
+    }
+}
+
+std::string next_application_identity(const ctex::doc::TextureSet& texture_set,
+                                      std::string_view preset_identity) {
+    const auto available = [&](std::string_view candidate) {
+        return std::ranges::none_of(texture_set.preset_applications(),
+                                    [&](const ctex::doc::AppliedPresetApplication& application) {
+                                        return application.identifier == candidate;
+                                    });
+    };
+    if (available(preset_identity)) return std::string(preset_identity);
+    for (std::uint64_t suffix = 2; suffix != std::numeric_limits<std::uint64_t>::max(); ++suffix) {
+        std::string candidate = std::string(preset_identity) + '-' + std::to_string(suffix);
+        if (available(candidate)) return candidate;
+    }
+    throw CliError(ExitCode::over_budget, "preset application identity space is exhausted");
+}
+
+void require_document_memory_budget(const ctex::doc::TextureDocument& document,
+                                    std::uint64_t input_bytes, const ExecutionOptions& options) {
+    const std::uint64_t resident = document.memory_report().total_resident_bytes;
+    const bool overflow = input_bytes > std::numeric_limits<std::uint64_t>::max() - resident;
+    const std::uint64_t required =
+        overflow ? std::numeric_limits<std::uint64_t>::max() : resident + input_bytes;
+    if (required > options.memory_ceiling) {
+        throw CliError(ExitCode::over_budget, "apply requires " + std::to_string(required) +
+                                                  " resident and input bytes; memory ceiling is " +
+                                                  std::to_string(options.memory_ceiling));
+    }
+}
+
+int apply_command(const Invocation& invocation, const SelectedExecutor& executor,
+                  const ExecutionOptions& options, SteadyTime started) {
+    const std::filesystem::path document_path{*option_value(invocation, "--document")};
+    const std::filesystem::path preset_path{*option_value(invocation, "--preset")};
+    const std::filesystem::path output_path{*option_value(invocation, "--output")};
+    const std::string texture_set_id{*option_value(invocation, "--texture-set")};
+    const std::vector<std::byte> project_bytes = read_input(document_path, options);
+    const std::vector<std::byte> preset_bytes = read_input(preset_path, options);
+
+    try {
+        ctex::io::ProjectContainer project =
+            ctex::io::read_project_container(project_bytes, project_limits(options)).container;
+        static_cast<void>(measure_container(project, options));
+        const std::string document_identity = only_texture_document_identity(project);
+        ctex::doc::TextureDocument document = ctex::io::unpack_texture_document(
+            project, document_identity, texture_document_limits(options));
+        const std::uint64_t input_bytes =
+            project_bytes.size() > std::numeric_limits<std::uint64_t>::max() - preset_bytes.size()
+                ? std::numeric_limits<std::uint64_t>::max()
+                : project_bytes.size() + preset_bytes.size();
+        require_document_memory_budget(document, input_bytes, options);
+        if (!document.contains_texture_set(texture_set_id)) {
+            throw CliError(ExitCode::invalid_arguments,
+                           "texture set does not exist: '" + texture_set_id + "'");
+        }
+        const ctex::doc::SmartMaterialPreset preset =
+            ctex::doc::deserialize_smart_material(input_text(preset_bytes));
+        require_preset_resources(preset, project, document_path);
+        ctex::doc::TextureSet& texture_set = document.texture_set(texture_set_id);
+        const std::string application_identity =
+            next_application_identity(texture_set, preset.identifier);
+        const ctex::doc::PresetApplicationReport applied =
+            texture_set.apply_smart_material(preset, application_identity);
+        ctex::io::upsert_texture_document(project, document_identity, document);
+        ctex::io::save_project_container_atomic(output_path, project);
+        const std::uintmax_t output_bytes = std::filesystem::file_size(output_path);
+
+        if (option_value(invocation, "--report") == "json") {
+            std::cout << '{'
+                      << standard_report_fields(invocation, executor, options, ExitCode::success,
+                                                "ok", elapsed_milliseconds(started))
+                      << ",\"outputs\":[{\"kind\":\"project\",\"path\":"
+                      << json_string(output_path.string()) << ",\"bytes\":" << output_bytes
+                      << "}],\"inputs\":[{\"kind\":\"document\",\"path\":"
+                      << json_string(document_path.string())
+                      << "},{\"kind\":\"smart-material\",\"path\":"
+                      << json_string(preset_path.string())
+                      << "}],\"operations\":[\"read\",\"open\",\"apply\",\"save\"]"
+                      << ",\"document_asset\":" << json_string(document_identity)
+                      << ",\"texture_set\":" << json_string(texture_set_id)
+                      << ",\"application\":" << json_string(applied.application_identifier)
+                      << ",\"entries_added\":" << applied.entry_identifiers.size() << "}\n";
+        } else if (!invocation.quiet) {
+            std::cout << "applied " << preset.identifier << " to " << texture_set_id
+                      << "\nwrote: " << output_path.string() << "\nexecutor: " << executor.selected
+                      << '\n';
+        }
+        return static_cast<int>(ExitCode::success);
+    } catch (const CliError&) {
+        throw;
+    } catch (const ctex::io::ProjectContainerError& error) {
+        const ExitCode code =
+            error.code() == ctex::io::ProjectContainerErrorCode::over_limit ? ExitCode::over_budget
+            : error.code() == ctex::io::ProjectContainerErrorCode::filesystem_failure ||
+                    error.code() == ctex::io::ProjectContainerErrorCode::compression_failed
+                ? ExitCode::internal_error
+                : ExitCode::invalid_arguments;
+        throw CliError(code, "could not apply material: " + std::string(error.what()));
+    } catch (const ctex::io::TextureDocumentIoError& error) {
+        throw CliError(ExitCode::invalid_arguments,
+                       "invalid texture document: " + std::string(error.what()));
+    } catch (const ctex::doc::SmartMaterialError& error) {
+        throw CliError(ExitCode::invalid_arguments,
+                       "invalid smart material: " + std::string(error.what()));
+    } catch (const std::invalid_argument& error) {
+        throw CliError(ExitCode::invalid_arguments,
+                       "could not apply material: " + std::string(error.what()));
+    }
 }
 
 int dispatch(const Invocation& invocation) {
@@ -648,6 +854,9 @@ int dispatch(const Invocation& invocation) {
         if (invocation.command->name == "info") {
             return info_command(invocation, executor, options, started);
         }
+        if (invocation.command->name == "apply") {
+            return apply_command(invocation, executor, options, started);
+        }
         const std::string diagnostic = "command '" + std::string(invocation.command->name) +
                                        "' is not implemented yet (roadmap task 15.2)";
         if (option_value(invocation, "--report") == "json") {
@@ -655,7 +864,7 @@ int dispatch(const Invocation& invocation) {
                       << standard_report_fields(invocation, executor, options,
                                                 ExitCode::unsupported_operation, "unsupported",
                                                 elapsed_milliseconds(started))
-                      << ",\"inputs\":[],\"operations\":[],\"diagnostic\":"
+                      << ",\"outputs\":[],\"inputs\":[],\"operations\":[],\"diagnostic\":"
                       << json_string(diagnostic) << "}\n";
         } else if (!invocation.quiet) {
             std::cout << "CyberTexel " << invocation.command->name

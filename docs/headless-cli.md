@@ -12,10 +12,19 @@ It is windowless and defines six command routes:
 
 The current implementation provides complete command selection and argument
 validation. `validate` fully parses project documents, smart materials and
-stroke presets. `info` parses project containers and reports their schema,
-tiled-image storage, occupied tiles, decoded image size, resources, assets and
-forward-preserved sections. The four mutating routes currently return the
-unsupported-operation outcome until roadmap task 15.2 supplies those operations;
+stroke presets. `info` parses project containers and their canonical live
+texture-document assets, reporting texture sets, layer entries, atlases,
+editable entries, applied presets, tiled-image storage, occupied tiles, decoded
+image size, resources, assets and forward-preserved sections. `apply` opens the
+single live texture document in a project, validates and resolves a canonical
+smart material, applies it to the named texture set, and atomically writes a
+new project. Required material resources must have project metadata and must be
+packed or readable relative to the input project; otherwise the command returns
+the missing-resource outcome without touching its output. Repeated applications
+receive deterministic suffixes while retaining their preset origin.
+
+`export`, `bake-request`, and `run` currently return the unsupported-operation
+outcome until the remaining parts of roadmap task 15.2 supply those operations;
 they never create partial output in this state.
 
 Run `cybertexel --help` for the command list or

@@ -8,10 +8,12 @@ import os
 from pathlib import Path
 import subprocess
 import sys
+import tempfile
 
 
 BINARY = sys.argv[1]
 ROOT = Path(sys.argv[2])
+FIXTURE_WRITER = sys.argv[3]
 COMMANDS = ("export", "bake-request", "apply", "run", "info", "validate")
 GLOBAL_OPTIONS = (
     "--report",
@@ -95,6 +97,12 @@ assert info_report | {
     "assets": 0,
     "command": "info",
     "decoded_image_bytes": 0,
+    "documents": 0,
+    "texture_sets": 0,
+    "layer_entries": 0,
+    "atlases": 0,
+    "editable_entries": 0,
+    "preset_applications": 0,
     "executor": "cpu",
     "file_bytes": 100,
     "newer_schema": False,
@@ -204,15 +212,13 @@ quiet = run("info", "--document", str(document), "--quiet")
 assert quiet.returncode == 0 and quiet.stdout == "" and quiet.stderr == ""
 
 unsupported = run(
-    "apply",
+    "export",
     "--document",
     str(document),
     "--preset",
-    "material.ctex",
-    "--texture-set",
-    "body",
+    "base-color",
     "--output",
-    "result.ctex",
+    "textures",
     "--report",
     "json",
 )
@@ -221,5 +227,94 @@ assert unsupported.returncode == 4
 assert unsupported_report["status"] == "unsupported"
 assert unsupported_report["outputs"] == []
 assert "not implemented" in unsupported.stderr
+
+with tempfile.TemporaryDirectory(prefix="ctex-cli-apply-") as temporary:
+    directory = Path(temporary)
+    source = directory / "source.ctex"
+    preset = directory / "material.ctex"
+    missing_preset = directory / "missing-resource.ctex"
+    generated = subprocess.run(
+        [
+            FIXTURE_WRITER,
+            "--write-cli-fixture",
+            str(source),
+            str(preset),
+            str(missing_preset),
+        ],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert generated.returncode == 0 and generated.stderr == ""
+    texture_set = generated.stdout.strip()
+    source_bytes = source.read_bytes()
+    output = directory / "applied.ctex"
+    applied = run(
+        "apply",
+        "--document",
+        str(source),
+        "--preset",
+        str(preset),
+        "--texture-set",
+        texture_set,
+        "--output",
+        str(output),
+        "--report",
+        "json",
+    )
+    applied_report = json.loads(applied.stdout)
+    assert applied.returncode == 0 and applied.stderr == ""
+    assert applied_report["status"] == "ok"
+    assert applied_report["texture_set"] == texture_set
+    assert applied_report["entries_added"] == 1
+    assert applied_report["outputs"] == [
+        {"kind": "project", "path": str(output), "bytes": output.stat().st_size}
+    ]
+    assert output.exists() and source.read_bytes() == source_bytes
+
+    applied_info = run("info", "--document", str(output), "--report", "json")
+    applied_inventory = json.loads(applied_info.stdout)
+    assert applied_info.returncode == 0
+    assert applied_inventory["documents"] == 1
+    assert applied_inventory["texture_sets"] == 2
+    assert applied_inventory["layer_entries"] == 2
+    assert applied_inventory["preset_applications"] == 2
+
+    protected = directory / "protected.ctex"
+    protected.write_bytes(b"previous-good-output")
+    bad_target = run(
+        "apply",
+        "--document",
+        str(source),
+        "--preset",
+        str(preset),
+        "--texture-set",
+        "missing-set",
+        "--output",
+        str(protected),
+        "--report",
+        "json",
+    )
+    assert bad_target.returncode == 2
+    assert protected.read_bytes() == b"previous-good-output"
+    assert json.loads(bad_target.stdout)["outputs"] == []
+
+    missing_output = directory / "missing-output.ctex"
+    missing_resource = run(
+        "apply",
+        "--document",
+        str(source),
+        "--preset",
+        str(missing_preset),
+        "--texture-set",
+        texture_set,
+        "--output",
+        str(missing_output),
+        "--report",
+        "json",
+    )
+    assert missing_resource.returncode == 5
+    assert not missing_output.exists()
+    assert "missing resource" in missing_resource.stderr
 
 print("headless CLI contract passed")

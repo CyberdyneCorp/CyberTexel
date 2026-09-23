@@ -83,6 +83,32 @@ same configurable read limits and checked framing as the other sections.
 Duplicate asset identities or dependencies, empty metadata, and version zero
 are refused.
 
+### Texture-document assets
+
+The built-in `texture-document` asset is the durable bridge to
+`doc::TextureDocument`. Its versioned canonical payload records stable texture
+set descriptors, the complete channel catalogue and enablement, UDIM tile
+membership, ordered layer entries and material graphs, applied-preset origins
+and parameter state, editable authoring entries, and atlas layouts. Channel
+pixels are not duplicated in the payload: each enabled base or UDIM channel
+names one sparse image in the tiled pixel section and lists it as an explicit
+asset dependency.
+
+`upsert_texture_document` builds the replacement completely before publishing
+it to an in-memory `ProjectContainer`, rejects graph resources that lack project
+resource metadata, removes only the prior document's exclusively owned pixel
+dependencies, and verifies the resulting container. Repeating an unchanged
+upsert produces byte-identical project bytes. `unpack_texture_document` checks
+the asset schema, stable identities, nested counts, enum values, finite numeric
+state, layer and atlas invariants, exact pixel dependencies, and the domain
+serializers for graphs, smart-material fragments, and editable entries before
+returning a live document.
+
+`list_texture_documents` validates each document asset and reports its texture
+sets, tiled images, layer entries, atlases, editable entries, and applied
+presets. The headless `info` command includes those live document totals in
+both text and JSON output.
+
 ## Untrusted input limits
 
 `ProjectContainerReadLimits` caps the complete encoded input, aggregate
@@ -144,8 +170,9 @@ retrieve these records without exposing C++ objects.
 The in-memory `ProjectContainer` is the single framing for sparse tiled pixels,
 portable resources, recovery checkpoints and versioned domain payloads. Domain
 serializers own their payload schemas, while the container preserves their
-identifiers, kinds, versions, dependencies and bytes losslessly. The strict-C
-round-trip fixture covers texture sets, layer structures, masks, groups,
-filters, material graphs, node groups, stroke and export presets, mesh-map
-bindings, channel descriptors, editable entries, replay records and document
-settings in one canonical project.
+identifiers, kinds, versions, dependencies and bytes losslessly. The native
+texture-document round-trip fixture exercises live texture sets, custom channel
+descriptors and pixels, UDIM state, layers and graphs, applied presets, editable
+entries, and atlas settings in one canonical project. Other portable payloads,
+including operation records and standalone presets, continue to use their own
+versioned asset kinds in the same container.

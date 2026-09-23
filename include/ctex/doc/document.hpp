@@ -23,6 +23,10 @@ namespace ctex::mesh {
 class MeshView;
 }
 
+namespace ctex::io {
+struct TextureDocumentArchiveAccess;
+}
+
 namespace ctex::doc {
 
 struct TextureSetMemoryState;
@@ -266,6 +270,7 @@ public:
         std::string_view entry_identifier) const;
 
 private:
+    friend struct io::TextureDocumentArchiveAccess;
     friend class TextureSetTransaction;
     friend ResolutionChangeReport change_texture_set_resolution(
         TextureSet& texture_set, const ResolutionChangeRequest& request);
