@@ -1430,6 +1430,9 @@ generation. The fourth executes an emitted WGSL material pass plan in a
 display-free software host, publishes its host-resident output with recovery
 evidence and records zero synchronous readback bytes. Numbered examples now
 cover 14 of 24 capabilities, and the gate names the remaining ten.
+The fifth example adds working-space conversion, channel precision policy,
+pre-quantization height accumulation and deterministic dithering, raising
+coverage to 15 of 24 capabilities.
 
 Editable-authoring group 20 is complete. Versioned operation records retain
 algorithm and preset versions, seeds, channel descriptors, mesh identity,

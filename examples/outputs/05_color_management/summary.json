@@ -1,0 +1,13 @@
+{
+  "accumulated_height": 0.10196078431372549,
+  "capabilities": [
+    "color-management"
+  ],
+  "dither_values": [
+    127,
+    128
+  ],
+  "linear_midpoint": 0.21586050011389926,
+  "normal_recommended_bit_depth": 16,
+  "working_color_space": "Linear Rec. 709"
+}

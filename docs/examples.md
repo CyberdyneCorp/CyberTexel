@@ -44,6 +44,8 @@ the first visual gallery output. `03_mesh_map_generator.py` carries the checked
 UV quad and AO fixture through a texture document and deterministic generator.
 `04_software_host_execution.py` consumes an emitted WGSL pass plan with a
 display-free stand-in and returns a host-resident result without readback.
+`05_color_management.py` visualizes the working-space transfer and deterministic
+quantization policy.
 Full capability example coverage remains roadmap work. Every numbered script
 declares a literal `CAPABILITIES` tuple;
 `just gate-example-coverage` compares those declarations with

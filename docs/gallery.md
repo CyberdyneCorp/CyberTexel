@@ -51,3 +51,14 @@ readback. It covers `execution-backends`, `host-transport`, `material-graph`,
 The committed [pass plan](../examples/outputs/04_software_host_execution/pass_plan.json)
 and [execution summary](../examples/outputs/04_software_host_execution/summary.json)
 make the resource contract and residency result inspectable.
+
+## `05_color_management`
+
+Queries the working space and normal-channel precision policy, converts a full
+sRGB ramp to linear Rec. 709, accumulates height before quantization and renders
+the deterministic ordered-dither pattern. It covers `color-management`.
+
+![sRGB ramp, linear ramp and ordered dither](../examples/outputs/05_color_management/transfer_and_dither.png)
+
+The [colour summary](../examples/outputs/05_color_management/summary.json)
+records the reference midpoint, precision recommendation and quantized values.
