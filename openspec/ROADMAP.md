@@ -7,7 +7,8 @@ decisions taken and questions still open.
 ## Status
 
 Implementation started. 24 capabilities, 332 requirements, 409 scenarios and
-224 tasks, 216 done. Every capability's runtime work is delivered; what remains
+224 tasks, 217 done. What remains needs hardware or another operating system:
+the iPad Pro M4, Windows and Android. Every capability's runtime work is delivered; what remains
 is the reference hosts, the device measurements they enable, the release
 packages and example breadth. Foundation and the complete headless color-management
 scenario suite are green. Image input now detects and decodes PNG, JPEG, TGA,
@@ -561,6 +562,15 @@ rely on, and Clang and MSVC do not warn. Suppressing one warning for one
 compiler is cheaper and more honest than rewriting eight test files to satisfy a
 diagnostic that carries no information. Every other warning stays an error
 everywhere. Task 18.1.
+
+**2026-09-23 — An assertion inside a ctypes callback cannot fail.** CPython
+prints "Exception ignored" for an exception raised inside a ctypes callback and
+returns 0 from it; `CTEX_RESULT_SUCCESS` is 0, so a failed assertion is reported
+to the library as success. Two example assertions were decorative because of
+this before it was found. Host callbacks are therefore a silent-failure surface
+for every ctypes-based binding, and the C ABI would be safer if success were
+non-zero or if an unset output count were an error. Examples now record what a
+callback saw and assert on that record after the call returns. Task 16.12.
 
 ## Open questions
 
