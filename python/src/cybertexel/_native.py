@@ -19,6 +19,31 @@ class Version(ctypes.Structure):
     ]
 
 
+class ProjectContainerVersion(ctypes.Structure):
+    _fields_ = [
+        ("size", ctypes.c_uint32),
+        ("major", ctypes.c_uint32),
+        ("minor", ctypes.c_uint32),
+        ("patch", ctypes.c_uint32),
+    ]
+
+
+class ProjectContainerInfo(ctypes.Structure):
+    _fields_ = [
+        ("size", ctypes.c_uint32),
+        ("source_schema", ProjectContainerVersion),
+        ("newer_schema", ctypes.c_uint32),
+        ("tiled_image_count", ctypes.c_size_t),
+        ("resource_count", ctypes.c_size_t),
+        ("asset_count", ctypes.c_size_t),
+        ("opaque_section_count", ctypes.c_size_t),
+        ("occupied_tile_count", ctypes.c_size_t),
+        ("packed_resource_bytes", ctypes.c_size_t),
+        ("canonical_size", ctypes.c_size_t),
+        ("report_size", ctypes.c_size_t),
+    ]
+
+
 class ImageDecodeLimits(ctypes.Structure):
     _fields_ = [
         ("size", ctypes.c_uint32),
@@ -312,6 +337,34 @@ def _load() -> ctypes.CDLL:
         ctypes.c_uint32,
     )
     _signature(library, "ctex_document_destroy", [ctypes.c_void_p], None)
+    _signature(
+        library,
+        "ctex_project_container_create_empty",
+        [ctypes.c_void_p, ctypes.c_size_t, ctypes.POINTER(ctypes.c_size_t)],
+        ctypes.c_uint32,
+    )
+    _signature(
+        library,
+        "ctex_project_container_get_texture_document_ids",
+        [ctypes.c_void_p, ctypes.c_size_t, ctypes.c_void_p, ctypes.c_char_p,
+         ctypes.c_size_t, ctypes.POINTER(ctypes.c_size_t), ctypes.POINTER(ctypes.c_size_t)],
+        ctypes.c_uint32,
+    )
+    _signature(
+        library,
+        "ctex_project_container_upsert_texture_document",
+        [ctypes.c_void_p, ctypes.c_size_t, ctypes.c_void_p, ctypes.c_void_p,
+         ctypes.c_char_p, ctypes.POINTER(ProjectContainerInfo), ctypes.c_void_p,
+         ctypes.c_size_t, ctypes.c_char_p, ctypes.c_size_t],
+        ctypes.c_uint32,
+    )
+    _signature(
+        library,
+        "ctex_project_container_restore_texture_document",
+        [ctypes.c_void_p, ctypes.c_size_t, ctypes.c_void_p, ctypes.c_char_p,
+         ctypes.c_void_p],
+        ctypes.c_uint32,
+    )
     _signature(
         library,
         "ctex_document_create_texture_set",

@@ -6046,6 +6046,28 @@ CTEX_API ctex_result ctex_project_container_normalize(
     ctex_project_container_info* out_info, void* canonical_output, size_t canonical_output_size,
     char* report_output, size_t report_output_size);
 
+/* Returns packed NUL-terminated identifiers for persisted texture documents. */
+CTEX_API ctex_result ctex_project_container_get_texture_document_ids(
+    const void* project_encoded, size_t project_encoded_size,
+    const ctex_project_container_read_limits_descriptor* limits, char* buffer, size_t buffer_size,
+    size_t* out_required_size, size_t* out_count);
+
+/*
+ * Atomically adds or replaces one complete live texture document in canonical
+ * project bytes. Outputs use the project-container two-call contract.
+ */
+CTEX_API ctex_result ctex_project_container_upsert_texture_document(
+    const void* project_encoded, size_t project_encoded_size,
+    const ctex_project_container_read_limits_descriptor* limits, const ctex_document* document,
+    const char* asset_identifier, ctex_project_container_info* out_info, void* project_output,
+    size_t project_output_size, char* report_output, size_t report_output_size);
+
+/* Restores one complete persisted texture document into an existing live handle. */
+CTEX_API ctex_result ctex_project_container_restore_texture_document(
+    const void* project_encoded, size_t project_encoded_size,
+    const ctex_project_container_read_limits_descriptor* limits, const char* asset_identifier,
+    ctex_document* document);
+
 /*
  * Validates and atomically publishes canonical project bytes at path. A null
  * limits descriptor selects the documented defaults.

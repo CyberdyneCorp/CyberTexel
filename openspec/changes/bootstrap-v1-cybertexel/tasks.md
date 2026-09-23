@@ -1405,11 +1405,25 @@ host-transport tests. Rust now has zero missing operations; Python remains at
 323.
 
 Task 14.13 is complete. The committed `cybertexel.capi` module generates typed
-ctypes declarations for all 347 operations and their descriptors from the same
-public header, honors the development-library override and loads from the clean
-wheel's bundled library. Both generated language surfaces pin the header digest;
-Swift imports that header directly. The parity gate is green, and the Python
-wheel, macOS/iOS Swift package and Rust workspace suites all pass.
+ctypes declarations for all 350 current operations and their descriptors from
+the same public header, honors the development-library override and loads from
+the clean wheel's bundled library. Both generated language surfaces pin the
+header digest; Swift imports that header directly. The parity gate is green,
+and the Python wheel, macOS/iOS Swift package and Rust workspace suites all
+pass.
+
+The persisted-document continuation adds lossless enumerate, restore and
+upsert operations to all three binding surfaces. Python can now reopen one
+selected texture-document asset, edit the native live handle and write it back
+without discarding unrelated project content. This is the storage boundary
+required by the headless CLI `run` command; script execution itself remains
+task 15.2 work.
+
+The Apple package gate also caught a mobile configure regression introduced by
+installing the new desktop CLI as an iOS application bundle without a bundle
+destination. CMake now creates and installs that executable only for desktop
+targets; the existing macOS/iOS Swift gate provides the regression coverage and
+still installs the iOS C library, headers and pkg-config metadata.
 
 Tasks 16.1, 16.2, 16.4, 16.6, 16.8 and 16.10 are complete. The fixture set now
 contains valid UV and UDIM meshes, a four-image mesh-map set, brush alpha,

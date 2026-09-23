@@ -6,7 +6,66 @@ from dataclasses import dataclass
 import numpy as np
 import numpy.typing as npt
 
-from ._native import LIB, ChannelInfo, PaintPreviewInfo, TextureSetDescriptor, check
+from ._native import (
+    LIB,
+    ChannelInfo,
+    PaintPreviewInfo,
+    ProjectContainerInfo,
+    TextureSetDescriptor,
+    check,
+)
+
+
+def _input_buffer(value: bytes) -> ctypes.Array[ctypes.c_char]:
+    return ctypes.create_string_buffer(value, len(value))
+
+
+def _empty_project() -> bytes:
+    required = ctypes.c_size_t()
+    check(LIB.ctex_project_container_create_empty(None, 0, ctypes.byref(required)))
+    output = (ctypes.c_ubyte * required.value)()
+    check(
+        LIB.ctex_project_container_create_empty(
+            output, len(output), ctypes.byref(required)
+        )
+    )
+    return bytes(output)
+
+
+def _texture_document_ids(project: bytes) -> list[str]:
+    source = _input_buffer(project)
+    required = ctypes.c_size_t()
+    count = ctypes.c_size_t()
+    check(
+        LIB.ctex_project_container_get_texture_document_ids(
+            source,
+            len(project),
+            None,
+            None,
+            0,
+            ctypes.byref(required),
+            ctypes.byref(count),
+        )
+    )
+    if required.value == 0:
+        return []
+    output = ctypes.create_string_buffer(required.value)
+    check(
+        LIB.ctex_project_container_get_texture_document_ids(
+            source,
+            len(project),
+            None,
+            output,
+            len(output),
+            ctypes.byref(required),
+            ctypes.byref(count),
+        )
+    )
+    packed = bytes(output.raw[: required.value])
+    identifiers = [part.decode("utf-8") for part in packed.split(b"\0") if part]
+    if len(identifiers) != count.value:
+        raise RuntimeError("native texture-document inventory count is inconsistent")
+    return identifiers
 
 
 def _dtype(scalar_representation: int, bit_depth: int) -> np.dtype[np.generic]:
@@ -36,6 +95,93 @@ class Document:
         check(LIB.ctex_document_create(ctypes.byref(handle)))
         self._handle = handle
         self._texture_sets: dict[str, TextureSet] = {}
+        self._source_project: bytes | None = None
+        self._asset_identifier: str | None = None
+
+    @classmethod
+    def from_project(
+        cls, project: bytes, *, asset_identifier: str | None = None
+    ) -> Document:
+        """Restore a live document from canonical project-container bytes."""
+
+        canonical = bytes(project)
+        identifiers = _texture_document_ids(canonical)
+        if asset_identifier is None:
+            if len(identifiers) != 1:
+                raise ValueError(
+                    "project must contain exactly one texture document when "
+                    "asset_identifier is omitted"
+                )
+            asset_identifier = identifiers[0]
+        elif asset_identifier not in identifiers:
+            raise ValueError(f"texture document not found: {asset_identifier}")
+
+        result = cls()
+        source = _input_buffer(canonical)
+        try:
+            check(
+                LIB.ctex_project_container_restore_texture_document(
+                    source,
+                    len(canonical),
+                    None,
+                    asset_identifier.encode("utf-8"),
+                    result._require_open(),
+                )
+            )
+        except Exception:
+            result.close()
+            raise
+        result._source_project = canonical
+        result._asset_identifier = asset_identifier
+        return result
+
+    @property
+    def asset_identifier(self) -> str | None:
+        return self._asset_identifier
+
+    def to_project_bytes(
+        self,
+        *,
+        project: bytes | None = None,
+        asset_identifier: str | None = None,
+    ) -> bytes:
+        """Return canonical project bytes containing the current live state."""
+
+        if project is not None:
+            source_project = bytes(project)
+        elif self._source_project is not None:
+            source_project = self._source_project
+        else:
+            source_project = _empty_project()
+        identifier = (
+            asset_identifier
+            if asset_identifier is not None
+            else self._asset_identifier or "document/main"
+        )
+        source = _input_buffer(source_project)
+        info = ProjectContainerInfo()
+        info.size = ctypes.sizeof(ProjectContainerInfo)
+        arguments = (
+            source,
+            len(source_project),
+            None,
+            self._require_open(),
+            identifier.encode("utf-8"),
+            ctypes.byref(info),
+        )
+        check(
+            LIB.ctex_project_container_upsert_texture_document(
+                *arguments, None, 0, None, 0
+            )
+        )
+        output = (ctypes.c_ubyte * info.canonical_size)()
+        report = ctypes.create_string_buffer(info.report_size)
+        check(
+            LIB.ctex_project_container_upsert_texture_document(
+                *arguments, output, len(output), report, len(report)
+            )
+        )
+        return bytes(output)
 
     def __enter__(self) -> Document:  # noqa: PYI034
         self._require_open()

@@ -154,6 +154,9 @@ EXPORTS
     ctex_uv_pick_index_destroy
     ctex_uv_pick_index_get_info
     ctex_project_container_create_empty
+    ctex_project_container_get_texture_document_ids
+    ctex_project_container_restore_texture_document
+    ctex_project_container_upsert_texture_document
     ctex_project_container_normalize
     ctex_project_container_probe_version
     ctex_project_container_save_atomic

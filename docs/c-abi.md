@@ -607,6 +607,15 @@ their identifiers, kinds, versions, dependencies and payload bytes exactly;
 resources, sparse tiled pixels and recovery checkpoints remain first-class
 sections in the same canonical output.
 
+`ctex_project_container_get_texture_document_ids` inventories the live-document
+assets without exposing container internals. A host restores a selected asset
+into an existing `ctex_document` with
+`ctex_project_container_restore_texture_document`, edits it through the normal
+document API, and writes it back with
+`ctex_project_container_upsert_texture_document`. Upsert follows the atomic
+two-call project-output contract and retains unrelated, opaque and newer-schema
+content.
+
 `ctex_project_container_save_atomic` applies the same validation and limits,
 then publishes the normalized container through the core sibling-temporary,
 synchronize and atomic-replace path. It does not write a destination until the

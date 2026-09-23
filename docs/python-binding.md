@@ -24,7 +24,7 @@ Python API; successful completion atomically publishes independent `bytes`
 objects. The [binding parity gate](binding-parity.md) requires a typed ctypes
 signature for every C operation. `cybertexel.capi` is generated from the public
 header with ctypesgen 1.1.1, ships in the wheel, honors
-`CYBERTEXEL_LIBRARY` for development, and exposes all 347 raw operations and
+`CYBERTEXEL_LIBRARY` for development, and exposes all 350 raw operations and
 their descriptor types. The header digest and clean-wheel smoke test prevent a
 stale or unloadable generated surface.
 
@@ -35,6 +35,12 @@ uses generator defaults. Missing required maps fail before allocation and raise
 Documents own their native handle. A context manager or `close()` releases it
 deterministically; finalization is a fallback, and repeated `close()` calls are
 safe.
+
+`Document.to_project_bytes()` persists the complete live document into a
+canonical project container. `Document.from_project()` restores it for further
+editing and requires an explicit `asset_identifier` when a project contains
+multiple texture documents. Rewriting a restored document preserves unrelated
+and opaque project content.
 
 Build and test the platform wheel with:
 

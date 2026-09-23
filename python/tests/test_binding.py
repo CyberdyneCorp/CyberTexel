@@ -32,7 +32,7 @@ class BindingTest(unittest.TestCase):
         )
         self.assertEqual(result, cybertexel.capi.CTEX_RESULT_SUCCESS)
         self.assertGreater(required.value, 40)
-        self.assertEqual(len(operations), 347)
+        self.assertEqual(len(operations), 350)
         self.assertIn("ctex_image_decode_layered_memory", operations)
 
     def test_version_and_numpy_decode(self) -> None:
@@ -82,6 +82,34 @@ class BindingTest(unittest.TestCase):
         document.close()
         gc.collect()
         self.assertEqual(pixels.shape, (4, 8, 3))
+
+    def test_document_round_trips_through_project_bytes(self) -> None:
+        with cybertexel.Document() as document:
+            texture_set = document.create_texture_set(
+                "Body", partition_key="body", width=8, height=4
+            )
+            document.set_channel_enabled(texture_set, "pbr.base_color")
+            project = document.to_project_bytes(asset_identifier="documents/body")
+
+        with cybertexel.Document.from_project(project) as restored:
+            self.assertEqual(restored.asset_identifier, "documents/body")
+            self.assertEqual(restored.texture_set_ids(), [texture_set.identifier])
+            restored.set_channel_enabled(texture_set.identifier, "pbr.roughness")
+            updated = restored.to_project_bytes()
+
+        with cybertexel.Document.from_project(updated) as reopened:
+            self.assertEqual(reopened.texture_set_ids(), [texture_set.identifier])
+
+        with cybertexel.Document.from_project(project) as first:
+            multiple = first.to_project_bytes(
+                project=project, asset_identifier="documents/copy"
+            )
+        with self.assertRaisesRegex(ValueError, "exactly one texture document"):
+            cybertexel.Document.from_project(multiple)
+        with cybertexel.Document.from_project(
+            multiple, asset_identifier="documents/copy"
+        ) as selected:
+            self.assertEqual(selected.asset_identifier, "documents/copy")
 
     def test_native_failures_raise_typed_exceptions(self) -> None:
         with (

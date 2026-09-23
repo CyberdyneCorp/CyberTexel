@@ -34,6 +34,7 @@
 #include <ctex/io/project_container.hpp>
 #include <ctex/io/smart_material_package.hpp>
 #include <ctex/io/standalone_asset.hpp>
+#include <ctex/io/texture_document.hpp>
 #include <ctex/io/texture_encode.hpp>
 #include <ctex/io/texture_export.hpp>
 #include <ctex/maps/bake_provider.hpp>
@@ -6818,6 +6819,11 @@ ctex::io::ProjectContainerReadLimits project_container_limits(
                    "unknown project container failure");
 }
 
+[[noreturn]] void throw_texture_document_io_error(const ctex::io::TextureDocumentIoError& error) {
+    throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_INVALID_PROJECT_CONTAINER,
+                   error.what());
+}
+
 void append_json_text(std::string& output, std::string_view value) {
     constexpr std::string_view digits = "0123456789abcdef";
     output.push_back('"');
@@ -13104,6 +13110,96 @@ extern "C" ctex_result ctex_project_container_normalize(
         validate_project_container_outputs(prepared, canonical_output, canonical_output_size,
                                            report_output, report_output_size);
         write_project_container_outputs(prepared, canonical_output, report_output);
+    });
+}
+
+extern "C" ctex_result ctex_project_container_get_texture_document_ids(
+    const void* project_encoded, std::size_t project_encoded_size,
+    const ctex_project_container_read_limits_descriptor* limits, char* buffer,
+    std::size_t buffer_size, std::size_t* out_required_size, std::size_t* out_count) {
+    return call_boundary("ctex_project_container_get_texture_document_ids", [&] {
+        if (out_required_size == nullptr || out_count == nullptr) {
+            throw_boundary(
+                CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                out_required_size == nullptr ? "out_required_size=null" : "out_count=null");
+        }
+        try {
+            const auto project = ctex::io::read_project_container(
+                project_container_bytes(project_encoded, project_encoded_size),
+                project_container_limits(limits));
+            const auto documents = ctex::io::list_texture_documents(project.container);
+            std::vector<std::string> identifiers;
+            identifiers.reserve(documents.size());
+            for (const auto& document : documents) {
+                identifiers.push_back(document.identifier);
+            }
+            *out_required_size = texture_set_id_buffer_size(identifiers);
+            *out_count = identifiers.size();
+            validate_string_buffer(buffer, buffer_size, *out_required_size);
+            if (buffer != nullptr) {
+                copy_packed_strings(identifiers, buffer);
+            }
+        } catch (const ctex::io::TextureDocumentIoError& error) {
+            throw_texture_document_io_error(error);
+        } catch (const ctex::io::ProjectContainerError& error) {
+            throw_project_container_error(error);
+        }
+    });
+}
+
+extern "C" ctex_result ctex_project_container_upsert_texture_document(
+    const void* project_encoded, std::size_t project_encoded_size,
+    const ctex_project_container_read_limits_descriptor* limits, const ctex_document* document,
+    const char* asset_identifier, ctex_project_container_info* out_info, void* project_output,
+    std::size_t project_output_size, char* report_output, std::size_t report_output_size) {
+    return call_boundary("ctex_project_container_upsert_texture_document", [&] {
+        if (document == nullptr || asset_identifier == nullptr || out_info == nullptr) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                           "document, asset_identifier and out_info are required");
+        }
+        validate_structure_size(out_info->size, CTEX_PROJECT_CONTAINER_INFO_V1_SIZE,
+                                CTEX_PROJECT_CONTAINER_INFO_CURRENT_SIZE,
+                                "project container info size");
+        try {
+            auto project = ctex::io::read_project_container(
+                project_container_bytes(project_encoded, project_encoded_size),
+                project_container_limits(limits));
+            ctex::io::upsert_texture_document(project.container, asset_identifier, document->value);
+            PreparedProjectContainer prepared =
+                prepare_project_container(project_container_result(std::move(project.container)));
+            validate_project_container_outputs(prepared, project_output, project_output_size,
+                                               report_output, report_output_size);
+            *out_info = prepared.info;
+            write_project_container_outputs(prepared, project_output, report_output);
+        } catch (const ctex::io::TextureDocumentIoError& error) {
+            throw_texture_document_io_error(error);
+        } catch (const ctex::io::ProjectContainerError& error) {
+            throw_project_container_error(error);
+        }
+    });
+}
+
+extern "C" ctex_result ctex_project_container_restore_texture_document(
+    const void* project_encoded, std::size_t project_encoded_size,
+    const ctex_project_container_read_limits_descriptor* limits, const char* asset_identifier,
+    ctex_document* document) {
+    return call_boundary("ctex_project_container_restore_texture_document", [&] {
+        if (asset_identifier == nullptr || document == nullptr) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                           "asset_identifier and document are required");
+        }
+        try {
+            const auto project = ctex::io::read_project_container(
+                project_container_bytes(project_encoded, project_encoded_size),
+                project_container_limits(limits));
+            ctex::doc::TextureDocument candidate = ctex::io::unpack_texture_document(
+                project.container, asset_identifier, {}, &document->memory_resource);
+            document->value = std::move(candidate);
+        } catch (const ctex::io::TextureDocumentIoError& error) {
+            throw_texture_document_io_error(error);
+        } catch (const ctex::io::ProjectContainerError& error) {
+            throw_project_container_error(error);
+        }
     });
 }
 

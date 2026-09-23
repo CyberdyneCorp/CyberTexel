@@ -1,7 +1,7 @@
 //! Raw declarations generated from `include/ctex/capi.h`.
 //! Regenerate with `python3 tools/generate_rust_sys.py`.
 
-//! C header SHA-256: 639d4fbe186a3230b417e454ae940c3720048a3677c05140288a2549e4bb2a05
+//! C header SHA-256: d259b12df1a65a7b3b88c15bbf5e6170e7ef4220db0e29a51d0cb98cf89ade65
 
 #![allow(non_camel_case_types, non_snake_case, non_upper_case_globals)]
 
@@ -6904,6 +6904,40 @@ unsafe extern "C" {
         canonical_output_size: usize,
         report_output: *mut ::std::os::raw::c_char,
         report_output_size: usize,
+    ) -> ctex_result;
+}
+unsafe extern "C" {
+    pub fn ctex_project_container_get_texture_document_ids(
+        project_encoded: *const ::std::os::raw::c_void,
+        project_encoded_size: usize,
+        limits: *const ctex_project_container_read_limits_descriptor,
+        buffer: *mut ::std::os::raw::c_char,
+        buffer_size: usize,
+        out_required_size: *mut usize,
+        out_count: *mut usize,
+    ) -> ctex_result;
+}
+unsafe extern "C" {
+    pub fn ctex_project_container_upsert_texture_document(
+        project_encoded: *const ::std::os::raw::c_void,
+        project_encoded_size: usize,
+        limits: *const ctex_project_container_read_limits_descriptor,
+        document: *const ctex_document,
+        asset_identifier: *const ::std::os::raw::c_char,
+        out_info: *mut ctex_project_container_info,
+        project_output: *mut ::std::os::raw::c_void,
+        project_output_size: usize,
+        report_output: *mut ::std::os::raw::c_char,
+        report_output_size: usize,
+    ) -> ctex_result;
+}
+unsafe extern "C" {
+    pub fn ctex_project_container_restore_texture_document(
+        project_encoded: *const ::std::os::raw::c_void,
+        project_encoded_size: usize,
+        limits: *const ctex_project_container_read_limits_descriptor,
+        asset_identifier: *const ::std::os::raw::c_char,
+        document: *mut ctex_document,
     ) -> ctex_result;
 }
 unsafe extern "C" {

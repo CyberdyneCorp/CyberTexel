@@ -1,4 +1,4 @@
-# C header SHA-256: 639d4fbe186a3230b417e454ae940c3720048a3677c05140288a2549e4bb2a05
+# C header SHA-256: d259b12df1a65a7b3b88c15bbf5e6170e7ef4220db0e29a51d0cb98cf89ade65
 """Generated raw ctypes declarations for the CyberTexel C ABI.
 
 Regenerate with ``just generate-python-capi``.
@@ -10774,6 +10774,33 @@ for _lib in _libs.values():
     ctex_project_container_normalize = _lib.get("ctex_project_container_normalize", "cdecl")
     ctex_project_container_normalize.argtypes = [POINTER(None), c_size_t, POINTER(ctex_project_container_read_limits_descriptor), POINTER(ctex_project_container_info), POINTER(None), c_size_t, String, c_size_t]
     ctex_project_container_normalize.restype = ctex_result
+    break
+
+
+for _lib in _libs.values():
+    if not _lib.has("ctex_project_container_get_texture_document_ids", "cdecl"):
+        continue
+    ctex_project_container_get_texture_document_ids = _lib.get("ctex_project_container_get_texture_document_ids", "cdecl")
+    ctex_project_container_get_texture_document_ids.argtypes = [POINTER(None), c_size_t, POINTER(ctex_project_container_read_limits_descriptor), String, c_size_t, POINTER(c_size_t), POINTER(c_size_t)]
+    ctex_project_container_get_texture_document_ids.restype = ctex_result
+    break
+
+
+for _lib in _libs.values():
+    if not _lib.has("ctex_project_container_upsert_texture_document", "cdecl"):
+        continue
+    ctex_project_container_upsert_texture_document = _lib.get("ctex_project_container_upsert_texture_document", "cdecl")
+    ctex_project_container_upsert_texture_document.argtypes = [POINTER(None), c_size_t, POINTER(ctex_project_container_read_limits_descriptor), POINTER(ctex_document), String, POINTER(ctex_project_container_info), POINTER(None), c_size_t, String, c_size_t]
+    ctex_project_container_upsert_texture_document.restype = ctex_result
+    break
+
+
+for _lib in _libs.values():
+    if not _lib.has("ctex_project_container_restore_texture_document", "cdecl"):
+        continue
+    ctex_project_container_restore_texture_document = _lib.get("ctex_project_container_restore_texture_document", "cdecl")
+    ctex_project_container_restore_texture_document.argtypes = [POINTER(None), c_size_t, POINTER(ctex_project_container_read_limits_descriptor), String, POINTER(ctex_document)]
+    ctex_project_container_restore_texture_document.restype = ctex_result
     break
 
 
