@@ -232,5 +232,11 @@ lossless project save/reopen through C. Surface paths resolve through the
 canonical stroke model. Mapping persistent editable placement reduces the exact
 remaining gap to 6 runtime requirements; mesh-replacement reprojection keeps the
 separate editable-surface-path requirement open.
+Mesh replacement now exposes a bounded, cancellable reprojection preflight with
+per-texel and editable-attachment JSON evidence, explicit hole and ambiguity
+policies, stale-source refusal and atomic replacement publication. Tangent-space
+normal samples are converted through the source and destination bases. Mapping
+the reprojection requirement reduces the exact remaining gap to 5 runtime
+requirements.
 The gate is not part of the aggregate `just check` until that count reaches zero;
 its unit tests run in the normal tooling suite throughout the migration.

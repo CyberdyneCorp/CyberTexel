@@ -88,10 +88,10 @@ before mutation. Clear preserves channel enablement and format while releasing
 sparse tiles and advancing the revision epoch so old cursors cannot be mistaken
 for current data.
 
-Reprojection is deliberately a preflight outcome at this stage. If any set
-requests it, all requested clears and mesh publication remain pending, leaving
-the old mesh and all pixels intact for the reprojection operation specified by
-editable-authoring task 20.5. Otherwise the C replacement-plan API publishes
-the already validated, owned replacement mesh atomically after applying all
-policies. The plan refuses publication if another mesh replacement made its
-source revision stale.
+If any set requests reprojection, all requested clears and mesh publication
+remain pending, leaving the old mesh and all pixels intact. The host then runs
+the inspectable, bounded preflight and supplies explicit hole and ambiguity
+policies described in [mesh-reprojection.md](mesh-reprojection.md). Otherwise
+the C replacement-plan API publishes the already validated, owned replacement
+mesh atomically after applying all policies. Both paths refuse publication if
+another mesh or source-channel edit made the plan stale.

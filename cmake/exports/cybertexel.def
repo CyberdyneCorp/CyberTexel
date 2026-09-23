@@ -18,6 +18,8 @@ EXPORTS
     ctex_mesh_replacement_plan_destroy
     ctex_mesh_replacement_plan_get_info
     ctex_mesh_replacement_plan_apply
+    ctex_mesh_replacement_plan_preflight_reprojection
+    ctex_mesh_replacement_plan_commit_reprojection
     ctex_mesh_map_set_create
     ctex_mesh_map_set_destroy
     ctex_mesh_map_kind_get_name

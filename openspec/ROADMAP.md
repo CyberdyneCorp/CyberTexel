@@ -387,6 +387,12 @@ material and attachment source data in the texture set. Edits atomically
 invalidate the union of dependent tiles, create one undo step and remain
 explicitly rasterized. Canonical project assets and strict-C save/reopen tests
 complete task 20.4 and reduce the task-14.8 gap to 6 runtime requirements.
+Mesh-replacement plans now retain both mesh states through a bounded,
+cancellable reprojection preflight. Per-texel and editable-attachment mappings
+report holes and ambiguity before explicit policy selection; commit stages every
+channel, converts tangent normals, rejects stale source revisions and publishes
+the replacement atomically. This completes task 20.5 and reduces the task-14.8
+gap to 5 runtime requirements.
 
 ## Milestones
 

@@ -78,9 +78,17 @@ Keep and clear policies publish atomically with the candidate mesh, while stale,
 missing, duplicate, or unknown decisions publish nothing. If any texture set
 requests reprojection, apply succeeds as a preflight with
 `replacement_applied == 0`: neither mesh nor pixels change and the plan can be
-queried or submitted again. The document and mesh must outlive the plan. The
-`_with_tangent_data` constructor provides the same transaction for a declared
-per-corner tangent frame.
+queried or submitted again. Run
+`ctex_mesh_replacement_plan_preflight_reprojection` with explicit distance,
+normal-angle, visibility, ambiguity and work limits. Its two-call JSON result
+lists every mapped, unmapped or ambiguous destination texel and affected
+editable entry. Cancellation and budget exhaustion preserve the original
+document. Commit supplies explicit hole and ambiguity policies, transforms
+normal-vector channels between tangent bases, rejects stale source revisions,
+and publishes pixels, editable attachments and the replacement mesh together.
+The document and mesh must outlive the plan. The `_with_tangent_data`
+constructor provides the same transaction for a declared per-corner tangent
+frame.
 
 `ctex_document_create_texture_sets_from_mesh` selects any named UV set on a mesh
 and creates one document texture set for every validated face partition, using

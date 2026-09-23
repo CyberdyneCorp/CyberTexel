@@ -169,6 +169,7 @@ ctex_add_module(
         src/doc/layer_stack.cpp
         src/doc/material_graph.cpp
         src/doc/mesh_replacement.cpp
+        src/doc/mesh_reprojection.cpp
         src/doc/preset_application.cpp
         src/doc/tile_history.cpp
         src/doc/transaction.cpp
@@ -440,6 +441,9 @@ if(BUILD_TESTING)
         ctex_configure_c_target(ctex_capi_mesh_test)
         target_link_libraries(ctex_capi_mesh_test PRIVATE cybertexel_c)
         add_test(NAME c-abi-mesh-ingest COMMAND ctex_capi_mesh_test)
+        set_tests_properties(
+            c-abi-mesh-ingest PROPERTIES LABELS "editable-authoring-scenario;mesh-and-texture-sets-scenario"
+        )
         add_executable(ctex_capi_mesh_uv_diagnostics_test tests/capi/mesh_uv_diagnostics_test.c)
         ctex_configure_c_target(ctex_capi_mesh_uv_diagnostics_test)
         target_link_libraries(ctex_capi_mesh_uv_diagnostics_test PRIVATE cybertexel_c)
@@ -763,6 +767,15 @@ if(BUILD_TESTING)
         ctex_mesh_replacement_test PRIVATE ctex_doc ctex_mesh ctex_graph ctex_image
     )
     add_test(NAME mesh-replacement-policy COMMAND ctex_mesh_replacement_test)
+    add_executable(ctex_mesh_reprojection_test tests/doc/mesh_reprojection_test.cpp)
+    ctex_configure_cpp_target(ctex_mesh_reprojection_test)
+    target_link_libraries(
+        ctex_mesh_reprojection_test PRIVATE ctex_doc ctex_mesh ctex_graph ctex_image
+    )
+    add_test(NAME mesh-reprojection COMMAND ctex_mesh_reprojection_test)
+    set_tests_properties(
+        mesh-reprojection PROPERTIES LABELS "editable-authoring-scenario;mesh-and-texture-sets-scenario"
+    )
     add_executable(ctex_smart_material_test tests/doc/smart_material_test.cpp)
     ctex_configure_cpp_target(ctex_smart_material_test)
     target_link_libraries(

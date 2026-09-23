@@ -278,6 +278,19 @@ bool TextureChannels::is_enabled(std::string_view semantic_id) const noexcept {
     return found != channels_.end() && static_cast<bool>(found->second.pixels);
 }
 
+void TextureChannels::replace_pixels(std::string_view semantic_id, image::TiledImage replacement) {
+    ChannelEntry& channel = entry(semantic_id);
+    if (!channel.pixels) {
+        throw std::invalid_argument("cannot replace storage for a disabled channel");
+    }
+    if (replacement.width() != channel.pixels->width() ||
+        replacement.height() != channel.pixels->height() ||
+        replacement.format() != channel.pixels->format()) {
+        throw std::invalid_argument("replacement channel storage has an incompatible layout");
+    }
+    *channel.pixels = std::move(replacement);
+}
+
 image::TiledImage& TextureChannels::pixels(std::string_view semantic_id) {
     ChannelEntry& channel = entry(semantic_id);
     if (!channel.pixels) {

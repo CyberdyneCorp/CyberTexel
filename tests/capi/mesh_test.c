@@ -25,6 +25,11 @@ static void count_deallocate(void* allocation, size_t size, size_t alignment, vo
 
 static int expect(int condition) { return condition ? 1 : 0; }
 
+static uint32_t cancel_reprojection(void* user_data) {
+    (void)user_data;
+    return 1;
+}
+
 int main(void) {
     ctex_vec3f positions[] = {{0.0F, 0.0F, 0.0F}, {1.0F, 0.0F, 0.0F}, {0.0F, 1.0F, 0.0F}};
     const ctex_vec3f positions_before[] = {
@@ -124,7 +129,7 @@ int main(void) {
         !expect(ctex_document_get_texture_set_ids(document, NULL, 0, &texture_set_ids_size,
                                                   &texture_set_count) == CTEX_RESULT_SUCCESS) ||
         !expect(texture_set_count == 0) ||
-        !expect(ctex_document_create_texture_sets_from_mesh(document, mesh, "uv1", 1024, 512, 16) ==
+        !expect(ctex_document_create_texture_sets_from_mesh(document, mesh, "uv1", 8, 8, 16) ==
                 CTEX_RESULT_SUCCESS) ||
         !expect(ctex_document_get_texture_set_ids(document, texture_set_ids,
                                                   sizeof(texture_set_ids), &texture_set_ids_size,
@@ -167,33 +172,80 @@ int main(void) {
         !expect(after_rejection.revision == initial.revision)) {
         return 5;
     }
-    decision.policy = CTEX_MESH_REPLACEMENT_KEEP_TEXELS;
-    apply_info.size = CTEX_MESH_REPLACEMENT_APPLY_INFO_CURRENT_SIZE;
-    if (!expect(ctex_mesh_replacement_plan_apply(replacement_plan, &decision, 1, &apply_info) ==
-                CTEX_RESULT_SUCCESS) ||
-        !expect(apply_info.replacement_applied == 1 && apply_info.kept_texture_set_count == 1 &&
-                apply_info.replacement_mesh_revision > initial.revision)) {
+    ctex_mesh_reprojection_descriptor reprojection = {
+        .size = CTEX_MESH_REPROJECTION_DESCRIPTOR_CURRENT_SIZE,
+        .maximum_distance = 1.0,
+        .maximum_normal_angle_radians = 0.5,
+        .require_visibility = 1,
+        .visibility_epsilon = 0.00001,
+        .ambiguity_distance_epsilon = 0.000001,
+        .maximum_work_items = 10000,
+        .progress_interval = 4,
+        .is_cancelled = cancel_reprojection,
+    };
+    ctex_mesh_reprojection_preflight_info preflight = {
+        .size = CTEX_MESH_REPROJECTION_PREFLIGHT_INFO_CURRENT_SIZE};
+    if (!expect(ctex_mesh_replacement_plan_preflight_reprojection(replacement_plan, &reprojection,
+                                                                  &preflight, NULL,
+                                                                  0) == CTEX_RESULT_CANCELLED) ||
+        !expect(ctex_get_last_diagnostic_code() == CTEX_DIAGNOSTIC_INVALID_MESH_REPROJECTION) ||
+        !expect(ctex_mesh_get_info(mesh, &after_rejection) == CTEX_RESULT_SUCCESS) ||
+        !expect(after_rejection.revision == initial.revision)) {
         return 6;
+    }
+    reprojection.is_cancelled = NULL;
+    if (!expect(ctex_mesh_replacement_plan_preflight_reprojection(
+                    replacement_plan, &reprojection, &preflight, NULL, 0) == CTEX_RESULT_SUCCESS) ||
+        !expect(preflight.source_mesh_revision == initial.revision &&
+                preflight.replacement_mesh_revision > initial.revision &&
+                preflight.mapped_texel_count > 0 && preflight.unmapped_texel_count == 0 &&
+                preflight.ambiguous_texel_count == 0 && preflight.required_mapping_json_size > 1)) {
+        return 7;
+    }
+    char* mapping_json = (char*)malloc(preflight.required_mapping_json_size);
+    if (!expect(mapping_json != NULL) ||
+        !expect(ctex_mesh_replacement_plan_preflight_reprojection(
+                    replacement_plan, &reprojection, &preflight, mapping_json,
+                    preflight.required_mapping_json_size - 1) == CTEX_RESULT_BUFFER_TOO_SMALL) ||
+        !expect(ctex_mesh_replacement_plan_preflight_reprojection(
+                    replacement_plan, &reprojection, &preflight, mapping_json,
+                    preflight.required_mapping_json_size) == CTEX_RESULT_SUCCESS) ||
+        !expect(strstr(mapping_json, "\"status\":\"mapped\"") != NULL &&
+                strstr(mapping_json, "\"affected_entries\":[]") != NULL)) {
+        free(mapping_json);
+        return 8;
+    }
+    free(mapping_json);
+    ctex_mesh_reprojection_commit_info commit = {
+        .size = CTEX_MESH_REPROJECTION_COMMIT_INFO_CURRENT_SIZE};
+    if (!expect(ctex_mesh_replacement_plan_commit_reprojection(
+                    replacement_plan, CTEX_MESH_REPROJECTION_RETAIN_TARGET,
+                    CTEX_MESH_REPROJECTION_NEAREST_LOWEST_TRIANGLE,
+                    &commit) == CTEX_RESULT_SUCCESS) ||
+        !expect(commit.replacement_mesh_revision == preflight.replacement_mesh_revision) ||
+        !expect(ctex_mesh_get_info(mesh, &replaced) == CTEX_RESULT_SUCCESS) ||
+        !expect(replaced.revision == commit.replacement_mesh_revision)) {
+        return 9;
     }
     ctex_mesh_replacement_plan_destroy(replacement_plan);
     replacement_plan = NULL;
 
     if (!expect(ctex_mesh_replacement_plan_create(document, mesh, &descriptor, &stale_plan) ==
                 CTEX_RESULT_SUCCESS)) {
-        return 7;
+        return 10;
     }
     positions[0].x = 2.0F;
     if (!expect(ctex_mesh_replace(mesh, &descriptor) == CTEX_RESULT_SUCCESS) ||
         !expect(ctex_mesh_get_info(mesh, &replaced) == CTEX_RESULT_SUCCESS) ||
         !expect(replaced.revision > initial.revision)) {
-        return 8;
+        return 11;
     }
     apply_info.size = CTEX_MESH_REPLACEMENT_APPLY_INFO_CURRENT_SIZE;
     if (!expect(ctex_mesh_replacement_plan_apply(stale_plan, NULL, 0, &apply_info) ==
                 CTEX_RESULT_INVALID_ARGUMENT) ||
         !expect(ctex_mesh_get_info(mesh, &after_rejection) == CTEX_RESULT_SUCCESS) ||
         !expect(after_rejection.revision == replaced.revision)) {
-        return 9;
+        return 12;
     }
     ctex_mesh_replacement_plan_destroy(stale_plan);
     stale_plan = NULL;
@@ -203,7 +255,7 @@ int main(void) {
         !expect(ctex_get_last_diagnostic_code() == CTEX_DIAGNOSTIC_INVALID_MESH) ||
         !expect(ctex_mesh_get_info(mesh, &after_rejection) == CTEX_RESULT_SUCCESS) ||
         !expect(after_rejection.revision == replaced.revision)) {
-        return 10;
+        return 13;
     }
 
     descriptor.default_uv_set = "uv0";
@@ -212,18 +264,18 @@ int main(void) {
         !expect(ctex_get_last_diagnostic_code() == CTEX_DIAGNOSTIC_MESH_LIMIT_EXCEEDED) ||
         !expect(strstr(ctex_get_last_diagnostic(), "vertex_count supplied=100000001") != NULL) ||
         !expect(strstr(ctex_get_last_diagnostic(), "maximum=100000000") != NULL)) {
-        return 11;
+        return 14;
     }
 
     if (!expect(ctex_set_allocator(NULL) == CTEX_RESULT_SUCCESS)) {
-        return 12;
+        return 15;
     }
     ctex_document_destroy(document);
     ctex_uv_pick_index_destroy(uv_pick_index);
     ctex_pick_index_destroy(pick_index);
     ctex_mesh_destroy(mesh);
     if (!expect(counts.allocations > 1 && counts.allocations == counts.deallocations)) {
-        return 13;
+        return 16;
     }
     return 0;
 }

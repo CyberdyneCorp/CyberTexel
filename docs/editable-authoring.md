@@ -34,6 +34,9 @@ caller-owned sizing and include invalidated tiles. A too-small report buffer
 refuses a mutation before publication. Project upsert and restore operations
 round-trip the complete store through canonical container bytes.
 
-Mesh-replacement reprojection of surface attachments remains task 20.5. Until
-that policy is implemented, the retained mesh revision and attachment data make
-staleness inspectable but do not silently remap invalid control points.
+Mesh-replacement reprojection preflights every surface attachment against the
+destination mesh. Mapped points receive the destination position, normal,
+triangle, barycentric coordinates and mesh revision as a revision-checked edit.
+Ambiguous attachments require the explicit ambiguity policy; an unmapped
+attachment refuses commit rather than silently retaining an invalid reference.
+See [mesh-reprojection.md](mesh-reprojection.md).

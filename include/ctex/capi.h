@@ -98,7 +98,8 @@ typedef enum ctex_diagnostic_code {
     CTEX_DIAGNOSTIC_INVALID_MESH_MAP = 59,
     CTEX_DIAGNOSTIC_INVALID_TILE_HISTORY = 60,
     CTEX_DIAGNOSTIC_INVALID_OPERATION_RECORD = 61,
-    CTEX_DIAGNOSTIC_INVALID_EDITABLE_AUTHORING = 62
+    CTEX_DIAGNOSTIC_INVALID_EDITABLE_AUTHORING = 62,
+    CTEX_DIAGNOSTIC_INVALID_MESH_REPROJECTION = 63
 } ctex_diagnostic_code;
 
 typedef enum ctex_log_severity {
@@ -1795,6 +1796,72 @@ typedef struct ctex_mesh_replacement_apply_info {
     ((uint32_t)sizeof(ctex_mesh_replacement_apply_info))
 #define CTEX_MESH_REPLACEMENT_APPLY_INFO_CURRENT_SIZE \
     ((uint32_t)sizeof(ctex_mesh_replacement_apply_info))
+
+typedef enum ctex_mesh_reprojection_hole_policy {
+    CTEX_MESH_REPROJECTION_RETAIN_TARGET = 0,
+    CTEX_MESH_REPROJECTION_CHANNEL_DEFAULT = 1
+} ctex_mesh_reprojection_hole_policy;
+
+typedef enum ctex_mesh_reprojection_ambiguity_policy {
+    CTEX_MESH_REPROJECTION_REFUSE_AMBIGUITY = 0,
+    CTEX_MESH_REPROJECTION_NEAREST_LOWEST_TRIANGLE = 1
+} ctex_mesh_reprojection_ambiguity_policy;
+
+typedef uint32_t (*ctex_mesh_reprojection_cancel_callback)(void* user_data);
+typedef void (*ctex_mesh_reprojection_progress_callback)(size_t completed_work_items,
+                                                         void* user_data);
+
+typedef struct ctex_mesh_reprojection_descriptor {
+    uint32_t size;
+    double maximum_distance;
+    double maximum_normal_angle_radians;
+    uint32_t require_visibility;
+    double visibility_epsilon;
+    double ambiguity_distance_epsilon;
+    size_t maximum_work_items;
+    size_t progress_interval;
+    void* user_data;
+    ctex_mesh_reprojection_cancel_callback is_cancelled;
+    ctex_mesh_reprojection_progress_callback report_progress;
+} ctex_mesh_reprojection_descriptor;
+
+#define CTEX_MESH_REPROJECTION_DESCRIPTOR_V1_SIZE \
+    ((uint32_t)sizeof(ctex_mesh_reprojection_descriptor))
+#define CTEX_MESH_REPROJECTION_DESCRIPTOR_CURRENT_SIZE \
+    ((uint32_t)sizeof(ctex_mesh_reprojection_descriptor))
+
+typedef struct ctex_mesh_reprojection_preflight_info {
+    uint32_t size;
+    uint64_t source_mesh_revision;
+    uint64_t replacement_mesh_revision;
+    size_t mapped_texel_count;
+    size_t unmapped_texel_count;
+    size_t ambiguous_texel_count;
+    size_t affected_entry_count;
+    size_t tested_candidate_count;
+    size_t required_mapping_json_size;
+} ctex_mesh_reprojection_preflight_info;
+
+#define CTEX_MESH_REPROJECTION_PREFLIGHT_INFO_V1_SIZE \
+    ((uint32_t)sizeof(ctex_mesh_reprojection_preflight_info))
+#define CTEX_MESH_REPROJECTION_PREFLIGHT_INFO_CURRENT_SIZE \
+    ((uint32_t)sizeof(ctex_mesh_reprojection_preflight_info))
+
+typedef struct ctex_mesh_reprojection_commit_info {
+    uint32_t size;
+    uint64_t replacement_mesh_revision;
+    size_t reprojected_texel_count;
+    size_t retained_hole_count;
+    size_t defaulted_hole_count;
+    size_t resolved_ambiguity_count;
+    size_t transformed_tangent_normal_count;
+    size_t reprojected_entry_count;
+} ctex_mesh_reprojection_commit_info;
+
+#define CTEX_MESH_REPROJECTION_COMMIT_INFO_V1_SIZE \
+    ((uint32_t)sizeof(ctex_mesh_reprojection_commit_info))
+#define CTEX_MESH_REPROJECTION_COMMIT_INFO_CURRENT_SIZE \
+    ((uint32_t)sizeof(ctex_mesh_reprojection_commit_info))
 
 typedef enum ctex_pick_occlusion_policy {
     CTEX_PICK_OCCLUSION_NEAREST = 0,
@@ -6561,6 +6628,19 @@ CTEX_API ctex_result ctex_mesh_replacement_plan_get_info(const ctex_mesh_replace
 CTEX_API ctex_result ctex_mesh_replacement_plan_apply(
     ctex_mesh_replacement_plan* plan, const ctex_mesh_replacement_decision* decisions,
     size_t decision_count, ctex_mesh_replacement_apply_info* out_info);
+
+/*
+ * After apply reports pending reprojection, preflight retains an inspectable
+ * mapping on the replacement plan. The JSON contains every destination texel
+ * mapping and affected editable attachment. Commit stages all channel and
+ * editable-entry changes before atomically publishing the replacement mesh.
+ */
+CTEX_API ctex_result ctex_mesh_replacement_plan_preflight_reprojection(
+    ctex_mesh_replacement_plan* plan, const ctex_mesh_reprojection_descriptor* descriptor,
+    ctex_mesh_reprojection_preflight_info* out_info, char* mapping_json, size_t mapping_json_size);
+CTEX_API ctex_result ctex_mesh_replacement_plan_commit_reprojection(
+    ctex_mesh_replacement_plan* plan, uint32_t hole_policy, uint32_t ambiguity_policy,
+    ctex_mesh_reprojection_commit_info* out_info);
 
 /*
  * These variants copy one tangent per triangle corner and retain the complete

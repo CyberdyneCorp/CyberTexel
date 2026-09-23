@@ -10,6 +10,7 @@
 #include <ctex/doc/editable_authoring.hpp>
 #include <ctex/doc/material_graph.hpp>
 #include <ctex/doc/mesh_replacement.hpp>
+#include <ctex/doc/mesh_reprojection.hpp>
 #include <ctex/doc/smart_material.hpp>
 #include <ctex/emit/emission_cache.hpp>
 #include <ctex/exec/cpu_reference.hpp>
@@ -378,6 +379,8 @@ struct ctex_mesh_replacement_plan {
     ctex_mesh* mesh;
     ctex_mesh_state* replacement;
     ctex::doc::MeshReplacementPlan analysis;
+    std::vector<std::string> pending_reprojection;
+    std::optional<ctex::doc::MeshReprojectionPreflight> reprojection_preflight;
     bool applied{};
 };
 
@@ -7444,6 +7447,105 @@ void write_project_container_outputs(const PreparedProjectContainer& prepared, v
     const ctex::io::EditableAuthoringIoError& error) {
     throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_INVALID_EDITABLE_AUTHORING,
                    error.what());
+}
+
+[[noreturn]] void throw_mesh_reprojection_error(const ctex::doc::MeshReprojectionError& error) {
+    switch (error.code()) {
+        case ctex::doc::MeshReprojectionErrorCode::over_budget:
+            throw_boundary(CTEX_RESULT_OVER_BUDGET, CTEX_DIAGNOSTIC_INVALID_MESH_REPROJECTION,
+                           error.what());
+        case ctex::doc::MeshReprojectionErrorCode::cancelled:
+            throw_boundary(CTEX_RESULT_CANCELLED, CTEX_DIAGNOSTIC_INVALID_MESH_REPROJECTION,
+                           error.what());
+        case ctex::doc::MeshReprojectionErrorCode::stale_preflight:
+            throw_boundary(CTEX_RESULT_STALE_STATE, CTEX_DIAGNOSTIC_INVALID_MESH_REPROJECTION,
+                           error.what());
+        case ctex::doc::MeshReprojectionErrorCode::invalid_request:
+        case ctex::doc::MeshReprojectionErrorCode::unresolved_ambiguity:
+        case ctex::doc::MeshReprojectionErrorCode::invalid_attachment:
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_INVALID_MESH_REPROJECTION,
+                           error.what());
+    }
+    throw_boundary(CTEX_RESULT_INTERNAL_ERROR, CTEX_DIAGNOSTIC_UNEXPECTED_EXCEPTION,
+                   "unknown mesh-reprojection failure");
+}
+
+std::string_view reprojection_mapping_status_name(ctex::doc::ReprojectionMappingStatus status) {
+    switch (status) {
+        case ctex::doc::ReprojectionMappingStatus::mapped:
+            return "mapped";
+        case ctex::doc::ReprojectionMappingStatus::unmapped:
+            return "unmapped";
+        case ctex::doc::ReprojectionMappingStatus::ambiguous:
+            return "ambiguous";
+    }
+    return "invalid";
+}
+
+void append_json_number_array(std::string& output, std::span<const double> values) {
+    output.push_back('[');
+    for (std::size_t index = 0; index < values.size(); ++index) {
+        if (index != 0) {
+            output.push_back(',');
+        }
+        output += std::to_string(values[index]);
+    }
+    output.push_back(']');
+}
+
+std::string mesh_reprojection_json(const ctex::doc::MeshReprojectionPreflight& preflight) {
+    std::string output =
+        "{\"source_mesh_revision\":" + std::to_string(preflight.source_revision) +
+        ",\"replacement_mesh_revision\":" + std::to_string(preflight.published_revision) +
+        ",\"texels\":[";
+    for (std::size_t index = 0; index < preflight.texels.size(); ++index) {
+        const auto& mapping = preflight.texels[index];
+        if (index != 0) {
+            output.push_back(',');
+        }
+        output += "{\"texture_set_id\":";
+        append_json_text(output, mapping.texture_set_id);
+        output += ",\"x\":" + std::to_string(mapping.x) + ",\"y\":" + std::to_string(mapping.y) +
+                  ",\"status\":";
+        append_json_text(output, reprojection_mapping_status_name(mapping.status));
+        output += ",\"target_triangle\":" + std::to_string(mapping.target_triangle) +
+                  ",\"source_triangle\":" + std::to_string(mapping.source_triangle) +
+                  ",\"source_uv\":";
+        append_json_number_array(output, mapping.source_uv);
+        output += ",\"distance\":" + std::to_string(mapping.distance) +
+                  ",\"normal_angle_radians\":" + std::to_string(mapping.normal_angle_radians) +
+                  ",\"candidate_count\":" + std::to_string(mapping.candidate_count) + '}';
+    }
+    output += "],\"affected_entries\":[";
+    for (std::size_t index = 0; index < preflight.affected_entries.size(); ++index) {
+        const auto& entry = preflight.affected_entries[index];
+        if (index != 0) {
+            output.push_back(',');
+        }
+        output += "{\"texture_set_id\":";
+        append_json_text(output, entry.texture_set_id);
+        output += ",\"entry_id\":";
+        append_json_text(output, entry.entry_id);
+        output += ",\"point_count\":" + std::to_string(entry.point_count) +
+                  ",\"unmapped_point_count\":" + std::to_string(entry.unmapped_point_count) +
+                  ",\"ambiguous_point_count\":" + std::to_string(entry.ambiguous_point_count) + '}';
+    }
+    output += "]}";
+    return output;
+}
+
+ctex::doc::MeshReprojectionLimits mesh_reprojection_limits(
+    const ctex_mesh_reprojection_descriptor& descriptor) {
+    validate_structure_size(descriptor.size, CTEX_MESH_REPROJECTION_DESCRIPTOR_V1_SIZE,
+                            CTEX_MESH_REPROJECTION_DESCRIPTOR_CURRENT_SIZE,
+                            "mesh reprojection descriptor size");
+    return {.maximum_distance = descriptor.maximum_distance,
+            .maximum_normal_angle_radians = descriptor.maximum_normal_angle_radians,
+            .require_visibility = descriptor.require_visibility != 0,
+            .visibility_epsilon = descriptor.visibility_epsilon,
+            .ambiguity_distance_epsilon = descriptor.ambiguity_distance_epsilon,
+            .maximum_work_items = descriptor.maximum_work_items,
+            .progress_interval = descriptor.progress_interval};
 }
 
 void append_editable_parameters(ctex::doc::EditableAuthoringEntry& result,
@@ -16859,6 +16961,8 @@ extern "C" ctex_result ctex_mesh_replacement_plan_apply(
                 ctex::doc::apply_mesh_replacement_policies(plan->document->value,
                                                            plan->mesh->state->mesh_binding(),
                                                            plan->analysis, converted);
+            plan->pending_reprojection = report.reprojection_pending_texture_sets;
+            plan->reprojection_preflight.reset();
             std::uint64_t replacement_revision = 0;
             if (report.replacement_ready) {
                 ctex_mesh_state* previous = std::exchange(plan->mesh->state, plan->replacement);
@@ -16879,6 +16983,117 @@ extern "C" ctex_result ctex_mesh_replacement_plan_apply(
         } catch (const std::invalid_argument& error) {
             throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_INVALID_MESH,
                            error.what());
+        }
+    });
+}
+
+extern "C" ctex_result ctex_mesh_replacement_plan_preflight_reprojection(
+    ctex_mesh_replacement_plan* plan, const ctex_mesh_reprojection_descriptor* descriptor,
+    ctex_mesh_reprojection_preflight_info* out_info, char* mapping_json,
+    std::size_t mapping_json_size) {
+    return call_boundary("ctex_mesh_replacement_plan_preflight_reprojection", [&] {
+        if (plan == nullptr || descriptor == nullptr || out_info == nullptr) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                           "plan, descriptor and out_info are required");
+        }
+        validate_structure_size(out_info->size, CTEX_MESH_REPROJECTION_PREFLIGHT_INFO_V1_SIZE,
+                                CTEX_MESH_REPROJECTION_PREFLIGHT_INFO_CURRENT_SIZE,
+                                "mesh reprojection preflight info size");
+        if (plan->applied || plan->replacement == nullptr || plan->pending_reprojection.empty()) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_INVALID_MESH_REPROJECTION,
+                           "replacement plan has no pending reprojection request");
+        }
+        try {
+            const ctex::doc::MeshReprojectionLimits limits = mesh_reprojection_limits(*descriptor);
+            ctex::doc::MeshReprojectionControl control;
+            if (descriptor->is_cancelled != nullptr) {
+                control.is_cancelled = [descriptor] {
+                    return descriptor->is_cancelled(descriptor->user_data) != 0;
+                };
+            }
+            if (descriptor->report_progress != nullptr) {
+                control.report_progress = [descriptor](std::size_t completed) {
+                    descriptor->report_progress(completed, descriptor->user_data);
+                };
+            }
+            std::vector<std::string_view> selected;
+            selected.reserve(plan->pending_reprojection.size());
+            for (const std::string& identifier : plan->pending_reprojection) {
+                selected.push_back(identifier);
+            }
+            ctex::doc::MeshReprojectionPreflight preflight = ctex::doc::preflight_mesh_reprojection(
+                plan->document->value, plan->mesh->state->mesh_binding(),
+                plan->replacement->mesh_binding(), limits, control, selected);
+            const std::string json = mesh_reprojection_json(preflight);
+            *out_info = {
+                .size = CTEX_MESH_REPROJECTION_PREFLIGHT_INFO_CURRENT_SIZE,
+                .source_mesh_revision = preflight.source_revision,
+                .replacement_mesh_revision = preflight.published_revision,
+                .mapped_texel_count = preflight.mapped_texel_count,
+                .unmapped_texel_count = preflight.unmapped_texel_count,
+                .ambiguous_texel_count = preflight.ambiguous_texel_count,
+                .affected_entry_count = preflight.affected_entries.size(),
+                .tested_candidate_count = preflight.tested_candidate_count,
+                .required_mapping_json_size = json.size() + 1,
+            };
+            validate_string_buffer(mapping_json, mapping_json_size,
+                                   out_info->required_mapping_json_size);
+            plan->reprojection_preflight = std::move(preflight);
+            if (mapping_json != nullptr) {
+                std::memcpy(mapping_json, json.c_str(), json.size() + 1);
+            }
+        } catch (const ctex::doc::MeshReprojectionError& error) {
+            throw_mesh_reprojection_error(error);
+        }
+    });
+}
+
+extern "C" ctex_result ctex_mesh_replacement_plan_commit_reprojection(
+    ctex_mesh_replacement_plan* plan, std::uint32_t hole_policy, std::uint32_t ambiguity_policy,
+    ctex_mesh_reprojection_commit_info* out_info) {
+    return call_boundary("ctex_mesh_replacement_plan_commit_reprojection", [&] {
+        if (plan == nullptr || out_info == nullptr) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                           plan == nullptr ? "plan=null" : "out_info=null");
+        }
+        validate_structure_size(out_info->size, CTEX_MESH_REPROJECTION_COMMIT_INFO_V1_SIZE,
+                                CTEX_MESH_REPROJECTION_COMMIT_INFO_CURRENT_SIZE,
+                                "mesh reprojection commit info size");
+        if (plan->applied || plan->replacement == nullptr ||
+            !plan->reprojection_preflight.has_value()) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_INVALID_MESH_REPROJECTION,
+                           "replacement plan has no completed reprojection preflight");
+        }
+        if (hole_policy > CTEX_MESH_REPROJECTION_CHANNEL_DEFAULT ||
+            ambiguity_policy > CTEX_MESH_REPROJECTION_NEAREST_LOWEST_TRIANGLE) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_INVALID_ENUM_VALUE,
+                           "mesh reprojection policy is invalid");
+        }
+        try {
+            const auto report = ctex::doc::commit_mesh_reprojection(
+                plan->document->value, plan->mesh->state->mesh_binding(),
+                plan->replacement->mesh_binding(), *plan->reprojection_preflight,
+                static_cast<ctex::doc::ReprojectionHolePolicy>(hole_policy),
+                static_cast<ctex::doc::ReprojectionAmbiguityPolicy>(ambiguity_policy));
+            ctex_mesh_state* previous = std::exchange(plan->mesh->state, plan->replacement);
+            plan->replacement = nullptr;
+            plan->applied = true;
+            plan->pending_reprojection.clear();
+            plan->reprojection_preflight.reset();
+            const std::uint64_t replacement_revision = plan->mesh->state->mesh_binding().revision();
+            destroy_mesh_state(*plan->mesh, previous);
+            *out_info = {
+                .size = CTEX_MESH_REPROJECTION_COMMIT_INFO_CURRENT_SIZE,
+                .replacement_mesh_revision = replacement_revision,
+                .reprojected_texel_count = report.reprojected_texel_count,
+                .retained_hole_count = report.retained_hole_count,
+                .defaulted_hole_count = report.defaulted_hole_count,
+                .resolved_ambiguity_count = report.resolved_ambiguity_count,
+                .transformed_tangent_normal_count = report.transformed_tangent_normal_count,
+                .reprojected_entry_count = report.reprojected_entries.size(),
+            };
+        } catch (const ctex::doc::MeshReprojectionError& error) {
+            throw_mesh_reprojection_error(error);
         }
     });
 }

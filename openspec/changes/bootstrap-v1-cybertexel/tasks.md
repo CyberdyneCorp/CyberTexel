@@ -1339,6 +1339,14 @@ separate inspectable host request. Surface paths derive frames from their mesh
 attachments and evaluate through the canonical stroke resolver. C++ and
 strict-C save/reopen fixtures reduce the exact task-14.8 gap to 6 requirements.
 
+Task 20.5 retains the current mesh and source channels while a bounded,
+cancellable preflight maps destination texels and editable surface attachments.
+The report exposes texture-set matches, holes, ambiguity, source UVs, distances
+and angles before commit. Hosts choose retain/default hole behavior and explicit
+ambiguity resolution; stale sources and unmapped attachments refuse atomically.
+Normal-vector channels convert through source and destination tangent bases.
+C++ and strict-C fixtures reduce the exact task-14.8 gap to 5 requirements.
+
 ## 1. Foundation
 
 - [x] 1.1 CMake project, C++20, warnings as errors, presets for headless, macOS, Linux, Windows, iOS, Android
@@ -1618,5 +1626,5 @@ strict-C save/reopen fixtures reduce the exact task-14.8 gap to 6 requirements.
 - [x] 20.2 Same-resolution recovery versus resolution-independent replay eligibility; clone/blur/smear source snapshots and checkpoint-only policy
 - [ ] 20.3 Atomic undoable resize with explicit replay/resample/cancel policy and mixed-layer fixtures
 - [x] 20.4 Persistent editable decals, text and surface paths; parameter editing, invalidation, save/reopen and undo
-- [ ] 20.5 Reprojection preflight, distance/angle/visibility limits, ambiguity and hole policy, tangent conversion and cancellation
+- [x] 20.5 Reprojection preflight, distance/angle/visibility limits, ambiguity and hole policy, tangent conversion and cancellation
 - [ ] 20.6 `editable-authoring` scenarios as tests

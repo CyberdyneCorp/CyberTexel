@@ -58,6 +58,7 @@ public:
     [[nodiscard]] bool is_enabled(std::string_view semantic_id) const noexcept;
     [[nodiscard]] image::TiledImage& pixels(std::string_view semantic_id);
     [[nodiscard]] const image::TiledImage& pixels(std::string_view semantic_id) const;
+    void replace_pixels(std::string_view semantic_id, image::TiledImage replacement);
     [[nodiscard]] ChannelRevision channel_revision(std::string_view semantic_id) const;
     [[nodiscard]] ChannelRevisionCursor channel_revision_cursor(std::string_view semantic_id) const;
     [[nodiscard]] TileRevision tile_revision(std::string_view semantic_id,
