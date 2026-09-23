@@ -50,6 +50,9 @@ quantization policy.
 resolved positions on the fixture topology.
 `07_editable_operation_record.py` pins a brush asset in a replayable operation
 record and round-trips it through project storage.
+`08_brush_stroke.py` resolves timestamped input samples, evaluates geometric
+coverage and deposition, and applies the resulting brush through the native
+multi-channel paint-tool path.
 Full capability example coverage remains roadmap work. Every numbered script
 declares a literal `CAPABILITIES` tuple;
 `just gate-example-coverage` compares those declarations with

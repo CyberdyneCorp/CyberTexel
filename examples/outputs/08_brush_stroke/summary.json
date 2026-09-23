@@ -1,0 +1,12 @@
+{
+  "capabilities": [
+    "stroke-model",
+    "paint-engine",
+    "paint-tools"
+  ],
+  "coverage_maximum": 1.0,
+  "coverage_mean": 0.53772,
+  "painted_pixels": 8810,
+  "stamp_count": 127,
+  "swept_segment_count": 126
+}

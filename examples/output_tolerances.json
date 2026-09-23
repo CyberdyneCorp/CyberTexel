@@ -22,6 +22,10 @@
     "06_uv_picking/uv_hits.png": {
       "maximum_absolute_error": 0,
       "mode": "pixels"
+    },
+    "08_brush_stroke/brush_stroke.png": {
+      "maximum_absolute_error": 0,
+      "mode": "pixels"
     }
   },
   "schema": 1

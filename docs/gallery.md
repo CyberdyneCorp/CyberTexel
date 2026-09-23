@@ -87,3 +87,15 @@ The gallery retains the canonical [operation record](../examples/outputs/07_edit
 [record inventory](../examples/outputs/07_editable_operation_record/record_report.json),
 [project inventory](../examples/outputs/07_editable_operation_record/project_report.json)
 and [round-trip summary](../examples/outputs/07_editable_operation_record/summary.json).
+
+## `08_brush_stroke`
+
+Resolves three timestamped surface samples into a continuous swept stroke,
+rasterizes its geometric coverage and non-building deposition, then applies an
+orange base-colour material to the stroke-start snapshot through the atomic
+brush tool. It covers `stroke-model`, `paint-engine` and `paint-tools`.
+
+![Resolved brush stroke](../examples/outputs/08_brush_stroke/brush_stroke.png)
+
+The [paint summary](../examples/outputs/08_brush_stroke/summary.json) records the
+resolved stamp and segment counts together with coverage and write statistics.
