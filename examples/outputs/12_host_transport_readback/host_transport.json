@@ -1,0 +1,22 @@
+{
+  "capabilities": [
+    "host-transport",
+    "paint-engine",
+    "texture-document",
+    "c-abi"
+  ],
+  "cursor_after": [
+    1,
+    2
+  ],
+  "cursor_before": [
+    1,
+    0
+  ],
+  "diagnostic_code": 22,
+  "pending_readback_refused": true,
+  "tile_byte_sizes": [
+    12288
+  ],
+  "tile_count": 1
+}

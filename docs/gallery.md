@@ -132,3 +132,16 @@ unmeasured and unreachable. It explicitly makes no hardware performance claim.
 
 The [policy summary](../examples/outputs/11_device_gate_policy/summary.json)
 records all five asserted decisions and the native version used.
+
+## `12_host_transport_readback`
+
+Paints two texels, asks what changed since a revision cursor, pins the answer as
+a budgeted snapshot, reads the tile memory layout the host must upload into, and
+completes an asynchronous readback with exactly those tile payloads. A pending
+readback publishes nothing, and an unknown channel raises a typed exception
+carrying the native diagnostic code. It covers `host-transport`, `paint-engine`,
+`texture-document` and `c-abi`, and needs no device.
+
+The [transport summary](../examples/outputs/12_host_transport_readback/host_transport.json)
+records both revision cursors, the tile count and byte sizes, the refused
+pending readback and the diagnostic code.
