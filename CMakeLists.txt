@@ -245,6 +245,7 @@ ctex_add_module(
         src/io/texture_encode.cpp
         src/io/texture_export.cpp
         src/io/texture_document.cpp
+        src/io/document_mesh_state.cpp
         src/io/project_container.cpp
         src/io/project_autosave.cpp
         src/io/operation_record.cpp
@@ -310,10 +311,10 @@ if(CTEX_ENABLE_VULKAN_EXECUTOR)
 endif()
 
 if(NOT IOS AND NOT ANDROID)
-    add_executable(cybertexel_cli src/cli/main.cpp)
+    add_executable(cybertexel_cli src/cli/main.cpp src/cli/obj_mesh.cpp)
     ctex_configure_cpp_target(cybertexel_cli)
     set_target_properties(cybertexel_cli PROPERTIES OUTPUT_NAME cybertexel)
-    target_link_libraries(cybertexel_cli PRIVATE cybertexel)
+    target_link_libraries(cybertexel_cli PRIVATE cybertexel ${CMAKE_DL_LIBS})
 endif()
 
 configure_file(cmake/cybertexel.pc.in cybertexel.pc @ONLY)
@@ -378,6 +379,13 @@ include(CTest)
 if(BUILD_TESTING)
     find_program(CTEX_PYTHON3_EXECUTABLE python3 REQUIRED)
     if(TARGET cybertexel_cli)
+        add_library(ctex_cli_bake_provider MODULE tests/cli/bake_provider.cpp)
+        ctex_configure_cpp_target(ctex_cli_bake_provider)
+        set_target_properties(ctex_cli_bake_provider PROPERTIES PREFIX "")
+        add_executable(ctex_cli_obj_mesh_test tests/cli/obj_mesh_test.cpp src/cli/obj_mesh.cpp)
+        ctex_configure_cpp_target(ctex_cli_obj_mesh_test)
+        target_link_libraries(ctex_cli_obj_mesh_test PRIVATE ctex_mesh)
+        add_test(NAME cli-headless-obj-mesh COMMAND ctex_cli_obj_mesh_test)
         add_test(
             NAME cli-headless-skeleton
             COMMAND "${CTEX_PYTHON3_EXECUTABLE}"
@@ -385,6 +393,18 @@ if(BUILD_TESTING)
                     $<TARGET_FILE:cybertexel_cli> "${PROJECT_SOURCE_DIR}"
                     $<TARGET_FILE:ctex_texture_document_io_test>
                     $<TARGET_FILE:cybertexel_c>
+                    $<TARGET_FILE:ctex_cli_bake_provider>
+        )
+        add_test(
+            NAME cli-headless-scenario-matrix
+            COMMAND "${CTEX_PYTHON3_EXECUTABLE}"
+                    "${PROJECT_SOURCE_DIR}/tests/tools/check_cli_headless_scenario_matrix.py"
+        )
+        set_tests_properties(
+            cli-headless-skeleton
+            cli-headless-obj-mesh
+            cli-headless-scenario-matrix
+            PROPERTIES LABELS "cli-headless-scenario"
         )
     endif()
     add_executable(ctex_version_test tests/version_test.c)
@@ -742,6 +762,10 @@ if(BUILD_TESTING)
     ctex_configure_cpp_target(ctex_texture_document_io_test)
     target_link_libraries(ctex_texture_document_io_test PRIVATE cybertexel)
     add_test(NAME texture-document-io COMMAND ctex_texture_document_io_test)
+    add_executable(ctex_document_mesh_state_test tests/io/document_mesh_state_test.cpp)
+    ctex_configure_cpp_target(ctex_document_mesh_state_test)
+    target_link_libraries(ctex_document_mesh_state_test PRIVATE cybertexel)
+    add_test(NAME document-mesh-state COMMAND ctex_document_mesh_state_test)
     add_executable(ctex_project_autosave_test tests/io/project_autosave_test.cpp)
     ctex_configure_cpp_target(ctex_project_autosave_test)
     target_link_libraries(ctex_project_autosave_test PRIVATE cybertexel)
@@ -1787,6 +1811,7 @@ if(BUILD_TESTING)
     set_tests_properties(
         project-container
         texture-document-io
+        document-mesh-state
         project-autosave
         c-abi-project-autosave
         editable-authoring

@@ -24,6 +24,18 @@ MeshRevision issue_mesh_revision() {
     throw std::overflow_error("mesh revision space is exhausted");
 }
 
+void observe_mesh_revision(MeshRevision revision) {
+    if (revision == 0) {
+        throw std::invalid_argument("restored mesh revision must be non-zero");
+    }
+    const MeshRevision successor =
+        revision == std::numeric_limits<MeshRevision>::max() ? revision : revision + 1;
+    MeshRevision next = next_mesh_revision.load(std::memory_order_relaxed);
+    while (next < successor &&
+           !next_mesh_revision.compare_exchange_weak(next, successor, std::memory_order_relaxed)) {
+    }
+}
+
 bool finite(Vec2f value) { return std::isfinite(value.x) && std::isfinite(value.y); }
 
 bool finite(Vec3f value) {
@@ -389,6 +401,17 @@ MeshBinding::MeshBinding(MeshDescriptor descriptor, std::pmr::memory_resource* m
     : memory_resource_(memory_resource),
       view_(descriptor, memory_resource),
       revision_(issue_mesh_revision()) {}
+
+MeshBinding::MeshBinding(MeshDescriptor descriptor, MeshRevision revision,
+                         std::pmr::memory_resource* memory_resource, RestoredRevisionTag)
+    : memory_resource_(memory_resource), view_(descriptor, memory_resource), revision_(revision) {
+    observe_mesh_revision(revision);
+}
+
+MeshBinding MeshBinding::restore(MeshDescriptor descriptor, MeshRevision revision,
+                                 std::pmr::memory_resource* memory_resource) {
+    return MeshBinding(descriptor, revision, memory_resource, RestoredRevisionTag{});
+}
 
 void MeshBinding::replace(MeshDescriptor descriptor) {
     MeshView replacement(descriptor, memory_resource_);

@@ -26,6 +26,7 @@
 #include <ctex/image/channel_expansion.hpp>
 #include <ctex/image/color_policy.hpp>
 #include <ctex/image/resampling.hpp>
+#include <ctex/io/document_mesh_state.hpp>
 #include <ctex/io/editable_authoring.hpp>
 #include <ctex/io/image_io.hpp>
 #include <ctex/io/operation_record.hpp>
@@ -82,6 +83,7 @@
 #include <new>
 #include <numeric>
 #include <optional>
+#include <set>
 #include <stdexcept>
 #include <string>
 #include <type_traits>
@@ -6830,6 +6832,214 @@ ctex::io::ProjectContainerReadLimits project_container_limits(
                    error.what());
 }
 
+[[noreturn]] void throw_document_mesh_state_io_error(
+    const ctex::io::DocumentMeshStateIoError& error) {
+    throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_INVALID_PROJECT_CONTAINER,
+                   error.what());
+}
+
+ctex::io::DocumentMeshStateReadLimits document_mesh_state_limits(
+    const ctex::io::ProjectContainerReadLimits& limits) {
+    const ctex::io::DocumentMeshStateReadLimits defaults;
+    return {
+        .maximum_payload_bytes =
+            std::min(defaults.maximum_payload_bytes, limits.maximum_asset_payload_bytes),
+        .maximum_string_bytes =
+            std::min(defaults.maximum_string_bytes, limits.maximum_string_bytes),
+        .maximum_maps = std::min(defaults.maximum_maps, limits.maximum_asset_dependencies),
+        .maximum_total_map_pixel_bytes =
+            std::min(defaults.maximum_total_map_pixel_bytes, limits.maximum_total_allocation_bytes),
+    };
+}
+
+ctex::io::DocumentMeshState document_mesh_state(
+    const ctex_document_mesh_state_descriptor& descriptor) {
+    validate_structure_size(descriptor.size, CTEX_DOCUMENT_MESH_STATE_DESCRIPTOR_V1_SIZE,
+                            CTEX_DOCUMENT_MESH_STATE_DESCRIPTOR_CURRENT_SIZE,
+                            "document mesh-state descriptor size");
+    if (descriptor.document_asset_id == nullptr || descriptor.mesh_resource_id == nullptr ||
+        (descriptor.map_sets == nullptr && descriptor.map_set_count != 0)) {
+        throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                       "document mesh-state identities and map sets are required");
+    }
+    if (descriptor.current_mesh_revision == 0) {
+        throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_INVALID_DESCRIPTOR_VALUE,
+                       "document mesh-state revision must be non-zero");
+    }
+    ctex::io::DocumentMeshState result{.document_asset_id = descriptor.document_asset_id,
+                                       .mesh_resource_id = descriptor.mesh_resource_id,
+                                       .mesh_revision = descriptor.current_mesh_revision,
+                                       .maps = {}};
+    std::set<std::string_view> texture_sets;
+    for (std::size_t index = 0; index < descriptor.map_set_count; ++index) {
+        const ctex_mesh_map_set* map_set = descriptor.map_sets[index];
+        if (map_set == nullptr) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                           "document mesh-state map set is null");
+        }
+        if (map_set->value.mesh_revision() != descriptor.current_mesh_revision) {
+            throw_boundary(CTEX_RESULT_STALE_STATE, CTEX_DIAGNOSTIC_INVALID_MESH_MAP,
+                           "document mesh-state map-set revision does not match current mesh");
+        }
+        if (!texture_sets.insert(map_set->value.texture_set_id()).second) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_INVALID_MESH_MAP,
+                           "document mesh-state repeats a texture-set map handle");
+        }
+        const ctex::maps::MeshMapBindingSnapshot snapshot = map_set->value.snapshot_bindings();
+        result.maps.reserve(result.maps.size() + snapshot.maps.size());
+        for (const ctex::maps::MeshMapDescriptor& map : snapshot.maps) {
+            result.maps.push_back({
+                .kind = static_cast<std::uint32_t>(map.kind),
+                .texture_set_id = map.texture_set_id,
+                .uv_set = map.uv_set,
+                .produced_mesh_revision = map.mesh_revision,
+                .normal_convention =
+                    map.normal_convention
+                        ? std::optional(static_cast<std::uint32_t>(*map.normal_convention))
+                        : std::nullopt,
+                .tangent_frame = map.tangent_frame,
+                .pixels = *map.pixels,
+            });
+        }
+    }
+    return result;
+}
+
+std::vector<std::string> document_mesh_state_texture_sets(
+    const ctex::io::DocumentMeshState& state) {
+    std::set<std::string, std::less<>> unique;
+    for (const ctex::io::StoredDocumentMeshMap& map : state.maps) {
+        unique.insert(map.texture_set_id);
+    }
+    return {unique.begin(), unique.end()};
+}
+
+void restore_document_mesh_map_sets(ctex::io::DocumentMeshState state,
+                                    ctex_mesh_map_set* const* map_sets, std::size_t map_set_count) {
+    if (map_sets == nullptr && map_set_count != 0) {
+        throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                       "document mesh-state map sets are null");
+    }
+    const std::vector<std::string> expected = document_mesh_state_texture_sets(state);
+    if (map_set_count != expected.size()) {
+        throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_INVALID_MESH_MAP,
+                       "document mesh-state map-set coverage is incomplete");
+    }
+
+    std::map<std::string_view, ctex_mesh_map_set*, std::less<>> targets;
+    for (std::size_t index = 0; index < map_set_count; ++index) {
+        ctex_mesh_map_set* map_set = map_sets[index];
+        if (map_set == nullptr) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                           "document mesh-state map set is null");
+        }
+        if (map_set->value.mesh_revision() != state.mesh_revision) {
+            throw_boundary(CTEX_RESULT_STALE_STATE, CTEX_DIAGNOSTIC_INVALID_MESH_MAP,
+                           "document mesh-state target uses a different mesh revision");
+        }
+        if (!targets.emplace(map_set->value.texture_set_id(), map_set).second) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_INVALID_MESH_MAP,
+                           "document mesh-state target repeats a texture set");
+        }
+    }
+    for (const std::string& texture_set : expected) {
+        if (!targets.contains(texture_set)) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_INVALID_MESH_MAP,
+                           "document mesh-state target omits a texture set");
+        }
+    }
+
+    std::map<std::string, ctex::maps::MeshMapBindingSnapshot, std::less<>> replacements;
+    for (const auto& [texture_set, target] : targets) {
+        replacements.emplace(texture_set, ctex::maps::MeshMapBindingSnapshot{
+                                              .texture_set_id = std::string(texture_set),
+                                              .uv_set = target->value.uv_set(),
+                                              .maps = {},
+                                          });
+    }
+    for (ctex::io::StoredDocumentMeshMap& map : state.maps) {
+        auto replacement = replacements.find(map.texture_set_id);
+        if (replacement == replacements.end()) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_INVALID_MESH_MAP,
+                           "document mesh-state map has no target texture set");
+        }
+        replacement->second.maps.push_back({
+            .kind = static_cast<ctex::maps::MeshMapKind>(map.kind),
+            .texture_set_id = std::move(map.texture_set_id),
+            .uv_set = std::move(map.uv_set),
+            .mesh_revision = map.produced_mesh_revision,
+            .normal_convention = map.normal_convention
+                                     ? std::optional(static_cast<ctex::maps::NormalMapConvention>(
+                                           *map.normal_convention))
+                                     : std::nullopt,
+            .tangent_frame = std::move(map.tangent_frame),
+            .pixels = std::make_shared<ctex::image::TiledImage>(std::move(map.pixels)),
+        });
+    }
+
+    std::map<std::string_view, ctex::maps::MeshMapBindingSnapshot, std::less<>> originals;
+    for (const auto& [texture_set, target] : targets) {
+        originals.emplace(texture_set, target->value.snapshot_bindings());
+    }
+    try {
+        for (auto& [texture_set, replacement] : replacements) {
+            targets.at(texture_set)->value.restore_bindings(std::move(replacement));
+        }
+    } catch (...) {
+        for (auto& [texture_set, original] : originals) {
+            targets.at(texture_set)->value.restore_bindings(std::move(original));
+        }
+        throw;
+    }
+}
+
+struct DocumentMeshStateInspection {
+    ctex::io::DocumentMeshState state;
+    std::vector<std::string> texture_sets;
+};
+
+DocumentMeshStateInspection inspect_document_mesh_state(
+    const void* project_encoded, std::size_t project_encoded_size,
+    const ctex_project_container_read_limits_descriptor* limits,
+    std::string_view document_asset_id) {
+    const ctex::io::ProjectContainerReadLimits read_limits = project_container_limits(limits);
+    const auto project = ctex::io::read_project_container(
+        project_container_bytes(project_encoded, project_encoded_size), read_limits);
+    auto state = ctex::io::read_document_mesh_state(project.container, document_asset_id,
+                                                    document_mesh_state_limits(read_limits));
+    if (!state) {
+        throw_boundary(CTEX_RESULT_MISSING_RESOURCE, CTEX_DIAGNOSTIC_INVALID_PROJECT_CONTAINER,
+                       "document mesh state is absent");
+    }
+    std::vector<std::string> texture_sets = document_mesh_state_texture_sets(*state);
+    return {.state = std::move(*state), .texture_sets = std::move(texture_sets)};
+}
+
+void return_document_mesh_state_info(const DocumentMeshStateInspection& inspection,
+                                     ctex_document_mesh_state_info& out_info,
+                                     char* mesh_resource_id, std::size_t mesh_resource_id_size,
+                                     char* texture_set_ids, std::size_t texture_set_ids_size) {
+    out_info = {
+        .size = CTEX_DOCUMENT_MESH_STATE_INFO_CURRENT_SIZE,
+        .current_mesh_revision = inspection.state.mesh_revision,
+        .map_count = inspection.state.maps.size(),
+        .texture_set_count = inspection.texture_sets.size(),
+        .required_mesh_resource_id_size = inspection.state.mesh_resource_id.size() + 1,
+        .required_texture_set_ids_size = texture_set_id_buffer_size(inspection.texture_sets),
+    };
+    validate_string_buffer(mesh_resource_id, mesh_resource_id_size,
+                           out_info.required_mesh_resource_id_size);
+    validate_string_buffer(texture_set_ids, texture_set_ids_size,
+                           out_info.required_texture_set_ids_size);
+    if (mesh_resource_id != nullptr) {
+        std::memcpy(mesh_resource_id, inspection.state.mesh_resource_id.c_str(),
+                    out_info.required_mesh_resource_id_size);
+    }
+    if (texture_set_ids != nullptr) {
+        copy_packed_strings(inspection.texture_sets, texture_set_ids);
+    }
+}
+
 void append_json_text(std::string& output, std::string_view value) {
     constexpr std::string_view digits = "0123456789abcdef";
     output.push_back('"');
@@ -13211,6 +13421,107 @@ extern "C" ctex_result ctex_project_container_restore_texture_document(
             throw_texture_document_io_error(error);
         } catch (const ctex::io::ProjectContainerError& error) {
             throw_project_container_error(error);
+        }
+    });
+}
+
+extern "C" ctex_result ctex_project_container_upsert_document_mesh_state(
+    const void* project_encoded, std::size_t project_encoded_size,
+    const ctex_project_container_read_limits_descriptor* limits,
+    const ctex_document_mesh_state_descriptor* state, ctex_project_container_info* out_info,
+    void* project_output, std::size_t project_output_size, char* report_output,
+    std::size_t report_output_size) {
+    return call_boundary("ctex_project_container_upsert_document_mesh_state", [&] {
+        if (state == nullptr || out_info == nullptr) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                           state == nullptr ? "state=null" : "out_info=null");
+        }
+        validate_structure_size(out_info->size, CTEX_PROJECT_CONTAINER_INFO_V1_SIZE,
+                                CTEX_PROJECT_CONTAINER_INFO_CURRENT_SIZE,
+                                "project container info size");
+        ctex::io::DocumentMeshState converted = document_mesh_state(*state);
+        try {
+            auto project = ctex::io::read_project_container(
+                project_container_bytes(project_encoded, project_encoded_size),
+                project_container_limits(limits));
+            ctex::io::upsert_document_mesh_state(project.container, converted);
+            PreparedProjectContainer prepared =
+                prepare_project_container(project_container_result(std::move(project.container)));
+            validate_project_container_outputs(prepared, project_output, project_output_size,
+                                               report_output, report_output_size);
+            *out_info = prepared.info;
+            write_project_container_outputs(prepared, project_output, report_output);
+        } catch (const ctex::io::DocumentMeshStateIoError& error) {
+            throw_document_mesh_state_io_error(error);
+        } catch (const ctex::io::TextureDocumentIoError& error) {
+            throw_texture_document_io_error(error);
+        } catch (const ctex::io::ProjectContainerError& error) {
+            throw_project_container_error(error);
+        }
+    });
+}
+
+extern "C" ctex_result ctex_project_container_get_document_mesh_state_info(
+    const void* project_encoded, std::size_t project_encoded_size,
+    const ctex_project_container_read_limits_descriptor* limits, const char* document_asset_id,
+    ctex_document_mesh_state_info* out_info, char* mesh_resource_id,
+    std::size_t mesh_resource_id_size, char* texture_set_ids, std::size_t texture_set_ids_size) {
+    return call_boundary("ctex_project_container_get_document_mesh_state_info", [&] {
+        if (document_asset_id == nullptr || out_info == nullptr) {
+            throw_boundary(
+                CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                document_asset_id == nullptr ? "document_asset_id=null" : "out_info=null");
+        }
+        validate_structure_size(out_info->size, CTEX_DOCUMENT_MESH_STATE_INFO_V1_SIZE,
+                                CTEX_DOCUMENT_MESH_STATE_INFO_CURRENT_SIZE,
+                                "document mesh-state info size");
+        try {
+            const DocumentMeshStateInspection inspection = inspect_document_mesh_state(
+                project_encoded, project_encoded_size, limits, document_asset_id);
+            return_document_mesh_state_info(inspection, *out_info, mesh_resource_id,
+                                            mesh_resource_id_size, texture_set_ids,
+                                            texture_set_ids_size);
+        } catch (const ctex::io::DocumentMeshStateIoError& error) {
+            throw_document_mesh_state_io_error(error);
+        } catch (const ctex::io::TextureDocumentIoError& error) {
+            throw_texture_document_io_error(error);
+        } catch (const ctex::io::ProjectContainerError& error) {
+            throw_project_container_error(error);
+        }
+    });
+}
+
+extern "C" ctex_result ctex_project_container_restore_document_mesh_state(
+    const void* project_encoded, std::size_t project_encoded_size,
+    const ctex_project_container_read_limits_descriptor* limits, const char* document_asset_id,
+    ctex_mesh_map_set* const* map_sets, std::size_t map_set_count) {
+    return call_boundary("ctex_project_container_restore_document_mesh_state", [&] {
+        if (document_asset_id == nullptr) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                           "document_asset_id=null");
+        }
+        try {
+            const ctex::io::ProjectContainerReadLimits read_limits =
+                project_container_limits(limits);
+            const auto project = ctex::io::read_project_container(
+                project_container_bytes(project_encoded, project_encoded_size), read_limits);
+            auto state = ctex::io::read_document_mesh_state(
+                project.container, document_asset_id, document_mesh_state_limits(read_limits));
+            if (!state) {
+                throw_boundary(CTEX_RESULT_MISSING_RESOURCE,
+                               CTEX_DIAGNOSTIC_INVALID_PROJECT_CONTAINER,
+                               "document mesh state is absent");
+            }
+            restore_document_mesh_map_sets(std::move(*state), map_sets, map_set_count);
+        } catch (const ctex::io::DocumentMeshStateIoError& error) {
+            throw_document_mesh_state_io_error(error);
+        } catch (const ctex::io::TextureDocumentIoError& error) {
+            throw_texture_document_io_error(error);
+        } catch (const ctex::io::ProjectContainerError& error) {
+            throw_project_container_error(error);
+        } catch (const std::invalid_argument& error) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_INVALID_MESH_MAP,
+                           error.what());
         }
     });
 }

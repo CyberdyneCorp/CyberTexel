@@ -1,23 +1,33 @@
+#include <ctex/capi.h>
+
 #include <algorithm>
 #include <array>
+#include <cctype>
 #include <cerrno>
 #include <charconv>
 #include <chrono>
+#include <cmath>
 #include <csignal>
 #include <cstddef>
 #include <cstdint>
 #include <cstdlib>
+#include <ctex/doc/mesh_replacement.hpp>
+#include <ctex/doc/mesh_reprojection.hpp>
 #include <ctex/doc/smart_material.hpp>
 #include <ctex/exec/cpu_reference.hpp>
 #include <ctex/exec/executor.hpp>
+#include <ctex/io/document_mesh_state.hpp>
 #include <ctex/io/project_container.hpp>
 #include <ctex/io/texture_document.hpp>
 #include <ctex/io/texture_export.hpp>
+#include <ctex/maps/bake_provider.hpp>
+#include <ctex/maps/mesh_maps.hpp>
 #include <ctex/paint/stroke_preset.hpp>
 #include <filesystem>
 #include <fstream>
 #include <iostream>
 #include <limits>
+#include <map>
 #include <memory>
 #include <optional>
 #include <span>
@@ -27,11 +37,14 @@
 #include <thread>
 #include <vector>
 
+#include "obj_mesh.hpp"
+
 #if defined(_WIN32)
 #define NOMINMAX
 #include <process.h>
 #include <windows.h>
 #else
+#include <dlfcn.h>
 #include <sys/wait.h>
 #include <unistd.h>
 #endif
@@ -96,11 +109,11 @@ constexpr std::array export_options{
     OptionSpec{"--document", "PATH", true, "input project"},
     OptionSpec{"--output", "DIRECTORY", true, "new output directory"},
     OptionSpec{"--preset", "NAME", true, "built-in export preset"},
-    OptionSpec{"--mesh", "PATH", false, "replacement mesh (reserved; unsupported)"},
+    OptionSpec{"--mesh", "PATH", false, "replacement Wavefront OBJ mesh"},
     OptionSpec{"--mesh-policy", "keep|clear|reproject", false,
-               "replacement policy (requires --mesh)"}};
+               "replacement policy (requires --mesh)", "keep"}};
 constexpr std::array bake_options{OptionSpec{"--document", "PATH", true},
-                                  OptionSpec{"--provider", "NAME", true},
+                                  OptionSpec{"--provider", "LIBRARY", true},
                                   OptionSpec{"--output", "PATH", true}};
 constexpr std::array apply_options{
     OptionSpec{"--document", "PATH", true}, OptionSpec{"--preset", "PATH", true},
@@ -163,6 +176,224 @@ public:
 
 private:
     ExitCode code_;
+};
+
+class SharedLibrary final {
+public:
+    explicit SharedLibrary(const std::filesystem::path& path) {
+#if defined(_WIN32)
+        handle_ = LoadLibraryW(path.c_str());
+        if (handle_ == nullptr) {
+            throw CliError(ExitCode::missing_input,
+                           "could not load bake provider library '" + path.string() + "'");
+        }
+#else
+        handle_ = dlopen(path.c_str(), RTLD_NOW | RTLD_LOCAL);
+        if (handle_ == nullptr) {
+            const char* detail = dlerror();
+            throw CliError(ExitCode::missing_input,
+                           "could not load bake provider library '" + path.string() +
+                               "': " + (detail == nullptr ? "unknown loader error" : detail));
+        }
+#endif
+    }
+
+    SharedLibrary(const SharedLibrary&) = delete;
+    SharedLibrary& operator=(const SharedLibrary&) = delete;
+
+    ~SharedLibrary() {
+#if defined(_WIN32)
+        if (handle_ != nullptr) FreeLibrary(handle_);
+#else
+        if (handle_ != nullptr) dlclose(handle_);
+#endif
+    }
+
+    template <typename Function>
+    [[nodiscard]] Function symbol(const char* name) const {
+#if defined(_WIN32)
+        const FARPROC address = GetProcAddress(handle_, name);
+        if (address == nullptr) {
+#else
+        void* address = dlsym(handle_, name);
+        if (address == nullptr) {
+#endif
+            throw CliError(ExitCode::unsupported_operation,
+                           "bake provider does not export '" + std::string(name) + "'");
+        }
+        return reinterpret_cast<Function>(address);
+    }
+
+private:
+#if defined(_WIN32)
+    HMODULE handle_{};
+#else
+    void* handle_{};
+#endif
+};
+
+ctex_tangent_frame_descriptor capi_tangent_frame(const ctex::mesh::TangentFrameDescriptor& frame) {
+    return {.size = CTEX_TANGENT_FRAME_DESCRIPTOR_CURRENT_SIZE,
+            .algorithm = static_cast<std::uint32_t>(frame.algorithm),
+            .algorithm_version = frame.algorithm_version,
+            .normal_orientation = static_cast<std::uint32_t>(frame.normal_orientation),
+            .coordinate_handedness = static_cast<std::uint32_t>(frame.coordinate_handedness),
+            .uv_v_axis = static_cast<std::uint32_t>(frame.uv_v_axis),
+            .handedness_encoding = static_cast<std::uint32_t>(frame.handedness_encoding),
+            .uv_set = frame.uv_set.c_str()};
+}
+
+ctex::mesh::TangentFrameDescriptor core_tangent_frame(const ctex_tangent_frame_descriptor& frame) {
+    if (frame.size != CTEX_TANGENT_FRAME_DESCRIPTOR_CURRENT_SIZE ||
+        frame.algorithm > CTEX_TANGENT_BASIS_MIKKTSPACE || frame.algorithm_version == 0 ||
+        frame.normal_orientation > CTEX_TANGENT_NORMAL_INVERTED_VERTEX ||
+        frame.coordinate_handedness > CTEX_COORDINATE_LEFT_HANDED ||
+        frame.uv_v_axis > CTEX_UV_V_AXIS_DOWNWARD ||
+        frame.handedness_encoding != CTEX_TANGENT_HANDEDNESS_W_SIGN || frame.uv_set == nullptr) {
+        throw std::invalid_argument("provider returned an invalid tangent frame");
+    }
+    return {
+        .algorithm = static_cast<ctex::mesh::TangentBasisAlgorithm>(frame.algorithm),
+        .algorithm_version = frame.algorithm_version,
+        .normal_orientation = static_cast<ctex::mesh::NormalOrientation>(frame.normal_orientation),
+        .coordinate_handedness =
+            static_cast<ctex::mesh::CoordinateSystemHandedness>(frame.coordinate_handedness),
+        .uv_v_axis = static_cast<ctex::mesh::UvVAxis>(frame.uv_v_axis),
+        .handedness_encoding =
+            static_cast<ctex::mesh::TangentHandednessEncoding>(frame.handedness_encoding),
+        .uv_set = frame.uv_set};
+}
+
+struct BakeControlBridge {
+    const ctex::maps::BakeControl* control{};
+};
+
+std::uint32_t provider_cancelled(void* user_data) {
+    const auto& bridge = *static_cast<const BakeControlBridge*>(user_data);
+    return bridge.control != nullptr && bridge.control->is_cancelled != nullptr &&
+                   bridge.control->is_cancelled(bridge.control->user_data)
+               ? 1U
+               : 0U;
+}
+
+void provider_progress(void* user_data, double fraction) {
+    const auto& bridge = *static_cast<const BakeControlBridge*>(user_data);
+    if (bridge.control != nullptr && bridge.control->report_progress != nullptr) {
+        bridge.control->report_progress(bridge.control->user_data, {.fraction = fraction});
+    }
+}
+
+class AttachedBakeProvider final {
+public:
+    explicit AttachedBakeProvider(const std::filesystem::path& path) : library_(path) {
+        const auto attach = library_.symbol<ctex_mesh_map_bake_provider_entry_point_v1_fn>(
+            CTEX_MESH_MAP_BAKE_PROVIDER_ENTRY_POINT_V1);
+        descriptor_.size = CTEX_MESH_MAP_BAKE_PROVIDER_DESCRIPTOR_CURRENT_SIZE;
+        if (attach(&descriptor_) != CTEX_RESULT_SUCCESS ||
+            descriptor_.size != CTEX_MESH_MAP_BAKE_PROVIDER_DESCRIPTOR_CURRENT_SIZE ||
+            descriptor_.name == nullptr || descriptor_.name[0] == '\0' ||
+            descriptor_.can_produce == nullptr || descriptor_.request == nullptr) {
+            throw CliError(ExitCode::unsupported_operation,
+                           "bake provider returned an invalid descriptor");
+        }
+    }
+
+    [[nodiscard]] ctex::maps::BakeProvider provider() noexcept {
+        return {.name = descriptor_.name,
+                .user_data = this,
+                .can_produce = can_produce,
+                .request = request};
+    }
+
+private:
+    static bool can_produce(void* user_data, ctex::maps::MeshMapKind kind) noexcept {
+        const auto& self = *static_cast<const AttachedBakeProvider*>(user_data);
+        return self.descriptor_.can_produce(self.descriptor_.user_data,
+                                            static_cast<std::uint32_t>(kind)) != 0;
+    }
+
+    static ctex::maps::BakeProviderStatus request(void* user_data,
+                                                  const ctex::maps::BakeRequest* request,
+                                                  const ctex::maps::BakeControl* control,
+                                                  ctex::maps::BakeProviderOutput* output) noexcept {
+        return static_cast<AttachedBakeProvider*>(user_data)->request(*request, control, *output);
+    }
+
+    ctex::maps::BakeProviderStatus request(const ctex::maps::BakeRequest& request,
+                                           const ctex::maps::BakeControl* control,
+                                           ctex::maps::BakeProviderOutput& output) noexcept {
+        try {
+            std::optional<ctex_tangent_frame_descriptor> tangent;
+            if (request.tangent_frame != nullptr) {
+                tangent = capi_tangent_frame(*request.tangent_frame);
+            }
+            const ctex_mesh_map_bake_request_descriptor capi_request{
+                .size = CTEX_MESH_MAP_BAKE_REQUEST_DESCRIPTOR_CURRENT_SIZE,
+                .kind = static_cast<std::uint32_t>(request.kind),
+                .texture_set_id = request.texture_set_id,
+                .uv_set = request.uv_set,
+                .mesh_revision = request.mesh_revision,
+                .bake_settings_revision = request.bake_settings_revision,
+                .request_generation = request.request_generation,
+                .tangent_frame = tangent ? &*tangent : nullptr,
+                .width = request.width,
+                .height = request.height};
+            BakeControlBridge bridge{.control = control};
+            const ctex_mesh_map_bake_control capi_control{
+                .size = CTEX_MESH_MAP_BAKE_CONTROL_CURRENT_SIZE,
+                .user_data = &bridge,
+                .is_cancelled = provider_cancelled,
+                .report_progress = provider_progress};
+            ctex_mesh_map_bake_output_descriptor capi_output{
+                .size = CTEX_MESH_MAP_BAKE_OUTPUT_DESCRIPTOR_CURRENT_SIZE,
+                .buffer = {.size = CTEX_MESH_MAP_PIXEL_BUFFER_DESCRIPTOR_CURRENT_SIZE}};
+            const std::uint32_t status = descriptor_.request(descriptor_.user_data, &capi_request,
+                                                             &capi_control, &capi_output);
+            detail_ = capi_output.detail == nullptr ? "" : capi_output.detail;
+            output.detail = detail_.c_str();
+            if (status != CTEX_MESH_MAP_BAKE_PROVIDER_COMPLETED) {
+                return status == CTEX_MESH_MAP_BAKE_PROVIDER_CANCELLED
+                           ? ctex::maps::BakeProviderStatus::cancelled
+                           : ctex::maps::BakeProviderStatus::failed;
+            }
+            if (capi_output.size != CTEX_MESH_MAP_BAKE_OUTPUT_DESCRIPTOR_CURRENT_SIZE ||
+                capi_output.buffer.size != CTEX_MESH_MAP_PIXEL_BUFFER_DESCRIPTOR_CURRENT_SIZE ||
+                capi_output.buffer.component_type > CTEX_TRANSPORT_COMPONENT_FLOAT32 ||
+                capi_output.buffer.component_count < 1 || capi_output.buffer.component_count > 4 ||
+                capi_output.has_normal_convention > 1 ||
+                (capi_output.has_normal_convention != 0 &&
+                 capi_output.normal_convention > CTEX_MESH_MAP_NORMAL_DIRECTX)) {
+                throw std::invalid_argument("provider returned an invalid bake output");
+            }
+            output.image = {.width = capi_output.buffer.width,
+                            .height = capi_output.buffer.height,
+                            .format = {.channel_type = static_cast<ctex::image::ChannelType>(
+                                           capi_output.buffer.component_type),
+                                       .channel_count = static_cast<std::uint8_t>(
+                                           capi_output.buffer.component_count)},
+                            .row_stride_bytes = capi_output.buffer.row_stride_bytes,
+                            .pixels = capi_output.buffer.pixels,
+                            .pixel_bytes = capi_output.buffer.pixel_bytes};
+            output.normal_convention =
+                capi_output.has_normal_convention != 0
+                    ? std::optional(static_cast<ctex::maps::NormalMapConvention>(
+                          capi_output.normal_convention))
+                    : std::nullopt;
+            output.tangent_frame =
+                capi_output.tangent_frame == nullptr
+                    ? std::nullopt
+                    : std::optional(core_tangent_frame(*capi_output.tangent_frame));
+            return ctex::maps::BakeProviderStatus::completed;
+        } catch (const std::exception& error) {
+            detail_ = error.what();
+            output.detail = detail_.c_str();
+            return ctex::maps::BakeProviderStatus::failed;
+        }
+    }
+
+    SharedLibrary library_;
+    ctex_mesh_map_bake_provider_descriptor descriptor_{};
+    std::string detail_;
 };
 
 void throw_if_interrupted() {
@@ -341,6 +572,8 @@ void print_option(const OptionSpec& option, std::ostream& output, bool command_o
     }
     if (command_option && option.required) {
         output << " (required)";
+    } else if (command_option && !option.default_value.empty()) {
+        output << " (optional; default: " << option.default_value << ')';
     } else if (command_option) {
         output << " (optional; default: not set)";
     } else if (!option.default_value.empty()) {
@@ -532,6 +765,16 @@ ctex::io::TextureDocumentReadLimits texture_document_limits(const ExecutionOptio
     return limits;
 }
 
+ctex::io::DocumentMeshStateReadLimits document_mesh_state_limits(const ExecutionOptions& options) {
+    ctex::io::DocumentMeshStateReadLimits limits;
+    const auto ceiling = static_cast<std::size_t>(
+        std::min(options.memory_ceiling,
+                 static_cast<std::uint64_t>(std::numeric_limits<std::size_t>::max())));
+    limits.maximum_payload_bytes = std::min(limits.maximum_payload_bytes, ceiling);
+    limits.maximum_total_map_pixel_bytes = std::min(limits.maximum_total_map_pixel_bytes, ceiling);
+    return limits;
+}
+
 std::uint64_t checked_product(std::uint64_t left, std::uint64_t right,
                               std::string_view description) {
     if (right != 0 && left > std::numeric_limits<std::uint64_t>::max() / right) {
@@ -551,6 +794,9 @@ struct ContainerMetrics {
     std::uint64_t atlases{};
     std::uint64_t editable_entries{};
     std::uint64_t preset_applications{};
+    std::uint64_t mesh_bindings{};
+    std::uint64_t bound_maps{};
+    std::uint64_t mesh_map_bytes{};
 };
 
 ContainerMetrics measure_container(const ctex::io::ProjectContainer& container,
@@ -594,6 +840,27 @@ void add_document_metrics(ContainerMetrics& metrics,
     }
 }
 
+void add_document_mesh_metrics(ContainerMetrics& metrics, const ctex::io::ProjectContainer& project,
+                               std::span<const ctex::io::TextureDocumentAssetInfo> documents,
+                               const ExecutionOptions& options) {
+    const auto add = [](std::uint64_t& total, std::size_t value, std::string_view field) {
+        if (value > std::numeric_limits<std::uint64_t>::max() - total) {
+            throw CliError(ExitCode::over_budget, std::string(field) + " exceeds counter range");
+        }
+        total += value;
+    };
+    for (const ctex::io::TextureDocumentAssetInfo& document : documents) {
+        const auto state = ctex::io::read_document_mesh_state(project, document.identifier,
+                                                              document_mesh_state_limits(options));
+        if (!state) continue;
+        ++metrics.mesh_bindings;
+        add(metrics.bound_maps, state->maps.size(), "bound map count");
+        for (const ctex::io::StoredDocumentMeshMap& map : state->maps) {
+            add(metrics.mesh_map_bytes, map.pixels.resident_pixel_bytes(), "bound mesh-map bytes");
+        }
+    }
+}
+
 using SteadyTime = std::chrono::steady_clock::time_point;
 
 double elapsed_milliseconds(SteadyTime started) {
@@ -634,8 +901,12 @@ int validate_command(const Invocation& invocation, const SelectedExecutor& execu
         if (kind == "document") {
             const ctex::io::ProjectContainerReadResult project =
                 ctex::io::read_project_container(bytes, project_limits(options));
-            static_cast<void>(ctex::io::list_texture_documents(project.container,
-                                                               texture_document_limits(options)));
+            const auto documents = ctex::io::list_texture_documents(
+                project.container, texture_document_limits(options));
+            for (const ctex::io::TextureDocumentAssetInfo& document : documents) {
+                static_cast<void>(ctex::io::read_document_mesh_state(
+                    project.container, document.identifier, document_mesh_state_limits(options)));
+            }
         } else if (kind == "material") {
             static_cast<void>(ctex::doc::deserialize_smart_material(input_text(bytes)));
         } else {
@@ -688,10 +959,19 @@ int info_command(const Invocation& invocation, const SelectedExecutor& executor,
     } catch (const ctex::io::TextureDocumentIoError& error) {
         throw CliError(ExitCode::invalid_arguments,
                        "invalid document state: " + std::string(error.what()));
+    } catch (const ctex::io::DocumentMeshStateIoError& error) {
+        throw CliError(ExitCode::invalid_arguments,
+                       "invalid document mesh state: " + std::string(error.what()));
     }
     const auto& container = result.container;
     ContainerMetrics metrics = measure_container(container, options);
     add_document_metrics(metrics, documents);
+    try {
+        add_document_mesh_metrics(metrics, container, documents, options);
+    } catch (const ctex::io::DocumentMeshStateIoError& error) {
+        throw CliError(ExitCode::invalid_arguments,
+                       "invalid document mesh state: " + std::string(error.what()));
+    }
     throw_if_interrupted();
     const std::string schema = std::to_string(container.schema_version.major) + '.' +
                                std::to_string(container.schema_version.minor) + '.' +
@@ -710,6 +990,9 @@ int info_command(const Invocation& invocation, const SelectedExecutor& executor,
                   << ",\"atlases\":" << metrics.atlases
                   << ",\"editable_entries\":" << metrics.editable_entries
                   << ",\"preset_applications\":" << metrics.preset_applications
+                  << ",\"mesh_bindings\":" << metrics.mesh_bindings
+                  << ",\"bound_maps\":" << metrics.bound_maps
+                  << ",\"mesh_map_bytes\":" << metrics.mesh_map_bytes
                   << ",\"file_bytes\":" << bytes.size()
                   << ",\"newer_schema\":" << (result.report.newer_schema ? "true" : "false")
                   << ",\"occupied_tiles\":" << metrics.occupied_tiles
@@ -728,6 +1011,9 @@ int info_command(const Invocation& invocation, const SelectedExecutor& executor,
                   << "\natlases: " << metrics.atlases
                   << "\neditable entries: " << metrics.editable_entries
                   << "\npreset applications: " << metrics.preset_applications
+                  << "\nmesh bindings: " << metrics.mesh_bindings
+                  << "\nbound maps: " << metrics.bound_maps
+                  << "\nmesh-map bytes: " << metrics.mesh_map_bytes
                   << "\ndecoded image bytes: " << metrics.decoded_bytes
                   << "\nexecutor: " << executor.selected;
         if (executor.fallback) {
@@ -906,6 +1192,239 @@ std::uint64_t checked_sum(std::uint64_t left, std::uint64_t right, std::string_v
                        std::string(description) + " exceeds the supported counter range");
     }
     return left + right;
+}
+
+void validate_project_output(const std::filesystem::path& destination);
+
+struct DocumentMapSets {
+    std::vector<std::unique_ptr<ctex::maps::MeshMapSet>> values;
+};
+
+std::optional<ctex::mesh::TangentFrameDescriptor> saved_tangent_frame(
+    const ctex::io::DocumentMeshState& state, std::string_view texture_set_id) {
+    for (const ctex::io::StoredDocumentMeshMap& map : state.maps) {
+        if (map.texture_set_id == texture_set_id && map.tangent_frame) return map.tangent_frame;
+    }
+    return std::nullopt;
+}
+
+DocumentMapSets restore_document_map_sets(ctex::doc::TextureDocument& document,
+                                          ctex::io::DocumentMeshState state) {
+    DocumentMapSets result;
+    std::map<std::string_view, ctex::maps::MeshMapSet*, std::less<>> by_texture_set;
+    for (const std::string& identifier : document.texture_set_ids()) {
+        auto maps = std::make_unique<ctex::maps::MeshMapSet>(
+            document.texture_set(identifier), state.mesh_revision,
+            saved_tangent_frame(state, identifier));
+        by_texture_set.emplace(maps->texture_set_id(), maps.get());
+        result.values.push_back(std::move(maps));
+    }
+    std::map<std::string, ctex::maps::MeshMapBindingSnapshot, std::less<>> snapshots;
+    for (const auto& maps : result.values) {
+        snapshots.emplace(
+            maps->texture_set_id(),
+            ctex::maps::MeshMapBindingSnapshot{
+                .texture_set_id = maps->texture_set_id(), .uv_set = maps->uv_set(), .maps = {}});
+    }
+    for (ctex::io::StoredDocumentMeshMap& map : state.maps) {
+        auto snapshot = snapshots.find(map.texture_set_id);
+        if (snapshot == snapshots.end()) {
+            throw CliError(
+                ExitCode::invalid_arguments,
+                "saved mesh map names an unknown texture set '" + map.texture_set_id + "'");
+        }
+        snapshot->second.maps.push_back(
+            {.kind = static_cast<ctex::maps::MeshMapKind>(map.kind),
+             .texture_set_id = std::move(map.texture_set_id),
+             .uv_set = std::move(map.uv_set),
+             .mesh_revision = map.produced_mesh_revision,
+             .normal_convention = map.normal_convention
+                                      ? std::optional(static_cast<ctex::maps::NormalMapConvention>(
+                                            *map.normal_convention))
+                                      : std::nullopt,
+             .tangent_frame = std::move(map.tangent_frame),
+             .pixels = std::make_shared<ctex::image::TiledImage>(std::move(map.pixels))});
+    }
+    for (auto& [identifier, snapshot] : snapshots) {
+        by_texture_set.at(identifier)->restore_bindings(std::move(snapshot));
+    }
+    return result;
+}
+
+ctex::io::DocumentMeshState snapshot_document_map_sets(std::string document_asset_id,
+                                                       std::string mesh_resource_id,
+                                                       ctex::mesh::MeshRevision mesh_revision,
+                                                       const DocumentMapSets& map_sets) {
+    ctex::io::DocumentMeshState result{.document_asset_id = std::move(document_asset_id),
+                                       .mesh_resource_id = std::move(mesh_resource_id),
+                                       .mesh_revision = mesh_revision,
+                                       .maps = {}};
+    for (const auto& map_set : map_sets.values) {
+        const ctex::maps::MeshMapBindingSnapshot snapshot = map_set->snapshot_bindings();
+        result.maps.reserve(result.maps.size() + snapshot.maps.size());
+        for (const ctex::maps::MeshMapDescriptor& map : snapshot.maps) {
+            result.maps.push_back(
+                {.kind = static_cast<std::uint32_t>(map.kind),
+                 .texture_set_id = map.texture_set_id,
+                 .uv_set = map.uv_set,
+                 .produced_mesh_revision = map.mesh_revision,
+                 .normal_convention =
+                     map.normal_convention
+                         ? std::optional(static_cast<std::uint32_t>(*map.normal_convention))
+                         : std::nullopt,
+                 .tangent_frame = map.tangent_frame,
+                 .pixels = *map.pixels});
+        }
+    }
+    return result;
+}
+
+struct BakePlan {
+    std::size_t request_count{};
+    std::uint64_t texels{};
+    std::uint64_t maximum_pixel_bytes{};
+};
+
+BakePlan plan_bakes(const ctex::maps::BakeProvider& provider, const DocumentMapSets& map_sets) {
+    BakePlan plan;
+    for (const auto& map_set : map_sets.values) {
+        const std::uint64_t texels = checked_product(map_set->texture_set_width(),
+                                                     map_set->texture_set_height(), "bake texels");
+        for (const ctex::maps::MeshMapKind kind : ctex::maps::all_mesh_map_kinds) {
+            if (!provider.can_produce(provider.user_data, kind)) continue;
+            ++plan.request_count;
+            plan.texels = checked_sum(plan.texels, texels, "bake texels");
+            plan.maximum_pixel_bytes =
+                checked_sum(plan.maximum_pixel_bytes,
+                            checked_product(texels, 16, "bake pixel memory"), "bake pixel memory");
+        }
+    }
+    return plan;
+}
+
+void require_bake_budget(const BakePlan& plan, const ctex::doc::TextureDocument& document,
+                         std::uint64_t input_bytes, const ExecutionOptions& options) {
+    if (plan.texels > options.texel_ceiling) {
+        throw CliError(ExitCode::over_budget,
+                       "bake requests require " + std::to_string(plan.texels) +
+                           " texels; texel ceiling is " + std::to_string(options.texel_ceiling));
+    }
+    std::uint64_t required =
+        checked_sum(input_bytes, document.memory_report().total_resident_bytes, "bake memory");
+    required = checked_sum(required, plan.maximum_pixel_bytes, "bake memory");
+    if (required > options.memory_ceiling) {
+        throw CliError(ExitCode::over_budget,
+                       "bake requests require at most " + std::to_string(required) +
+                           " bytes; memory ceiling is " + std::to_string(options.memory_ceiling));
+    }
+}
+
+bool cli_bake_cancelled(void*) noexcept { return interrupt_requested != 0; }
+
+struct BakeRunResult {
+    std::size_t completed{};
+    std::size_t replaced{};
+};
+
+BakeRunResult run_bakes(const ctex::maps::BakeProvider& provider, DocumentMapSets& map_sets) {
+    BakeRunResult run;
+    const ctex::maps::BakeControl control{.is_cancelled = cli_bake_cancelled};
+    for (const auto& map_set : map_sets.values) {
+        for (const ctex::maps::MeshMapKind kind : ctex::maps::all_mesh_map_kinds) {
+            if (!provider.can_produce(provider.user_data, kind)) continue;
+            throw_if_interrupted();
+            const ctex::maps::BakeRequestResult result =
+                ctex::maps::request_bake(provider, *map_set, kind, map_set->texture_set_width(),
+                                         map_set->texture_set_height(), control);
+            if (result.status == ctex::maps::BakeRequestStatus::cancelled) {
+                throw CliError(ExitCode::cancelled, result.message);
+            }
+            if (result.status != ctex::maps::BakeRequestStatus::completed || !result.binding) {
+                throw CliError(ExitCode::missing_resource, result.message);
+            }
+            ++run.completed;
+            if (result.binding->replaced_existing) ++run.replaced;
+        }
+    }
+    return run;
+}
+
+int bake_request_command(const Invocation& invocation, const SelectedExecutor& executor,
+                         const ExecutionOptions& options, SteadyTime started) {
+    const std::filesystem::path document_path{*option_value(invocation, "--document")};
+    const std::filesystem::path provider_path{*option_value(invocation, "--provider")};
+    const std::filesystem::path output_path{*option_value(invocation, "--output")};
+    validate_project_output(output_path);
+    const std::vector<std::byte> project_bytes = read_input(document_path, options);
+    try {
+        ctex::io::ProjectContainer project =
+            ctex::io::read_project_container(project_bytes, project_limits(options)).container;
+        static_cast<void>(measure_container(project, options));
+        const std::string document_identity = only_texture_document_identity(project);
+        ctex::doc::TextureDocument document = ctex::io::unpack_texture_document(
+            project, document_identity, texture_document_limits(options));
+        auto saved_state = ctex::io::read_document_mesh_state(project, document_identity,
+                                                              document_mesh_state_limits(options));
+        if (!saved_state) {
+            throw CliError(ExitCode::missing_resource,
+                           "document has no persisted mesh reference for baking");
+        }
+        const std::string mesh_resource_id = saved_state->mesh_resource_id;
+        const ctex::mesh::MeshRevision mesh_revision = saved_state->mesh_revision;
+        DocumentMapSets map_sets = restore_document_map_sets(document, std::move(*saved_state));
+        AttachedBakeProvider attached(provider_path);
+        const ctex::maps::BakeProvider provider = attached.provider();
+        const BakePlan plan = plan_bakes(provider, map_sets);
+        if (plan.request_count == 0) {
+            throw CliError(ExitCode::unsupported_operation,
+                           "bake provider advertises no supported mesh maps");
+        }
+        require_bake_budget(plan, document, project_bytes.size(), options);
+        const BakeRunResult run = run_bakes(provider, map_sets);
+        ctex::io::upsert_document_mesh_state(
+            project, snapshot_document_map_sets(document_identity, mesh_resource_id, mesh_revision,
+                                                map_sets));
+        throw_if_interrupted();
+        ctex::io::save_project_container_atomic(output_path, project);
+        const std::uintmax_t output_bytes = std::filesystem::file_size(output_path);
+        if (option_value(invocation, "--report") == "json") {
+            std::cout << '{'
+                      << standard_report_fields(invocation, executor, options, ExitCode::success,
+                                                "ok", elapsed_milliseconds(started))
+                      << ",\"outputs\":[{\"kind\":\"project\",\"path\":"
+                      << json_string(output_path.string()) << ",\"bytes\":" << output_bytes
+                      << "}],\"inputs\":[{\"kind\":\"document\",\"path\":"
+                      << json_string(document_path.string())
+                      << "},{\"kind\":\"bake-provider\",\"path\":"
+                      << json_string(provider_path.string())
+                      << "}],\"operations\":[\"read\",\"open\",\"bake\",\"bind\",\"save\"]"
+                      << ",\"document_asset\":" << json_string(document_identity)
+                      << ",\"provider\":" << json_string(provider.name)
+                      << ",\"requests\":" << run.completed << ",\"replaced_maps\":" << run.replaced
+                      << "}\n";
+        } else if (!invocation.quiet) {
+            std::cout << "bound " << run.completed << " maps from " << provider.name
+                      << " and wrote " << output_path.string()
+                      << "\nexecutor: " << executor.selected << '\n';
+        }
+        return static_cast<int>(ExitCode::success);
+    } catch (const CliError&) {
+        throw;
+    } catch (const ctex::io::ProjectContainerError& error) {
+        const ExitCode code = error.code() == ctex::io::ProjectContainerErrorCode::over_limit
+                                  ? ExitCode::over_budget
+                                  : ExitCode::invalid_arguments;
+        throw CliError(code, "could not bake document: " + std::string(error.what()));
+    } catch (const ctex::io::TextureDocumentIoError& error) {
+        throw CliError(ExitCode::invalid_arguments,
+                       "invalid texture document: " + std::string(error.what()));
+    } catch (const ctex::io::DocumentMeshStateIoError& error) {
+        throw CliError(ExitCode::invalid_arguments,
+                       "invalid document mesh state: " + std::string(error.what()));
+    } catch (const std::invalid_argument& error) {
+        throw CliError(ExitCode::invalid_arguments,
+                       "could not bind baked maps: " + std::string(error.what()));
+    }
 }
 
 void require_export_budget(const ctex::doc::TextureDocument& document,
@@ -1291,37 +1810,276 @@ std::string export_outputs_json(const ctex::io::TextureExportResult& result,
     return json + ']';
 }
 
+const ctex::io::ProjectResource& require_mesh_resource(const ctex::io::ProjectContainer& project,
+                                                       std::string_view identifier) {
+    const auto resource =
+        std::ranges::find(project.resources, identifier, &ctex::io::ProjectResource::identifier);
+    if (resource == project.resources.end() || resource->kind != "mesh") {
+        throw CliError(ExitCode::missing_resource,
+                       "document mesh resource is missing: '" + std::string(identifier) + "'");
+    }
+    return *resource;
+}
+
+std::pair<std::size_t, std::size_t> obj_limits(const ExecutionOptions& options) {
+    const std::uint64_t per_mesh_budget = options.memory_ceiling / 4;
+    const std::uint64_t vertices =
+        std::clamp<std::uint64_t>(per_mesh_budget / 64, 1, ctex::mesh::maximum_vertex_count);
+    const std::uint64_t triangles =
+        std::clamp<std::uint64_t>(per_mesh_budget / 32, 1, ctex::mesh::maximum_triangle_count);
+    return {static_cast<std::size_t>(vertices), static_cast<std::size_t>(triangles)};
+}
+
+double reprojection_distance(const ctex::mesh::MeshDescriptor& source,
+                             const ctex::mesh::MeshDescriptor& replacement) {
+    ctex::mesh::Vec3f minimum{std::numeric_limits<float>::max(), std::numeric_limits<float>::max(),
+                              std::numeric_limits<float>::max()};
+    ctex::mesh::Vec3f maximum{std::numeric_limits<float>::lowest(),
+                              std::numeric_limits<float>::lowest(),
+                              std::numeric_limits<float>::lowest()};
+    const auto extend = [&](const ctex::mesh::Vec3f value) {
+        minimum.x = std::min(minimum.x, value.x);
+        minimum.y = std::min(minimum.y, value.y);
+        minimum.z = std::min(minimum.z, value.z);
+        maximum.x = std::max(maximum.x, value.x);
+        maximum.y = std::max(maximum.y, value.y);
+        maximum.z = std::max(maximum.z, value.z);
+    };
+    for (const ctex::mesh::Vec3f value : source.positions) extend(value);
+    for (const ctex::mesh::Vec3f value : replacement.positions) extend(value);
+    const double x = static_cast<double>(maximum.x) - minimum.x;
+    const double y = static_cast<double>(maximum.y) - minimum.y;
+    const double z = static_cast<double>(maximum.z) - minimum.z;
+    return std::max(1.0e-6, std::sqrt(x * x + y * y + z * z) * 2.0);
+}
+
+ctex::doc::MeshReplacementPolicy replacement_policy(std::string_view policy) {
+    if (policy == "keep") return ctex::doc::MeshReplacementPolicy::keep_texels;
+    if (policy == "clear") return ctex::doc::MeshReplacementPolicy::clear;
+    return ctex::doc::MeshReplacementPolicy::request_reprojection;
+}
+
+struct MeshReplacementSummary {
+    std::string policy;
+    std::size_t changed_texture_sets{};
+    std::size_t kept_texture_sets{};
+    std::size_t cleared_texture_sets{};
+    std::size_t reprojected_texels{};
+    std::size_t retained_holes{};
+    std::size_t resolved_ambiguities{};
+    std::uint64_t input_bytes{};
+};
+
+std::span<const std::byte> source_mesh_bytes(const ctex::io::ProjectResource& resource,
+                                             const std::filesystem::path& document_path,
+                                             const ExecutionOptions& options,
+                                             std::vector<std::byte>& external) {
+    if (resource.packed_bytes) return *resource.packed_bytes;
+    if (resource.relative_path.empty()) {
+        throw CliError(ExitCode::missing_resource,
+                       "document mesh resource has no packed bytes or relative path");
+    }
+    try {
+        external = read_input(document_path.parent_path() / resource.relative_path, options);
+    } catch (const CliError& error) {
+        if (error.code() != ExitCode::missing_input) throw;
+        throw CliError(ExitCode::missing_resource,
+                       "document mesh resource is unreadable: '" + resource.identifier + "'");
+    }
+    return external;
+}
+
+std::vector<ctex::doc::MeshReplacementDecision> replacement_decisions(
+    const ctex::doc::MeshReplacementPlan& plan, ctex::doc::MeshReplacementPolicy policy) {
+    std::vector<ctex::doc::MeshReplacementDecision> decisions;
+    for (const ctex::doc::TextureSetMeshReplacement& texture_set : plan.texture_sets()) {
+        if (texture_set.change != ctex::doc::MeshUvChange::unchanged) {
+            decisions.push_back({.texture_set_id = texture_set.texture_set_id, .policy = policy});
+        }
+    }
+    return decisions;
+}
+
+ctex::doc::MeshReprojectionCommitReport reproject_document(
+    ctex::doc::TextureDocument& document, const ctex::mesh::MeshBinding& source,
+    const ctex::mesh::MeshBinding& replacement,
+    std::span<const ctex::doc::MeshReplacementDecision> decisions,
+    const ExecutionOptions& options) {
+    std::vector<std::string_view> texture_sets;
+    texture_sets.reserve(decisions.size());
+    for (const ctex::doc::MeshReplacementDecision& decision : decisions) {
+        texture_sets.push_back(decision.texture_set_id);
+    }
+    const std::size_t maximum_work = static_cast<std::size_t>(
+        std::min(options.texel_ceiling,
+                 static_cast<std::uint64_t>(std::numeric_limits<std::size_t>::max())));
+    const ctex::doc::MeshReprojectionLimits limits{
+        .maximum_distance =
+            reprojection_distance(source.view().descriptor(), replacement.view().descriptor()),
+        .maximum_normal_angle_radians = 3.14159265358979323846,
+        .require_visibility = false,
+        .visibility_epsilon = 1.0e-5,
+        .ambiguity_distance_epsilon = 1.0e-6,
+        .maximum_work_items = maximum_work,
+        .progress_interval = 256};
+    const ctex::doc::MeshReprojectionPreflight preflight = ctex::doc::preflight_mesh_reprojection(
+        document, source, replacement, limits,
+        {.is_cancelled = [] { return interrupt_requested != 0; }}, texture_sets);
+    return ctex::doc::commit_mesh_reprojection(
+        document, source, replacement, preflight, ctex::doc::ReprojectionHolePolicy::retain_target,
+        ctex::doc::ReprojectionAmbiguityPolicy::nearest_then_lowest_triangle);
+}
+
+MeshReplacementSummary reconcile_replacement_mesh(ctex::io::ProjectContainer& project,
+                                                  ctex::doc::TextureDocument& document,
+                                                  std::string_view document_identity,
+                                                  const std::filesystem::path& document_path,
+                                                  std::string_view policy_name,
+                                                  const std::vector<std::byte>& replacement_bytes,
+                                                  const ExecutionOptions& options) {
+    const auto state = ctex::io::read_document_mesh_state(project, document_identity,
+                                                          document_mesh_state_limits(options));
+    if (!state) {
+        throw CliError(ExitCode::missing_resource,
+                       "document has no persisted source mesh reference");
+    }
+    const ctex::io::ProjectResource& resource =
+        require_mesh_resource(project, state->mesh_resource_id);
+    std::vector<std::byte> external_source;
+    const std::span<const std::byte> source_bytes =
+        source_mesh_bytes(resource, document_path, options, external_source);
+    const auto [maximum_vertices, maximum_triangles] = obj_limits(options);
+    ctex::cli::ObjMesh source_mesh =
+        ctex::cli::parse_obj_mesh(source_bytes, maximum_vertices, maximum_triangles);
+    ctex::cli::ObjMesh replacement_mesh =
+        ctex::cli::parse_obj_mesh(replacement_bytes, maximum_vertices, maximum_triangles);
+    const ctex::mesh::MeshDescriptor source_descriptor = source_mesh.descriptor();
+    ctex::mesh::MeshBinding source =
+        ctex::mesh::MeshBinding::restore(source_descriptor, state->mesh_revision);
+    ctex::mesh::MeshBinding replacement =
+        ctex::mesh::MeshBinding::restore(source_descriptor, state->mesh_revision);
+    replacement.replace(replacement_mesh.descriptor());
+    const ctex::doc::MeshReplacementPlan plan =
+        ctex::doc::analyze_mesh_replacement(document, source, replacement.view());
+    const ctex::doc::MeshReplacementPolicy policy = replacement_policy(policy_name);
+    const std::vector decisions = replacement_decisions(plan, policy);
+    const ctex::doc::MeshReplacementApplyReport applied =
+        ctex::doc::apply_mesh_replacement_policies(document, source, plan, decisions);
+    MeshReplacementSummary summary{
+        .policy = std::string(policy_name),
+        .changed_texture_sets = decisions.size(),
+        .kept_texture_sets = applied.kept_texture_sets.size(),
+        .cleared_texture_sets = applied.cleared_texture_sets.size(),
+        .input_bytes = checked_sum(replacement_bytes.size(), external_source.size(),
+                                   "replacement mesh inputs")};
+    if (!applied.replacement_ready) {
+        const ctex::doc::MeshReprojectionCommitReport reprojected =
+            reproject_document(document, source, replacement, decisions, options);
+        summary.reprojected_texels = reprojected.reprojected_texel_count;
+        summary.retained_holes = reprojected.retained_hole_count;
+        summary.resolved_ambiguities = reprojected.resolved_ambiguity_count;
+    }
+    return summary;
+}
+
+std::string replacement_report_json(const std::optional<MeshReplacementSummary>& replacement) {
+    if (!replacement) return "null";
+    return "{\"policy\":" + json_string(replacement->policy) +
+           ",\"changed_texture_sets\":" + std::to_string(replacement->changed_texture_sets) +
+           ",\"kept_texture_sets\":" + std::to_string(replacement->kept_texture_sets) +
+           ",\"cleared_texture_sets\":" + std::to_string(replacement->cleared_texture_sets) +
+           ",\"reprojected_texels\":" + std::to_string(replacement->reprojected_texels) +
+           ",\"retained_holes\":" + std::to_string(replacement->retained_holes) +
+           ",\"resolved_ambiguities\":" + std::to_string(replacement->resolved_ambiguities) + '}';
+}
+
+std::optional<std::filesystem::path> replacement_mesh_path(const Invocation& invocation) {
+    const auto mesh = option_value(invocation, "--mesh");
+    if (!mesh) {
+        if (option_value(invocation, "--mesh-policy")) {
+            throw CliError(ExitCode::invalid_arguments, "--mesh-policy requires --mesh");
+        }
+        return std::nullopt;
+    }
+    std::filesystem::path path{*mesh};
+    std::string extension = path.extension().string();
+    std::ranges::transform(extension, extension.begin(),
+                           [](unsigned char value) { return std::tolower(value); });
+    if (extension != ".obj") {
+        throw CliError(ExitCode::unsupported_operation,
+                       "replacement mesh must use the supported Wavefront OBJ format");
+    }
+    return path;
+}
+
+void emit_export_success(const Invocation& invocation, const SelectedExecutor& executor,
+                         const ExecutionOptions& options, SteadyTime started,
+                         const std::filesystem::path& document_path,
+                         const std::filesystem::path& output_directory,
+                         const std::optional<std::filesystem::path>& mesh_path,
+                         std::string_view document_identity, const ctex::io::ExportPreset& preset,
+                         const ctex::io::TextureExportResult& result,
+                         const std::optional<MeshReplacementSummary>& replacement) {
+    if (option_value(invocation, "--report") == "json") {
+        std::cout << '{'
+                  << standard_report_fields(invocation, executor, options, ExitCode::success, "ok",
+                                            elapsed_milliseconds(started))
+                  << ",\"outputs\":" << export_outputs_json(result, output_directory)
+                  << ",\"inputs\":[{\"kind\":\"document\",\"path\":"
+                  << json_string(document_path.string());
+        if (mesh_path) {
+            std::cout << "},{\"kind\":\"replacement-mesh\",\"path\":"
+                      << json_string(mesh_path->string());
+        }
+        std::cout << "}],\"operations\":[\"read\",\"open\"";
+        if (mesh_path) std::cout << ",\"analyze-mesh\",\"reconcile\"";
+        std::cout << ",\"plan\",\"encode\",\"publish\"]"
+                  << ",\"document_asset\":" << json_string(document_identity)
+                  << ",\"preset\":" << json_string(preset.identifier)
+                  << ",\"mesh_replacement\":" << replacement_report_json(replacement) << "}\n";
+    } else if (!invocation.quiet) {
+        std::cout << "exported " << result.buffers.size() << " textures to "
+                  << output_directory.string() << "\nexecutor: " << executor.selected << '\n';
+    }
+}
+
 int export_command(const Invocation& invocation, const SelectedExecutor& executor,
                    const ExecutionOptions& options, SteadyTime started) {
     const std::filesystem::path document_path{*option_value(invocation, "--document")};
     const std::filesystem::path output_directory{*option_value(invocation, "--output")};
     const std::string_view preset_identity = *option_value(invocation, "--preset");
-    if (option_value(invocation, "--mesh").has_value()) {
-        throw CliError(ExitCode::unsupported_operation,
-                       "export mesh replacement is not implemented yet");
-    }
-    if (option_value(invocation, "--mesh-policy").has_value()) {
-        throw CliError(ExitCode::invalid_arguments, "--mesh-policy requires --mesh");
-    }
+    const std::optional<std::filesystem::path> mesh_path = replacement_mesh_path(invocation);
     const ctex::io::ExportPreset& preset = require_export_preset(preset_identity);
     validate_export_destination(output_directory);
     const std::vector<std::byte> project_bytes = read_input(document_path, options);
+    const std::vector<std::byte> replacement_bytes =
+        mesh_path ? read_input(*mesh_path, options) : std::vector<std::byte>{};
     try {
         ctex::io::ProjectContainer project =
             ctex::io::read_project_container(project_bytes, project_limits(options)).container;
         static_cast<void>(measure_container(project, options));
         const std::string document_identity = only_texture_document_identity(project);
-        const ctex::doc::TextureDocument document = ctex::io::unpack_texture_document(
+        ctex::doc::TextureDocument document = ctex::io::unpack_texture_document(
             project, document_identity, texture_document_limits(options));
+        std::optional<MeshReplacementSummary> replacement;
+        if (mesh_path) {
+            replacement = reconcile_replacement_mesh(
+                project, document, document_identity, document_path,
+                option_value(invocation, "--mesh-policy").value_or("keep"), replacement_bytes,
+                options);
+        }
         ctex::io::TextureExportOptions texture_export_options;
         texture_export_options.dry_run = true;
         const std::string project_name = document_path.stem().string();
         const ctex::io::TextureExportResult plan = ctex::io::export_texture_document_to_memory(
             project_name, document, preset, texture_export_options);
-        require_export_budget(document, plan.report, project_bytes.size(), options);
+        const std::uint64_t input_bytes = checked_sum(
+            project_bytes.size(), replacement ? replacement->input_bytes : 0, "export input size");
+        require_export_budget(document, plan.report, input_bytes, options);
         texture_export_options.dry_run = false;
         const ctex::io::TextureExportResult result = ctex::io::export_texture_document_to_memory(
-            project_name, document, preset, texture_export_options);
+            project_name, document, preset, texture_export_options, {},
+            [] { return interrupt_requested != 0; });
         throw_if_interrupted();
         StagedOutputDirectory staging(output_directory);
         for (const ctex::io::InMemoryTextureExport& output : result.buffers) {
@@ -1331,20 +2089,8 @@ int export_command(const Invocation& invocation, const SelectedExecutor& executo
         throw_if_interrupted();
         staging.publish();
 
-        if (option_value(invocation, "--report") == "json") {
-            std::cout << '{'
-                      << standard_report_fields(invocation, executor, options, ExitCode::success,
-                                                "ok", elapsed_milliseconds(started))
-                      << ",\"outputs\":" << export_outputs_json(result, output_directory)
-                      << ",\"inputs\":[{\"kind\":\"document\",\"path\":"
-                      << json_string(document_path.string())
-                      << "}],\"operations\":[\"read\",\"open\",\"plan\",\"encode\",\"publish\"]"
-                      << ",\"document_asset\":" << json_string(document_identity)
-                      << ",\"preset\":" << json_string(preset.identifier) << "}\n";
-        } else if (!invocation.quiet) {
-            std::cout << "exported " << result.buffers.size() << " textures to "
-                      << output_directory.string() << "\nexecutor: " << executor.selected << '\n';
-        }
+        emit_export_success(invocation, executor, options, started, document_path, output_directory,
+                            mesh_path, document_identity, preset, result, replacement);
         return static_cast<int>(ExitCode::success);
     } catch (const CliError&) {
         throw;
@@ -1356,6 +2102,9 @@ int export_command(const Invocation& invocation, const SelectedExecutor& executo
     } catch (const ctex::io::TextureDocumentIoError& error) {
         throw CliError(ExitCode::invalid_arguments,
                        "invalid texture document: " + std::string(error.what()));
+    } catch (const ctex::io::DocumentMeshStateIoError& error) {
+        throw CliError(ExitCode::invalid_arguments,
+                       "invalid document mesh state: " + std::string(error.what()));
     } catch (const ctex::io::TextureExportError& error) {
         const ExitCode code = error.code() == ctex::io::TextureExportErrorCode::over_limit
                                   ? ExitCode::over_budget
@@ -1367,6 +2116,19 @@ int export_command(const Invocation& invocation, const SelectedExecutor& executo
     } catch (const ctex::io::ExportPresetError& error) {
         throw CliError(ExitCode::invalid_arguments,
                        "invalid export preset: " + std::string(error.what()));
+    } catch (const ctex::doc::MeshReprojectionError& error) {
+        const ExitCode code = error.code() == ctex::doc::MeshReprojectionErrorCode::over_budget
+                                  ? ExitCode::over_budget
+                              : error.code() == ctex::doc::MeshReprojectionErrorCode::cancelled
+                                  ? ExitCode::cancelled
+                                  : ExitCode::invalid_arguments;
+        throw CliError(code, "could not reproject mesh: " + std::string(error.what()));
+    } catch (const std::invalid_argument& error) {
+        throw CliError(ExitCode::invalid_arguments,
+                       "invalid replacement mesh: " + std::string(error.what()));
+    } catch (const std::overflow_error& error) {
+        throw CliError(ExitCode::over_budget,
+                       "could not reconcile replacement mesh: " + std::string(error.what()));
     }
 }
 
@@ -1390,6 +2152,9 @@ int dispatch(const Invocation& invocation) {
         }
         if (invocation.command->name == "run") {
             return run_command(invocation, executor, options, started);
+        }
+        if (invocation.command->name == "bake-request") {
+            return bake_request_command(invocation, executor, options, started);
         }
         const std::string diagnostic = "command '" + std::string(invocation.command->name) +
                                        "' is not implemented yet (roadmap task 15.2)";

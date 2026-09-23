@@ -136,6 +136,26 @@ bool accepts_in_memory_attributes_without_modification() {
                   "mesh ingest modified a caller-owned buffer");
 }
 
+bool restores_persisted_revision_and_advances_replacements() {
+    MeshBuffers buffers;
+    constexpr ctex::mesh::MeshRevision persisted_revision = 10'000;
+    ctex::mesh::MeshBinding restored =
+        ctex::mesh::MeshBinding::restore(buffers.descriptor(), persisted_revision);
+    if (!expect(restored.revision() == persisted_revision,
+                "restored mesh binding changed its persisted revision")) {
+        return false;
+    }
+    restored.replace(buffers.descriptor());
+    const bool advanced = expect(restored.revision() > persisted_revision,
+                                 "mesh replacement did not advance beyond the restored revision");
+    return advanced &&
+           expect_invalid_argument(
+               [&] {
+                   static_cast<void>(ctex::mesh::MeshBinding::restore(buffers.descriptor(), 0));
+               },
+               "mesh binding accepted a zero restored revision");
+}
+
 bool accepts_declared_supplied_corner_tangents() {
     MeshBuffers buffers;
     const std::array<Vec4f, 6> tangents{
@@ -337,6 +357,7 @@ bool refuses_declared_mesh_limits_before_reading_buffers() {
 
 int main() {
     return accepts_in_memory_attributes_without_modification() &&
+                   restores_persisted_revision_and_advances_replacements() &&
                    accepts_declared_supplied_corner_tangents() &&
                    generated_tangents_preserve_mirrored_uv_handedness() &&
                    refuses_undeclared_or_invalid_supplied_tangents() &&

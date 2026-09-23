@@ -17,6 +17,7 @@ BINARY = sys.argv[1]
 ROOT = Path(sys.argv[2])
 FIXTURE_WRITER = sys.argv[3]
 NATIVE_LIBRARY = sys.argv[4]
+BAKE_PROVIDER = sys.argv[5]
 COMMANDS = ("export", "bake-request", "apply", "run", "info", "validate")
 GLOBAL_OPTIONS = (
     "--report",
@@ -229,23 +230,6 @@ assert bounded_report["limits"]["texels"] == 1
 quiet = run("info", "--document", str(document), "--quiet")
 assert quiet.returncode == 0 and quiet.stdout == "" and quiet.stderr == ""
 
-unsupported = run(
-    "bake-request",
-    "--document",
-    str(document),
-    "--provider",
-    "fixture-provider",
-    "--output",
-    "baked.ctex",
-    "--report",
-    "json",
-)
-unsupported_report = json.loads(unsupported.stdout)
-assert unsupported.returncode == 4
-assert unsupported_report["status"] == "unsupported"
-assert unsupported_report["outputs"] == []
-assert "not implemented" in unsupported.stderr
-
 with tempfile.TemporaryDirectory(prefix="ctex-cli-apply-") as temporary:
     directory = Path(temporary)
     source = directory / "source.ctex"
@@ -266,6 +250,166 @@ with tempfile.TemporaryDirectory(prefix="ctex-cli-apply-") as temporary:
     assert generated.returncode == 0 and generated.stderr == ""
     texture_set = generated.stdout.strip()
     source_bytes = source.read_bytes()
+
+    missing_provider = run(
+        "bake-request",
+        "--document",
+        str(source),
+        "--provider",
+        str(directory / "missing-provider-library"),
+        "--output",
+        str(directory / "missing-provider.ctex"),
+        "--report",
+        "json",
+    )
+    assert missing_provider.returncode == 3
+    assert json.loads(missing_provider.stdout)["outputs"] == []
+    assert "could not load bake provider" in missing_provider.stderr
+
+    unsupported_provider = run(
+        "bake-request",
+        "--document",
+        str(source),
+        "--provider",
+        NATIVE_LIBRARY,
+        "--output",
+        str(directory / "unsupported-provider.ctex"),
+        "--report",
+        "json",
+    )
+    assert unsupported_provider.returncode == 4
+    assert json.loads(unsupported_provider.stdout)["outputs"] == []
+    assert "does not export" in unsupported_provider.stderr
+
+    missing_map_output = directory / "missing-map.ctex"
+    missing_map = run(
+        "bake-request",
+        "--document",
+        str(source),
+        "--provider",
+        BAKE_PROVIDER,
+        "--output",
+        str(missing_map_output),
+        "--report",
+        "json",
+        environment={"CTEX_CLI_FIXTURE_MISSING_AO": "1"},
+    )
+    assert missing_map.returncode == 5
+    assert missing_map.returncode != missing.returncode
+    assert not missing_map_output.exists()
+    assert json.loads(missing_map.stdout)["outputs"] == []
+    assert "ambient-occlusion" in missing_map.stderr
+
+    baked_output = directory / "baked.ctex"
+    baked = run(
+        "bake-request",
+        "--document",
+        str(source),
+        "--provider",
+        BAKE_PROVIDER,
+        "--output",
+        str(baked_output),
+        "--report",
+        "json",
+    )
+    baked_report = json.loads(baked.stdout)
+    assert baked.returncode == 0, (baked.stdout, baked.stderr)
+    assert baked.stderr == ""
+    assert baked_report["provider"] == "fixture-provider"
+    assert baked_report["requests"] == 2
+    assert baked_report["replaced_maps"] == 1
+    assert baked_report["operations"] == ["read", "open", "bake", "bind", "save"]
+    assert baked_report["outputs"] == [
+        {"kind": "project", "path": str(baked_output), "bytes": baked_output.stat().st_size}
+    ]
+    assert source.read_bytes() == source_bytes
+    baked_info = run("info", "--document", str(baked_output), "--report", "json")
+    assert baked_info.returncode == 0
+    assert json.loads(baked_info.stdout)["bound_maps"] == 2
+
+    repeated_baked_output = directory / "baked-repeat.ctex"
+    repeated_bake = run(
+        "bake-request",
+        "--document",
+        str(source),
+        "--provider",
+        BAKE_PROVIDER,
+        "--output",
+        str(repeated_baked_output),
+        "--report",
+        "json",
+    )
+    assert repeated_bake.returncode == 0
+    assert baked_output.read_bytes() == repeated_baked_output.read_bytes()
+
+    unsupported_mesh_output = directory / "unsupported-mesh-export"
+    unsupported_mesh = run(
+        "export",
+        "--document",
+        str(source),
+        "--preset",
+        "base-color",
+        "--mesh",
+        str(directory / "replacement.glb"),
+        "--output",
+        str(unsupported_mesh_output),
+        "--report",
+        "json",
+    )
+    assert unsupported_mesh.returncode == 4
+    assert not unsupported_mesh_output.exists()
+    assert json.loads(unsupported_mesh.stdout)["outputs"] == []
+
+    replacement_mesh = directory / "replacement.obj"
+    replacement_mesh.write_text(
+        "o Replacement\n"
+        "v 0 0 0\nv 1 0 0\nv 0 1 0\nv 2 0 0\nv 3 0 0\nv 2 1 0\n"
+        "vn 0 0 1\nvt 0 0\nvt 0.8 0\nvt 0 0.8\n"
+        "usemtl body\nf 1/1/1 2/2/1 3/3/1\n"
+        "usemtl cloth\nf 4/1/1 5/2/1 6/3/1\n",
+        encoding="utf-8",
+    )
+    replacement_exports: dict[str, Path] = {}
+    for policy in ("keep", "clear", "reproject"):
+        replacement_output = directory / f"replacement-{policy}"
+        replacement_export = run(
+            "export",
+            "--document",
+            str(source),
+            "--preset",
+            "base-color",
+            "--mesh",
+            str(replacement_mesh),
+            "--mesh-policy",
+            policy,
+            "--output",
+            str(replacement_output),
+            "--report",
+            "json",
+        )
+        replacement_report = json.loads(replacement_export.stdout)
+        assert replacement_export.returncode == 0, (
+            policy,
+            replacement_export.stdout,
+            replacement_export.stderr,
+        )
+        assert replacement_export.stderr == ""
+        assert replacement_report["mesh_replacement"]["policy"] == policy
+        assert replacement_report["mesh_replacement"]["changed_texture_sets"] == 2
+        assert replacement_report["operations"] == [
+            "read",
+            "open",
+            "analyze-mesh",
+            "reconcile",
+            "plan",
+            "encode",
+            "publish",
+        ]
+        assert len(replacement_report["outputs"]) == 2
+        replacement_exports[policy] = replacement_output
+    assert replacement_exports["keep"].is_dir()
+    assert replacement_exports["clear"].is_dir()
+    assert replacement_exports["reproject"].is_dir()
 
     unrepresentable_output = directory / ("x" * 300)
     internal_failure = run(
@@ -377,6 +521,57 @@ with tempfile.TemporaryDirectory(prefix="ctex-cli-apply-") as temporary:
     assert over_texel_budget.returncode == 7 and not bounded_export.exists()
     assert json.loads(over_texel_budget.stdout)["outputs"] == []
 
+    interrupt_source = directory / "interrupt-source.ctex"
+    interrupt_fixture = subprocess.run(
+        [FIXTURE_WRITER, "--write-cli-interrupt-fixture", str(interrupt_source)],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert interrupt_fixture.returncode == 0, interrupt_fixture.stderr
+    interrupted_export_output = directory / "interrupted-export"
+    creation_flags = subprocess.CREATE_NEW_PROCESS_GROUP if os.name == "nt" else 0
+    interrupted_export = subprocess.Popen(
+        [
+            BINARY,
+            "export",
+            "--document",
+            str(interrupt_source),
+            "--preset",
+            "base-color",
+            "--output",
+            str(interrupted_export_output),
+            "--report",
+            "json",
+        ],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+        env=process_environment(),
+        creationflags=creation_flags,
+    )
+    try:
+        time.sleep(0.05)
+        assert interrupted_export.poll() is None, "twenty-texture export finished before interrupt"
+        interrupted_export.send_signal(
+            signal.CTRL_BREAK_EVENT if os.name == "nt" else signal.SIGINT
+        )
+        export_interrupt_stdout, export_interrupt_stderr = interrupted_export.communicate(
+            timeout=60
+        )
+    finally:
+        if interrupted_export.poll() is None:
+            interrupted_export.kill()
+            interrupted_export.communicate()
+    assert interrupted_export.returncode == 6, (
+        export_interrupt_stdout,
+        export_interrupt_stderr,
+    )
+    assert json.loads(export_interrupt_stdout)["exit_code"] == 6
+    assert "interrupted" in export_interrupt_stderr
+    assert not interrupted_export_output.exists()
+    assert not list(directory.glob(".interrupted-export.ctex-stage-*"))
+
     output = directory / "applied.ctex"
     applied = run(
         "apply",
@@ -425,6 +620,9 @@ with tempfile.TemporaryDirectory(prefix="ctex-cli-apply-") as temporary:
     assert applied_inventory["texture_sets"] == 2
     assert applied_inventory["layer_entries"] == 2
     assert applied_inventory["preset_applications"] == 2
+    assert applied_inventory["mesh_bindings"] == 1
+    assert applied_inventory["bound_maps"] == 1
+    assert applied_inventory["mesh_map_bytes"] > 0
 
     protected = directory / "protected.ctex"
     protected.write_bytes(b"previous-good-output")

@@ -29,9 +29,18 @@ planned texture through the native export pipeline. It writes into a new staged
 directory and publishes that directory only after all outputs are complete, so
 an error cannot expose a partial output set. Its JSON report identifies every
 file with byte size, dimensions, format, colour space and bit depth. Existing
-output directories are refused instead of being merged or overwritten. Mesh
-replacement arguments remain reserved and return the unsupported-operation
-outcome until the replacement-mesh input path is implemented.
+output directories are refused instead of being merged or overwritten.
+
+With `--mesh PATH`, `export` reads a bounded Wavefront OBJ replacement and the
+source OBJ named by the project's persisted mesh resource. OBJ position, UV and
+normal indices are remapped into the engine's indexed representation; polygons,
+negative indices, generated normals and material partitions are supported.
+`--mesh-policy keep` (the default) preserves current texels, `clear` clears
+channels for texture sets whose partition UV topology changed, and `reproject`
+runs the bounded native reprojection preflight and commit with retained holes
+and deterministic nearest-triangle ambiguity resolution. Reports include the
+policy and changed, kept, cleared, reprojected, hole and ambiguity counts. The
+replacement is transient to this export; the source project is never modified.
 
 `run` opens the project's single texture-document asset through the installed
 Python binding and executes the selected script. A script defines
@@ -51,9 +60,15 @@ an existing destination remains unchanged. Native export checks the same
 cancellation state between encoded outputs and publishes its staged directory
 only after the complete set has been written.
 
-`bake-request` currently returns the unsupported-operation outcome until the
-remaining part of roadmap task 15.2 supplies provider attachment. Replacement
-mesh export also remains unsupported.
+`bake-request --provider` takes a shared-library path. The library exports the
+version-1 provider entry point declared in `ctex/capi.h` and returns the normal
+`ctex_mesh_map_bake_provider_descriptor`. The command restores all persisted
+map bindings, requests every map kind advertised by the provider for every
+texture set, replaces existing bindings of the same kind, and atomically writes
+the resulting project. It refuses a project without a persisted mesh reference,
+a library without the entry point, provider failure, cancellation, and
+preflighted worst-case pixel allocations above the requested budget. A repeated
+bake with identical inputs is byte-deterministic.
 
 Run `cybertexel --help` for the command list or
 `cybertexel <command> --help` for required and optional command arguments.

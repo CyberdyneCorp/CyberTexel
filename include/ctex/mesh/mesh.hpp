@@ -134,12 +134,19 @@ class MeshBinding {
 public:
     explicit MeshBinding(MeshDescriptor descriptor, std::pmr::memory_resource* memory_resource =
                                                         std::pmr::get_default_resource());
+    [[nodiscard]] static MeshBinding restore(
+        MeshDescriptor descriptor, MeshRevision revision,
+        std::pmr::memory_resource* memory_resource = std::pmr::get_default_resource());
 
     void replace(MeshDescriptor descriptor);
     [[nodiscard]] const MeshView& view() const noexcept { return view_; }
     [[nodiscard]] MeshRevision revision() const noexcept { return revision_; }
 
 private:
+    struct RestoredRevisionTag {};
+    MeshBinding(MeshDescriptor descriptor, MeshRevision revision,
+                std::pmr::memory_resource* memory_resource, RestoredRevisionTag);
+
     std::pmr::memory_resource* memory_resource_;
     MeshView view_;
     MeshRevision revision_;

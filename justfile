@@ -104,7 +104,7 @@ test-vulkan: build-vulkan
 # Focused cross-platform build and process smoke suite for the installed CLI surface.
 test-cli: (_require "cmake" "3.24") (_require "python3" "3.10") (_require "ninja" "1.10")
     cmake --preset headless
-    cmake --build --preset headless --target cybertexel_cli ctex_texture_document_io_test cybertexel_c
+    cmake --build --preset headless --target cybertexel_cli ctex_texture_document_io_test cybertexel_c ctex_cli_bake_provider ctex_cli_obj_mesh_test
     ctest --test-dir build/headless --output-on-failure -R '^cli-headless-'
 
 test-image: build

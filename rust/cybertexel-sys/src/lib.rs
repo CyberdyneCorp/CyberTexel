@@ -1,13 +1,15 @@
 //! Raw declarations generated from `include/ctex/capi.h`.
 //! Regenerate with `python3 tools/generate_rust_sys.py`.
 
-//! C header SHA-256: ea0c1ae541e70306ddb7cdd54f72d04e28167af06f41731029ec44fb4a3aa360
+//! C header SHA-256: bc6f29bc5c699cffd9a22dc0dcc8143ec3b74eba458d0d99910ac618b5ba0b74
 
 #![allow(non_camel_case_types, non_snake_case, non_upper_case_globals)]
 
 pub const CTEX_NO_SURFACE_TRIANGLE: u32 = 4294967295;
 pub const CTEX_NO_UV_ISLAND: u32 = 4294967295;
 pub const CTEX_MESH_REPLACEMENT_NO_PARTITION: u32 = 4294967295;
+pub const CTEX_MESH_MAP_BAKE_PROVIDER_ENTRY_POINT_V1: &[u8; 31] =
+    b"ctex_mesh_map_bake_provider_v1\0";
 pub const ctex_result_CTEX_RESULT_SUCCESS: ctex_result = 0;
 pub const ctex_result_CTEX_RESULT_INVALID_ARGUMENT: ctex_result = 1;
 pub const ctex_result_CTEX_RESULT_MISSING_RESOURCE: ctex_result = 2;
@@ -4144,6 +4146,9 @@ impl Default for ctex_mesh_map_bake_provider_descriptor {
         }
     }
 }
+pub type ctex_mesh_map_bake_provider_entry_point_v1_fn = ::std::option::Option<
+    unsafe extern "C" fn(out_provider: *mut ctex_mesh_map_bake_provider_descriptor) -> ctex_result,
+>;
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
 pub struct ctex_mesh_map_bake_control_descriptor {
@@ -5295,6 +5300,35 @@ pub struct ctex_project_container_info {
     pub packed_resource_bytes: usize,
     pub canonical_size: usize,
     pub report_size: usize,
+}
+#[repr(C)]
+#[derive(Debug, Copy, Clone)]
+pub struct ctex_document_mesh_state_descriptor {
+    pub size: u32,
+    pub document_asset_id: *const ::std::os::raw::c_char,
+    pub mesh_resource_id: *const ::std::os::raw::c_char,
+    pub current_mesh_revision: u64,
+    pub map_sets: *const *const ctex_mesh_map_set,
+    pub map_set_count: usize,
+}
+impl Default for ctex_document_mesh_state_descriptor {
+    fn default() -> Self {
+        let mut s = ::std::mem::MaybeUninit::<Self>::uninit();
+        unsafe {
+            ::std::ptr::write_bytes(s.as_mut_ptr(), 0, 1);
+            s.assume_init()
+        }
+    }
+}
+#[repr(C)]
+#[derive(Debug, Default, Copy, Clone)]
+pub struct ctex_document_mesh_state_info {
+    pub size: u32,
+    pub current_mesh_revision: u64,
+    pub map_count: usize,
+    pub texture_set_count: usize,
+    pub required_mesh_resource_id_size: usize,
+    pub required_texture_set_ids_size: usize,
 }
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
@@ -6940,6 +6974,42 @@ unsafe extern "C" {
         limits: *const ctex_project_container_read_limits_descriptor,
         asset_identifier: *const ::std::os::raw::c_char,
         document: *mut ctex_document,
+    ) -> ctex_result;
+}
+unsafe extern "C" {
+    pub fn ctex_project_container_upsert_document_mesh_state(
+        project_encoded: *const ::std::os::raw::c_void,
+        project_encoded_size: usize,
+        limits: *const ctex_project_container_read_limits_descriptor,
+        state: *const ctex_document_mesh_state_descriptor,
+        out_info: *mut ctex_project_container_info,
+        project_output: *mut ::std::os::raw::c_void,
+        project_output_size: usize,
+        report_output: *mut ::std::os::raw::c_char,
+        report_output_size: usize,
+    ) -> ctex_result;
+}
+unsafe extern "C" {
+    pub fn ctex_project_container_get_document_mesh_state_info(
+        project_encoded: *const ::std::os::raw::c_void,
+        project_encoded_size: usize,
+        limits: *const ctex_project_container_read_limits_descriptor,
+        document_asset_id: *const ::std::os::raw::c_char,
+        out_info: *mut ctex_document_mesh_state_info,
+        mesh_resource_id: *mut ::std::os::raw::c_char,
+        mesh_resource_id_size: usize,
+        texture_set_ids: *mut ::std::os::raw::c_char,
+        texture_set_ids_size: usize,
+    ) -> ctex_result;
+}
+unsafe extern "C" {
+    pub fn ctex_project_container_restore_document_mesh_state(
+        project_encoded: *const ::std::os::raw::c_void,
+        project_encoded_size: usize,
+        limits: *const ctex_project_container_read_limits_descriptor,
+        document_asset_id: *const ::std::os::raw::c_char,
+        map_sets: *const *mut ctex_mesh_map_set,
+        map_set_count: usize,
     ) -> ctex_result;
 }
 unsafe extern "C" {

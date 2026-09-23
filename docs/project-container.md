@@ -109,6 +109,24 @@ sets, tiled images, layer entries, atlases, editable entries, and applied
 presets. The headless `info` command includes those live document totals in
 both text and JSON output.
 
+### Document mesh-state assets
+
+A versioned `document-mesh-state` companion asset associates one texture
+document with its source `mesh` project resource, current mesh revision and
+bound mesh maps. Each map records its texture set, UV set, kind, producing mesh
+revision, optional normal convention and tangent frame. Map pixels use the same
+sparse compressed tiled-image section as authored channels rather than being
+duplicated in the asset payload.
+
+`upsert_document_mesh_state` validates the referenced document, mesh resource,
+texture-set/UV identities, revisions and unique map kinds before atomically
+replacing the companion asset. Replacing it reclaims only its unshared old map
+images. `read_document_mesh_state` distinguishes an absent binding from a
+malformed one, enforces payload, string, count and total decoded-map-byte
+ceilings before allocation, and requires the declared image dependencies to
+match exactly. A referenced mesh may be missing on disk: the container still
+opens and the existing project-resource resolver reports that external state.
+
 ## Untrusted input limits
 
 `ProjectContainerReadLimits` caps the complete encoded input, aggregate

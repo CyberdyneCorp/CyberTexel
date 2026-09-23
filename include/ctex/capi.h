@@ -3688,6 +3688,11 @@ typedef struct ctex_mesh_map_bake_provider_descriptor {
 #define CTEX_MESH_MAP_BAKE_PROVIDER_DESCRIPTOR_CURRENT_SIZE \
     ((uint32_t)sizeof(ctex_mesh_map_bake_provider_descriptor))
 
+/* Stable entry point used by the headless CLI to attach a provider library. */
+#define CTEX_MESH_MAP_BAKE_PROVIDER_ENTRY_POINT_V1 "ctex_mesh_map_bake_provider_v1"
+typedef ctex_result (*ctex_mesh_map_bake_provider_entry_point_v1_fn)(
+    ctex_mesh_map_bake_provider_descriptor* out_provider);
+
 typedef struct ctex_mesh_map_bake_control_descriptor {
     uint32_t size;
     void* user_data;
@@ -4661,6 +4666,32 @@ typedef struct ctex_project_container_info {
 
 #define CTEX_PROJECT_CONTAINER_INFO_V1_SIZE ((uint32_t)sizeof(ctex_project_container_info))
 #define CTEX_PROJECT_CONTAINER_INFO_CURRENT_SIZE ((uint32_t)sizeof(ctex_project_container_info))
+
+typedef struct ctex_document_mesh_state_descriptor {
+    uint32_t size;
+    const char* document_asset_id;
+    const char* mesh_resource_id;
+    uint64_t current_mesh_revision;
+    const ctex_mesh_map_set* const* map_sets;
+    size_t map_set_count;
+} ctex_document_mesh_state_descriptor;
+
+#define CTEX_DOCUMENT_MESH_STATE_DESCRIPTOR_V1_SIZE \
+    ((uint32_t)sizeof(ctex_document_mesh_state_descriptor))
+#define CTEX_DOCUMENT_MESH_STATE_DESCRIPTOR_CURRENT_SIZE \
+    ((uint32_t)sizeof(ctex_document_mesh_state_descriptor))
+
+typedef struct ctex_document_mesh_state_info {
+    uint32_t size;
+    uint64_t current_mesh_revision;
+    size_t map_count;
+    size_t texture_set_count;
+    size_t required_mesh_resource_id_size;
+    size_t required_texture_set_ids_size;
+} ctex_document_mesh_state_info;
+
+#define CTEX_DOCUMENT_MESH_STATE_INFO_V1_SIZE ((uint32_t)sizeof(ctex_document_mesh_state_info))
+#define CTEX_DOCUMENT_MESH_STATE_INFO_CURRENT_SIZE ((uint32_t)sizeof(ctex_document_mesh_state_info))
 
 typedef struct ctex_project_autosave_config_descriptor {
     uint32_t size;
@@ -6068,6 +6099,39 @@ CTEX_API ctex_result ctex_project_container_restore_texture_document(
     const void* project_encoded, size_t project_encoded_size,
     const ctex_project_container_read_limits_descriptor* limits, const char* asset_identifier,
     ctex_document* document);
+
+/*
+ * Persists the mesh resource reference and every bound map from the supplied
+ * per-texture-set map handles. The handles must share current_mesh_revision
+ * and texture-set identities must be unique. Project outputs are atomic.
+ */
+CTEX_API ctex_result ctex_project_container_upsert_document_mesh_state(
+    const void* project_encoded, size_t project_encoded_size,
+    const ctex_project_container_read_limits_descriptor* limits,
+    const ctex_document_mesh_state_descriptor* state, ctex_project_container_info* out_info,
+    void* project_output, size_t project_output_size, char* report_output,
+    size_t report_output_size);
+
+/*
+ * Reports a persisted document mesh state. Texture-set identifiers are packed
+ * as sorted NUL-terminated strings. Null output buffers with size zero query
+ * the exact required sizes. An absent state returns MISSING_RESOURCE.
+ */
+CTEX_API ctex_result ctex_project_container_get_document_mesh_state_info(
+    const void* project_encoded, size_t project_encoded_size,
+    const ctex_project_container_read_limits_descriptor* limits, const char* document_asset_id,
+    ctex_document_mesh_state_info* out_info, char* mesh_resource_id, size_t mesh_resource_id_size,
+    char* texture_set_ids, size_t texture_set_ids_size);
+
+/*
+ * Atomically replaces bindings in the supplied per-texture-set map handles.
+ * The handle set must exactly cover the persisted texture-set identifiers and
+ * every handle must already reference the persisted current mesh revision.
+ */
+CTEX_API ctex_result ctex_project_container_restore_document_mesh_state(
+    const void* project_encoded, size_t project_encoded_size,
+    const ctex_project_container_read_limits_descriptor* limits, const char* document_asset_id,
+    ctex_mesh_map_set* const* map_sets, size_t map_set_count);
 
 /*
  * Validates and atomically publishes canonical project bytes at path. A null

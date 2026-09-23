@@ -295,6 +295,15 @@ requests return their matching `ctex_result`, leave bindings unchanged and put
 the detailed named reason in the thread-local diagnostic. Callbacks must not
 throw or unwind across the C boundary.
 
+A provider shared library can attach the same descriptor to the headless CLI by
+exporting the symbol named by
+`CTEX_MESH_MAP_BAKE_PROVIDER_ENTRY_POINT_V1`. The entry point receives an
+output descriptor whose `size` is initialized by the caller and returns a
+`ctex_result`. Provider code and its `user_data` remain owned by the library;
+the CLI keeps that library loaded until all synchronous requests finish. The
+provider is responsible for its own external mesh and baker configuration, as
+it is for an in-process host attachment.
+
 For host-scheduled work, `ctex_mesh_map_bake_session_*` creates versioned request
 tokens and accepts explicit completion data. Only the latest token whose
 session, texture-set, UV, mesh, settings and generation identities remain
@@ -623,6 +632,18 @@ document API, and writes it back with
 `ctex_project_container_upsert_texture_document`. Upsert follows the atomic
 two-call project-output contract and retains unrelated, opaque and newer-schema
 content.
+
+The document's mesh resource reference and per-texture-set mesh-map bindings
+use a versioned companion asset. A host writes all bindings from live
+`ctex_mesh_map_set` handles with
+`ctex_project_container_upsert_document_mesh_state`, inventories the saved mesh
+revision, resource identifier and sorted texture-set identifiers with
+`ctex_project_container_get_document_mesh_state_info`, and atomically restores
+them with `ctex_project_container_restore_document_mesh_state`. Restore requires
+exact texture-set coverage and map-set handles created for the saved current
+mesh revision; a mismatched revision returns `CTEX_RESULT_STALE_STATE` without
+changing any binding. Sparse stored tiles are charged at their full restored
+allocation size under the project read budget.
 
 `ctex_project_container_save_atomic` applies the same validation and limits,
 then publishes the normalized container through the core sibling-temporary,

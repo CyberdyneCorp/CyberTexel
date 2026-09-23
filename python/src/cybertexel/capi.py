@@ -1,4 +1,4 @@
-# C header SHA-256: ea0c1ae541e70306ddb7cdd54f72d04e28167af06f41731029ec44fb4a3aa360
+# C header SHA-256: bc6f29bc5c699cffd9a22dc0dcc8143ec3b74eba458d0d99910ac618b5ba0b74
 """Generated raw ctypes declarations for the CyberTexel C ABI.
 
 Regenerate with ``just generate-python-capi``.
@@ -7067,6 +7067,7 @@ struct_ctex_mesh_map_bake_provider_descriptor._fields_ = [
 ]
 
 ctex_mesh_map_bake_provider_descriptor = struct_ctex_mesh_map_bake_provider_descriptor
+ctex_mesh_map_bake_provider_entry_point_v1_fn = CFUNCTYPE(UNCHECKED(ctex_result), POINTER(ctex_mesh_map_bake_provider_descriptor))
 
 class struct_ctex_mesh_map_bake_control_descriptor(Structure):
     pass
@@ -8567,6 +8568,50 @@ struct_ctex_project_container_info._fields_ = [
 ]
 
 ctex_project_container_info = struct_ctex_project_container_info
+
+class struct_ctex_document_mesh_state_descriptor(Structure):
+    pass
+
+struct_ctex_document_mesh_state_descriptor.__slots__ = [
+    'size',
+    'document_asset_id',
+    'mesh_resource_id',
+    'current_mesh_revision',
+    'map_sets',
+    'map_set_count',
+]
+struct_ctex_document_mesh_state_descriptor._fields_ = [
+    ('size', uint32_t),
+    ('document_asset_id', String),
+    ('mesh_resource_id', String),
+    ('current_mesh_revision', uint64_t),
+    ('map_sets', POINTER(POINTER(ctex_mesh_map_set))),
+    ('map_set_count', c_size_t),
+]
+
+ctex_document_mesh_state_descriptor = struct_ctex_document_mesh_state_descriptor
+
+class struct_ctex_document_mesh_state_info(Structure):
+    pass
+
+struct_ctex_document_mesh_state_info.__slots__ = [
+    'size',
+    'current_mesh_revision',
+    'map_count',
+    'texture_set_count',
+    'required_mesh_resource_id_size',
+    'required_texture_set_ids_size',
+]
+struct_ctex_document_mesh_state_info._fields_ = [
+    ('size', uint32_t),
+    ('current_mesh_revision', uint64_t),
+    ('map_count', c_size_t),
+    ('texture_set_count', c_size_t),
+    ('required_mesh_resource_id_size', c_size_t),
+    ('required_texture_set_ids_size', c_size_t),
+]
+
+ctex_document_mesh_state_info = struct_ctex_document_mesh_state_info
 
 class struct_ctex_project_autosave_config_descriptor(Structure):
     pass
@@ -10802,6 +10847,33 @@ for _lib in _libs.values():
     ctex_project_container_restore_texture_document = _lib.get("ctex_project_container_restore_texture_document", "cdecl")
     ctex_project_container_restore_texture_document.argtypes = [POINTER(None), c_size_t, POINTER(ctex_project_container_read_limits_descriptor), String, POINTER(ctex_document)]
     ctex_project_container_restore_texture_document.restype = ctex_result
+    break
+
+
+for _lib in _libs.values():
+    if not _lib.has("ctex_project_container_upsert_document_mesh_state", "cdecl"):
+        continue
+    ctex_project_container_upsert_document_mesh_state = _lib.get("ctex_project_container_upsert_document_mesh_state", "cdecl")
+    ctex_project_container_upsert_document_mesh_state.argtypes = [POINTER(None), c_size_t, POINTER(ctex_project_container_read_limits_descriptor), POINTER(ctex_document_mesh_state_descriptor), POINTER(ctex_project_container_info), POINTER(None), c_size_t, String, c_size_t]
+    ctex_project_container_upsert_document_mesh_state.restype = ctex_result
+    break
+
+
+for _lib in _libs.values():
+    if not _lib.has("ctex_project_container_get_document_mesh_state_info", "cdecl"):
+        continue
+    ctex_project_container_get_document_mesh_state_info = _lib.get("ctex_project_container_get_document_mesh_state_info", "cdecl")
+    ctex_project_container_get_document_mesh_state_info.argtypes = [POINTER(None), c_size_t, POINTER(ctex_project_container_read_limits_descriptor), String, POINTER(ctex_document_mesh_state_info), String, c_size_t, String, c_size_t]
+    ctex_project_container_get_document_mesh_state_info.restype = ctex_result
+    break
+
+
+for _lib in _libs.values():
+    if not _lib.has("ctex_project_container_restore_document_mesh_state", "cdecl"):
+        continue
+    ctex_project_container_restore_document_mesh_state = _lib.get("ctex_project_container_restore_document_mesh_state", "cdecl")
+    ctex_project_container_restore_document_mesh_state.argtypes = [POINTER(None), c_size_t, POINTER(ctex_project_container_read_limits_descriptor), String, POINTER(POINTER(ctex_mesh_map_set)), c_size_t]
+    ctex_project_container_restore_document_mesh_state.restype = ctex_result
     break
 
 
@@ -15960,6 +16032,12 @@ except:
 
 
 try:
+    CTEX_MESH_MAP_BAKE_PROVIDER_ENTRY_POINT_V1 = 'ctex_mesh_map_bake_provider_v1'
+except:
+    pass
+
+
+try:
     CTEX_MESH_MAP_BAKE_CONTROL_DESCRIPTOR_V1_SIZE = (uint32_t (ord_if_char(sizeof(ctex_mesh_map_bake_control_descriptor)))).value
 except:
     pass
@@ -16639,6 +16717,30 @@ except:
 
 try:
     CTEX_PROJECT_CONTAINER_INFO_CURRENT_SIZE = (uint32_t (ord_if_char(sizeof(ctex_project_container_info)))).value
+except:
+    pass
+
+
+try:
+    CTEX_DOCUMENT_MESH_STATE_DESCRIPTOR_V1_SIZE = (uint32_t (ord_if_char(sizeof(ctex_document_mesh_state_descriptor)))).value
+except:
+    pass
+
+
+try:
+    CTEX_DOCUMENT_MESH_STATE_DESCRIPTOR_CURRENT_SIZE = (uint32_t (ord_if_char(sizeof(ctex_document_mesh_state_descriptor)))).value
+except:
+    pass
+
+
+try:
+    CTEX_DOCUMENT_MESH_STATE_INFO_V1_SIZE = (uint32_t (ord_if_char(sizeof(ctex_document_mesh_state_info)))).value
+except:
+    pass
+
+
+try:
+    CTEX_DOCUMENT_MESH_STATE_INFO_CURRENT_SIZE = (uint32_t (ord_if_char(sizeof(ctex_document_mesh_state_info)))).value
 except:
     pass
 
@@ -17854,6 +17956,8 @@ ctex_texture_export_info = struct_ctex_texture_export_info
 ctex_project_container_read_limits_descriptor = struct_ctex_project_container_read_limits_descriptor
 ctex_project_container_version = struct_ctex_project_container_version
 ctex_project_container_info = struct_ctex_project_container_info
+ctex_document_mesh_state_descriptor = struct_ctex_document_mesh_state_descriptor
+ctex_document_mesh_state_info = struct_ctex_document_mesh_state_info
 ctex_project_autosave_config_descriptor = struct_ctex_project_autosave_config_descriptor
 ctex_project_autosave_info = struct_ctex_project_autosave_info
 ctex_project_quiesce_descriptor = struct_ctex_project_quiesce_descriptor

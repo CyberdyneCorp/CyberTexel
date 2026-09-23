@@ -1438,7 +1438,17 @@ shell, restores the project's single live document, calls the script's explicit
 project only after the child succeeds and the parent revalidates it. Script
 output is redirected away from machine-readable reports, failures preserve any
 existing destination, and `CTEX_PYTHON` selects the interpreter. Task 15.2
-remains open for `bake-request` and replacement-mesh export.
+is now complete: `bake-request` loads the versioned provider entry point,
+restores and atomically replaces persisted per-set mesh maps, while `export`
+accepts a bounded Wavefront OBJ replacement and applies keep, clear or
+reproject reconciliation before encoding. Restored mesh bindings retain their
+persisted revision so editable surface entries are reprojected against the
+correct source revision. The process suite exercises every command and outcome,
+including a named missing-map refusal and prompt cooperative cancellation of a
+real twenty-texture export with no staged output. A checked thirteen-row
+scenario matrix labels the complete evidence, and the authoritative `test-cli`
+recipe builds all fixtures and runs on Linux, macOS and Windows in CI. Tasks
+15.10 and 15.11 are complete.
 
 Tasks 16.1, 16.2, 16.4, 16.6, 16.8 and 16.10 are complete. The fixture set now
 contains valid UV and UDIM meshes, a four-image mesh-map set, brush alpha,
@@ -1715,7 +1725,7 @@ threading and per-binding example evidence.
 ## 15. Command line
 
 - [x] 15.1 Binary skeleton, subcommand dispatch, argument validation before any work
-- [ ] 15.2 `export`, `bake-request`, `apply`, `run`, `info`, `validate`
+- [x] 15.2 `export`, `bake-request`, `apply`, `run`, `info`, `validate`
 - [x] 15.3 Distinct exit codes per outcome class
 - [x] 15.4 Machine-readable reports; quiet mode; diagnostics on the error stream
 - [x] 15.5 Executor selection by flag and environment; fallback reporting
@@ -1723,8 +1733,8 @@ threading and per-binding example evidence.
 - [x] 15.7 Interrupt handling with no partial files
 - [x] 15.8 Help completeness gate
 - [x] 15.9 Determinism test across repeated runs
-- [ ] 15.10 CLI smoke tests on every desktop platform in CI
-- [ ] 15.11 `cli-headless` scenarios as tests
+- [x] 15.10 CLI smoke tests on every desktop platform in CI
+- [x] 15.11 `cli-headless` scenarios as tests
 
 ## 16. Examples
 

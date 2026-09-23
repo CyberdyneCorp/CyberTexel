@@ -1,5 +1,6 @@
 #include <array>
 #include <cstddef>
+#include <ctex/io/document_mesh_state.hpp>
 #include <ctex/io/texture_document.hpp>
 #include <filesystem>
 #include <fstream>
@@ -334,7 +335,35 @@ std::string write_cli_fixture(const std::filesystem::path& project_path,
                                  .kind = "image",
                                  .relative_path = "images/source.png",
                                  .packed_bytes = std::vector<std::byte>{std::byte{1}}});
+    constexpr std::string_view mesh =
+        "o Fixture\n"
+        "v 0 0 0\nv 1 0 0\nv 0 1 0\nv 2 0 0\nv 3 0 0\nv 2 1 0\n"
+        "vn 0 0 1\nvt 0 0\nvt 1 0\nvt 0 1\n"
+        "usemtl body\nf 1/1/1 2/2/1 3/3/1\n"
+        "usemtl cloth\nf 4/1/1 5/2/1 6/3/1\n";
+    project.resources.push_back(
+        {.identifier = "mesh/source",
+         .kind = "mesh",
+         .relative_path = "meshes/source.obj",
+         .packed_bytes = std::vector<std::byte>(
+             reinterpret_cast<const std::byte*>(mesh.data()),
+             reinterpret_cast<const std::byte*>(mesh.data() + mesh.size()))});
     io::upsert_texture_document(project, "document/main", document);
+    image::TiledImage ao(2, 2,
+                         {.channel_type = image::ChannelType::uint8_unorm, .channel_count = 1});
+    ao.write_pixel(0, 0, std::array{std::byte{0}});
+    ao.write_pixel(1, 0, std::array{std::byte{64}});
+    ao.write_pixel(0, 1, std::array{std::byte{128}});
+    ao.write_pixel(1, 1, std::array{std::byte{255}});
+    io::upsert_document_mesh_state(
+        project, {.document_asset_id = "document/main",
+                  .mesh_resource_id = "mesh/source",
+                  .mesh_revision = 1,
+                  .maps = {{.kind = 3,
+                            .texture_set_id = texture_set_with_partition(document, "body"),
+                            .uv_set = "uv0",
+                            .produced_mesh_revision = 1,
+                            .pixels = std::move(ao)}}});
     io::save_project_container_atomic(project_path, project);
     const std::string preset = doc::serialize_smart_material(smart_material());
     std::ofstream stream(preset_path, std::ios::binary);
@@ -354,11 +383,29 @@ std::string write_cli_fixture(const std::filesystem::path& project_path,
     return texture_set_with_partition(document, "body");
 }
 
+void write_cli_interrupt_fixture(const std::filesystem::path& project_path) {
+    doc::TextureDocument document;
+    for (std::uint32_t index = 0; index < 20; ++index) {
+        doc::TextureSetDescriptor texture_set =
+            descriptor("Texture " + std::to_string(index), "part-" + std::to_string(index));
+        texture_set.width = 1024;
+        texture_set.height = 1024;
+        document.create_texture_set(std::move(texture_set)).channels().enable("pbr.base_color", 8);
+    }
+    io::ProjectContainer project;
+    io::upsert_texture_document(project, "document/main", document);
+    io::save_project_container_atomic(project_path, project);
+}
+
 }  // namespace
 
 int main(int argc, char** argv) {
     if (argc == 5 && std::string_view(argv[1]) == "--write-cli-fixture") {
         std::cout << write_cli_fixture(argv[2], argv[3], argv[4]) << '\n';
+        return 0;
+    }
+    if (argc == 3 && std::string_view(argv[1]) == "--write-cli-interrupt-fixture") {
+        write_cli_interrupt_fixture(argv[2]);
         return 0;
     }
     return complete_document_round_trips() && invalid_archives_are_refused_atomically() ? 0 : 1;
