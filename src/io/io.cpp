@@ -9,7 +9,6 @@
 #include <array>
 #include <bit>
 #include <cctype>
-#include <charconv>
 #include <cmath>
 #include <cstdint>
 #include <cstdlib>
@@ -18,6 +17,7 @@
 #include <ctex/io/image_io.hpp>
 #include <iterator>
 #include <limits>
+#include <locale>
 #include <map>
 #include <memory>
 #include <sstream>
@@ -575,23 +575,16 @@ EmbeddedChromaticities extract_radiance_primaries(std::span<const std::byte> enc
                                     line_end - line_start);
         if (line.starts_with(prefix)) {
             result = {.present = true, .malformed = false, .values = {}};
-            const char* cursor = line.data() + prefix.size();
-            const char* end = line.data() + line.size();
+            std::istringstream values(std::string(line.substr(prefix.size())));
+            values.imbue(std::locale::classic());
             for (float& value : result.values) {
-                while (cursor != end && std::isspace(static_cast<unsigned char>(*cursor)) != 0) {
-                    ++cursor;
-                }
-                const auto parsed = std::from_chars(cursor, end, value);
-                if (parsed.ec != std::errc{} || parsed.ptr == cursor) {
+                if (!(values >> value)) {
                     result.malformed = true;
                     break;
                 }
-                cursor = parsed.ptr;
             }
-            while (cursor != end && std::isspace(static_cast<unsigned char>(*cursor)) != 0) {
-                ++cursor;
-            }
-            result.malformed = result.malformed || cursor != end;
+            values >> std::ws;
+            result.malformed = result.malformed || !values.eof();
         }
         if (line_end == limit) break;
         line_start = line_end + 1;

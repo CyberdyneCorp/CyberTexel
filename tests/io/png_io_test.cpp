@@ -972,6 +972,13 @@ bool radiance_hdr_preserves_unclamped_float_values() {
 bool radiance_hdr_primaries_are_interpreted() {
     const auto profiled =
         make_radiance_hdr("PRIMARIES=0.6400 0.3300 0.3000 0.6000 0.1500 0.0600 0.3127 0.3290");
+    const auto scientific = ctex::io::decode_image_memory({
+        .bytes =
+            make_radiance_hdr("PRIMARIES=6.400e-1 3.300e-1 3.000e-1 6.000e-1 1.500e-1 6.000e-2 "
+                              "3.127e-1 3.290e-1"),
+        .source_name = "scientific.hdr",
+        .intended_channel = ChannelSemantic::base_color,
+    });
     const auto decoded = ctex::io::decode_image_memory({
         .bytes = profiled,
         .source_name = "environment.hdr",
@@ -995,6 +1002,9 @@ bool radiance_hdr_primaries_are_interpreted() {
     return expect(decoded.source_color_space == ColorSpace::linear_rec709 &&
                       decoded.report.color_space_source == ColorSpaceSource::embedded_profile,
                   "Radiance HDR Rec. 709 primaries were not interpreted") &&
+           expect(scientific.source_color_space == ColorSpace::linear_rec709 &&
+                      scientific.report.color_space_source == ColorSpaceSource::embedded_profile,
+                  "Radiance HDR scientific-notation primaries were not interpreted") &&
            expect(overridden.source_color_space == ColorSpace::srgb_rec709 &&
                       overridden.report.color_space_source == ColorSpaceSource::caller,
                   "caller declaration did not override Radiance HDR primaries") &&
