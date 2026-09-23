@@ -21,6 +21,12 @@ alongside their named checkpoint images. Because both are normal project
 sections, periodic autosave and recovery preserve their canonical bytes and
 pinned inputs without a separate replay sidecar.
 
+Recovery callers can pass the reopened container to
+`ctex_project_container_assess_operation_replay`. The resulting inventory
+reports each unsupported algorithm version and whether its retained raster
+checkpoint is usable. The autosave fixtures exercise both the C++ checkpointed
+path and the strict-C recovery/report path.
+
 ## Periodic autosave
 
 `ProjectAutosaveSession` owns one worker and one stable recovery path. Its

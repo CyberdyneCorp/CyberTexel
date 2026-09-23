@@ -202,7 +202,8 @@
       {"requirement": "Deterministic writing", "symbols": ["ctex_project_container_create_empty", "ctex_project_container_normalize", "ctex_project_container_save_atomic"]},
       {"requirement": "Import of individual assets", "symbols": ["ctex_project_asset_install"]},
       {"requirement": "Export of individual assets", "symbols": ["ctex_project_asset_export"]},
-      {"requirement": "Document memory and size reporting", "symbols": ["ctex_document_get_memory_report"]}
+      {"requirement": "Document memory and size reporting", "symbols": ["ctex_document_get_memory_report"]},
+      {"requirement": "Snapshot save and recovery records", "symbols": ["ctex_project_autosave_session_submit", "ctex_project_recovery_read", "ctex_project_recovery_resume", "ctex_project_container_get_operation_record", "ctex_project_container_assess_operation_replay"]}
     ]},
     {"name": "resource-residency", "kind": "runtime", "requirements": [
       {"requirement": "Complete resource accounting", "symbols": ["ctex_resource_ledger_create", "ctex_resource_ledger_destroy", "ctex_resource_ledger_upsert", "ctex_resource_ledger_remove", "ctex_resource_ledger_get_report"]},

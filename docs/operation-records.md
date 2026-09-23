@@ -71,5 +71,10 @@ canonical record as pinned CPU memory and its named checkpoint bytes as pinned
 backing storage. A caller must retain that reservation through commit; an
 over-budget or quiescing ledger returns no reservation.
 
+`ctex_project_container_assess_operation_replay` inventories every recovered
+operation record against the same supported-version catalogue. Its report names
+each unavailable edit and whether a usable raster checkpoint remains, so an
+unknown algorithm is never silently substituted during reopen or recovery.
+
 Python, Swift, and Rust wrappers are still required before editable-authoring
 task 20.1 is complete.

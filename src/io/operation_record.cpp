@@ -371,7 +371,9 @@ OperationReplayAssessment assess_operation_replay(
                 .target_resolution_changed = target_resolution_changed,
                 .diagnostic = "algorithm " + record.algorithm_identifier + " version " +
                               std::to_string(record.algorithm_version) +
-                              " is unavailable; raster checkpoint retained"};
+                              (checkpoint_available
+                                   ? " is unavailable; raster checkpoint retained"
+                                   : " is unavailable and no raster checkpoint is retained")};
     }
     if (record.replay_class == OperationReplayClass::checkpoint_only) {
         return {.disposition = OperationReplayDisposition::checkpoint_only,
@@ -398,6 +400,24 @@ OperationReplayAssessment assess_operation_replay(
                           ? "operation is eligible for resolution-independent replay"
                           : "operation is eligible for same-resolution recovery replay",
     };
+}
+
+std::vector<ProjectOperationReplayAssessment> assess_project_operation_replay(
+    const ProjectContainer& project,
+    std::span<const OperationAlgorithmSupport> supported_algorithms, bool target_resolution_changed,
+    OperationRecordReadLimits limits) {
+    validate_algorithm_support(supported_algorithms);
+    std::vector<ProjectOperationReplayAssessment> assessments;
+    for (const StandaloneAsset& asset : project.assets) {
+        if (asset.kind != operation_record_asset_kind) {
+            continue;
+        }
+        EditableOperationRecord record = unpack_operation_record(asset, limits);
+        assessments.push_back({.record_identifier = record.identifier,
+                               .replay = assess_operation_replay(record, supported_algorithms,
+                                                                 target_resolution_changed)});
+    }
+    return assessments;
 }
 
 StandaloneAsset package_operation_record(const EditableOperationRecord& record) {

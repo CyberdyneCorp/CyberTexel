@@ -632,6 +632,12 @@ and its checkpoint byte count to the existing CPU and backing-store budgets.
 Success returns a normal reservation that must remain alive through commit;
 budget refusal and quiescence publish no reservation.
 
+After normal open or `ctex_project_recovery_resume`,
+`ctex_project_container_assess_operation_replay` inventories every operation
+record against the host-supported version ranges. Counts distinguish replayable,
+checkpoint-fallback and unsupported records; the JSON report names each record,
+its disposition and diagnostic. Report-buffer refusal is atomic.
+
 ## Smart materials
 
 The smart-material boundary accepts the canonical versioned serialization used

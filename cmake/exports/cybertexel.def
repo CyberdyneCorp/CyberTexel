@@ -329,3 +329,4 @@ EXPORTS
     ctex_operation_record_assess_replay
     ctex_project_container_upsert_operation_record
     ctex_project_container_get_operation_record
+    ctex_project_container_assess_operation_replay

@@ -36,6 +36,91 @@ static unsigned char* empty_project(size_t* size) {
     return bytes;
 }
 
+static unsigned char* recovery_project(size_t* size) {
+    size_t empty_size = 0;
+    unsigned char* empty = empty_project(&empty_size);
+    if (empty == NULL) return NULL;
+    const double default_value[] = {0.0};
+    const unsigned char pinned[] = {1, 2, 3};
+    const ctex_operation_channel_descriptor channel = {
+        .size = CTEX_OPERATION_CHANNEL_DESCRIPTOR_CURRENT_SIZE,
+        .semantic_id = "pbr.base_color",
+        .component_count = 1,
+        .scalar_representation = CTEX_SCALAR_REPRESENTATION_UNSIGNED_NORMALIZED,
+        .bit_depth = 8,
+        .color_space = CTEX_COLOR_SPACE_SRGB_REC709,
+        .default_value = default_value,
+        .default_value_count = 1,
+    };
+    const ctex_pinned_operation_resource_descriptor resource = {
+        .size = CTEX_PINNED_OPERATION_RESOURCE_DESCRIPTOR_CURRENT_SIZE,
+        .role = "tip-alpha",
+        .content_identity = "sha256:autosave-alpha",
+        .bytes = pinned,
+        .byte_count = sizeof(pinned),
+    };
+    const ctex_operation_record_descriptor descriptor = {
+        .size = CTEX_OPERATION_RECORD_DESCRIPTOR_CURRENT_SIZE,
+        .identifier = "operations/autosave-stroke",
+        .algorithm_identifier = "cybertexel.paint.brush",
+        .algorithm_version = 3,
+        .preset_identifier = "brushes/autosave",
+        .preset_version = 1,
+        .replay_class = CTEX_OPERATION_REPLAY_RESOLUTION_INDEPENDENT,
+        .input_document_revision = 1,
+        .seed = 17,
+        .mesh_content_identity = "sha256:autosave-mesh",
+        .coordinate_frame = {1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1},
+        .payload_kind = CTEX_OPERATION_PAYLOAD_RESOLVED_STAMPS,
+        .payload_version = 1,
+        .channels = &channel,
+        .channel_count = 1,
+        .pinned_resources = &resource,
+        .pinned_resource_count = 1,
+        .payload = "stamps",
+        .payload_size = 6,
+    };
+    ctex_operation_record_info record_info = {.size = CTEX_OPERATION_RECORD_INFO_CURRENT_SIZE};
+    if (!expect(ctex_operation_record_create(&descriptor, &record_info, NULL, 0, NULL, 0) ==
+                    CTEX_RESULT_SUCCESS,
+                "autosave operation record sizing failed")) {
+        free(empty);
+        return NULL;
+    }
+    unsigned char* record = (unsigned char*)malloc(record_info.canonical_size);
+    if (record == NULL || !expect(ctex_operation_record_create(&descriptor, &record_info, record,
+                                                               record_info.canonical_size, NULL,
+                                                               0) == CTEX_RESULT_SUCCESS,
+                                  "autosave operation record creation failed")) {
+        free(record);
+        free(empty);
+        return NULL;
+    }
+    ctex_project_container_info project_info = {.size = CTEX_PROJECT_CONTAINER_INFO_CURRENT_SIZE};
+    if (!expect(ctex_project_container_upsert_operation_record(
+                    empty, empty_size, NULL, record, record_info.canonical_size, &project_info,
+                    NULL, 0, NULL, 0) == CTEX_RESULT_SUCCESS,
+                "autosave recovery project sizing failed")) {
+        free(record);
+        free(empty);
+        return NULL;
+    }
+    unsigned char* project = (unsigned char*)malloc(project_info.canonical_size);
+    if (project == NULL ||
+        !expect(ctex_project_container_upsert_operation_record(
+                    empty, empty_size, NULL, record, record_info.canonical_size, &project_info,
+                    project, project_info.canonical_size, NULL, 0) == CTEX_RESULT_SUCCESS,
+                "autosave recovery project creation failed")) {
+        free(project);
+        project = NULL;
+    } else {
+        *size = project_info.canonical_size;
+    }
+    free(record);
+    free(empty);
+    return project;
+}
+
 static int autosave_coalesces_and_publishes(unsigned char* project, size_t project_size,
                                             ctex_project_autosave_session** out_session) {
     const ctex_project_autosave_config_descriptor config = {
@@ -115,6 +200,7 @@ static int recovery_is_enumerable_and_readable(const unsigned char* project, siz
     char strings[1024] = {0};
     unsigned char* opened = NULL;
     char* report = NULL;
+    char* replay_report = NULL;
     int passed = 0;
 
     if (!expect(make_malformed_recovery(), "could not create malformed recovery fixture") ||
@@ -150,13 +236,48 @@ static int recovery_is_enumerable_and_readable(const unsigned char* project, siz
                 "recovery read failed") ||
         !expect(checkpoint.has_revision == 1 && checkpoint.revision == 2 &&
                     memcmp(opened, project, project_size) == 0 &&
-                    strstr(report, "\"images\":[]") != NULL,
+                    strstr(report, "\"images\":[]") != NULL &&
+                    strstr(report, "operation-record") != NULL,
                 "recovery content did not round-trip canonically")) {
+        goto cleanup;
+    }
+    const ctex_operation_algorithm_support_descriptor support = {
+        .size = CTEX_OPERATION_ALGORITHM_SUPPORT_DESCRIPTOR_CURRENT_SIZE,
+        .identifier = "cybertexel.paint.brush",
+        .minimum_version = 1,
+        .maximum_version = 1,
+    };
+    const ctex_operation_replay_assessment_descriptor assessment = {
+        .size = CTEX_OPERATION_REPLAY_ASSESSMENT_DESCRIPTOR_CURRENT_SIZE,
+        .supported_algorithms = &support,
+        .supported_algorithm_count = 1,
+    };
+    ctex_project_operation_replay_info replay = {
+        .size = CTEX_PROJECT_OPERATION_REPLAY_INFO_CURRENT_SIZE,
+    };
+    if (!expect(ctex_project_container_assess_operation_replay(opened, container.canonical_size,
+                                                               NULL, &assessment, &replay, NULL,
+                                                               0) == CTEX_RESULT_SUCCESS,
+                "recovered operation replay sizing failed")) {
+        goto cleanup;
+    }
+    replay_report = (char*)malloc(replay.required_report_size);
+    if (!expect(replay_report != NULL, "recovered replay report allocation failed")) goto cleanup;
+    const size_t replay_report_size = replay.required_report_size;
+    replay.size = CTEX_PROJECT_OPERATION_REPLAY_INFO_CURRENT_SIZE;
+    if (!expect(ctex_project_container_assess_operation_replay(
+                    opened, container.canonical_size, NULL, &assessment, &replay, replay_report,
+                    replay_report_size) == CTEX_RESULT_SUCCESS &&
+                    replay.record_count == 1 && replay.replay_available_count == 0 &&
+                    replay.unsupported_algorithm_count == 1 &&
+                    strstr(replay_report, "no raster checkpoint is retained") != NULL,
+                "recovery did not report its unsupported operation algorithm")) {
         goto cleanup;
     }
     passed = 1;
 
 cleanup:
+    free(replay_report);
     free(report);
     free(opened);
     return passed;
@@ -259,7 +380,7 @@ static int invalid_configuration_is_refused(void) {
 int main(void) {
     ctex_project_autosave_session* session = NULL;
     size_t project_size = 0;
-    unsigned char* project = empty_project(&project_size);
+    unsigned char* project = recovery_project(&project_size);
     int passed = project != NULL &&
                  autosave_coalesces_and_publishes(project, project_size, &session) &&
                  lifecycle_quiesce_reports_the_last_durable_revision(session) &&

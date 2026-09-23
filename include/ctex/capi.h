@@ -4771,6 +4771,20 @@ typedef struct ctex_operation_replay_info {
 #define CTEX_OPERATION_REPLAY_INFO_V1_SIZE ((uint32_t)sizeof(ctex_operation_replay_info))
 #define CTEX_OPERATION_REPLAY_INFO_CURRENT_SIZE ((uint32_t)sizeof(ctex_operation_replay_info))
 
+typedef struct ctex_project_operation_replay_info {
+    uint32_t size;
+    size_t record_count;
+    size_t replay_available_count;
+    size_t checkpoint_fallback_count;
+    size_t unsupported_algorithm_count;
+    size_t required_report_size;
+} ctex_project_operation_replay_info;
+
+#define CTEX_PROJECT_OPERATION_REPLAY_INFO_V1_SIZE \
+    ((uint32_t)sizeof(ctex_project_operation_replay_info))
+#define CTEX_PROJECT_OPERATION_REPLAY_INFO_CURRENT_SIZE \
+    ((uint32_t)sizeof(ctex_project_operation_replay_info))
+
 typedef struct ctex_preset_shelf_entry_descriptor {
     uint32_t size;
     const char* asset_identifier;
@@ -5762,6 +5776,11 @@ CTEX_API ctex_result ctex_project_container_get_operation_record(
     const void* project_encoded, size_t project_encoded_size,
     const ctex_project_container_read_limits_descriptor* limits, const char* record_identifier,
     void* record_output, size_t record_output_size, size_t* out_required_size);
+CTEX_API ctex_result ctex_project_container_assess_operation_replay(
+    const void* project_encoded, size_t project_encoded_size,
+    const ctex_project_container_read_limits_descriptor* limits,
+    const ctex_operation_replay_assessment_descriptor* descriptor,
+    ctex_project_operation_replay_info* out_info, char* report_output, size_t report_output_size);
 
 /*
  * Returns every built-in node schema and the documented scalar/vector math

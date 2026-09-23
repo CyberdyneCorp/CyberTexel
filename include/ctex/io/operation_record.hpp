@@ -99,6 +99,11 @@ struct OperationReplayAssessment {
     std::string diagnostic;
 };
 
+struct ProjectOperationReplayAssessment {
+    std::string record_identifier;
+    OperationReplayAssessment replay;
+};
+
 class OperationRecordError final : public std::runtime_error {
 public:
     using std::runtime_error::runtime_error;
@@ -114,6 +119,10 @@ void validate_operation_record(const EditableOperationRecord& record);
     const EditableOperationRecord& record,
     std::span<const OperationAlgorithmSupport> supported_algorithms,
     bool target_resolution_changed);
+[[nodiscard]] std::vector<ProjectOperationReplayAssessment> assess_project_operation_replay(
+    const ProjectContainer& project,
+    std::span<const OperationAlgorithmSupport> supported_algorithms, bool target_resolution_changed,
+    OperationRecordReadLimits limits = {});
 
 [[nodiscard]] StandaloneAsset package_operation_record(const EditableOperationRecord& record);
 [[nodiscard]] EditableOperationRecord unpack_operation_record(

@@ -21,7 +21,7 @@ already present.
 | Sharing a project | `project-container`, `standalone-asset` | Packed image, font, map and mesh resources resolve without their external paths |
 | Missing unpacked resource | `project-container`, `standalone-asset` | Opening succeeds, missing identifiers are reported and dependent standalone installation is refused atomically |
 | Interrupted save | `project-container` | Failed serialization/publication and an incomplete sibling temporary file leave the prior project intact |
-| Recovering after a crash | `project-autosave` | Restart discovery enumerates the newest atomically published recovery document and rejects malformed candidates |
+| Recovering after a crash | `project-autosave`, `c-abi-project-autosave` | Restart discovery enumerates the newest atomically published recovery document, preserves operation records and required raster checkpoints, reports unsupported replay versions, and rejects malformed candidates |
 | Autosave does not block | `project-autosave` | Capture pins copy-on-write tile versions while later painting continues; compression and publication run on the worker |
 | Reopening after the mesh moved | `project-container` | A missing referenced mesh is reported through the resource identity; accepting a replacement is completed by task 4.7 |
 | Importing a material file | `standalone-asset` | A material package installs into a library without replacing the open project and refuses partial dependency installation |
@@ -30,7 +30,7 @@ already present.
 | Declared size exceeds the file | `project-container` | Truncated declared section, record and payload sizes are rejected before declared-size allocation |
 | Fuzzing gate | `just fuzz-project-container` | A deterministic 20,000-input libFuzzer campaign runs with ASan/UBSan and bounded parser allocations |
 | Reproducible save | `project-container-determinism` | Two clean atomic saves of unchanged sparse content are byte-identical |
-| Older reader lacks a replay algorithm | `project-container`, `operation-record` | Unknown versioned content stays opaque and raster checkpoints remain readable; operation records name their algorithm and payload versions, while replay-eligibility diagnostics complete with task 20.2 |
+| Older reader lacks a replay algorithm | `project-container`, `operation-record`, `project-autosave`, `c-abi-project-autosave` | Unknown versioned content stays opaque; recovered operation records report unavailable algorithms without substitution and retain usable raster checkpoints |
 
 ## Texture export
 

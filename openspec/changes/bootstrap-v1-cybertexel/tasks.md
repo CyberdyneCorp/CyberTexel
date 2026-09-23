@@ -1323,6 +1323,13 @@ checkpoint-only. Recovery record and checkpoint bytes must obtain a pinned
 resource-ledger reservation before commit. Core and strict-C tests cover each
 policy and over-budget refusal, reducing the task-14.8 gap to 8 requirements.
 
+The recovery-record continuation carries canonical operation records, pinned
+inputs and raster checkpoint images through copy-on-write snapshot capture,
+periodic atomic autosave and reopen. Recovered containers expose a public
+version-catalogue assessment that names unavailable edits without substituting
+another algorithm and reports checkpoint fallback. C++ and strict-C autosave
+fixtures reduce the task-14.8 gap to 7 requirements.
+
 ## 1. Foundation
 
 - [x] 1.1 CMake project, C++20, warnings as errors, presets for headless, macOS, Linux, Windows, iOS, Android

@@ -377,6 +377,11 @@ preserves checkpoints for unknown versions, requires pinned source snapshots
 for clone/blur/smear replay, and admits retained record/checkpoint bytes through
 the resource ledger. This completes task 20.2 and reduces the task-14.8 gap to 8
 runtime requirements; atomic resize policy remains task 20.3.
+Snapshot capture and periodic autosave now retain canonical operation records,
+pinned inputs and their raster checkpoint images through atomic recovery.
+Recovered-container assessment reports every unsupported algorithm without
+substitution and whether checkpoint fallback survived. Mapping this public path
+reduces the task-14.8 gap to 7 runtime requirements.
 
 ## Milestones
 

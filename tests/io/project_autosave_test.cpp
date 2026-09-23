@@ -1,6 +1,7 @@
 #include <array>
 #include <chrono>
 #include <cstddef>
+#include <ctex/io/operation_record.hpp>
 #include <ctex/io/project_autosave.hpp>
 #include <filesystem>
 #include <fstream>
@@ -47,9 +48,35 @@ std::vector<std::byte> read_binary_file(const std::filesystem::path& path) {
     return stream ? bytes : std::vector<std::byte>{};
 }
 
-ProjectSaveSnapshot capture(ProjectRevision revision, const image::TiledImage& image) {
+EditableOperationRecord recovery_record(std::string checkpoint_identity) {
+    return {
+        .identifier = "operations/autosave-stroke",
+        .algorithm_identifier = "cybertexel.paint.brush",
+        .algorithm_version = 3,
+        .preset_identifier = "brushes/autosave",
+        .preset_version = 1,
+        .replay_class = OperationReplayClass::resolution_independent,
+        .input_document_revision = 1,
+        .seed = 17,
+        .mesh_content_identity = "sha256:autosave-mesh",
+        .payload_kind = OperationPayloadKind::resolved_stamps,
+        .payload_version = 1,
+        .channels = {{.semantic_id = "pbr.base_color",
+                      .format = {image::ChannelType::uint8_unorm, 1},
+                      .color_space = image::ColorSpace::srgb_rec709,
+                      .default_value = {0.0}}},
+        .pinned_resources = {{.role = "tip-alpha",
+                              .content_identity = "sha256:autosave-alpha",
+                              .bytes = {std::byte{7}, std::byte{8}, std::byte{9}}}},
+        .checkpoint_image_identifiers = {std::move(checkpoint_identity)},
+        .payload = {std::byte{1}, std::byte{2}, std::byte{3}},
+    };
+}
+
+ProjectSaveSnapshot capture(ProjectRevision revision, const image::TiledImage& image,
+                            ProjectSnapshotMetadata metadata = {}) {
     const ProjectSnapshotImageSource source{.resource_id = "layers/base-color", .image = &image};
-    return capture_project_snapshot(revision, {}, std::span(&source, 1));
+    return capture_project_snapshot(revision, std::move(metadata), std::span(&source, 1));
 }
 
 bool pinned_snapshot_remains_consistent_while_painting_continues() {
@@ -63,26 +90,24 @@ bool pinned_snapshot_remains_consistent_while_painting_continues() {
     image.write_pixel(canvas_size - 1, canvas_size - 1, before);
     image.write_pixel(0, 0, before);
 
+    const EditableOperationRecord expected_record = recovery_record("layers/base-color");
     ProjectSnapshotMetadata metadata;
-    metadata.assets.push_back({.identifier = "materials/snapshot",
-                               .kind = "material",
-                               .format_version = 1,
-                               .resource_dependencies = {},
-                               .tiled_image_dependencies = {"layers/base-color"},
-                               .payload = {std::byte{'m'}}});
+    metadata.assets.push_back(package_operation_record(expected_record));
     const ProjectSnapshotImageSource source{.resource_id = "layers/base-color", .image = &image};
     const ProjectSaveSnapshot snapshot =
         capture_project_snapshot(41, std::move(metadata), std::span(&source, 1));
     image.write_pixel(canvas_size - 1, canvas_size - 1, after);
     const ProjectContainer materialized = materialize_project_snapshot(snapshot);
     const image::TiledImage restored = restore_tiled_image(materialized.tiled_images.front());
+    const EditableOperationRecord restored_record =
+        unpack_operation_record(materialized.assets.front());
 
     return expect(snapshot.revision() == 41 && snapshot.image_count() == 1 &&
                       snapshot.retained_pixel_bytes() == image.tile_bytes() * 2 &&
                       materialized.tiled_images.front().occupied_tiles.size() == 2 &&
                       materialized.assets.size() == 1 &&
                       materialized.recovery_checkpoint_revision == 41 &&
-                      materialized.assets.front().identifier == "materials/snapshot" &&
+                      restored_record == expected_record &&
                       materialized.tiled_images.front().occupied_tiles.front().coordinate ==
                           image::TileCoordinate{0, 0} &&
                       materialized.tiled_images.front().occupied_tiles.back().coordinate ==
@@ -107,7 +132,10 @@ bool periodic_autosave_coalesces_and_enumerates_recovery() {
     image.write_pixel(0, 0, first);
     ProjectSaveSnapshot revision_one = capture(1, image);
     image.write_pixel(0, 0, second);
-    ProjectSaveSnapshot revision_two = capture(2, image);
+    const EditableOperationRecord expected_record = recovery_record("layers/base-color");
+    ProjectSnapshotMetadata revision_two_metadata;
+    revision_two_metadata.assets.push_back(package_operation_record(expected_record));
+    ProjectSaveSnapshot revision_two = capture(2, image, std::move(revision_two_metadata));
     ProjectSaveSnapshot stale = capture(1, image);
 
     ProjectAutosaveStatus saved_status;
@@ -137,6 +165,9 @@ bool periodic_autosave_coalesces_and_enumerates_recovery() {
     const std::vector<std::byte> bytes = read_binary_file(recovery_path);
     const ProjectContainerReadResult opened = read_project_container(bytes);
     const image::TiledImage restored = restore_tiled_image(opened.container.tiled_images.front());
+    const EditableOperationRecord restored_record =
+        unpack_operation_record(opened.container.assets.front());
+    const std::vector assessments = assess_project_operation_replay(opened.container, {}, false);
     {
         std::ofstream malformed(directory / "broken.ctex-recovery", std::ios::binary);
         malformed << "bad";
@@ -157,6 +188,12 @@ bool periodic_autosave_coalesces_and_enumerates_recovery() {
                   "autosave did not persist the latest consistent snapshot") &&
            expect(opened.container.recovery_checkpoint_revision == 2,
                   "autosave did not persist its durable project revision") &&
+           expect(restored_record == expected_record && assessments.size() == 1 &&
+                      !assessments.front().replay.replay_available &&
+                      assessments.front().replay.checkpoint_available &&
+                      assessments.front().replay.disposition ==
+                          OperationReplayDisposition::unsupported_algorithm,
+                  "recovery lost its operation record, checkpoint, or unknown-version report") &&
            expect(recovery.recoverable.size() == 1 && recovery.rejected.size() == 1 &&
                       recovery.recoverable.front().recovery_key == "document-7" &&
                       recovery.recoverable.front().schema_version == current_container_schema &&

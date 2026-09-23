@@ -221,5 +221,10 @@ algorithm records. Clone, blur and smear require pinned source snapshots for
 replay, and recovery records plus checkpoint bytes pass through resource-ledger
 admission before commit. This reduces the exact remaining gap to 8 runtime
 requirements.
+Committed snapshots and periodic autosave now prove that operation records,
+pinned inputs and raster checkpoint images survive atomic recovery publication.
+The recovered-container assessment names unsupported algorithm versions and
+whether checkpoint fallback remains available through C. This reduces the exact
+remaining gap to 7 runtime requirements.
 The gate is not part of the aggregate `just check` until that count reaches zero;
 its unit tests run in the normal tooling suite throughout the migration.

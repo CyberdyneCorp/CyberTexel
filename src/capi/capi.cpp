@@ -7227,6 +7227,27 @@ std::string operation_replay_json(const ctex::io::EditableOperationRecord& recor
     return report;
 }
 
+std::string project_operation_replay_json(
+    std::span<const ctex::io::ProjectOperationReplayAssessment> assessments) {
+    std::string report = "{\"operation_records\":[";
+    for (std::size_t index = 0; index < assessments.size(); ++index) {
+        if (index != 0) report.push_back(',');
+        const ctex::io::ProjectOperationReplayAssessment& assessment = assessments[index];
+        report += "{\"id\":";
+        append_json_text(report, assessment.record_identifier);
+        report +=
+            ",\"disposition\":" +
+            std::to_string(static_cast<std::uint32_t>(assessment.replay.disposition)) +
+            ",\"replay_available\":" + (assessment.replay.replay_available ? "true" : "false") +
+            ",\"checkpoint_available\":" +
+            (assessment.replay.checkpoint_available ? "true" : "false") + ",\"diagnostic\":";
+        append_json_text(report, assessment.replay.diagnostic);
+        report.push_back('}');
+    }
+    report += "]}";
+    return report;
+}
+
 void upsert_operation_record_asset(ctex::io::ProjectContainer& project,
                                    const ctex::io::EditableOperationRecord& record) {
     ctex::io::StandaloneAsset asset = ctex::io::package_operation_record(record);
@@ -12815,6 +12836,60 @@ extern "C" ctex_result ctex_project_container_get_operation_record(
                                    canonical.size());
             if (record_output != nullptr) {
                 std::memcpy(record_output, canonical.data(), canonical.size());
+            }
+        } catch (const ctex::io::OperationRecordError& error) {
+            throw_operation_record_error(error);
+        } catch (const ctex::io::ProjectContainerError& error) {
+            throw_project_container_error(error);
+        }
+    });
+}
+
+extern "C" ctex_result ctex_project_container_assess_operation_replay(
+    const void* project_encoded, std::size_t project_encoded_size,
+    const ctex_project_container_read_limits_descriptor* limits,
+    const ctex_operation_replay_assessment_descriptor* descriptor,
+    ctex_project_operation_replay_info* out_info, char* report_output,
+    std::size_t report_output_size) {
+    return call_boundary("ctex_project_container_assess_operation_replay", [&] {
+        if (descriptor == nullptr || out_info == nullptr) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                           descriptor == nullptr ? "descriptor=null" : "out_info=null");
+        }
+        validate_structure_size(out_info->size, CTEX_PROJECT_OPERATION_REPLAY_INFO_V1_SIZE,
+                                CTEX_PROJECT_OPERATION_REPLAY_INFO_CURRENT_SIZE,
+                                "project operation replay info size");
+        const std::vector supported = operation_algorithm_support(*descriptor);
+        try {
+            const ctex::io::ProjectContainerReadResult project = ctex::io::read_project_container(
+                project_container_bytes(project_encoded, project_encoded_size),
+                project_container_limits(limits));
+            const std::vector assessments = ctex::io::assess_project_operation_replay(
+                project.container, supported, descriptor->target_resolution_changed != 0U);
+            const std::string report = project_operation_replay_json(assessments);
+            const auto replay_available_count = static_cast<std::size_t>(std::ranges::count_if(
+                assessments, [](const auto& value) { return value.replay.replay_available; }));
+            const auto checkpoint_fallback_count =
+                static_cast<std::size_t>(std::ranges::count_if(assessments, [](const auto& value) {
+                    return !value.replay.replay_available && value.replay.checkpoint_available;
+                }));
+            const auto unsupported_algorithm_count =
+                static_cast<std::size_t>(std::ranges::count_if(assessments, [](const auto& value) {
+                    return value.replay.disposition ==
+                           ctex::io::OperationReplayDisposition::unsupported_algorithm;
+                }));
+            const ctex_project_operation_replay_info info{
+                .size = CTEX_PROJECT_OPERATION_REPLAY_INFO_CURRENT_SIZE,
+                .record_count = assessments.size(),
+                .replay_available_count = replay_available_count,
+                .checkpoint_fallback_count = checkpoint_fallback_count,
+                .unsupported_algorithm_count = unsupported_algorithm_count,
+                .required_report_size = report.size() + 1,
+            };
+            validate_string_buffer(report_output, report_output_size, info.required_report_size);
+            *out_info = info;
+            if (report_output != nullptr) {
+                std::memcpy(report_output, report.c_str(), info.required_report_size);
             }
         } catch (const ctex::io::OperationRecordError& error) {
             throw_operation_record_error(error);
