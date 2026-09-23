@@ -92,9 +92,10 @@ The stable process outcomes begin with:
 | 70 | internal error |
 
 `just test-cli` builds the executable and runs its process-level regression
-suite. The suite repeats `export`, `apply`, and Python `run` from identical
-inputs and byte-compares every resulting texture and project, in addition to
-treating command help as an interface: every implemented command option and
-every global option must appear in `--help`, together with accepted values and
-defaults. CI runs this focused build and suite independently on Linux, macOS,
-and Windows so a desktop package cannot ship an unexercised binary.
+suite. Every outcome in the table has a process-level case. The suite also
+repeats `export`, `apply`, and Python `run` from identical inputs and
+byte-compares every resulting texture and project, in addition to treating
+command help as an interface: every implemented command option and every global
+option must appear in `--help`, together with accepted values and defaults. CI
+runs this focused build and suite independently on Linux, macOS, and Windows so
+a desktop package cannot ship an unexercised binary.

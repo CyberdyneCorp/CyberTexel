@@ -267,6 +267,22 @@ with tempfile.TemporaryDirectory(prefix="ctex-cli-apply-") as temporary:
     texture_set = generated.stdout.strip()
     source_bytes = source.read_bytes()
 
+    unrepresentable_output = directory / ("x" * 300)
+    internal_failure = run(
+        "export",
+        "--document",
+        str(source),
+        "--preset",
+        "base-color",
+        "--output",
+        str(unrepresentable_output),
+        "--report",
+        "json",
+    )
+    assert internal_failure.returncode == 70
+    assert json.loads(internal_failure.stdout)["exit_code"] == 70
+    assert "could not inspect export output" in internal_failure.stderr
+
     export_directory = directory / "textures"
     exported = run(
         "export",

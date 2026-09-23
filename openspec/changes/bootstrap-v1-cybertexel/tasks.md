@@ -1682,7 +1682,7 @@ to the labeled native and strict-C test suite.
 
 - [x] 15.1 Binary skeleton, subcommand dispatch, argument validation before any work
 - [ ] 15.2 `export`, `bake-request`, `apply`, `run`, `info`, `validate`
-- [ ] 15.3 Distinct exit codes per outcome class
+- [x] 15.3 Distinct exit codes per outcome class
 - [x] 15.4 Machine-readable reports; quiet mode; diagnostics on the error stream
 - [x] 15.5 Executor selection by flag and environment; fallback reporting
 - [x] 15.6 Budget flags and their refusals
