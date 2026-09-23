@@ -369,7 +369,9 @@ gate.
 Versioned operation records now have a canonical bounded core format and C ABI.
 They own pinned input bytes, name raster checkpoint dependencies, and round-trip
 through the project container without consulting mutable shelf content. Task
-20.1 remains open until all three language bindings expose this surface.
+20.1 remains open until all three language bindings expose this surface. The
+matching public-surface mapping reduces the exact task-14.8 gap to 9 runtime
+requirements.
 
 ## Milestones
 

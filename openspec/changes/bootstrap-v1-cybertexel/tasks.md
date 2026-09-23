@@ -1312,7 +1312,8 @@ metadata, channel declarations, owned pinned input bytes, and explicit raster
 checkpoint dependencies. Core and strict-C fixtures prove deterministic
 serialization, bounded malformed-input refusal, immunity to later shelf-byte
 mutation, and lossless project-container round trips. The task remains open
-until Python, Swift, and Rust expose the same surface.
+until Python, Swift, and Rust expose the same surface. The C coverage mapping
+reduces the exact task-14.8 gap to 9 runtime requirements.
 
 ## 1. Foundation
 

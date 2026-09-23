@@ -210,5 +210,10 @@ The delta-query and explicit readback operations measured by the host-transport
 budget already cross the public C boundary. Mapping those operations reduces
 the surface gap to 10; the numeric reference-device budget and its gate remain
 scheduled under performance task 17.
+Canonical operation-record creation, inspection, project insertion and retrieval
+now cross the C boundary with pinned input bytes and explicit raster checkpoint
+dependencies. Mapping that editable-authoring requirement reduces the exact
+remaining gap to 9 runtime requirements; binding parity and replay policy remain
+separate roadmap work.
 The gate is not part of the aggregate `just check` until that count reaches zero;
 its unit tests run in the normal tooling suite throughout the migration.
