@@ -451,7 +451,8 @@ PackagedDocument package_document(std::string identifier, const doc::TextureDocu
     const std::vector<std::string> atlases = document.atlas_ids();
     writer.u32(format_count(texture_sets.size(), "texture-set count"));
     writer.u32(format_count(atlases.size(), "atlas count"));
-    PackageContext context{.asset_identifier = identifier};
+    PackageContext context{
+        .asset_identifier = identifier, .images = {}, .resource_dependencies = {}};
     for (const std::string& texture_set : texture_sets) {
         write_texture_set(writer, document.texture_set(texture_set), context);
     }
@@ -802,7 +803,15 @@ DecodedDocument decode_document(const ProjectContainer& project, const Standalon
         throw TextureDocumentIoError("asset is not a supported texture document: " +
                                      asset.identifier);
     }
-    DecodeContext context{.project = project, .asset = asset, .limits = limits};
+    DecodeContext context{.project = project,
+                          .asset = asset,
+                          .limits = limits,
+                          .images = {},
+                          .declared_images = {},
+                          .used_images = {},
+                          .declared_resources = {},
+                          .used_resources = {},
+                          .totals = {}};
     for (const StoredTiledImage& image : project.tiled_images) {
         if (!context.images.emplace(image.resource_id, &image).second) {
             throw TextureDocumentIoError("project repeats tiled image identity: " +

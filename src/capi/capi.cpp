@@ -7057,6 +7057,10 @@ ctex::io::EditableOperationRecord operation_record(
         .mesh_content_identity = descriptor.mesh_content_identity,
         .payload_kind = static_cast<ctex::io::OperationPayloadKind>(descriptor.payload_kind),
         .payload_version = descriptor.payload_version,
+        .channels = {},
+        .pinned_resources = {},
+        .checkpoint_image_identifiers = {},
+        .payload = {},
     };
     std::copy(std::begin(descriptor.coordinate_frame), std::end(descriptor.coordinate_frame),
               record.coordinate_frame.begin());

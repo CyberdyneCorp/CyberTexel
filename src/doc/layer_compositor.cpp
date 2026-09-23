@@ -276,8 +276,8 @@ private:
 
     [[nodiscard]] CompositeSample default_sample() const {
         std::array<float, 4> value{};
-        std::copy(descriptor_.default_value.begin(), descriptor_.default_value.end(),
-                  value.begin());
+        std::ranges::transform(descriptor_.default_value, value.begin(),
+                               [](double component) { return static_cast<float>(component); });
         return {.value = colour(value), .coverage = 1.0F};
     }
 

@@ -546,7 +546,8 @@ LayeredDecodedImage decode_psd_layers(const LayeredDecodeRequest& request) {
     }
     monitor.codec_finished();
     const auto [color_space, color_source] = layered_color_space(request.image, false);
-    LayeredDecodedImage result{.format = ImageFileFormat::psd, .source_was_layered = true};
+    LayeredDecodedImage result{
+        .format = ImageFileFormat::psd, .source_was_layered = true, .images = {}};
     result.images.reserve(layer_count);
     for (std::size_t index = 0; index < layer_count; ++index) {
         result.images.push_back(
@@ -853,7 +854,8 @@ LayeredDecodedImage decode_exr_parts(const LayeredDecodeRequest& request) {
     }
     monitor.codec_finished();
     const auto [color_space, color_source] = layered_color_space(request.image, true);
-    LayeredDecodedImage result{.format = ImageFileFormat::openexr, .source_was_layered = true};
+    LayeredDecodedImage result{
+        .format = ImageFileFormat::openexr, .source_was_layered = true, .images = {}};
     result.images.reserve(static_cast<std::size_t>(headers.count()));
     for (int index = 0; index < headers.count(); ++index) {
         const std::size_t part = static_cast<std::size_t>(index);

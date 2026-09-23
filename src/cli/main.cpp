@@ -418,7 +418,7 @@ std::optional<Invocation> parse_invocation(int argc, char** argv, std::string& e
                 "'; accepted commands: export, bake-request, apply, run, info, validate";
         return std::nullopt;
     }
-    Invocation invocation{.command = command};
+    Invocation invocation{.command = command, .options = {}, .quiet = false};
     for (int index = 2; index < argc; ++index) {
         const std::string_view argument = argv[index];
         if (argument == "--quiet") {
