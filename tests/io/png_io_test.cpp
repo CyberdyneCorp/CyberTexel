@@ -10,6 +10,7 @@
 #include <ctex/io/texture_encode.hpp>
 #include <exception>
 #include <iostream>
+#include <iterator>
 #include <span>
 #include <stdexcept>
 #include <string>

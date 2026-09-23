@@ -4,6 +4,7 @@
 #include <cmath>
 #include <ctex/io/editable_authoring.hpp>
 #include <ctex/io/texture_document.hpp>
+#include <iterator>
 #include <limits>
 #include <map>
 #include <set>

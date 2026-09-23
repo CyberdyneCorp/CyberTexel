@@ -1,5 +1,6 @@
 #include <algorithm>
 #include <ctex/paint/work.hpp>
+#include <iterator>
 #include <limits>
 #include <set>
 #include <stdexcept>

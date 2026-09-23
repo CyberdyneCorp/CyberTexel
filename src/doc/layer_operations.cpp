@@ -1,6 +1,7 @@
 #include <algorithm>
 #include <cmath>
 #include <ctex/doc/document.hpp>
+#include <iterator>
 #include <limits>
 #include <map>
 #include <set>

@@ -2,6 +2,7 @@
 #include <array>
 #include <ctex/graph/catalogue.hpp>
 #include <ctex/graph/portable_nodes.hpp>
+#include <iterator>
 #include <stdexcept>
 #include <utility>
 
