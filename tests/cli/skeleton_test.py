@@ -54,6 +54,14 @@ def run(
     )
 
 
+def assert_identical_trees(first: Path, second: Path) -> None:
+    first_files = sorted(path.relative_to(first) for path in first.rglob("*") if path.is_file())
+    second_files = sorted(path.relative_to(second) for path in second.rglob("*") if path.is_file())
+    assert first_files == second_files
+    for relative in first_files:
+        assert (first / relative).read_bytes() == (second / relative).read_bytes(), relative
+
+
 help_result = run("--help")
 assert help_result.returncode == 0 and help_result.stderr == ""
 for command in COMMANDS:
@@ -283,6 +291,21 @@ with tempfile.TemporaryDirectory(prefix="ctex-cli-apply-") as temporary:
         } == exported_texture
     assert source.read_bytes() == source_bytes
 
+    deterministic_export_directory = directory / "textures-repeat"
+    deterministic_export = run(
+        "export",
+        "--document",
+        str(source),
+        "--preset",
+        "base-color",
+        "--output",
+        str(deterministic_export_directory),
+        "--report",
+        "json",
+    )
+    assert deterministic_export.returncode == 0 and deterministic_export.stderr == ""
+    assert_identical_trees(export_directory, deterministic_export_directory)
+
     repeated_export = run(
         "export",
         "--document",
@@ -353,6 +376,23 @@ with tempfile.TemporaryDirectory(prefix="ctex-cli-apply-") as temporary:
         {"kind": "project", "path": str(output), "bytes": output.stat().st_size}
     ]
     assert output.exists() and source.read_bytes() == source_bytes
+
+    repeated_application = directory / "applied-repeat.ctex"
+    applied_again = run(
+        "apply",
+        "--document",
+        str(source),
+        "--preset",
+        str(preset),
+        "--texture-set",
+        texture_set,
+        "--output",
+        str(repeated_application),
+        "--report",
+        "json",
+    )
+    assert applied_again.returncode == 0 and applied_again.stderr == ""
+    assert output.read_bytes() == repeated_application.read_bytes()
 
     applied_info = run("info", "--document", str(output), "--report", "json")
     applied_inventory = json.loads(applied_info.stdout)
@@ -447,6 +487,21 @@ with tempfile.TemporaryDirectory(prefix="ctex-cli-apply-") as temporary:
         "json",
     )
     assert scripted_validation.returncode == 0
+
+    repeated_scripted_output = directory / "scripted-repeat.ctex"
+    scripted_again = run(
+        "run",
+        "--document",
+        str(source),
+        "--script",
+        str(script),
+        "--output",
+        str(repeated_scripted_output),
+        "--report",
+        "json",
+    )
+    assert scripted_again.returncode == 0
+    assert scripted_output.read_bytes() == repeated_scripted_output.read_bytes()
 
     missing_interpreter_output = directory / "missing-interpreter.ctex"
     missing_interpreter = run(
