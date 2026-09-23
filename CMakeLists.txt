@@ -306,18 +306,23 @@ if(CTEX_ENABLE_VULKAN_EXECUTOR)
     endif()
 endif()
 
-add_executable(cybertexel_cli src/cli/main.cpp)
-ctex_configure_cpp_target(cybertexel_cli)
-set_target_properties(cybertexel_cli PROPERTIES OUTPUT_NAME cybertexel)
-target_link_libraries(cybertexel_cli PRIVATE cybertexel)
+if(NOT IOS AND NOT ANDROID)
+    add_executable(cybertexel_cli src/cli/main.cpp)
+    ctex_configure_cpp_target(cybertexel_cli)
+    set_target_properties(cybertexel_cli PROPERTIES OUTPUT_NAME cybertexel)
+    target_link_libraries(cybertexel_cli PRIVATE cybertexel)
+endif()
 
 configure_file(cmake/cybertexel.pc.in cybertexel.pc @ONLY)
 install(
-    TARGETS cybertexel_cli cybertexel_c ctex_lodepng ctex_kong tinyexr miniz
+    TARGETS cybertexel_c ctex_lodepng ctex_kong tinyexr miniz
     ARCHIVE DESTINATION "${CMAKE_INSTALL_LIBDIR}"
     LIBRARY DESTINATION "${CMAKE_INSTALL_LIBDIR}"
     RUNTIME DESTINATION "${CMAKE_INSTALL_BINDIR}"
 )
+if(TARGET cybertexel_cli)
+    install(TARGETS cybertexel_cli RUNTIME DESTINATION "${CMAKE_INSTALL_BINDIR}")
+endif()
 install(
     FILES
         "${PROJECT_SOURCE_DIR}/include/ctex/capi.h"
@@ -369,12 +374,15 @@ endif()
 include(CTest)
 if(BUILD_TESTING)
     find_program(CTEX_PYTHON3_EXECUTABLE python3 REQUIRED)
-    add_test(
-        NAME cli-headless-skeleton
-        COMMAND "${CTEX_PYTHON3_EXECUTABLE}" "${PROJECT_SOURCE_DIR}/tests/cli/skeleton_test.py"
-                $<TARGET_FILE:cybertexel_cli> "${PROJECT_SOURCE_DIR}"
-                $<TARGET_FILE:ctex_texture_document_io_test>
-    )
+    if(TARGET cybertexel_cli)
+        add_test(
+            NAME cli-headless-skeleton
+            COMMAND "${CTEX_PYTHON3_EXECUTABLE}"
+                    "${PROJECT_SOURCE_DIR}/tests/cli/skeleton_test.py"
+                    $<TARGET_FILE:cybertexel_cli> "${PROJECT_SOURCE_DIR}"
+                    $<TARGET_FILE:ctex_texture_document_io_test>
+        )
+    endif()
     add_executable(ctex_version_test tests/version_test.c)
     target_include_directories(
         ctex_version_test

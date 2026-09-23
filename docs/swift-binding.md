@@ -5,6 +5,7 @@ The `CyberTexel` Swift package supports macOS 13 and iOS 16 or newer. Its
 through `cybertexel.pc`; consumers do not provide paths into the CyberTexel
 source tree. CMake installs the shared desktop library, static iOS library,
 public headers and relocatable pkg-config metadata into the selected prefix.
+The desktop-only headless CLI is excluded from the iOS target and install set.
 
 The Swift layer checks ABI major version zero before creating a document. It
 uses value types for versions, texture sets and documents, optionals only while
