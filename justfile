@@ -429,7 +429,8 @@ gate-determinism:
 
 # Every C entry point reachable from Python, Swift and Rust.
 gate-binding-parity:
-    @just _unimplemented gate-binding-parity 14.13
+    python3 tests/tools/test_check_binding_parity.py
+    python3 tools/check_binding_parity.py
 
 # No symbol or descriptor removed without a major version bump.
 gate-abi-diff: build

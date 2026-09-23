@@ -1387,6 +1387,15 @@ and atomic save publishes those canonical bytes. The capability manifest now
 maps every runtime requirement and the full-surface coverage gate passes with
 zero gaps.
 
+The task-14.13 placeholder is now a live symbol-by-symbol binding parity gate.
+It treats a Python operation as reachable only with a registered ctypes
+signature, a Rust operation as reachable only with a public `cybertexel-sys`
+declaration, and Swift as reachable through its complete-header system module.
+The initial 347-operation audit reports exact remaining gaps of 323 operations
+in Python and 312 in Rust; Swift imports the complete raw surface. Task 14.13
+remains open until both missing sets reach zero and all three binding suites
+pass.
+
 ## 1. Foundation
 
 - [x] 1.1 CMake project, C++20, warnings as errors, presets for headless, macOS, Linux, Windows, iOS, Android

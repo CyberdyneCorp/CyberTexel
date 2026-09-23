@@ -19,7 +19,9 @@ workflow](binding-host-transport.md). Swift-owned shader artifacts and pass-plan
 strings feed logical submissions; completion preserves host-resident results.
 Reference types retain snapshot and readback handles plus their allocated tile
 buffers until destruction. Pending output throws instead of exposing bytes.
-Task 14.13 enforces complete C-operation parity.
+The [binding parity gate](binding-parity.md) verifies that the system module
+continues to import the complete public C header; the macOS and iOS package tests
+then compile and link that imported surface.
 
 Build and test the macOS package, then link its native and Swift layers into an
 iOS arm64 check executable, with:
