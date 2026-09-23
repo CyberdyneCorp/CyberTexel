@@ -12,8 +12,8 @@ the matrix verifies that the recipe is present in the workflow.
 | Mislabelled file | `png-io`, `c-abi-image-io` | PNG bytes with a JPEG name decode as PNG and report the extension mismatch. |
 | 16-bit source | `png-io`, `c-abi-image-io` | Native 16-bit samples survive decode and caller-buffer transfer without reduction. |
 | Grayscale into a colour slot | `tiled-image`, `c-abi-image-io` | The documented expansion replicates grayscale into RGB and adds opaque alpha only when requested. |
-| Embedded profile | `png-io` | Embedded PNG sRGB metadata plus bounded PNG and multipart-JPEG RGB ICC profiles for sRGB/linear Rec. 709 are interpreted; an explicit caller declaration overrides them. |
-| Uninterpretable profile | `png-io` | A valid PNG carrying an unsupported ICC profile reports it before applying the automatic semantic rule. |
+| Embedded profile | `png-io`, `layered-image-io` | Embedded PNG sRGB metadata plus bounded PNG, multipart-JPEG, TIFF, flat/layered PSD and BMP RGB ICC profiles for sRGB/linear Rec. 709 are interpreted; an explicit caller declaration overrides them. |
+| Uninterpretable profile | `png-io` | Unsupported or malformed embedded profiles are reported before applying the automatic semantic rule. |
 | HDR environment image | `png-io` | Radiance HDR and OpenEXR decode into float storage while retaining values above one. |
 | Importing a layered PSD | `layered-image-io` | Named PSD layers are returned independently in file order. |
 | Composited import | `layered-image-io` | The same layered PSD and multipart EXR produce their flattened appearance in composite mode. |

@@ -14,6 +14,8 @@
 #include <sstream>
 #include <utility>
 
+#include "color_profile.hpp"
+
 namespace ctex::io {
 namespace {
 
@@ -189,16 +191,16 @@ bool layered_extension_mismatch(std::string_view source_name, ImageFileFormat fo
 }
 
 DecodeReport make_report(const DecodeRequest& request, ImageFileFormat format,
-                         ColorSpaceSource source) {
+                         ColorSpaceSource source, std::vector<std::string> diagnostics = {}) {
     const bool mismatch = layered_extension_mismatch(request.source_name, format);
+    if (mismatch) {
+        diagnostics.emplace_back("source extension disagrees with detected " +
+                                 std::string(image_file_format_name(format)) + " content");
+    }
     return {.detected_format = format,
             .extension_mismatch = mismatch,
             .color_space_source = source,
-            .diagnostics =
-                mismatch ? std::vector<std::string>{"source extension disagrees with detected " +
-                                                    std::string(image_file_format_name(format)) +
-                                                    " content"}
-                         : std::vector<std::string>{}};
+            .diagnostics = std::move(diagnostics)};
 }
 
 image::TiledImage tiled_from_interleaved(std::span<const std::byte> pixels, ImageLayout layout,
@@ -545,7 +547,8 @@ LayeredDecodedImage decode_psd_layers(const LayeredDecodeRequest& request) {
         packed.push_back(interleave_psd_layer(layer_info, layer, bytes_per_sample));
     }
     monitor.codec_finished();
-    const auto [color_space, color_source] = layered_color_space(request.image, false);
+    const detail::ResolvedProfileColorSpace resolved =
+        detail::resolve_psd_color_space(request.image);
     LayeredDecodedImage result{
         .format = ImageFileFormat::psd, .source_was_layered = true, .images = {}};
     result.images.reserve(layer_count);
@@ -555,8 +558,9 @@ LayeredDecodedImage decode_psd_layers(const LayeredDecodeRequest& request) {
              .origin_x = records[index].left,
              .origin_y = records[index].top,
              .image = {tiled_from_interleaved(packed[index], layouts[index], monitor, depth == 16),
-                       color_space,
-                       make_report(request.image, ImageFileFormat::psd, color_source)}});
+                       resolved.color_space,
+                       make_report(request.image, ImageFileFormat::psd, resolved.source,
+                                   resolved.diagnostics)}});
     }
     monitor.finish(result.images);
     return result;

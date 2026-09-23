@@ -80,6 +80,13 @@ sRGB/caller/automatic declarations, extension mismatch reporting and limits
 checked before pixel allocation. Those full work packages remain unchecked
 until their other formats and scenarios land. Channels and texture sets are next.
 
+2026-09-23: Task 2.4 now interprets bounded Rec. 709 ICC profiles embedded in
+PNG, multipart JPEG, TIFF, BMP V5 and both flattened and individual-layer PSD
+sources. Caller declarations remain authoritative, and malformed, linked or
+unsupported profiles are reported before the automatic semantic fallback. The
+task remains open while the non-ICC colour metadata carried by HDR and legacy
+formats is audited and covered explicitly.
+
 Task 3.2 is complete: the built-in nine-channel preset is expressed through the
 same extensible descriptors as custom semantics, channel precision is independent,
 and disabled channels own no `TiledImage`. Texture-set identity and partitioning

@@ -21,6 +21,8 @@
 #include <sstream>
 #include <utility>
 
+#include "color_profile.hpp"
+
 namespace ctex::io {
 namespace {
 
@@ -578,9 +580,125 @@ std::uint16_t big_endian_u16(std::span<const std::byte> bytes, std::size_t offse
            std::to_integer<std::uint8_t>(bytes[offset + 1]);
 }
 
+std::uint32_t big_endian_u32(std::span<const std::byte> bytes, std::size_t offset) {
+    return (static_cast<std::uint32_t>(std::to_integer<std::uint8_t>(bytes[offset])) << 24U) |
+           (static_cast<std::uint32_t>(std::to_integer<std::uint8_t>(bytes[offset + 1])) << 16U) |
+           (static_cast<std::uint32_t>(std::to_integer<std::uint8_t>(bytes[offset + 2])) << 8U) |
+           std::to_integer<std::uint8_t>(bytes[offset + 3]);
+}
+
+ExtractedIccProfile extract_psd_icc_profile(std::span<const std::byte> encoded) {
+    constexpr std::size_t maximum_profile_bytes = 16ULL << 20;
+    constexpr std::uint16_t icc_profile_resource = 0x040f;
+    if (encoded.size() < 34) return {};
+    std::size_t cursor = 26;
+    const std::size_t color_mode_size = big_endian_u32(encoded, cursor);
+    cursor += 4;
+    if (color_mode_size > encoded.size() - cursor) {
+        return {true, {}, "PSD image-resource section follows truncated colour-mode data"};
+    }
+    cursor += color_mode_size;
+    if (encoded.size() - cursor < 4) {
+        return {true, {}, "PSD image-resource section length is truncated"};
+    }
+    const std::size_t resources_size = big_endian_u32(encoded, cursor);
+    cursor += 4;
+    if (resources_size > encoded.size() - cursor) {
+        return {true, {}, "PSD image-resource section is truncated"};
+    }
+    const std::size_t resources_end = cursor + resources_size;
+    bool found_profile = false;
+    ExtractedIccProfile result;
+    while (cursor < resources_end) {
+        if (resources_end - cursor < 7) {
+            return {true, {}, "PSD image-resource block header is truncated"};
+        }
+        const bool known_signature =
+            (encoded[cursor] == std::byte{'8'} && encoded[cursor + 1] == std::byte{'B'} &&
+             encoded[cursor + 2] == std::byte{'I'} && encoded[cursor + 3] == std::byte{'M'}) ||
+            (encoded[cursor] == std::byte{'M'} && encoded[cursor + 1] == std::byte{'e'} &&
+             encoded[cursor + 2] == std::byte{'S'} && encoded[cursor + 3] == std::byte{'a'});
+        if (!known_signature) {
+            return {true, {}, "PSD image-resource block signature is invalid"};
+        }
+        const std::uint16_t identifier = big_endian_u16(encoded, cursor + 4);
+        cursor += 6;
+        const std::size_t name_size = std::to_integer<std::uint8_t>(encoded[cursor]);
+        const std::size_t padded_name_size = (name_size + 2U) & ~std::size_t{1};
+        if (padded_name_size > resources_end - cursor) {
+            return {true, {}, "PSD image-resource name is truncated"};
+        }
+        cursor += padded_name_size;
+        if (resources_end - cursor < 4) {
+            return {true, {}, "PSD image-resource payload length is truncated"};
+        }
+        const std::size_t payload_size = big_endian_u32(encoded, cursor);
+        cursor += 4;
+        const std::size_t padded_payload_size = payload_size + (payload_size & 1U);
+        if (padded_payload_size > resources_end - cursor) {
+            return {true, {}, "PSD image-resource payload is truncated"};
+        }
+        if (identifier == icc_profile_resource) {
+            if (found_profile) return {true, {}, "PSD repeats its ICC profile resource"};
+            if (payload_size > maximum_profile_bytes) {
+                return {true, {}, "PSD ICC profile exceeds the 16 MiB interpretation limit"};
+            }
+            found_profile = true;
+            result.present = true;
+            result.bytes.reserve(payload_size);
+            std::ranges::transform(
+                encoded.subspan(cursor, payload_size), std::back_inserter(result.bytes),
+                [](std::byte value) { return std::to_integer<unsigned char>(value); });
+        }
+        cursor += padded_payload_size;
+    }
+    return result;
+}
+
 std::uint16_t little_endian_u16(std::span<const std::byte> bytes, std::size_t offset) {
     return std::to_integer<std::uint8_t>(bytes[offset]) |
            static_cast<std::uint16_t>(std::to_integer<std::uint8_t>(bytes[offset + 1]) << 8U);
+}
+
+std::uint32_t little_endian_u32(std::span<const std::byte> bytes, std::size_t offset) {
+    return std::to_integer<std::uint8_t>(bytes[offset]) |
+           (static_cast<std::uint32_t>(std::to_integer<std::uint8_t>(bytes[offset + 1])) << 8U) |
+           (static_cast<std::uint32_t>(std::to_integer<std::uint8_t>(bytes[offset + 2])) << 16U) |
+           (static_cast<std::uint32_t>(std::to_integer<std::uint8_t>(bytes[offset + 3])) << 24U);
+}
+
+ExtractedIccProfile extract_bmp_icc_profile(std::span<const std::byte> encoded) {
+    constexpr std::size_t maximum_profile_bytes = 16ULL << 20;
+    constexpr std::uint32_t profile_linked = 0x4c494e4b;
+    constexpr std::uint32_t profile_embedded = 0x4d424544;
+    constexpr std::size_t file_header_size = 14;
+    constexpr std::size_t bitmap_v5_header_size = 124;
+    if (encoded.size() < file_header_size + 4) return {};
+    const std::size_t header_size = little_endian_u32(encoded, file_header_size);
+    if (header_size < bitmap_v5_header_size) return {};
+    if (header_size > encoded.size() - file_header_size) {
+        return {true, {}, "BMP V5 header is truncated before its colour profile fields"};
+    }
+    const std::uint32_t color_space = little_endian_u32(encoded, file_header_size + 56);
+    if (color_space == profile_linked) {
+        return {true, {}, "BMP references a linked colour profile that cannot be resolved"};
+    }
+    if (color_space != profile_embedded) return {};
+    const std::size_t profile_offset = little_endian_u32(encoded, file_header_size + 112);
+    const std::size_t profile_size = little_endian_u32(encoded, file_header_size + 116);
+    if (profile_size > maximum_profile_bytes) {
+        return {true, {}, "BMP ICC profile exceeds the 16 MiB interpretation limit"};
+    }
+    if (profile_offset > encoded.size() - file_header_size ||
+        profile_size > encoded.size() - file_header_size - profile_offset) {
+        return {true, {}, "BMP ICC profile offset or payload is truncated"};
+    }
+    const auto source = encoded.subspan(file_header_size + profile_offset, profile_size);
+    ExtractedIccProfile result{.present = true, .bytes = {}, .diagnostic = {}};
+    result.bytes.reserve(source.size());
+    std::ranges::transform(source, std::back_inserter(result.bytes),
+                           [](std::byte value) { return std::to_integer<unsigned char>(value); });
+    return result;
 }
 
 void require_tga_bytes(std::span<const std::byte> bytes, std::size_t offset, std::size_t count) {
@@ -715,16 +833,25 @@ DecodedImage decode_stbi_integer(const DecodeRequest& request, ImageFileFormat f
     session.preflight(static_cast<std::uint32_t>(layout.width),
                       static_cast<std::uint32_t>(layout.height), layout.pixel_format);
     image::TiledImage pixels = load_stbi_integer(request.bytes, layout, format, session);
+    if (format == ImageFileFormat::psd) {
+        detail::ResolvedProfileColorSpace resolved = detail::resolve_psd_color_space(request);
+        DecodeReport report =
+            float_decode_report(request, format, resolved.source, std::move(resolved.diagnostics));
+        session.finish(report);
+        return {std::move(pixels), resolved.color_space, std::move(report)};
+    }
     std::vector<std::string> diagnostics;
     ExtractedIccProfile profile;
     if (format == ImageFileFormat::jpeg) {
         profile = extract_jpeg_icc_profile(request.bytes);
-        if (!profile.diagnostic.empty()) {
-            diagnostics.push_back(profile.diagnostic +
-                                  (request.color_space == image::InputColorSpace::automatic
-                                       ? "; automatic channel rule applied"
-                                       : "; explicit caller declaration applied"));
-        }
+    } else if (format == ImageFileFormat::bmp) {
+        profile = extract_bmp_icc_profile(request.bytes);
+    }
+    if (!profile.diagnostic.empty()) {
+        diagnostics.push_back(profile.diagnostic +
+                              (request.color_space == image::InputColorSpace::automatic
+                                   ? "; automatic channel rule applied"
+                                   : "; explicit caller declaration applied"));
     }
     const std::optional<std::span<const unsigned char>> profile_bytes =
         profile.present && profile.diagnostic.empty()
@@ -879,6 +1006,34 @@ std::vector<std::uint32_t> tiff_values(const TiffReader& reader, const TiffEntry
     return result;
 }
 
+ExtractedIccProfile extract_tiff_icc_profile(const TiffReader& reader, const TiffEntries& entries) {
+    constexpr std::size_t maximum_profile_bytes = 16ULL << 20;
+    constexpr std::uint16_t icc_profile_tag = 34'675;
+    constexpr std::uint16_t undefined_field_type = 7;
+    const auto found = entries.find(icc_profile_tag);
+    if (found == entries.end()) return {};
+    const TiffEntry& entry = found->second;
+    if (entry.type != undefined_field_type) {
+        return {true, {}, "TIFF ICC profile has the wrong field type"};
+    }
+    if (entry.count > maximum_profile_bytes) {
+        return {true, {}, "TIFF ICC profile exceeds the 16 MiB interpretation limit"};
+    }
+    const std::size_t offset =
+        entry.count <= 4 ? entry.inline_offset : static_cast<std::size_t>(entry.value_offset);
+    try {
+        const auto source = reader.bytes(offset, entry.count);
+        ExtractedIccProfile result{.present = true, .bytes = {}, .diagnostic = {}};
+        result.bytes.reserve(source.size());
+        std::ranges::transform(source, std::back_inserter(result.bytes), [](std::byte value) {
+            return std::to_integer<unsigned char>(value);
+        });
+        return result;
+    } catch (const ImageIoError&) {
+        return {true, {}, "TIFF ICC profile offset or payload is truncated"};
+    }
+}
+
 const TiffEntry& tiff_required(const TiffEntries& entries, std::uint16_t tag,
                                std::string_view name) {
     const auto found = entries.find(tag);
@@ -1021,11 +1176,25 @@ DecodedImage decode_tiff(const DecodeRequest& request, DecodeSession& session) {
     const TiffLayout layout = inspect_tiff_layout(reader, entries, request.limits);
     session.preflight(layout.width, layout.height, layout.pixel_format);
     const std::vector<std::byte> pixels = read_tiff_pixels(reader, entries, layout, session);
-    const auto [color_space, color_source] = resolve_float_color_space(request);
+    std::vector<std::string> diagnostics;
+    const ExtractedIccProfile profile = extract_tiff_icc_profile(reader, entries);
+    if (!profile.diagnostic.empty()) {
+        diagnostics.push_back(profile.diagnostic +
+                              (request.color_space == image::InputColorSpace::automatic
+                                   ? "; automatic channel rule applied"
+                                   : "; explicit caller declaration applied"));
+    }
+    const std::optional<std::span<const unsigned char>> profile_bytes =
+        profile.present && profile.diagnostic.empty()
+            ? std::optional<std::span<const unsigned char>>{profile.bytes}
+            : std::nullopt;
+    const auto [color_space, color_source] =
+        resolve_raster_color_space(request, profile_bytes, "TIFF", diagnostics);
     image::TiledImage unpacked =
         unpack_image(reinterpret_cast<const unsigned char*>(pixels.data()), layout.width,
                      layout.height, layout.pixel_format, session);
-    DecodeReport report = float_decode_report(request, ImageFileFormat::tiff, color_source);
+    DecodeReport report =
+        float_decode_report(request, ImageFileFormat::tiff, color_source, std::move(diagnostics));
     session.finish(report);
     return {std::move(unpacked), color_space, std::move(report)};
 }
@@ -1171,6 +1340,24 @@ std::vector<unsigned char> pack_image(const image::TiledImage& source) {
 }
 
 }  // namespace
+
+detail::ResolvedProfileColorSpace detail::resolve_psd_color_space(const DecodeRequest& request) {
+    std::vector<std::string> diagnostics;
+    const ExtractedIccProfile profile = extract_psd_icc_profile(request.bytes);
+    if (!profile.diagnostic.empty()) {
+        diagnostics.push_back(profile.diagnostic +
+                              (request.color_space == image::InputColorSpace::automatic
+                                   ? "; automatic channel rule applied"
+                                   : "; explicit caller declaration applied"));
+    }
+    const std::optional<std::span<const unsigned char>> profile_bytes =
+        profile.present && profile.diagnostic.empty()
+            ? std::optional<std::span<const unsigned char>>{profile.bytes}
+            : std::nullopt;
+    auto [color_space, source] =
+        resolve_raster_color_space(request, profile_bytes, "PSD", diagnostics);
+    return {.color_space = color_space, .source = source, .diagnostics = std::move(diagnostics)};
+}
 
 static_assert(!container_writer_version.string.empty());
 

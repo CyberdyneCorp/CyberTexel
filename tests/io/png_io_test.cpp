@@ -17,6 +17,8 @@
 #include <string_view>
 #include <vector>
 
+#include "icc_test_profile.hpp"
+
 namespace {
 
 using ctex::image::ChannelSemantic;
@@ -128,79 +130,8 @@ std::vector<std::byte> make_gray8_png_with_icc_profile() {
     return encoded;
 }
 
-constexpr std::uint32_t icc_signature(char a, char b, char c, char d) noexcept {
-    return (static_cast<std::uint32_t>(static_cast<unsigned char>(a)) << 24U) |
-           (static_cast<std::uint32_t>(static_cast<unsigned char>(b)) << 16U) |
-           (static_cast<std::uint32_t>(static_cast<unsigned char>(c)) << 8U) |
-           static_cast<std::uint32_t>(static_cast<unsigned char>(d));
-}
-
-void write_icc_u32(std::vector<unsigned char>& profile, std::size_t offset, std::uint32_t value) {
-    profile[offset] = static_cast<unsigned char>(value >> 24U);
-    profile[offset + 1] = static_cast<unsigned char>(value >> 16U);
-    profile[offset + 2] = static_cast<unsigned char>(value >> 8U);
-    profile[offset + 3] = static_cast<unsigned char>(value);
-}
-
-void write_icc_fixed(std::vector<unsigned char>& profile, std::size_t offset, double value) {
-    write_icc_u32(profile, offset,
-                  static_cast<std::uint32_t>(static_cast<std::int32_t>(value * 65'536.0 + 0.5)));
-}
-
-std::vector<unsigned char> make_rec709_icc_profile(bool linear) {
-    constexpr std::array xyz_offsets{216U, 236U, 256U, 276U};
-    constexpr std::array trc_offsets{296U, 328U, 360U};
-    constexpr std::array xyz_signatures{
-        icc_signature('r', 'X', 'Y', 'Z'), icc_signature('g', 'X', 'Y', 'Z'),
-        icc_signature('b', 'X', 'Y', 'Z'), icc_signature('w', 't', 'p', 't')};
-    constexpr std::array trc_signatures{icc_signature('r', 'T', 'R', 'C'),
-                                        icc_signature('g', 'T', 'R', 'C'),
-                                        icc_signature('b', 'T', 'R', 'C')};
-    constexpr std::array<std::array<double, 3>, 4> xyz_values{
-        std::array{0.4361, 0.2225, 0.0139}, std::array{0.3851, 0.7169, 0.0971},
-        std::array{0.1431, 0.0606, 0.7142}, std::array{0.9642, 1.0, 0.8249}};
-    std::vector<unsigned char> profile(392);
-    write_icc_u32(profile, 0, static_cast<std::uint32_t>(profile.size()));
-    write_icc_u32(profile, 12, icc_signature('m', 'n', 't', 'r'));
-    write_icc_u32(profile, 16, icc_signature('R', 'G', 'B', ' '));
-    write_icc_u32(profile, 20, icc_signature('X', 'Y', 'Z', ' '));
-    write_icc_u32(profile, 36, icc_signature('a', 'c', 's', 'p'));
-    write_icc_u32(profile, 128, 7);
-    std::size_t table = 132;
-    for (std::size_t index = 0; index < xyz_offsets.size(); ++index) {
-        write_icc_u32(profile, table, xyz_signatures[index]);
-        write_icc_u32(profile, table + 4, xyz_offsets[index]);
-        write_icc_u32(profile, table + 8, 20);
-        table += 12;
-        write_icc_u32(profile, xyz_offsets[index], icc_signature('X', 'Y', 'Z', ' '));
-        for (std::size_t component = 0; component < 3; ++component) {
-            write_icc_fixed(profile, xyz_offsets[index] + 8 + component * 4,
-                            xyz_values[index][component]);
-        }
-    }
-    constexpr std::array srgb_curve{2.4, 1.0 / 1.055, 0.055 / 1.055, 1.0 / 12.92, 0.04045};
-    for (std::size_t index = 0; index < trc_offsets.size(); ++index) {
-        write_icc_u32(profile, table, trc_signatures[index]);
-        write_icc_u32(profile, table + 4, trc_offsets[index]);
-        write_icc_u32(profile, table + 8, linear ? 12U : 32U);
-        table += 12;
-        if (linear) {
-            write_icc_u32(profile, trc_offsets[index], icc_signature('c', 'u', 'r', 'v'));
-            write_icc_u32(profile, trc_offsets[index] + 8, 0);
-        } else {
-            write_icc_u32(profile, trc_offsets[index], icc_signature('p', 'a', 'r', 'a'));
-            profile[trc_offsets[index] + 9] = 3;
-            for (std::size_t parameter = 0; parameter < srgb_curve.size(); ++parameter) {
-                write_icc_fixed(profile, trc_offsets[index] + 12 + parameter * 4,
-                                srgb_curve[parameter]);
-            }
-        }
-    }
-    return profile;
-}
-
 std::vector<std::byte> make_rgb8_png_with_icc_profile(bool linear) {
-    const std::vector<unsigned char> profile = make_rec709_icc_profile(linear);
+    const std::vector<unsigned char> profile = ctex::io::test::make_rec709_icc_profile(linear);
     constexpr std::array<unsigned char, 6> pixels{17, 34, 51, 230, 210, 190};
     LodePNGState state;
     lodepng_state_init(&state);
@@ -255,6 +186,68 @@ std::vector<std::byte> add_jpeg_icc_profile(std::span<const std::byte> jpeg,
     return result;
 }
 
+std::uint16_t read_le16(std::span<const std::byte> bytes, std::size_t offset) {
+    return std::to_integer<std::uint8_t>(bytes[offset]) |
+           static_cast<std::uint16_t>(std::to_integer<std::uint8_t>(bytes[offset + 1]) << 8U);
+}
+
+std::uint32_t read_le32(std::span<const std::byte> bytes, std::size_t offset) {
+    return std::to_integer<std::uint8_t>(bytes[offset]) |
+           (static_cast<std::uint32_t>(std::to_integer<std::uint8_t>(bytes[offset + 1])) << 8U) |
+           (static_cast<std::uint32_t>(std::to_integer<std::uint8_t>(bytes[offset + 2])) << 16U) |
+           (static_cast<std::uint32_t>(std::to_integer<std::uint8_t>(bytes[offset + 3])) << 24U);
+}
+
+void append_le16(std::vector<std::byte>& bytes, std::uint16_t value) {
+    bytes.push_back(static_cast<std::byte>(value));
+    bytes.push_back(static_cast<std::byte>(value >> 8U));
+}
+
+void append_le32(std::vector<std::byte>& bytes, std::uint32_t value) {
+    bytes.push_back(static_cast<std::byte>(value));
+    bytes.push_back(static_cast<std::byte>(value >> 8U));
+    bytes.push_back(static_cast<std::byte>(value >> 16U));
+    bytes.push_back(static_cast<std::byte>(value >> 24U));
+}
+
+void write_le32(std::vector<std::byte>& bytes, std::size_t offset, std::uint32_t value) {
+    bytes[offset] = static_cast<std::byte>(value);
+    bytes[offset + 1] = static_cast<std::byte>(value >> 8U);
+    bytes[offset + 2] = static_cast<std::byte>(value >> 16U);
+    bytes[offset + 3] = static_cast<std::byte>(value >> 24U);
+}
+
+std::vector<std::byte> add_tiff_icc_profile(std::span<const std::byte> tiff,
+                                            std::span<const unsigned char> profile) {
+    if (tiff.size() < 8 || tiff[0] != std::byte{'I'} || tiff[1] != std::byte{'I'}) {
+        throw std::runtime_error("ICC fixture requires little-endian TIFF content");
+    }
+    const std::size_t old_ifd = read_le32(tiff, 4);
+    const std::uint16_t old_count = read_le16(tiff, old_ifd);
+    const std::size_t old_entries = old_ifd + 2;
+    const std::size_t old_entries_size = static_cast<std::size_t>(old_count) * 12;
+    if (old_entries > tiff.size() || old_entries_size + 4 > tiff.size() - old_entries) {
+        throw std::runtime_error("TIFF ICC fixture has a truncated source IFD");
+    }
+    std::vector<std::byte> result(tiff.begin(), tiff.end());
+    if ((result.size() & 1U) != 0) result.push_back(std::byte{0});
+    const std::uint32_t new_ifd = static_cast<std::uint32_t>(result.size());
+    const std::uint32_t profile_offset =
+        new_ifd + 2 + static_cast<std::uint32_t>(old_count + 1) * 12 + 4;
+    append_le16(result, static_cast<std::uint16_t>(old_count + 1));
+    result.insert(result.end(), tiff.begin() + static_cast<std::ptrdiff_t>(old_entries),
+                  tiff.begin() + static_cast<std::ptrdiff_t>(old_entries + old_entries_size));
+    append_le16(result, 34'675);
+    append_le16(result, 7);
+    append_le32(result, static_cast<std::uint32_t>(profile.size()));
+    append_le32(result, profile_offset);
+    append_le32(result, 0);
+    std::ranges::transform(profile, std::back_inserter(result),
+                           [](unsigned char value) { return static_cast<std::byte>(value); });
+    write_le32(result, 4, new_ifd);
+    return result;
+}
+
 TiledImage red_green_rgb8() {
     TiledImage source(2, 1, PixelFormat{ChannelType::uint8_unorm, 3});
     const std::array red{std::byte{255}, std::byte{0}, std::byte{0}};
@@ -274,6 +267,13 @@ void append_be32(std::vector<std::byte>& bytes, std::uint32_t value) {
     bytes.push_back(static_cast<std::byte>(value >> 16U));
     bytes.push_back(static_cast<std::byte>(value >> 8U));
     bytes.push_back(static_cast<std::byte>(value));
+}
+
+void write_be32(std::vector<std::byte>& bytes, std::size_t offset, std::uint32_t value) {
+    bytes[offset] = static_cast<std::byte>(value >> 24U);
+    bytes[offset + 1] = static_cast<std::byte>(value >> 16U);
+    bytes[offset + 2] = static_cast<std::byte>(value >> 8U);
+    bytes[offset + 3] = static_cast<std::byte>(value);
 }
 
 std::vector<std::byte> make_rgb8_psd() {
@@ -296,6 +296,28 @@ std::vector<std::byte> make_rgb8_psd() {
                             std::byte{255}, std::byte{0}, std::byte{0}};
     bytes.insert(bytes.end(), planar.begin(), planar.end());
     return bytes;
+}
+
+std::vector<std::byte> add_psd_icc_profile(std::span<const std::byte> psd,
+                                           std::span<const unsigned char> profile) {
+    if (psd.size() < 34 || psd[0] != std::byte{'8'} || psd[1] != std::byte{'B'} ||
+        psd[2] != std::byte{'P'} || psd[3] != std::byte{'S'}) {
+        throw std::runtime_error("ICC fixture requires PSD content");
+    }
+    std::vector<std::byte> resource;
+    resource.insert(resource.end(),
+                    {std::byte{'8'}, std::byte{'B'}, std::byte{'I'}, std::byte{'M'}});
+    append_be16(resource, 0x040f);
+    resource.insert(resource.end(), {std::byte{0}, std::byte{0}});
+    append_be32(resource, static_cast<std::uint32_t>(profile.size()));
+    std::ranges::transform(profile, std::back_inserter(resource),
+                           [](unsigned char value) { return static_cast<std::byte>(value); });
+    if ((resource.size() & 1U) != 0) resource.push_back(std::byte{0});
+    std::vector<std::byte> result(psd.begin(), psd.begin() + 30);
+    append_be32(result, static_cast<std::uint32_t>(resource.size()));
+    result.insert(result.end(), resource.begin(), resource.end());
+    result.insert(result.end(), psd.begin() + 34, psd.end());
+    return result;
 }
 
 std::vector<std::byte> make_rgb16_psd() {
@@ -330,6 +352,33 @@ std::vector<std::byte> make_rgb8_bmp() {
     result.reserve(values.size());
     std::transform(values.begin(), values.end(), std::back_inserter(result),
                    [](std::uint8_t value) { return static_cast<std::byte>(value); });
+    return result;
+}
+
+std::vector<std::byte> make_rgb8_bmp_with_icc_profile(std::span<const unsigned char> profile) {
+    constexpr std::size_t file_header_size = 14;
+    constexpr std::size_t dib_header_size = 124;
+    constexpr std::size_t pixel_size = 8;
+    const std::size_t pixel_offset = file_header_size + dib_header_size + profile.size();
+    std::vector<std::byte> result(pixel_offset + pixel_size, std::byte{0});
+    result[0] = std::byte{'B'};
+    result[1] = std::byte{'M'};
+    write_le32(result, 2, static_cast<std::uint32_t>(result.size()));
+    write_le32(result, 10, static_cast<std::uint32_t>(pixel_offset));
+    write_le32(result, 14, dib_header_size);
+    write_le32(result, 18, 2);
+    write_le32(result, 22, 1);
+    result[26] = std::byte{1};
+    result[28] = std::byte{24};
+    write_le32(result, 34, pixel_size);
+    write_le32(result, 14 + 56, 0x4d424544);
+    write_le32(result, 14 + 112, dib_header_size);
+    write_le32(result, 14 + 116, static_cast<std::uint32_t>(profile.size()));
+    std::ranges::transform(profile, result.begin() + file_header_size + dib_header_size,
+                           [](unsigned char value) { return static_cast<std::byte>(value); });
+    constexpr std::array pixels{std::byte{0},   std::byte{0}, std::byte{255}, std::byte{0},
+                                std::byte{255}, std::byte{0}, std::byte{0},   std::byte{0}};
+    std::copy(pixels.begin(), pixels.end(), result.begin() + pixel_offset);
     return result;
 }
 
@@ -561,7 +610,7 @@ bool multipart_jpeg_icc_profile_is_interpreted() {
                            .bit_depth = ctex::io::ExportBitDepth::bits_8,
                            .color_space = ColorSpace::srgb_rec709,
                            .jpeg_quality = 100});
-    const std::vector<unsigned char> profile = make_rec709_icc_profile(false);
+    const std::vector<unsigned char> profile = ctex::io::test::make_rec709_icc_profile(false);
     const std::vector<std::byte> profiled = add_jpeg_icc_profile(jpeg, profile);
     const auto decoded = ctex::io::decode_image_memory({
         .bytes = profiled,
@@ -592,6 +641,119 @@ bool multipart_jpeg_icc_profile_is_interpreted() {
            expect(incomplete.report.color_space_source == ColorSpaceSource::automatic_rule,
                   "incomplete JPEG ICC profile bypassed the automatic rule") &&
            expect(missing_chunk, "incomplete JPEG ICC profile was not reported");
+}
+
+bool tiff_icc_profile_is_interpreted() {
+    const std::vector<std::byte> tiff = ctex::io::encode_texture_memory(
+        red_green_rgb8(), {.format = ctex::io::ExportImageFormat::tiff,
+                           .bit_depth = ctex::io::ExportBitDepth::bits_8,
+                           .color_space = ColorSpace::srgb_rec709});
+    const std::vector<unsigned char> profile = ctex::io::test::make_rec709_icc_profile(true);
+    const std::vector<std::byte> profiled = add_tiff_icc_profile(tiff, profile);
+    const auto decoded = ctex::io::decode_image_memory({
+        .bytes = profiled,
+        .source_name = "base.tiff",
+        .intended_channel = ChannelSemantic::base_color,
+    });
+    const auto overridden = ctex::io::decode_image_memory({
+        .bytes = profiled,
+        .source_name = "base.tiff",
+        .intended_channel = ChannelSemantic::base_color,
+        .color_space = InputColorSpace::srgb_rec709,
+    });
+    std::vector<std::byte> truncated = profiled;
+    truncated.resize(truncated.size() - profile.size() / 2);
+    const auto fallback = ctex::io::decode_image_memory({
+        .bytes = truncated,
+        .source_name = "base.tiff",
+        .intended_channel = ChannelSemantic::base_color,
+    });
+    const bool truncated_reported =
+        std::ranges::any_of(fallback.report.diagnostics, [](const std::string& message) {
+            return message.find("profile offset or payload is truncated") != std::string::npos;
+        });
+    return expect(decoded.source_color_space == ColorSpace::linear_rec709 &&
+                      decoded.report.color_space_source == ColorSpaceSource::embedded_profile,
+                  "TIFF ICC profile was not interpreted") &&
+           expect(overridden.source_color_space == ColorSpace::srgb_rec709 &&
+                      overridden.report.color_space_source == ColorSpaceSource::caller,
+                  "caller declaration did not override TIFF ICC") &&
+           expect(fallback.source_color_space == ColorSpace::srgb_rec709 &&
+                      fallback.report.color_space_source == ColorSpaceSource::automatic_rule,
+                  "truncated TIFF ICC profile bypassed the automatic rule") &&
+           expect(truncated_reported, "truncated TIFF ICC profile was not reported");
+}
+
+bool psd_icc_profile_is_interpreted() {
+    const std::vector<unsigned char> profile = ctex::io::test::make_rec709_icc_profile(false);
+    const std::vector<std::byte> profiled = add_psd_icc_profile(make_rgb8_psd(), profile);
+    const auto decoded = ctex::io::decode_image_memory({
+        .bytes = profiled,
+        .source_name = "base.psd",
+        .intended_channel = ChannelSemantic::base_color,
+    });
+    const auto overridden = ctex::io::decode_image_memory({
+        .bytes = profiled,
+        .source_name = "base.psd",
+        .intended_channel = ChannelSemantic::base_color,
+        .color_space = InputColorSpace::linear_rec709,
+    });
+    std::vector<std::byte> malformed = profiled;
+    write_be32(malformed, 42, static_cast<std::uint32_t>(profile.size() + 100));
+    const auto fallback = ctex::io::decode_image_memory({
+        .bytes = malformed,
+        .source_name = "base.psd",
+        .intended_channel = ChannelSemantic::base_color,
+    });
+    const bool malformed_reported =
+        std::ranges::any_of(fallback.report.diagnostics, [](const std::string& message) {
+            return message.find("image-resource payload is truncated") != std::string::npos;
+        });
+    return expect(decoded.source_color_space == ColorSpace::srgb_rec709 &&
+                      decoded.report.color_space_source == ColorSpaceSource::embedded_profile,
+                  "PSD ICC profile was not interpreted") &&
+           expect(overridden.source_color_space == ColorSpace::linear_rec709 &&
+                      overridden.report.color_space_source == ColorSpaceSource::caller,
+                  "caller declaration did not override PSD ICC") &&
+           expect(fallback.report.color_space_source == ColorSpaceSource::automatic_rule,
+                  "malformed PSD ICC profile bypassed the automatic rule") &&
+           expect(malformed_reported, "malformed PSD ICC profile was not reported");
+}
+
+bool bmp_icc_profile_is_interpreted() {
+    const std::vector<unsigned char> profile = ctex::io::test::make_rec709_icc_profile(false);
+    const std::vector<std::byte> profiled = make_rgb8_bmp_with_icc_profile(profile);
+    const auto decoded = ctex::io::decode_image_memory({
+        .bytes = profiled,
+        .source_name = "base.bmp",
+        .intended_channel = ChannelSemantic::base_color,
+    });
+    const auto overridden = ctex::io::decode_image_memory({
+        .bytes = profiled,
+        .source_name = "base.bmp",
+        .intended_channel = ChannelSemantic::base_color,
+        .color_space = InputColorSpace::linear_rec709,
+    });
+    std::vector<std::byte> malformed = profiled;
+    write_le32(malformed, 14 + 112, static_cast<std::uint32_t>(malformed.size()));
+    const auto fallback = ctex::io::decode_image_memory({
+        .bytes = malformed,
+        .source_name = "base.bmp",
+        .intended_channel = ChannelSemantic::base_color,
+    });
+    const bool malformed_reported =
+        std::ranges::any_of(fallback.report.diagnostics, [](const std::string& message) {
+            return message.find("profile offset or payload is truncated") != std::string::npos;
+        });
+    return expect(decoded.source_color_space == ColorSpace::srgb_rec709 &&
+                      decoded.report.color_space_source == ColorSpaceSource::embedded_profile,
+                  "BMP ICC profile was not interpreted") &&
+           expect(overridden.source_color_space == ColorSpace::linear_rec709 &&
+                      overridden.report.color_space_source == ColorSpaceSource::caller,
+                  "caller declaration did not override BMP ICC") &&
+           expect(fallback.report.color_space_source == ColorSpaceSource::automatic_rule,
+                  "malformed BMP ICC profile bypassed the automatic rule") &&
+           expect(malformed_reported, "malformed BMP ICC profile was not reported");
 }
 
 bool uninterpretable_profile_is_reported_before_automatic_fallback() {
@@ -864,6 +1026,8 @@ int main() {
                    psd_preserves_sixteen_bit_composite() && embedded_space_and_caller_override() &&
                    embedded_icc_profiles_are_interpreted() &&
                    multipart_jpeg_icc_profile_is_interpreted() &&
+                   tiff_icc_profile_is_interpreted() && psd_icc_profile_is_interpreted() &&
+                   bmp_icc_profile_is_interpreted() &&
                    uninterpretable_profile_is_reported_before_automatic_fallback() &&
                    hostile_input_is_bounded_and_named() && unsupported_content_is_named() &&
                    malformed_flat_inputs_are_named() && float_png_is_refused() &&

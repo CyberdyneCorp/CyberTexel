@@ -12,6 +12,8 @@
 #include <string_view>
 #include <vector>
 
+#include "icc_test_profile.hpp"
+
 namespace {
 
 bool expect(bool condition, std::string_view message) {
@@ -103,6 +105,23 @@ std::vector<std::byte> make_layered_psd() {
     return result;
 }
 
+std::vector<std::byte> add_psd_icc_profile(std::span<const std::byte> psd,
+                                           std::span<const unsigned char> profile) {
+    std::vector<std::byte> resource;
+    append_ascii(resource, "8BIM");
+    append_u16(resource, 0x040f);
+    resource.insert(resource.end(), {std::byte{0}, std::byte{0}});
+    append_u32(resource, static_cast<std::uint32_t>(profile.size()));
+    for (const unsigned char value : profile) resource.push_back(static_cast<std::byte>(value));
+    if ((resource.size() & 1U) != 0) resource.push_back(std::byte{0});
+
+    std::vector<std::byte> result(psd.begin(), psd.begin() + 30);
+    append_u32(result, static_cast<std::uint32_t>(resource.size()));
+    result.insert(result.end(), resource.begin(), resource.end());
+    result.insert(result.end(), psd.begin() + 34, psd.end());
+    return result;
+}
+
 std::vector<std::byte> make_multipart_exr() {
     std::array<EXRHeader, 2> headers{};
     std::array<EXRImage, 2> images{};
@@ -171,9 +190,15 @@ float component(std::span<const std::byte> pixel, std::size_t index) {
 }
 
 bool layered_psd_supports_both_modes() {
-    const auto encoded = make_layered_psd();
+    const auto profile = ctex::io::test::make_rec709_icc_profile(false);
+    const auto encoded = add_psd_icc_profile(make_layered_psd(), profile);
     const auto individual = ctex::io::decode_layered_image_memory(
         {.image = {.bytes = encoded, .source_name = "layers.psd"},
+         .mode = ctex::io::LayeredDecodeMode::individual});
+    const auto overridden = ctex::io::decode_layered_image_memory(
+        {.image = {.bytes = encoded,
+                   .source_name = "layers.psd",
+                   .color_space = ctex::image::InputColorSpace::linear_rec709},
          .mode = ctex::io::LayeredDecodeMode::individual});
     const auto composite = ctex::io::decode_layered_image_memory(
         {.image = {.bytes = encoded, .source_name = "layers.psd"},
@@ -186,6 +211,18 @@ bool layered_psd_supports_both_modes() {
                       individual.images[0].image.pixels.read_pixel(0, 0)[3] == std::byte{128} &&
                       individual.images[1].image.pixels.read_pixel(0, 0)[2] == std::byte{255},
                   "PSD layer pixels changed") &&
+           expect(individual.images[0].image.source_color_space ==
+                          ctex::image::ColorSpace::srgb_rec709 &&
+                      individual.images[0].image.report.color_space_source ==
+                          ctex::io::ColorSpaceSource::embedded_profile &&
+                      individual.images[1].image.report.color_space_source ==
+                          ctex::io::ColorSpaceSource::embedded_profile,
+                  "PSD ICC profile was not applied to every individual layer") &&
+           expect(overridden.images[0].image.source_color_space ==
+                          ctex::image::ColorSpace::linear_rec709 &&
+                      overridden.images[0].image.report.color_space_source ==
+                          ctex::io::ColorSpaceSource::caller,
+                  "caller declaration did not override the layered PSD ICC profile") &&
            expect(composite.images.size() == 1 && composite.images[0].name == "Composite",
                   "PSD composited mode did not return one image") &&
            expect(composite.images[0].image.pixels.read_pixel(0, 0)[0] == std::byte{128} &&

@@ -77,14 +77,16 @@ cancellation use the same synchronous phases as flat decoding, and no names,
 metadata, or pixels are published until the whole request succeeds.
 
 An explicit caller colour-space declaration overrides metadata. Otherwise an
-embedded PNG sRGB declaration is used. PNG iCCP payloads and ordered multipart
-JPEG APP2 `ICC_PROFILE` chunks are parsed with bounded tag-table reads:
-D50-adapted Rec. 709 primaries plus either the standard sRGB parametric transfer
-curve or an identity curve resolve to sRGB Rec. 709 or linear Rec. 709
-respectively. Missing or duplicate JPEG chunks, profiles above the 16 MiB
-interpretation ceiling, unsupported primaries or transfer curves, malformed tag
-ranges, unsupported colour models and unknown types are reported before the
-automatic semantic rule is applied.
+embedded PNG sRGB declaration is used. PNG iCCP payloads, ordered multipart
+JPEG APP2 `ICC_PROFILE` chunks, TIFF tag 34675, Photoshop image resource
+`0x040f` (for both flattened and individual-layer decoding), and embedded BMP
+V5 profiles are parsed with bounded tag-table reads. D50-adapted Rec. 709
+primaries plus either the standard sRGB parametric transfer curve or an identity
+curve resolve to sRGB Rec. 709 or linear Rec. 709 respectively. Missing or
+duplicate JPEG chunks, duplicate Photoshop resources, linked BMP profiles,
+profiles above the 16 MiB interpretation ceiling, unsupported primaries or
+transfer curves, malformed tag ranges, unsupported colour models and unknown
+types are reported before the automatic semantic rule is applied.
 
 LodePNG is pinned for memory-based 8/16-bit PNG encoding and decoding. The
 pinned stb implementation decodes JPEG, TGA, BMP, flattened PSD and Radiance
