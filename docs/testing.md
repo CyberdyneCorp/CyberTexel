@@ -46,3 +46,8 @@ Capability scenario suites use CTest labels and checked Markdown matrices.
 For example, `just test-texture-document-scenarios` runs the complete document
 suite, while its matrix test refuses missing, renamed, duplicate, empty, or
 unknown executable evidence for any OpenSpec scenario.
+
+`just test-editable-authoring-scenarios` covers operation records, resize replay,
+persistent editable entries and mesh reprojection through the native and C ABI
+surfaces. Its [coverage matrix](editable-authoring-scenarios.md) is checked
+against the active OpenSpec delta and the labeled CTest inventory.

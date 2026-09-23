@@ -1423,6 +1423,14 @@ creation and public NumPy image decode/encode. Their complete committed outputs
 are linked from a checked documentation gallery; full capability coverage
 remains a separate open task.
 
+Editable-authoring group 20 is complete. Versioned operation records retain
+algorithm and preset versions, seeds, channel descriptors, mesh identity,
+pinned input bytes and checkpoint identities in canonical project-container
+assets. Recovery round trips them through the C ABI, and the generated Python
+and Rust surfaces plus Swift's direct C import expose the same operations. A
+checked six-row scenario matrix binds every editable-authoring OpenSpec scenario
+to the labeled native and strict-C test suite.
+
 ## 1. Foundation
 
 - [x] 1.1 CMake project, C++20, warnings as errors, presets for headless, macOS, Linux, Windows, iOS, Android
@@ -1698,9 +1706,9 @@ remains a separate open task.
 
 ## 20. Editable authoring
 
-- [ ] 20.1 Versioned operation records, pinned input assets and checkpoint storage; expose through C ABI and bindings and round-trip in project-io
+- [x] 20.1 Versioned operation records, pinned input assets and checkpoint storage; expose through C ABI and bindings and round-trip in project-io
 - [x] 20.2 Same-resolution recovery versus resolution-independent replay eligibility; clone/blur/smear source snapshots and checkpoint-only policy
 - [x] 20.3 Atomic undoable resize with explicit replay/resample/cancel policy and mixed-layer fixtures
 - [x] 20.4 Persistent editable decals, text and surface paths; parameter editing, invalidation, save/reopen and undo
 - [x] 20.5 Reprojection preflight, distance/angle/visibility limits, ambiguity and hole policy, tangent conversion and cancellation
-- [ ] 20.6 `editable-authoring` scenarios as tests
+- [x] 20.6 `editable-authoring` scenarios as tests

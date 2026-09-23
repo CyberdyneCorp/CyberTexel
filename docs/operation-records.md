@@ -76,5 +76,7 @@ operation record against the same supported-version catalogue. Its report names
 each unavailable edit and whether a usable raster checkpoint remains, so an
 unknown algorithm is never silently substituted during reopen or recovery.
 
-Python, Swift, and Rust wrappers are still required before editable-authoring
-task 20.1 is complete.
+The generated Python and Rust raw bindings expose every operation-record entry
+point and descriptor, while Swift imports the same public C header directly.
+`just gate-binding-parity` prevents any of those surfaces from falling behind
+the C ABI.

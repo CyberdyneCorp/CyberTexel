@@ -1745,6 +1745,23 @@ if(BUILD_TESTING)
         PROPERTIES LABELS "project-io-scenario;paint-tools-scenario;editable-authoring-scenario"
     )
     set_tests_properties(
+        operation-record
+        c-abi-operation-record
+        PROPERTIES LABELS "project-io-scenario;editable-authoring-scenario"
+    )
+    add_test(
+        NAME editable-authoring-scenario-matrix
+        COMMAND
+            "${CTEX_PYTHON3_EXECUTABLE}"
+            tests/tools/check_editable_authoring_scenario_matrix.py
+    )
+    set_tests_properties(
+        editable-authoring-scenario-matrix
+        PROPERTIES
+            WORKING_DIRECTORY "${PROJECT_SOURCE_DIR}"
+            LABELS editable-authoring-scenario
+    )
+    set_tests_properties(
         texture-export-formats texture-export-plan texture-export-execution
         texture-export-report-generate texture-export-report-json
         texture-export-determinism
