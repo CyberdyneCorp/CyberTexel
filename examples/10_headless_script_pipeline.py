@@ -28,7 +28,6 @@ def main() -> None:
     parser.add_argument("--output", required=True, type=Path)
     parser.add_argument("--executor", default="cpu")
     arguments = parser.parse_args()
-    assert arguments.executor == "cpu", "the headless example uses the CPU reference"
 
     with cybertexel.Document() as document:
         texture_set = document.create_texture_set(

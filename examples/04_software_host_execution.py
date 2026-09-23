@@ -31,7 +31,6 @@ def main() -> None:
     parser.add_argument("--output", required=True, type=Path)
     parser.add_argument("--executor", default="cpu")
     arguments = parser.parse_args()
-    assert arguments.executor == "cpu", "the software host is the display-free reference"
 
     width = height = 64
     program = cybertexel.emit_default_host_material(

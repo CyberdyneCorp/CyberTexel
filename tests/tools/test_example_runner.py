@@ -16,18 +16,26 @@ SPEC.loader.exec_module(RUNNER)
 
 EXAMPLE = '''
 import argparse
+import os
 from pathlib import Path
 p = argparse.ArgumentParser()
 p.add_argument("--output", type=Path, required=True)
 p.add_argument("--executor", required=True)
 a = p.parse_args()
-assert a.executor == "cpu"
+assert os.environ["CTEX_EXECUTOR"] == a.executor
+assert os.environ["CTEX_EXAMPLE_EXECUTOR"] == a.executor
 a.output.mkdir(parents=True, exist_ok=True)
 (a.output / "result.txt").write_text("stable\\n")
 '''
 
 
 class ExampleRunnerTests(unittest.TestCase):
+    def test_numbered_examples_accept_executor_selection(self) -> None:
+        for script in RUNNER.discover_examples():
+            source = script.read_text(encoding="utf-8")
+            self.assertIn('add_argument("--executor"', source, script.name)
+            self.assertNotIn('arguments.executor == "cpu"', source, script.name)
+
     def test_discovery_requires_numbered_examples(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             with self.assertRaisesRegex(RUNNER.ExampleFailure, "no numbered examples"):
@@ -50,9 +58,18 @@ class ExampleRunnerTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             script = root / "01_fixture.py"
-            script.write_text(EXAMPLE.replace('"cpu"', '"host"'), encoding="utf-8")
+            script.write_text(EXAMPLE, encoding="utf-8")
             with self.assertRaisesRegex(RUNNER.ExampleFailure, "only be updated"):
                 RUNNER.run_example(script, "update", "host", root / "outputs")
+
+    def test_alternate_executor_compares_against_cpu_reference(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            script = root / "01_fixture.py"
+            outputs = root / "outputs"
+            script.write_text(EXAMPLE, encoding="utf-8")
+            RUNNER.run_example(script, "update", "cpu", outputs)
+            RUNNER.run_example(script, "compare", "host", outputs)
 
     def test_compare_rejects_non_deterministic_output(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

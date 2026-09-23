@@ -246,7 +246,6 @@ def main() -> None:
     parser.add_argument("--output", required=True, type=Path)
     parser.add_argument("--executor", default="cpu")
     arguments = parser.parse_args()
-    assert arguments.executor == "cpu", "paint coverage uses the CPU reference executor"
 
     capi = cybertexel.capi
     validate_shared_parameter(capi)

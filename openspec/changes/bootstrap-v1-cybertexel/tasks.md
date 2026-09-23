@@ -1485,6 +1485,13 @@ reopens its canonical output. The device-gate example asserts the pass, fail,
 informational, unmeasured and unreachable decision vocabulary while explicitly
 refusing to present deterministic policy fixtures as hardware measurements.
 
+Task 16.9 is complete. Every numbered example accepts the runner's executor
+selection instead of enforcing CPU locally. The runner forwards the selection
+through the public `CTEX_EXECUTOR` contract and compares two deterministic runs
+against the committed CPU reference at the declared output tolerances. A
+non-CPU run cannot replace that reference, and the runner policy suite exercises
+the alternate-executor comparison path.
+
 Tasks 17.1–17.4, 17.6–17.9 and 17.11 are complete. The versioned device-gate
 manifest names the exact M3 Pro desktop and M4 iPad targets, thirty numeric time,
 memory, interaction, sustained-workload and residency budgets, and four complete
@@ -1768,7 +1775,7 @@ threading and per-binding example evidence.
 - [x] 16.6 Determinism: explicit seeds, identical output across runs
 - [x] 16.7 End-to-end example: mesh and maps through layers, graph, smart material, export
 - [x] 16.8 Host-executed route example with a software stand-in
-- [ ] 16.9 Examples runnable against any executor as a parity check
+- [x] 16.9 Examples runnable against any executor as a parity check
 - [x] 16.10 Published gallery in the documentation
 - [ ] 16.11 `examples` scenarios as tests
 

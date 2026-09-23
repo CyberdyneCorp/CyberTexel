@@ -30,7 +30,6 @@ def main() -> None:
     parser.add_argument("--output", required=True, type=Path)
     parser.add_argument("--executor", default="cpu")
     arguments = parser.parse_args()
-    assert arguments.executor == "cpu", "this storage example is executor-independent"
 
     capi = cybertexel.capi
     version = capi.ctex_get_version()
@@ -59,7 +58,6 @@ def main() -> None:
         "capabilities": list(CAPABILITIES),
         "container_bytes": len(payload),
         "container_sha256": hashlib.sha256(payload).hexdigest(),
-        "executor": arguments.executor,
         "version": cybertexel.__version__,
     }
     (arguments.output / "summary.json").write_text(

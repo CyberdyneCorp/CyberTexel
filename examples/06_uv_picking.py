@@ -24,7 +24,6 @@ def main() -> None:
     parser.add_argument("--output", required=True, type=Path)
     parser.add_argument("--executor", default="cpu")
     arguments = parser.parse_args()
-    assert arguments.executor == "cpu", "picking uses the deterministic CPU index"
 
     positions = np.array(
         [[-1, -1, 0], [1, -1, 0], [1, 1, 0], [-1, 1, 0]], dtype=np.float32

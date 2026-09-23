@@ -26,6 +26,17 @@ pixels at their stated maximum absolute channel error, currently zero. See the
 CI runs the same `just examples` recipe on a clean installed wheel and compares
 every generated artifact with those committed gallery outputs.
 
+The CPU executor creates the committed reference. To exercise another available
+executor, pass its registry identifier; the runner forwards it through both
+`CTEX_EXECUTOR` and the example argument, then compares the fresh output against
+the CPU reference using the same declared tolerances:
+
+```sh
+python3 tools/run_python_examples.py compare --executor vulkan
+```
+
+Non-CPU runs can compare or assert, but cannot update the committed reference.
+
 ## Fixtures
 
 `examples/fixtures/` contains a single-tile UV mesh, a two-tile UDIM mesh, an

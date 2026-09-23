@@ -126,6 +126,7 @@ def execute_example(script: Path, output: Path, executor: str) -> None:
     environment = os.environ.copy()
     environment.update(
         {
+            "CTEX_EXECUTOR": executor,
             "CTEX_EXAMPLE_EXECUTOR": executor,
             "CTEX_EXAMPLE_SEED": "1729",
             "PYTHONHASHSEED": "0",

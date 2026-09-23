@@ -26,7 +26,6 @@ def main() -> None:
     parser.add_argument("--output", required=True, type=Path)
     parser.add_argument("--executor", default="cpu")
     arguments = parser.parse_args()
-    assert arguments.executor == "cpu", "operation records are executor-independent"
 
     capi = cybertexel.capi
     alpha = (ROOT / "fixtures" / "alphas" / "soft_round.png").read_bytes()

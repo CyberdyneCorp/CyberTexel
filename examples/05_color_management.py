@@ -39,7 +39,6 @@ def main() -> None:
     parser.add_argument("--output", required=True, type=Path)
     parser.add_argument("--executor", default="cpu")
     arguments = parser.parse_args()
-    assert arguments.executor == "cpu", "colour conversion is executor-independent"
 
     capi = cybertexel.capi
     linear = np.array([convert_gray(value / 255.0) for value in range(256)])
