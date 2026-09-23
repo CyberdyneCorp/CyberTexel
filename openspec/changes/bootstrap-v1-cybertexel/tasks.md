@@ -1506,6 +1506,14 @@ synchronous readback ceilings. Tasks 17.5 and 17.10 remain open until the real
 reference-host runner records the scaling pair and first regression baseline;
 the hardware-dependent tasks 17.12–17.14 remain explicitly unmeasured.
 
+Release task 18.1 is in progress. The install tree now carries the public
+headers, native library, licence and third-party attribution, and a deterministic
+archive builder drives all five platform presets through named `just` recipes.
+Its standalone consumer executes from the macOS universal package and links from
+the iOS arm64 package. Linux, Windows and Android recipes are wired into CI, but
+the task remains open until their package and smoke jobs provide successful
+platform evidence.
+
 Editable-authoring group 20 is complete. Versioned operation records retain
 algorithm and preset versions, seeds, channel descriptors, mesh identity,
 pinned input bytes and checkpoint identities in canonical project-container

@@ -14,6 +14,7 @@ just check-spec   # specification checks; needs no build
 just build
 just test
 just examples
+just package-native # installed package plus standalone consumer smoke test
 just check        # everything that needs no device — run this before pushing
 ```
 
@@ -55,6 +56,11 @@ Routine native builds go through `just build`, which configures and builds the
 and CI: `linux-x64`, `macos-universal`, `windows-x64`, `ios-arm64` and
 `android-arm64`. The iOS preset requires Xcode; the Android preset requires
 `ANDROID_NDK_HOME` to point at an installed NDK.
+
+Release archives are built through `package-native` or the platform-specific
+`package-linux`, `package-macos`, `package-windows`, `package-ios` and
+`package-android` recipes. See [release packaging](docs/release-packaging.md)
+for archive contents and smoke-test policy.
 
 ## Dependencies
 

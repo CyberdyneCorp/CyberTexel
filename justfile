@@ -53,6 +53,30 @@ build-vulkan: (_require "cmake" "3.24") (_require "c++" "C++20") (_require "ninj
     cmake --preset vulkan
     cmake --build --preset vulkan
 
+# Build, inspect, smoke-test and archive the current desktop platform package.
+package-native: (_require "python3" "3.10") (_require "cmake" "3.24") (_require "ninja" "1.10")
+    #!/usr/bin/env sh
+    set -eu
+    if [ "${OS:-}" = "Windows_NT" ]; then preset=windows-x64; \
+    elif [ "$(uname -s)" = "Darwin" ]; then preset=macos-universal; \
+    else preset=linux-x64; fi
+    python3 tools/build_platform_package.py "$preset"
+
+package-linux: (_require "python3" "3.10") (_require "cmake" "3.24") (_require "ninja" "1.10")
+    python3 tools/build_platform_package.py linux-x64
+
+package-macos: (_require "python3" "3.10") (_require "cmake" "3.24") (_require "ninja" "1.10")
+    python3 tools/build_platform_package.py macos-universal
+
+package-windows: (_require "python3" "3.10") (_require "cmake" "3.24") (_require "ninja" "1.10")
+    python3 tools/build_platform_package.py windows-x64
+
+package-ios: (_require "python3" "3.10") (_require "cmake" "3.24") (_require "ninja" "1.10")
+    python3 tools/build_platform_package.py ios-arm64
+
+package-android: (_require "python3" "3.10") (_require "cmake" "3.24") (_require "ninja" "1.10")
+    python3 tools/build_platform_package.py android-arm64
+
 test: build
     ctest --preset headless
     python3 -m unittest discover -s tests/tools -p 'test_*.py'

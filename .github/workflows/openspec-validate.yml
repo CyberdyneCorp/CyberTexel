@@ -156,6 +156,71 @@ jobs:
     - name: Run examples and compare committed gallery outputs
       run: just examples
 
+  desktop-packages:
+    name: package-${{ matrix.preset }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+        - os: ubuntu-latest
+          preset: linux
+        - os: macos-15-intel
+          preset: macos
+        - os: windows-latest
+          preset: windows
+    runs-on: ${{ matrix.os }}
+    steps:
+    - uses: actions/checkout@v4
+    - uses: actions/setup-python@v5
+      with:
+        python-version: '3.12'
+    - uses: ilammy/msvc-dev-cmd@v1
+      if: runner.os == 'Windows'
+    - uses: extractions/setup-just@v2
+    - name: Build and smoke-test package
+      run: just package-${{ matrix.preset }}
+    - uses: actions/upload-artifact@v4
+      with:
+        name: cybertexel-${{ matrix.preset }}
+        path: dist/*.zip
+
+  ios-package:
+    name: package-ios-arm64
+    runs-on: macos-15-intel
+    steps:
+    - uses: actions/checkout@v4
+    - uses: actions/setup-python@v5
+      with:
+        python-version: '3.12'
+    - uses: extractions/setup-just@v2
+    - name: Build and link-smoke iOS package
+      run: just package-ios
+    - uses: actions/upload-artifact@v4
+      with:
+        name: cybertexel-ios
+        path: dist/*.zip
+
+  android-package:
+    name: package-android-arm64
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    - uses: actions/setup-python@v5
+      with:
+        python-version: '3.12'
+    - uses: android-actions/setup-android@v3
+    - name: Install Android NDK
+      run: |
+        sdkmanager "ndk;27.2.12479018"
+        echo "ANDROID_NDK_HOME=$ANDROID_HOME/ndk/27.2.12479018" >> "$GITHUB_ENV"
+    - uses: extractions/setup-just@v2
+    - name: Build and link-smoke Android package
+      run: just package-android
+    - uses: actions/upload-artifact@v4
+      with:
+        name: cybertexel-android
+        path: dist/*.zip
+
   swift-package:
     name: swift-package-macos-ios
     runs-on: macos-15-intel
