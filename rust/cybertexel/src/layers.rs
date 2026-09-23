@@ -57,3 +57,46 @@ impl LayerEntry {
         }
     }
 }
+
+/// What one undo or redo exchanged.
+///
+/// `texture-document` performs undo by exchanging exact storage owners rather
+/// than copying pixels, so `copied_pixel_bytes` is the evidence that a restore
+/// moved no pixel data.
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+pub struct HistoryRestore {
+    pub tile_count: usize,
+    pub exchanged_storage_count: usize,
+    pub copied_pixel_bytes: usize,
+    pub layer_stack_exchanged: bool,
+}
+
+/// Tile-history occupancy against its declared ceiling.
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+pub struct HistoryBudget {
+    pub budget_bytes: usize,
+    pub retained_bytes: usize,
+    pub available_bytes: usize,
+    pub undo_steps: usize,
+    pub redo_steps: usize,
+}
+
+/// One channel/tile target a history step declares before editing.
+///
+/// `texture-document` requires the write set to be declared up front, so a step
+/// retains exactly the tiles it changed and nothing else.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct HistoryTarget {
+    pub semantic_id: String,
+    pub tile_x: u32,
+    pub tile_y: u32,
+}
+
+/// What committing a history step retained.
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+pub struct HistoryCommit {
+    pub committed: bool,
+    pub tile_count: usize,
+    pub retained_bytes: usize,
+    pub layer_stack_changed: bool,
+}

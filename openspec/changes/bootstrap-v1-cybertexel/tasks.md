@@ -1602,6 +1602,31 @@ budget has actually achieved; a budget that has never passed is absent rather
 than baselined at its failure. A run more than fifteen per cent above a baseline
 fails and names it, verified against a deliberately inflated delta-query figure.
 
+2026-09-23: Residency-traffic instrumentation is in the desktop host, closing
+the first half of task 18.2 and both zero-byte budgets of task 17.14. The host
+now builds the exact interactive-4k configuration — a 4096-square texture set
+derived from a 250,632-triangle mesh with four enabled channels and eight
+visible layers — so its figures are decisions rather than a configuration
+mismatch. It runs one declared tile-history step around an authored edit,
+publishes the changed tile to its own device texture, and undoes. Measured on
+the M3 Pro: `desktop-paint-sync-readback` and `desktop-undo-sync-readback` are
+both zero and both pass, one tile of 12,288 bytes is uploaded, and undo
+exchanged storage owners with zero copied pixel bytes in 0.0028 ms.
+
+The run deliberately reports no latency figure. The authored edit goes through
+`write_channel_pixel`, a convenience documented for examples that zeroes a
+whole-canvas coverage buffer — 16 MiB at 4096 square — for a single texel, which
+is why the instrumented step takes 352 ms. That is misuse of a helper, not a
+paint-path cost; a latency measurement needs the bounded paint-work planner,
+which is task 16.12. `desktop-visible-*` also stays unmeasured because this host
+is headless and has no honest presentation stage.
+
+Task 16.12 continues in the Rust crate, which needed the same surfaces the host
+does: layer batches, tile-history capture with a declared write set, undo and
+redo reporting exchanged storage and copied bytes, the history budget report,
+mesh construction and mesh-derived texture sets. The value types live outside
+the FFI boundary, so the audited containment holds at 54 markers in one file.
+
 Editable-authoring group 20 is complete. Versioned operation records retain
 algorithm and preset versions, seeds, channel descriptors, mesh identity,
 pinned input bytes and checkpoint identities in canonical project-container

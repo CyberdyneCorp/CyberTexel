@@ -244,8 +244,10 @@ test-build-packaging-scenarios: build
 # Desktop WGSL reference host: runs the emitted pass plan on a real wgpu device.
 # Exit code 3 means no adapter was available, which is unmeasured, not a pass.
 host-desktop: host-desktop-build
+    CTEX_RUN_DATE="$(date -u +%Y-%m-%d)" CTEX_RUN_COMMIT="$(git rev-parse HEAD)" \
     cargo run --manifest-path hosts/desktop-wgpu/Cargo.toml --release -- \
-        --report build/reference-hosts/desktop-wgsl.json
+        --report build/reference-hosts/desktop-wgsl.json \
+        --measurements benchmarks/results/host-desktop-wgsl.json
 
 # Build and lint the desktop reference host without requiring a device.
 host-desktop-build: (_require "cargo" "Rust stable")

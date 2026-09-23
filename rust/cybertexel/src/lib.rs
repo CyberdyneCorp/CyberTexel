@@ -3,9 +3,14 @@
 mod ffi;
 mod host;
 mod layers;
+mod mesh;
 
 pub use host::*;
-pub use layers::{LayerChannel, LayerEntry, LayerKind};
+pub use layers::{
+    HistoryBudget, HistoryCommit, HistoryRestore, HistoryTarget, LayerChannel, LayerEntry,
+    LayerKind,
+};
+pub use mesh::MeshData;
 
 use std::cell::Cell;
 use std::fmt;
@@ -167,6 +172,83 @@ impl Document {
     /// The canonical layer-stack snapshot as JSON, including its revision.
     pub fn inspect_layers(&self, texture_set: &TextureSet) -> Result<String, Error> {
         self.handle.layer_inspect(&texture_set.identifier)
+    }
+
+    /// Derive texture sets from a mesh's face partitions.
+    ///
+    /// Returns the texture sets the document now carries. The mesh is copied
+    /// during the call; the caller keeps ownership of its buffers.
+    pub fn create_texture_sets_from_mesh(
+        &mut self,
+        mesh: &MeshData,
+        width: u32,
+        height: u32,
+    ) -> Result<Vec<TextureSet>, Error> {
+        let native = ffi::MeshHandle::create(mesh)?;
+        let identifiers = self.handle.create_texture_sets_from_mesh(
+            &native,
+            &mesh.uv_set_name,
+            width,
+            height,
+            8,
+        )?;
+        Ok(identifiers
+            .into_iter()
+            .map(|identifier| TextureSet {
+                identifier,
+                width,
+                height,
+            })
+            .collect())
+    }
+
+    /// Run `edit` as one undoable tile-history step.
+    ///
+    /// The write set is declared before the edit, so the step retains exactly
+    /// the tiles it changed. An edit that fails abandons the step.
+    pub fn with_tile_history<R>(
+        &mut self,
+        texture_set: &TextureSet,
+        step_identifier: &str,
+        targets: &[HistoryTarget],
+        edit: impl FnOnce(&mut Self) -> Result<R, Error>,
+    ) -> Result<(R, HistoryCommit), Error> {
+        let capture =
+            self.handle
+                .begin_tile_history(&texture_set.identifier, step_identifier, targets)?;
+        let value = edit(self)?;
+        let commit = capture.commit()?;
+        Ok((value, commit))
+    }
+
+    /// Declare the byte ceiling tile history may retain for a texture set.
+    pub fn configure_tile_history(
+        &mut self,
+        texture_set: &TextureSet,
+        budget_bytes: usize,
+    ) -> Result<(), Error> {
+        self.handle
+            .configure_tile_history(&texture_set.identifier, budget_bytes)
+    }
+
+    /// Tile-history occupancy against its declared ceiling.
+    pub fn tile_history_budget(
+        &self,
+        texture_set: &TextureSet,
+        proposed_step_bytes: usize,
+    ) -> Result<HistoryBudget, Error> {
+        self.handle
+            .tile_history_budget(&texture_set.identifier, proposed_step_bytes)
+    }
+
+    /// Undo the most recent tile-history step by exchanging storage owners.
+    pub fn undo_tiles(&mut self, texture_set: &TextureSet) -> Result<HistoryRestore, Error> {
+        self.handle.restore_tiles(&texture_set.identifier, false)
+    }
+
+    /// Redo the most recently undone tile-history step.
+    pub fn redo_tiles(&mut self, texture_set: &TextureSet) -> Result<HistoryRestore, Error> {
+        self.handle.restore_tiles(&texture_set.identifier, true)
     }
 
     pub fn write_channel_pixel(

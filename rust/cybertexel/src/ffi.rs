@@ -10,7 +10,8 @@ use crate::host::{
     HostRecovery, HostResource, ReadbackStatus, ReleasedResource, ReplaySemantics, RevisionCursor,
     ShaderTarget,
 };
-use crate::layers::LayerEntry;
+use crate::layers::{HistoryBudget, HistoryCommit, HistoryRestore, HistoryTarget, LayerEntry};
+use crate::mesh::MeshData;
 use crate::{Error, ResultCode, TextureSet, Version};
 
 pub(crate) struct DocumentHandle(NonNull<sys::ctex_document>);
@@ -988,6 +989,247 @@ impl DocumentHandle {
             .unwrap_or(buffer.len());
         String::from_utf8(buffer[..end].to_vec())
             .map_err(|_| Error::InvalidNativeState("layer snapshot is not UTF-8".into()))
+    }
+}
+
+impl DocumentHandle {
+    /// Declare the byte ceiling tile history may retain for a texture set.
+    pub(crate) fn configure_tile_history(
+        &self,
+        texture_set_id: &str,
+        budget_bytes: usize,
+    ) -> Result<(), Error> {
+        let texture_set_id = c_string(texture_set_id)?;
+        unsafe {
+            check(sys::ctex_texture_set_configure_tile_history(
+                self.0.as_ptr(),
+                texture_set_id.as_ptr(),
+                budget_bytes,
+            ))
+        }
+    }
+
+    pub(crate) fn tile_history_budget(
+        &self,
+        texture_set_id: &str,
+        proposed_step_bytes: usize,
+    ) -> Result<HistoryBudget, Error> {
+        let texture_set_id = c_string(texture_set_id)?;
+        let mut report = sys::ctex_tile_history_budget_report {
+            size: std::mem::size_of::<sys::ctex_tile_history_budget_report>() as u32,
+            ..Default::default()
+        };
+        unsafe {
+            check(sys::ctex_texture_set_get_tile_history_budget(
+                self.0.as_ptr(),
+                texture_set_id.as_ptr(),
+                proposed_step_bytes,
+                &mut report,
+            ))?;
+        }
+        Ok(HistoryBudget {
+            budget_bytes: report.budget_bytes,
+            retained_bytes: report.retained_bytes,
+            available_bytes: report.available_bytes,
+            undo_steps: report.undo_steps,
+            redo_steps: report.redo_steps,
+        })
+    }
+
+    pub(crate) fn restore_tiles(
+        &self,
+        texture_set_id: &str,
+        redo: bool,
+    ) -> Result<HistoryRestore, Error> {
+        let texture_set_id = c_string(texture_set_id)?;
+        let mut info = sys::ctex_tile_history_restore_info {
+            size: std::mem::size_of::<sys::ctex_tile_history_restore_info>() as u32,
+            ..Default::default()
+        };
+        unsafe {
+            let result = if redo {
+                sys::ctex_texture_set_redo_tiles(
+                    self.0.as_ptr(),
+                    texture_set_id.as_ptr(),
+                    &mut info,
+                )
+            } else {
+                sys::ctex_texture_set_undo_tiles(
+                    self.0.as_ptr(),
+                    texture_set_id.as_ptr(),
+                    &mut info,
+                )
+            };
+            check(result)?;
+        }
+        Ok(HistoryRestore {
+            tile_count: info.tile_count,
+            exchanged_storage_count: info.exchanged_storage_count,
+            copied_pixel_bytes: info.copied_pixel_bytes,
+            layer_stack_exchanged: info.layer_stack_exchanged != 0,
+        })
+    }
+}
+
+/// An open tile-history capture. Dropping it abandons the step.
+pub(crate) struct HistoryCaptureHandle(NonNull<sys::ctex_tile_history_capture>);
+
+impl HistoryCaptureHandle {
+    /// Commit the step. The native call consumes the capture either way.
+    pub(crate) fn commit(self) -> Result<HistoryCommit, Error> {
+        let mut info = sys::ctex_tile_history_commit_info {
+            size: std::mem::size_of::<sys::ctex_tile_history_commit_info>() as u32,
+            ..Default::default()
+        };
+        let pointer = self.0.as_ptr();
+        std::mem::forget(self);
+        unsafe { check(sys::ctex_tile_history_capture_commit(pointer, &mut info))? };
+        Ok(HistoryCommit {
+            committed: info.committed != 0,
+            tile_count: info.tile_count,
+            retained_bytes: info.retained_bytes,
+            layer_stack_changed: info.layer_stack_changed != 0,
+        })
+    }
+}
+
+impl Drop for HistoryCaptureHandle {
+    fn drop(&mut self) {
+        unsafe { sys::ctex_tile_history_capture_destroy(self.0.as_ptr()) };
+    }
+}
+
+impl DocumentHandle {
+    /// Declare the channel/tile write set a history step will change.
+    pub(crate) fn begin_tile_history(
+        &self,
+        texture_set_id: &str,
+        step_identifier: &str,
+        targets: &[HistoryTarget],
+    ) -> Result<HistoryCaptureHandle, Error> {
+        let texture_set_id = c_string(texture_set_id)?;
+        let step_identifier = c_string(step_identifier)?;
+        let mut retained = Vec::with_capacity(targets.len());
+        let mut native = Vec::with_capacity(targets.len());
+        for target in targets {
+            let semantic = c_string(&target.semantic_id)?;
+            native.push(sys::ctex_tile_history_target_descriptor {
+                size: std::mem::size_of::<sys::ctex_tile_history_target_descriptor>() as u32,
+                semantic_id: semantic.as_ptr(),
+                tile_x: target.tile_x,
+                tile_y: target.tile_y,
+            });
+            retained.push(semantic);
+        }
+        let mut capture = ptr::null_mut();
+        unsafe {
+            check(sys::ctex_texture_set_begin_tile_history(
+                self.0.as_ptr(),
+                texture_set_id.as_ptr(),
+                step_identifier.as_ptr(),
+                native.as_ptr(),
+                native.len(),
+                &mut capture,
+            ))?;
+        }
+        drop(retained);
+        NonNull::new(capture)
+            .map(HistoryCaptureHandle)
+            .ok_or_else(|| Error::InvalidNativeState("history capture returned no handle".into()))
+    }
+}
+
+/// An allocator-owned native mesh.
+pub(crate) struct MeshHandle(NonNull<sys::ctex_mesh>);
+
+// SAFETY: the handle has a single Rust owner and the native mesh is read-only.
+unsafe impl Send for MeshHandle {}
+
+impl MeshHandle {
+    pub(crate) fn create(data: &MeshData) -> Result<Self, Error> {
+        if data.positions.len() != data.normals.len() || data.positions.len() != data.uv.len() {
+            return Err(Error::InvalidNativeState(
+                "positions, normals and UV values must have the same count".into(),
+            ));
+        }
+        let uv_name = c_string(&data.uv_set_name)?;
+        let partition_key = c_string(&data.partition_key)?;
+        let partition_name = c_string(&data.partition_name)?;
+        let faces = data.triangle_indices.len() / 3;
+        let face_partitions = vec![0_u32; faces];
+        let face_materials = vec![0_u32; faces];
+        let uv_set = sys::ctex_uv_set_descriptor {
+            size: std::mem::size_of::<sys::ctex_uv_set_descriptor>() as u32,
+            name: uv_name.as_ptr(),
+            values: data.uv.as_ptr().cast(),
+            value_count: data.uv.len(),
+        };
+        let partition = sys::ctex_mesh_partition_descriptor {
+            size: std::mem::size_of::<sys::ctex_mesh_partition_descriptor>() as u32,
+            kind: 0,
+            stable_key: partition_key.as_ptr(),
+            display_name: partition_name.as_ptr(),
+        };
+        let descriptor = sys::ctex_mesh_descriptor {
+            size: std::mem::size_of::<sys::ctex_mesh_descriptor>() as u32,
+            positions: data.positions.as_ptr().cast(),
+            position_count: data.positions.len(),
+            normals: data.normals.as_ptr().cast(),
+            normal_count: data.normals.len(),
+            vertex_colors: ptr::null(),
+            vertex_color_count: 0,
+            triangle_indices: data.triangle_indices.as_ptr(),
+            triangle_index_count: data.triangle_indices.len(),
+            uv_sets: &uv_set,
+            uv_set_count: 1,
+            default_uv_set: uv_name.as_ptr(),
+            partitions: &partition,
+            partition_count: 1,
+            face_partition_indices: face_partitions.as_ptr(),
+            face_partition_index_count: face_partitions.len(),
+            face_material_ids: face_materials.as_ptr(),
+            face_material_id_count: face_materials.len(),
+        };
+        let mut handle = ptr::null_mut();
+        unsafe { check(sys::ctex_mesh_create(&descriptor, &mut handle))? };
+        NonNull::new(handle)
+            .map(Self)
+            .ok_or_else(|| Error::InvalidNativeState("mesh creation returned no handle".into()))
+    }
+
+    pub(crate) fn as_ptr(&self) -> *const sys::ctex_mesh {
+        self.0.as_ptr()
+    }
+}
+
+impl Drop for MeshHandle {
+    fn drop(&mut self) {
+        unsafe { sys::ctex_mesh_destroy(self.0.as_ptr()) };
+    }
+}
+
+impl DocumentHandle {
+    /// Derive texture sets from the mesh's face partitions.
+    pub(crate) fn create_texture_sets_from_mesh(
+        &self,
+        mesh: &MeshHandle,
+        uv_set: &str,
+        width: u32,
+        height: u32,
+        default_bit_depth: u8,
+    ) -> Result<Vec<String>, Error> {
+        let uv_set = c_string(uv_set)?;
+        unsafe {
+            check(sys::ctex_document_create_texture_sets_from_mesh(
+                self.0.as_ptr(),
+                mesh.as_ptr(),
+                uv_set.as_ptr(),
+                width,
+                height,
+                default_bit_depth,
+            ))?;
+        }
+        self.texture_set_ids()
     }
 }
 

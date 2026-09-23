@@ -16,12 +16,13 @@
 //!   3  no adapter was available, so the run is unmeasured (never a pass)
 
 mod plan;
+mod residency;
 
 use std::path::PathBuf;
 
 use cybertexel::{
     emit_default_host_material, CompletedHostResource, CompletionDisposition, Document,
-    HostExecutionSession, HostRecovery, HostResource, ReadbackStatus, ReplaySemantics,
+    HostExecutionSession, HostRecovery, HostResource, LayerEntry, MeshData, ReplaySemantics,
     ResourceOwner, ResourceState, ShaderTarget, SnapshotPool,
 };
 use plan::PassPlan;
@@ -29,11 +30,21 @@ use plan::PassPlan;
 const STABLE_IDENTITY: &str = "reference-host/desktop-wgsl";
 const OUTPUT_IDENTITY: &str = "material-output";
 const SEMANTIC: &str = "pbr.base_color";
+/// The interactive-4k configuration device-gate declares.
+const CHANNELS: [&str; 4] = [
+    "pbr.base_color",
+    "pbr.roughness",
+    "pbr.metallic",
+    "pbr.normal",
+];
+const TEXTURE_EXTENT: u32 = 4096;
+const MESH_TRIANGLES: usize = 250_000;
+const LAYER_COUNT: usize = 8;
 const UNMEASURED: i32 = 3;
 
-struct Device {
-    device: wgpu::Device,
-    queue: wgpu::Queue,
+pub struct Device {
+    pub device: wgpu::Device,
+    pub queue: wgpu::Queue,
     backend: String,
     adapter: String,
 }
@@ -443,55 +454,50 @@ fn run() -> Result<serde_json::Value, String> {
 
     drop(session);
 
-    // 4. The explicit transport path: what changed, pinned, laid out, read back.
+    // 4. Residency traffic: the explicit transport path, instrumented.
+    //    device-gate budgets ordinary resident paint and undo at zero bytes of
+    //    synchronous pixel readback, so the host counts what it actually moved.
+    //    The configuration is the one device-gate declares as interactive-4k:
+    //    a 4096-square texture set over a 250k-triangle mesh, four enabled
+    //    channels and eight visible layers. A host that measured something
+    //    smaller would have its figures refused as a configuration mismatch.
     let mut document = Document::new().map_err(|error| format!("document failed: {error}"))?;
+    let mesh = MeshData::grid(MESH_TRIANGLES);
     let texture_set = document
-        .create_texture_set("Reference", "reference", 64, 64)
-        .map_err(|error| format!("texture set failed: {error}"))?;
+        .create_texture_sets_from_mesh(&mesh, TEXTURE_EXTENT, TEXTURE_EXTENT)
+        .map_err(|error| format!("texture sets failed: {error}"))?
+        .into_iter()
+        .next()
+        .ok_or_else(|| "the mesh derived no texture set".to_string())?;
+    for semantic in CHANNELS {
+        document
+            .set_channel_enabled(&texture_set, semantic, 0)
+            .map_err(|error| format!("channel failed: {error}"))?;
+    }
     document
-        .set_channel_enabled(&texture_set, SEMANTIC, 0)
-        .map_err(|error| format!("channel failed: {error}"))?;
+        .append_layers(
+            &texture_set,
+            &(0..LAYER_COUNT)
+                .map(|index| {
+                    LayerEntry::paint(&format!("paint.{index}"), &format!("Layer {index}"))
+                })
+                .collect::<Vec<_>>(),
+        )
+        .map_err(|error| format!("layers failed: {error}"))?;
+    document
+        .configure_tile_history(&texture_set, 64 << 20)
+        .map_err(|error| format!("history budget failed: {error}"))?;
     let pool = SnapshotPool::new(4 << 20).map_err(|error| format!("pool failed: {error}"))?;
-    let before = pool
-        .current_cursor(&document, &texture_set, SEMANTIC)
-        .map_err(|error| format!("cursor failed: {error}"))?;
-    // A write matching the stored value produces no delta by design, and the
-    // emitted material is a constant that may equal the channel's default. The
-    // host therefore writes the device colour and its complement, so at least
-    // one texel differs and the tile is genuinely dirty.
-    let device_texel = [first[0], first[1], first[2]];
-    let complement = [!first[0], !first[1], !first[2]];
-    document
-        .write_channel_pixel(&texture_set, SEMANTIC, 2, 3, &device_texel)
-        .map_err(|error| format!("write failed: {error}"))?;
-    document
-        .write_channel_pixel(&texture_set, SEMANTIC, 4, 5, &complement)
-        .map_err(|error| format!("complement write failed: {error}"))?;
-    let snapshot = pool
-        .snapshot(&document, &texture_set, SEMANTIC, before)
-        .map_err(|error| format!("snapshot failed: {error}"))?;
-    let mut readback = snapshot
-        .begin_host_readback()
-        .map_err(|error| format!("readback failed: {error}"))?;
-    let sizes = readback.tile_byte_sizes();
-    if sizes.is_empty() {
-        return Err("the snapshot reported no changed tile to read back".to_string());
+    let traffic = residency::measure(&gpu, &mut document, &texture_set, SEMANTIC, &pool)?;
+    if traffic.paint.synchronous_readback_bytes != 0 || traffic.undo.synchronous_readback_bytes != 0
+    {
+        return Err("resident paint or undo performed a synchronous pixel readback".to_string());
     }
-    let initial = readback.status().map_err(|e| e.to_string())?;
-    if initial != ReadbackStatus::Pending {
+    if traffic.undo.copied_pixel_bytes != 0 {
         return Err(format!(
-            "a fresh host readback must be pending, not {initial:?}"
+            "undo copied {} pixel bytes; it must exchange storage owners",
+            traffic.undo.copied_pixel_bytes
         ));
-    }
-    if readback.tiles().is_ok() {
-        return Err("a pending host readback must not publish tiles".to_string());
-    }
-    let tiles: Vec<Vec<u8>> = sizes.iter().map(|size| vec![0u8; *size]).collect();
-    readback
-        .complete(&tiles)
-        .map_err(|error| format!("readback completion failed: {error}"))?;
-    if readback.status().map_err(|e| e.to_string())? != ReadbackStatus::Complete {
-        return Err("a completed host readback must report complete".to_string());
     }
 
     Ok(serde_json::json!({
@@ -501,12 +507,71 @@ fn run() -> Result<serde_json::Value, String> {
         "stable_identity": parsed.stable_identity,
         "pass_count": parsed.passes.len(),
         "target": { "width": width, "height": height, "format": parsed.resources[0].format },
-        "rendered_texel": device_texel,
+        "rendered_texel": [first[0], first[1], first[2]],
         "published_revision": completion.published_revision,
-        "transport_tile_count": sizes.len(),
-        "transport_tile_bytes": sizes,
-        "synchronous_pixel_readbacks": 0,
+        "residency": {
+            "tiles_uploaded": traffic.tiles_uploaded,
+            "paint_upload_bytes": traffic.paint.upload_bytes,
+            "paint_synchronous_readback_bytes": traffic.paint.synchronous_readback_bytes,
+            "paint_ms": traffic.paint.elapsed_ms,
+            "undo_synchronous_readback_bytes": traffic.undo.synchronous_readback_bytes,
+            "undo_copied_pixel_bytes": traffic.undo.copied_pixel_bytes,
+            "undo_ms": traffic.undo.elapsed_ms,
+            "history_retained_bytes": traffic.history_retained_bytes,
+        },
+        "configuration": {
+            "id": "interactive-4k",
+            "texture_extent": TEXTURE_EXTENT,
+            "mesh_triangles": mesh.triangle_count(),
+            "layers": LAYER_COUNT,
+            "channels": CHANNELS.len(),
+        },
     }))
+}
+
+/// Write the schema-1 measurement run device-gate decides on.
+///
+/// Only the residency byte budgets are emitted. The host does not yet present
+/// to a surface, so input-to-visible has no honest presentation stage and is
+/// left out rather than approximated; the gate then reports it as unmeasured.
+fn write_measurements(path: &std::path::Path, report: &serde_json::Value) -> Result<(), String> {
+    let residency = &report["residency"];
+    let run = serde_json::json!({
+        "schema": 1,
+        "device_id": "macbook-pro-m3-pro-18gpu-36gb",
+        "date": report["date"],
+        "commit": report["commit"],
+        "command": "just host-desktop",
+        "measurements": [
+            {
+                "budget_id": "desktop-paint-sync-readback",
+                "value": residency["paint_synchronous_readback_bytes"],
+                "unit": "bytes",
+                "configuration": "interactive-4k",
+                "batch_size": 1,
+            },
+            {
+                "budget_id": "desktop-undo-sync-readback",
+                "value": residency["undo_synchronous_readback_bytes"],
+                "unit": "bytes",
+                "configuration": "interactive-4k",
+                "batch_size": 1,
+            },
+        ],
+        "not_measured": [
+            "desktop-visible-* needs a presenting surface; this host is headless",
+            "the instrumented paint step uses write_channel_pixel, a convenience that \
+    zeroes a whole-canvas coverage buffer, so its wall time is not a latency figure",
+        ],
+    });
+    if let Some(parent) = path.parent() {
+        std::fs::create_dir_all(parent).map_err(|error| error.to_string())?;
+    }
+    std::fs::write(
+        path,
+        serde_json::to_string_pretty(&run).map_err(|e| e.to_string())? + "\n",
+    )
+    .map_err(|error| error.to_string())
 }
 
 fn main() {
@@ -514,8 +579,24 @@ fn main() {
         .skip_while(|argument| argument != "--report")
         .nth(1)
         .map(PathBuf::from);
+    let measurements = std::env::args()
+        .skip_while(|argument| argument != "--measurements")
+        .nth(1)
+        .map(PathBuf::from);
     match run() {
-        Ok(value) => {
+        Ok(mut value) => {
+            value["date"] = serde_json::Value::String(
+                std::env::var("CTEX_RUN_DATE").unwrap_or_else(|_| "unknown".to_string()),
+            );
+            value["commit"] = serde_json::Value::String(
+                std::env::var("CTEX_RUN_COMMIT").unwrap_or_else(|_| "unknown".to_string()),
+            );
+            if let Some(path) = &measurements {
+                if let Err(error) = write_measurements(path, &value) {
+                    eprintln!("desktop reference host failed: {error}");
+                    std::process::exit(2);
+                }
+            }
             let text = serde_json::to_string_pretty(&value).expect("report serializes");
             if let Some(path) = report {
                 if let Some(parent) = path.parent() {
