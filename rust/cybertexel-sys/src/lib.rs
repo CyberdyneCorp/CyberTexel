@@ -1,7 +1,7 @@
 //! Raw declarations generated from `include/ctex/capi.h`.
 //! Regenerate with `python3 tools/generate_rust_sys.py`.
 
-//! C header SHA-256: d259b12df1a65a7b3b88c15bbf5e6170e7ef4220db0e29a51d0cb98cf89ade65
+//! C header SHA-256: ea0c1ae541e70306ddb7cdd54f72d04e28167af06f41731029ec44fb4a3aa360
 
 #![allow(non_camel_case_types, non_snake_case, non_upper_case_globals)]
 
@@ -2994,6 +2994,8 @@ pub const ctex_color_space_source_CTEX_COLOR_SPACE_SOURCE_EMBEDDED_SRGB: ctex_co
     1;
 pub const ctex_color_space_source_CTEX_COLOR_SPACE_SOURCE_AUTOMATIC_RULE: ctex_color_space_source =
     2;
+pub const ctex_color_space_source_CTEX_COLOR_SPACE_SOURCE_EMBEDDED_PROFILE:
+    ctex_color_space_source = 3;
 pub type ctex_color_space_source = ::std::os::raw::c_uint;
 #[repr(C)]
 #[derive(Debug, Default, Copy, Clone)]

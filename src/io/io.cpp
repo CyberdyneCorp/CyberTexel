@@ -9,6 +9,7 @@
 #include <array>
 #include <bit>
 #include <cctype>
+#include <cstdint>
 #include <cstdlib>
 #include <cstring>
 #include <ctex/io/container_version.hpp>
@@ -293,6 +294,110 @@ image::TiledImage unpack_image(const unsigned char* decoded, std::uint32_t width
     return result;
 }
 
+constexpr std::uint32_t icc_signature(char a, char b, char c, char d) noexcept {
+    return (static_cast<std::uint32_t>(static_cast<unsigned char>(a)) << 24U) |
+           (static_cast<std::uint32_t>(static_cast<unsigned char>(b)) << 16U) |
+           (static_cast<std::uint32_t>(static_cast<unsigned char>(c)) << 8U) |
+           static_cast<std::uint32_t>(static_cast<unsigned char>(d));
+}
+
+std::optional<std::uint32_t> icc_u32(std::span<const unsigned char> bytes,
+                                     std::size_t offset) noexcept {
+    if (offset > bytes.size() || bytes.size() - offset < 4) return std::nullopt;
+    return (static_cast<std::uint32_t>(bytes[offset]) << 24U) |
+           (static_cast<std::uint32_t>(bytes[offset + 1]) << 16U) |
+           (static_cast<std::uint32_t>(bytes[offset + 2]) << 8U) |
+           static_cast<std::uint32_t>(bytes[offset + 3]);
+}
+
+std::optional<double> icc_fixed(std::span<const unsigned char> bytes, std::size_t offset) noexcept {
+    const std::optional<std::uint32_t> encoded = icc_u32(bytes, offset);
+    if (!encoded) return std::nullopt;
+    return static_cast<double>(std::bit_cast<std::int32_t>(*encoded)) / 65'536.0;
+}
+
+std::optional<std::span<const unsigned char>> icc_tag(std::span<const unsigned char> profile,
+                                                      std::uint32_t wanted) noexcept {
+    const std::optional<std::uint32_t> count = icc_u32(profile, 128);
+    if (!count || *count > (profile.size() - 132) / 12) return std::nullopt;
+    for (std::uint32_t index = 0; index < *count; ++index) {
+        const std::size_t entry = 132 + static_cast<std::size_t>(index) * 12;
+        const auto signature = icc_u32(profile, entry);
+        const auto offset = icc_u32(profile, entry + 4);
+        const auto size = icc_u32(profile, entry + 8);
+        if (!signature || !offset || !size || *offset > profile.size() ||
+            *size > profile.size() - *offset) {
+            return std::nullopt;
+        }
+        if (*signature == wanted) return profile.subspan(*offset, *size);
+    }
+    return std::nullopt;
+}
+
+bool close_icc_value(double actual, double expected) noexcept {
+    return std::abs(actual - expected) <= 0.002;
+}
+
+bool matches_icc_xyz(std::span<const unsigned char> profile, std::uint32_t tag,
+                     std::array<double, 3> expected) noexcept {
+    const auto data = icc_tag(profile, tag);
+    if (!data || data->size() < 20 || icc_u32(*data, 0) != icc_signature('X', 'Y', 'Z', ' ')) {
+        return false;
+    }
+    const auto x = icc_fixed(*data, 8);
+    const auto y = icc_fixed(*data, 12);
+    const auto z = icc_fixed(*data, 16);
+    return x && y && z && close_icc_value(*x, expected[0]) && close_icc_value(*y, expected[1]) &&
+           close_icc_value(*z, expected[2]);
+}
+
+enum class IccTransfer { unknown, linear, srgb };
+
+IccTransfer icc_transfer(std::span<const unsigned char> profile, std::uint32_t tag) noexcept {
+    const auto data = icc_tag(profile, tag);
+    if (!data || data->size() < 12) return IccTransfer::unknown;
+    const auto type = icc_u32(*data, 0);
+    if (type == icc_signature('c', 'u', 'r', 'v') && icc_u32(*data, 8) == 0U) {
+        return IccTransfer::linear;
+    }
+    if (type != icc_signature('p', 'a', 'r', 'a') || data->size() < 32 || (*data)[8] != 0 ||
+        (*data)[9] != 3) {
+        return IccTransfer::unknown;
+    }
+    constexpr std::array expected{2.4, 1.0 / 1.055, 0.055 / 1.055, 1.0 / 12.92, 0.04045};
+    for (std::size_t index = 0; index < expected.size(); ++index) {
+        const auto parameter = icc_fixed(*data, 12 + index * 4);
+        if (!parameter || !close_icc_value(*parameter, expected[index])) {
+            return IccTransfer::unknown;
+        }
+    }
+    return IccTransfer::srgb;
+}
+
+std::optional<image::ColorSpace> interpret_icc_profile(
+    std::span<const unsigned char> profile) noexcept {
+    const auto declared_size = icc_u32(profile, 0);
+    if (!declared_size || *declared_size < 132 || *declared_size > profile.size() ||
+        icc_u32(profile, 16) != icc_signature('R', 'G', 'B', ' ') ||
+        icc_u32(profile, 20) != icc_signature('X', 'Y', 'Z', ' ') ||
+        icc_u32(profile, 36) != icc_signature('a', 'c', 's', 'p')) {
+        return std::nullopt;
+    }
+    profile = profile.first(*declared_size);
+    const bool rec709_primaries =
+        matches_icc_xyz(profile, icc_signature('r', 'X', 'Y', 'Z'), {0.4361, 0.2225, 0.0139}) &&
+        matches_icc_xyz(profile, icc_signature('g', 'X', 'Y', 'Z'), {0.3851, 0.7169, 0.0971}) &&
+        matches_icc_xyz(profile, icc_signature('b', 'X', 'Y', 'Z'), {0.1431, 0.0606, 0.7142}) &&
+        matches_icc_xyz(profile, icc_signature('w', 't', 'p', 't'), {0.9642, 1.0, 0.8249});
+    if (!rec709_primaries) return std::nullopt;
+    const IccTransfer red = icc_transfer(profile, icc_signature('r', 'T', 'R', 'C'));
+    const IccTransfer green = icc_transfer(profile, icc_signature('g', 'T', 'R', 'C'));
+    const IccTransfer blue = icc_transfer(profile, icc_signature('b', 'T', 'R', 'C'));
+    if (red == IccTransfer::unknown || red != green || red != blue) return std::nullopt;
+    return red == IccTransfer::srgb ? image::ColorSpace::srgb_rec709
+                                    : image::ColorSpace::linear_rec709;
+}
+
 std::pair<image::ColorSpace, ColorSpaceSource> resolve_color_space(
     const DecodeRequest& request, const LodePNGInfo& png_info,
     std::vector<std::string>& diagnostics) {
@@ -305,8 +410,16 @@ std::pair<image::ColorSpace, ColorSpaceSource> resolve_color_space(
         return {image::ColorSpace::srgb_rec709, ColorSpaceSource::embedded_srgb};
     }
     if (png_info.iccp_defined != 0) {
+        const auto interpreted = interpret_icc_profile(
+            {png_info.iccp_profile, static_cast<std::size_t>(png_info.iccp_profile_size)});
+        if (interpreted) {
+            diagnostics.emplace_back("PNG ICC profile interpreted as " +
+                                     std::string(image::color_space_name(*interpreted)));
+            return {*interpreted, ColorSpaceSource::embedded_profile};
+        }
         diagnostics.emplace_back(
-            "PNG ICC profile is not interpreted; automatic channel rule applied");
+            "PNG ICC profile is not interpreted; automatic channel rule "
+            "applied");
     }
     const auto resolved =
         image::resolve_input_space(image::InputColorSpace::automatic, request.intended_channel);

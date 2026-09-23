@@ -480,6 +480,9 @@ packed, row-major and interleaved; 16-bit components use native byte order.
 bit depth, colour space and its source, detected format, extension mismatch and
 an uninterpretable-profile flag. Explicit caller colour declarations and the
 automatic per-channel rule use the same enums as the colour-management API.
+The source distinguishes an embedded sRGB PNG declaration from an interpreted
+embedded ICC profile; supported profiles resolve D50-adapted Rec. 709 primaries
+with either sRGB or linear transfer curves.
 OpenEXR expands to RGBA float32 and Radiance HDR retains RGB float32; both use
 linear Rec. 709 in automatic mode and preserve finite values outside `[0, 1]`.
 

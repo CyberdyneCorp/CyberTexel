@@ -1,4 +1,4 @@
-# C header SHA-256: d259b12df1a65a7b3b88c15bbf5e6170e7ef4220db0e29a51d0cb98cf89ade65
+# C header SHA-256: ea0c1ae541e70306ddb7cdd54f72d04e28167af06f41731029ec44fb4a3aa360
 """Generated raw ctypes declarations for the CyberTexel C ABI.
 
 Regenerate with ``just generate-python-capi``.
@@ -5335,6 +5335,7 @@ enum_ctex_color_space_source = c_int
 CTEX_COLOR_SPACE_SOURCE_CALLER = 0
 CTEX_COLOR_SPACE_SOURCE_EMBEDDED_SRGB = 1
 CTEX_COLOR_SPACE_SOURCE_AUTOMATIC_RULE = 2
+CTEX_COLOR_SPACE_SOURCE_EMBEDDED_PROFILE = 3
 ctex_color_space_source = enum_ctex_color_space_source
 
 class struct_ctex_image_decode_limits_descriptor(Structure):

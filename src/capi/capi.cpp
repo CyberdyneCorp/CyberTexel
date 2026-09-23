@@ -1598,6 +1598,8 @@ std::uint32_t color_space_source(ctex::io::ColorSpaceSource source) noexcept {
             return CTEX_COLOR_SPACE_SOURCE_EMBEDDED_SRGB;
         case ctex::io::ColorSpaceSource::automatic_rule:
             return CTEX_COLOR_SPACE_SOURCE_AUTOMATIC_RULE;
+        case ctex::io::ColorSpaceSource::embedded_profile:
+            return CTEX_COLOR_SPACE_SOURCE_EMBEDDED_PROFILE;
     }
     return CTEX_COLOR_SPACE_SOURCE_AUTOMATIC_RULE;
 }

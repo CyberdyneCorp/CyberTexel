@@ -2577,7 +2577,8 @@ typedef enum ctex_image_file_format {
 typedef enum ctex_color_space_source {
     CTEX_COLOR_SPACE_SOURCE_CALLER = 0,
     CTEX_COLOR_SPACE_SOURCE_EMBEDDED_SRGB = 1,
-    CTEX_COLOR_SPACE_SOURCE_AUTOMATIC_RULE = 2
+    CTEX_COLOR_SPACE_SOURCE_AUTOMATIC_RULE = 2,
+    CTEX_COLOR_SPACE_SOURCE_EMBEDDED_PROFILE = 3
 } ctex_color_space_source;
 
 typedef struct ctex_image_decode_limits_descriptor {

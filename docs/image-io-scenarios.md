@@ -12,7 +12,7 @@ the matrix verifies that the recipe is present in the workflow.
 | Mislabelled file | `png-io`, `c-abi-image-io` | PNG bytes with a JPEG name decode as PNG and report the extension mismatch. |
 | 16-bit source | `png-io`, `c-abi-image-io` | Native 16-bit samples survive decode and caller-buffer transfer without reduction. |
 | Grayscale into a colour slot | `tiled-image`, `c-abi-image-io` | The documented expansion replicates grayscale into RGB and adds opaque alpha only when requested. |
-| Embedded profile | `png-io` | An embedded sRGB declaration is selected automatically and an explicit caller declaration overrides it. |
+| Embedded profile | `png-io` | Embedded PNG sRGB metadata and bounded RGB ICC profiles for sRGB/linear Rec. 709 are interpreted; an explicit caller declaration overrides either. |
 | Uninterpretable profile | `png-io` | A valid PNG carrying an unsupported ICC profile reports it before applying the automatic semantic rule. |
 | HDR environment image | `png-io` | Radiance HDR and OpenEXR decode into float storage while retaining values above one. |
 | Importing a layered PSD | `layered-image-io` | Named PSD layers are returned independently in file order. |

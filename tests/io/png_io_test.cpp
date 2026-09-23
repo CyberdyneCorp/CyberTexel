@@ -15,6 +15,7 @@
 #include <stdexcept>
 #include <string>
 #include <string_view>
+#include <vector>
 
 namespace {
 
@@ -119,6 +120,104 @@ std::vector<std::byte> make_gray8_png_with_icc_profile() {
     lodepng_state_cleanup(&state);
     if (error != 0) {
         throw std::runtime_error("could not create ICC PNG fixture: " +
+                                 std::string(lodepng_error_text(error)));
+    }
+    std::vector<std::byte> encoded(output_size);
+    std::memcpy(encoded.data(), output, output_size);
+    std::free(output);
+    return encoded;
+}
+
+constexpr std::uint32_t icc_signature(char a, char b, char c, char d) noexcept {
+    return (static_cast<std::uint32_t>(static_cast<unsigned char>(a)) << 24U) |
+           (static_cast<std::uint32_t>(static_cast<unsigned char>(b)) << 16U) |
+           (static_cast<std::uint32_t>(static_cast<unsigned char>(c)) << 8U) |
+           static_cast<std::uint32_t>(static_cast<unsigned char>(d));
+}
+
+void write_icc_u32(std::vector<unsigned char>& profile, std::size_t offset, std::uint32_t value) {
+    profile[offset] = static_cast<unsigned char>(value >> 24U);
+    profile[offset + 1] = static_cast<unsigned char>(value >> 16U);
+    profile[offset + 2] = static_cast<unsigned char>(value >> 8U);
+    profile[offset + 3] = static_cast<unsigned char>(value);
+}
+
+void write_icc_fixed(std::vector<unsigned char>& profile, std::size_t offset, double value) {
+    write_icc_u32(profile, offset,
+                  static_cast<std::uint32_t>(static_cast<std::int32_t>(value * 65'536.0 + 0.5)));
+}
+
+std::vector<unsigned char> make_rec709_icc_profile(bool linear) {
+    constexpr std::array xyz_offsets{216U, 236U, 256U, 276U};
+    constexpr std::array trc_offsets{296U, 328U, 360U};
+    constexpr std::array xyz_signatures{
+        icc_signature('r', 'X', 'Y', 'Z'), icc_signature('g', 'X', 'Y', 'Z'),
+        icc_signature('b', 'X', 'Y', 'Z'), icc_signature('w', 't', 'p', 't')};
+    constexpr std::array trc_signatures{icc_signature('r', 'T', 'R', 'C'),
+                                        icc_signature('g', 'T', 'R', 'C'),
+                                        icc_signature('b', 'T', 'R', 'C')};
+    constexpr std::array<std::array<double, 3>, 4> xyz_values{
+        std::array{0.4361, 0.2225, 0.0139}, std::array{0.3851, 0.7169, 0.0971},
+        std::array{0.1431, 0.0606, 0.7142}, std::array{0.9642, 1.0, 0.8249}};
+    std::vector<unsigned char> profile(392);
+    write_icc_u32(profile, 0, static_cast<std::uint32_t>(profile.size()));
+    write_icc_u32(profile, 12, icc_signature('m', 'n', 't', 'r'));
+    write_icc_u32(profile, 16, icc_signature('R', 'G', 'B', ' '));
+    write_icc_u32(profile, 20, icc_signature('X', 'Y', 'Z', ' '));
+    write_icc_u32(profile, 36, icc_signature('a', 'c', 's', 'p'));
+    write_icc_u32(profile, 128, 7);
+    std::size_t table = 132;
+    for (std::size_t index = 0; index < xyz_offsets.size(); ++index) {
+        write_icc_u32(profile, table, xyz_signatures[index]);
+        write_icc_u32(profile, table + 4, xyz_offsets[index]);
+        write_icc_u32(profile, table + 8, 20);
+        table += 12;
+        write_icc_u32(profile, xyz_offsets[index], icc_signature('X', 'Y', 'Z', ' '));
+        for (std::size_t component = 0; component < 3; ++component) {
+            write_icc_fixed(profile, xyz_offsets[index] + 8 + component * 4,
+                            xyz_values[index][component]);
+        }
+    }
+    constexpr std::array srgb_curve{2.4, 1.0 / 1.055, 0.055 / 1.055, 1.0 / 12.92, 0.04045};
+    for (std::size_t index = 0; index < trc_offsets.size(); ++index) {
+        write_icc_u32(profile, table, trc_signatures[index]);
+        write_icc_u32(profile, table + 4, trc_offsets[index]);
+        write_icc_u32(profile, table + 8, linear ? 12U : 32U);
+        table += 12;
+        if (linear) {
+            write_icc_u32(profile, trc_offsets[index], icc_signature('c', 'u', 'r', 'v'));
+            write_icc_u32(profile, trc_offsets[index] + 8, 0);
+        } else {
+            write_icc_u32(profile, trc_offsets[index], icc_signature('p', 'a', 'r', 'a'));
+            profile[trc_offsets[index] + 9] = 3;
+            for (std::size_t parameter = 0; parameter < srgb_curve.size(); ++parameter) {
+                write_icc_fixed(profile, trc_offsets[index] + 12 + parameter * 4,
+                                srgb_curve[parameter]);
+            }
+        }
+    }
+    return profile;
+}
+
+std::vector<std::byte> make_rgb8_png_with_icc_profile(bool linear) {
+    const std::vector<unsigned char> profile = make_rec709_icc_profile(linear);
+    constexpr std::array<unsigned char, 6> pixels{17, 34, 51, 230, 210, 190};
+    LodePNGState state;
+    lodepng_state_init(&state);
+    state.info_raw.colortype = LCT_RGB;
+    state.info_raw.bitdepth = 8;
+    state.info_png.color.colortype = LCT_RGB;
+    state.info_png.color.bitdepth = 8;
+    unsigned error =
+        lodepng_set_icc(&state.info_png, "Rec.709 fixture", profile.data(), profile.size());
+    unsigned char* output = nullptr;
+    std::size_t output_size{};
+    if (error == 0) {
+        error = lodepng_encode(&output, &output_size, pixels.data(), 2, 1, &state);
+    }
+    lodepng_state_cleanup(&state);
+    if (error != 0) {
+        throw std::runtime_error("could not create interpreted ICC PNG fixture: " +
                                  std::string(lodepng_error_text(error)));
     }
     std::vector<std::byte> encoded(output_size);
@@ -392,6 +491,41 @@ bool embedded_space_and_caller_override() {
                   "caller source was not reported");
 }
 
+bool embedded_icc_profiles_are_interpreted() {
+    const auto srgb = ctex::io::decode_image_memory({
+        .bytes = make_rgb8_png_with_icc_profile(false),
+        .source_name = "base.png",
+        .intended_channel = ChannelSemantic::base_color,
+    });
+    const auto linear = ctex::io::decode_image_memory({
+        .bytes = make_rgb8_png_with_icc_profile(true),
+        .source_name = "base.png",
+        .intended_channel = ChannelSemantic::base_color,
+    });
+    const auto overridden = ctex::io::decode_image_memory({
+        .bytes = make_rgb8_png_with_icc_profile(false),
+        .source_name = "base.png",
+        .intended_channel = ChannelSemantic::base_color,
+        .color_space = InputColorSpace::linear_rec709,
+    });
+    const bool interpreted =
+        std::ranges::any_of(srgb.report.diagnostics, [](const std::string& message) {
+            return message.find("ICC profile interpreted") != std::string::npos;
+        });
+    return expect(srgb.source_color_space == ColorSpace::srgb_rec709,
+                  "sRGB ICC profile was not interpreted") &&
+           expect(srgb.report.color_space_source == ColorSpaceSource::embedded_profile,
+                  "sRGB ICC profile source was not reported") &&
+           expect(linear.source_color_space == ColorSpace::linear_rec709,
+                  "linear Rec. 709 ICC profile was not interpreted") &&
+           expect(linear.report.color_space_source == ColorSpaceSource::embedded_profile,
+                  "linear ICC profile source was not reported") &&
+           expect(overridden.source_color_space == ColorSpace::linear_rec709 &&
+                      overridden.report.color_space_source == ColorSpaceSource::caller,
+                  "caller declaration did not override the ICC profile") &&
+           expect(interpreted, "interpreted ICC profile was not reported");
+}
+
 bool uninterpretable_profile_is_reported_before_automatic_fallback() {
     const auto decoded = ctex::io::decode_image_memory({
         .bytes = make_gray8_png_with_icc_profile(),
@@ -660,6 +794,7 @@ int main() {
                    decoder_set_covers_flat_formats() &&
                    tiff_preserves_integer_and_float_precision() &&
                    psd_preserves_sixteen_bit_composite() && embedded_space_and_caller_override() &&
+                   embedded_icc_profiles_are_interpreted() &&
                    uninterpretable_profile_is_reported_before_automatic_fallback() &&
                    hostile_input_is_bounded_and_named() && unsupported_content_is_named() &&
                    malformed_flat_inputs_are_named() && float_png_is_refused() &&

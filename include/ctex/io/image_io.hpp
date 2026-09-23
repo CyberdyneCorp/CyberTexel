@@ -26,7 +26,7 @@ enum class ImageIoErrorCode {
     cancelled,
 };
 
-enum class ColorSpaceSource { caller, embedded_srgb, automatic_rule };
+enum class ColorSpaceSource { caller, embedded_srgb, automatic_rule, embedded_profile };
 
 struct DecodeLimits {
     std::uint32_t maximum_width = 16'384;

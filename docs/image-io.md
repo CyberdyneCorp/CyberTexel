@@ -77,8 +77,12 @@ cancellation use the same synchronous phases as flat decoding, and no names,
 metadata, or pixels are published until the whole request succeeds.
 
 An explicit caller colour-space declaration overrides metadata. Otherwise an
-embedded PNG sRGB declaration is used, followed by the automatic semantic rule.
-Unsupported ICC profiles are reported before the automatic rule is applied.
+embedded PNG sRGB declaration is used. RGB ICC profiles are parsed with bounded
+tag-table reads: D50-adapted Rec. 709 primaries plus either the standard sRGB
+parametric transfer curve or an identity curve resolve to sRGB Rec. 709 or
+linear Rec. 709 respectively. Profiles with unsupported primaries, transfer
+curves, colour models, malformed tag ranges or unknown types are reported
+before the automatic semantic rule is applied.
 
 LodePNG is pinned for memory-based 8/16-bit PNG encoding and decoding. The
 pinned stb implementation decodes JPEG, TGA, BMP, flattened PSD and Radiance
