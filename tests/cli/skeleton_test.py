@@ -14,6 +14,7 @@ import tempfile
 BINARY = sys.argv[1]
 ROOT = Path(sys.argv[2])
 FIXTURE_WRITER = sys.argv[3]
+NATIVE_LIBRARY = sys.argv[4]
 COMMANDS = ("export", "bake-request", "apply", "run", "info", "validate")
 GLOBAL_OPTIONS = (
     "--report",
@@ -39,6 +40,9 @@ def run(
 ) -> subprocess.CompletedProcess[str]:
     child_environment = os.environ.copy()
     child_environment.pop("CTEX_EXECUTOR", None)
+    child_environment["CTEX_PYTHON"] = sys.executable
+    child_environment["CYBERTEXEL_LIBRARY"] = NATIVE_LIBRARY
+    child_environment["PYTHONPATH"] = str(ROOT / "python" / "src")
     if environment:
         child_environment.update(environment)
     return subprocess.run(
@@ -394,5 +398,115 @@ with tempfile.TemporaryDirectory(prefix="ctex-cli-apply-") as temporary:
     assert missing_resource.returncode == 5
     assert not missing_output.exists()
     assert "missing resource" in missing_resource.stderr
+
+    script = directory / "edit.py"
+    script.write_text(
+        "import os\n"
+        "def main(document):\n"
+        "    print('script-progress')\n"
+        "    os.write(1, b'raw-script-progress\\n')\n"
+        "    texture_set = document.texture_set_ids()[0]\n"
+        "    document.set_channel_enabled(texture_set, 'pbr.roughness')\n",
+        encoding="utf-8",
+    )
+    scripted_output = directory / "scripted.ctex"
+    scripted_output.write_bytes(b"previous-output")
+    scripted = run(
+        "run",
+        "--document",
+        str(source),
+        "--script",
+        str(script),
+        "--output",
+        str(scripted_output),
+        "--report",
+        "json",
+    )
+    scripted_report = json.loads(scripted.stdout)
+    assert scripted.returncode == 0, (scripted.stdout, scripted.stderr)
+    assert "script-progress" in scripted.stderr
+    assert "raw-script-progress" in scripted.stderr
+    assert scripted_report["status"] == "ok"
+    assert scripted_report["document_asset"] == "document/main"
+    assert scripted_report["operations"] == ["read", "open", "script", "save"]
+    assert scripted_report["outputs"] == [
+        {
+            "kind": "project",
+            "path": str(scripted_output),
+            "bytes": scripted_output.stat().st_size,
+        }
+    ]
+    assert source.read_bytes() == source_bytes
+    scripted_validation = run(
+        "validate",
+        "--input",
+        str(scripted_output),
+        "--kind",
+        "document",
+        "--report",
+        "json",
+    )
+    assert scripted_validation.returncode == 0
+
+    missing_interpreter_output = directory / "missing-interpreter.ctex"
+    missing_interpreter = run(
+        "run",
+        "--document",
+        str(source),
+        "--script",
+        str(script),
+        "--output",
+        str(missing_interpreter_output),
+        "--report",
+        "json",
+        environment={"CTEX_PYTHON": str(directory / "missing-python")},
+    )
+    assert missing_interpreter.returncode == 3
+    assert not missing_interpreter_output.exists()
+    assert json.loads(missing_interpreter.stdout)["outputs"] == []
+
+    bounded_script_output = directory / "bounded-script.ctex"
+    combined_ceiling = len(source_bytes) + len(script.read_bytes()) - 1
+    bounded_script = run(
+        "run",
+        "--document",
+        str(source),
+        "--script",
+        str(script),
+        "--output",
+        str(bounded_script_output),
+        "--memory-ceiling",
+        str(combined_ceiling),
+        "--report",
+        "json",
+    )
+    assert bounded_script.returncode == 7
+    assert not bounded_script_output.exists()
+    assert json.loads(bounded_script.stdout)["outputs"] == []
+
+    failing_script = directory / "fail.py"
+    failing_script.write_text(
+        "def main(document):\n"
+        "    document.set_channel_enabled(document.texture_set_ids()[0], 'pbr.roughness')\n"
+        "    raise RuntimeError('intentional-script-failure')\n",
+        encoding="utf-8",
+    )
+    protected_script_output = directory / "protected-script.ctex"
+    protected_script_output.write_bytes(b"previous-good-output")
+    failed_script = run(
+        "run",
+        "--document",
+        str(source),
+        "--script",
+        str(failing_script),
+        "--output",
+        str(protected_script_output),
+        "--report",
+        "json",
+    )
+    assert failed_script.returncode == 2
+    assert "intentional-script-failure" in failed_script.stderr
+    assert protected_script_output.read_bytes() == b"previous-good-output"
+    assert json.loads(failed_script.stdout)["outputs"] == []
 
 print("headless CLI contract passed")

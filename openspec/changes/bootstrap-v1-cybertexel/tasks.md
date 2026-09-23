@@ -1415,15 +1415,22 @@ pass.
 The persisted-document continuation adds lossless enumerate, restore and
 upsert operations to all three binding surfaces. Python can now reopen one
 selected texture-document asset, edit the native live handle and write it back
-without discarding unrelated project content. This is the storage boundary
-required by the headless CLI `run` command; script execution itself remains
-task 15.2 work.
+without discarding unrelated project content. This provides the storage
+boundary used by the headless CLI `run` command.
 
 The Apple package gate also caught a mobile configure regression introduced by
 installing the new desktop CLI as an iOS application bundle without a bundle
 destination. CMake now creates and installs that executable only for desktop
 targets; the existing macOS/iOS Swift gate provides the regression coverage and
 still installs the iOS C library, headers and pkg-config metadata.
+
+The CLI `run` continuation now invokes the installed Python binding without a
+shell, restores the project's single live document, calls the script's explicit
+`main(document)` entry point and atomically publishes the updated canonical
+project only after the child succeeds and the parent revalidates it. Script
+output is redirected away from machine-readable reports, failures preserve any
+existing destination, and `CTEX_PYTHON` selects the interpreter. Task 15.2
+remains open for `bake-request` and replacement-mesh export.
 
 Tasks 16.1, 16.2, 16.4, 16.6, 16.8 and 16.10 are complete. The fixture set now
 contains valid UV and UDIM meshes, a four-image mesh-map set, brush alpha,

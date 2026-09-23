@@ -381,6 +381,7 @@ if(BUILD_TESTING)
                     "${PROJECT_SOURCE_DIR}/tests/cli/skeleton_test.py"
                     $<TARGET_FILE:cybertexel_cli> "${PROJECT_SOURCE_DIR}"
                     $<TARGET_FILE:ctex_texture_document_io_test>
+                    $<TARGET_FILE:cybertexel_c>
         )
     endif()
     add_executable(ctex_version_test tests/version_test.c)

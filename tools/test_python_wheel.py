@@ -23,6 +23,8 @@ def venv_python(directory: Path) -> Path:
 def validate_wheel(wheel: Path) -> None:
     with zipfile.ZipFile(wheel) as archive:
         names = archive.namelist()
+        if "cybertexel/_script_runner.py" not in names:
+            raise RuntimeError("wheel is missing the headless CLI script runner")
         native = [
             name
             for name in names

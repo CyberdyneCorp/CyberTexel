@@ -1,3 +1,5 @@
+from typing import TYPE_CHECKING
+
 from . import capi
 from ._native import native_version
 from .document import Document, TextureSet
@@ -34,23 +36,55 @@ from .host import (
     SnapshotPool,
     emit_default_host_material,
 )
-from .image import (
-    ChannelSemantic,
-    ColorSpace,
-    DecodedImage,
-    ImageFileFormat,
-    InputColorSpace,
-    decode_image,
-    encode_image,
-)
-from .mesh import (
-    Mesh,
-    MeshMapGeneratorKind,
-    MeshMapImportReport,
-    MeshMapKind,
-    MeshMapSet,
-    PickHit,
-)
+
+if TYPE_CHECKING:
+    from .image import (
+        ChannelSemantic,
+        ColorSpace,
+        DecodedImage,
+        ImageFileFormat,
+        InputColorSpace,
+        decode_image,
+        encode_image,
+    )
+    from .mesh import (
+        Mesh,
+        MeshMapGeneratorKind,
+        MeshMapImportReport,
+        MeshMapKind,
+        MeshMapSet,
+        PickHit,
+    )
+
+
+_LAZY_EXPORTS = {
+    "ChannelSemantic": (".image", "ChannelSemantic"),
+    "ColorSpace": (".image", "ColorSpace"),
+    "DecodedImage": (".image", "DecodedImage"),
+    "ImageFileFormat": (".image", "ImageFileFormat"),
+    "InputColorSpace": (".image", "InputColorSpace"),
+    "decode_image": (".image", "decode_image"),
+    "encode_image": (".image", "encode_image"),
+    "Mesh": (".mesh", "Mesh"),
+    "MeshMapGeneratorKind": (".mesh", "MeshMapGeneratorKind"),
+    "MeshMapImportReport": (".mesh", "MeshMapImportReport"),
+    "MeshMapKind": (".mesh", "MeshMapKind"),
+    "MeshMapSet": (".mesh", "MeshMapSet"),
+    "PickHit": (".mesh", "PickHit"),
+}
+
+
+def __getattr__(name: str) -> object:
+    import importlib
+
+    target = _LAZY_EXPORTS.get(name)
+    if target is None:
+        raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+    module_name, attribute = target
+    value = getattr(importlib.import_module(module_name, __name__), attribute)
+    globals()[name] = value
+    return value
+
 
 __all__ = [
     "BufferTooSmallError",

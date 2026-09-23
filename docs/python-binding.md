@@ -42,6 +42,12 @@ editing and requires an explicit `asset_identifier` when a project contains
 multiple texture documents. Rewriting a restored document preserves unrelated
 and opaque project content.
 
+The headless CLI uses this same API for its `run` extension point. User scripts
+define `main(document)`; the runner restores the live document before the call
+and serializes it only after the callback succeeds. Image and mesh modules load
+lazily, so document-only automation starts without importing NumPy, while the
+wheel continues to install NumPy for APIs that exchange arrays.
+
 Build and test the platform wheel with:
 
 ```sh

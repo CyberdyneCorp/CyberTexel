@@ -453,10 +453,10 @@ compare generated artifacts with committed outputs.
 
 The native build also produces the [headless `cybertexel` command line](docs/headless-cli.md).
 Its six command routes and argument contracts are present. `info`, `validate`,
-`apply`, and flattened texture `export` are operational; bake-provider dispatch,
-script execution, and replacement-mesh export remain roadmap work under task
-15.2. The CLI target is desktop-only; mobile presets install the library and
-bindings without trying to package an executable bundle.
+`apply`, Python `run`, and flattened texture `export` are operational;
+bake-provider dispatch and replacement-mesh export remain roadmap work under
+task 15.2. The CLI target is desktop-only; mobile presets install the library
+and bindings without trying to package an executable bundle.
 
 `just build` uses the native `headless` CMake preset. Shipped build presets also
 cover `linux-x64`, `macos-universal`, `windows-x64`, `ios-arm64` and

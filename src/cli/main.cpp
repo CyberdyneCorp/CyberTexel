@@ -1,5 +1,6 @@
 #include <algorithm>
 #include <array>
+#include <cerrno>
 #include <charconv>
 #include <chrono>
 #include <cstddef>
@@ -24,6 +25,15 @@
 #include <string_view>
 #include <thread>
 #include <vector>
+
+#if defined(_WIN32)
+#include <process.h>
+#else
+#include <sys/wait.h>
+#include <unistd.h>
+
+#include <csignal>
+#endif
 
 namespace {
 
@@ -997,6 +1007,193 @@ private:
     bool published_{};
 };
 
+void validate_project_output(const std::filesystem::path& destination) {
+    if (destination.empty() || destination.filename().empty()) {
+        throw CliError(ExitCode::invalid_arguments, "run output must name a project file");
+    }
+    std::error_code error;
+    const std::filesystem::file_status status = std::filesystem::symlink_status(destination, error);
+    if (error && error != std::errc::no_such_file_or_directory) {
+        throw CliError(ExitCode::internal_error,
+                       "could not inspect run output: " + error.message());
+    }
+    if (status.type() == std::filesystem::file_type::directory) {
+        throw CliError(ExitCode::invalid_arguments,
+                       "run output is a directory: '" + destination.string() + "'");
+    }
+    std::filesystem::path parent = destination.parent_path();
+    if (parent.empty()) parent = ".";
+    error.clear();
+    if (!std::filesystem::is_directory(parent, error) || error) {
+        throw CliError(ExitCode::invalid_arguments,
+                       "run output parent is not a directory: '" + parent.string() + "'");
+    }
+}
+
+class StagedProjectOutput {
+public:
+    explicit StagedProjectOutput(const std::filesystem::path& destination) {
+        validate_project_output(destination);
+        std::filesystem::path parent = destination.parent_path();
+        if (parent.empty()) parent = ".";
+        const auto nonce = std::chrono::steady_clock::now().time_since_epoch().count();
+        std::error_code error;
+        for (std::uint32_t attempt = 0; attempt < 1024; ++attempt) {
+            directory_ = parent / ("." + destination.filename().string() + ".ctex-run-" +
+                                   std::to_string(nonce) + '-' + std::to_string(attempt));
+            error.clear();
+            if (std::filesystem::create_directory(directory_, error)) {
+                path_ = directory_ / "result.ctex";
+                return;
+            }
+            if (error) {
+                throw CliError(ExitCode::internal_error,
+                               "could not create run staging directory: " + error.message());
+            }
+        }
+        throw CliError(ExitCode::internal_error,
+                       "could not reserve a unique run staging directory");
+    }
+
+    StagedProjectOutput(const StagedProjectOutput&) = delete;
+    StagedProjectOutput& operator=(const StagedProjectOutput&) = delete;
+
+    ~StagedProjectOutput() {
+        std::error_code ignored;
+        std::filesystem::remove_all(directory_, ignored);
+    }
+
+    [[nodiscard]] const std::filesystem::path& path() const noexcept { return path_; }
+
+private:
+    std::filesystem::path directory_;
+    std::filesystem::path path_;
+};
+
+std::string python_executable() {
+    const char* configured = std::getenv("CTEX_PYTHON");
+    if (configured != nullptr && !std::string_view(configured).empty()) return configured;
+#if defined(_WIN32)
+    return "python";
+#else
+    return "python3";
+#endif
+}
+
+int spawn_python(std::vector<std::string> arguments) {
+#if defined(_WIN32)
+    std::vector<const char*> raw_arguments;
+    raw_arguments.reserve(arguments.size() + 1);
+    for (const std::string& argument : arguments) raw_arguments.push_back(argument.c_str());
+    raw_arguments.push_back(nullptr);
+    const intptr_t result = _spawnvp(_P_WAIT, arguments.front().c_str(), raw_arguments.data());
+    if (result == -1) return 127;
+    return static_cast<int>(result);
+#else
+    std::vector<char*> raw_arguments;
+    raw_arguments.reserve(arguments.size() + 1);
+    for (std::string& argument : arguments) raw_arguments.push_back(argument.data());
+    raw_arguments.push_back(nullptr);
+    const pid_t child = fork();
+    if (child < 0) {
+        throw CliError(ExitCode::internal_error, "could not create Python process");
+    }
+    if (child == 0) {
+        execvp(arguments.front().c_str(), raw_arguments.data());
+        _exit(127);
+    }
+    int status{};
+    while (waitpid(child, &status, 0) < 0) {
+        if (errno != EINTR) {
+            throw CliError(ExitCode::internal_error, "could not wait for Python process");
+        }
+    }
+    if (WIFEXITED(status)) return WEXITSTATUS(status);
+    if (WIFSIGNALED(status) && (WTERMSIG(status) == SIGINT || WTERMSIG(status) == SIGTERM)) {
+        return 130;
+    }
+    return 1;
+#endif
+}
+
+void require_combined_input_budget(std::uint64_t document_bytes, std::uint64_t script_bytes,
+                                   const ExecutionOptions& options) {
+    const std::uint64_t required = checked_sum(document_bytes, script_bytes, "run input size");
+    if (required > options.memory_ceiling) {
+        throw CliError(ExitCode::over_budget, "run inputs require " + std::to_string(required) +
+                                                  " bytes; memory ceiling is " +
+                                                  std::to_string(options.memory_ceiling));
+    }
+}
+
+int run_command(const Invocation& invocation, const SelectedExecutor& executor,
+                const ExecutionOptions& options, SteadyTime started) {
+    const std::filesystem::path document_path{*option_value(invocation, "--document")};
+    const std::filesystem::path script_path{*option_value(invocation, "--script")};
+    const std::filesystem::path output_path{*option_value(invocation, "--output")};
+    validate_project_output(output_path);
+    const std::vector<std::byte> project_bytes = read_input(document_path, options);
+    const std::vector<std::byte> script_bytes = read_input(script_path, options);
+    require_combined_input_budget(project_bytes.size(), script_bytes.size(), options);
+
+    try {
+        const ctex::io::ProjectContainer input =
+            ctex::io::read_project_container(project_bytes, project_limits(options)).container;
+        static_cast<void>(measure_container(input, options));
+        const std::string document_identity = only_texture_document_identity(input);
+        StagedProjectOutput staged(output_path);
+        const std::string interpreter = python_executable();
+        const int status =
+            spawn_python({interpreter, "-m", "cybertexel._script_runner", document_path.string(),
+                          script_path.string(), staged.path().string()});
+        if (status == 127) {
+            throw CliError(ExitCode::missing_input,
+                           "could not launch Python interpreter '" + interpreter + "'");
+        }
+        if (status == 130) {
+            throw CliError(ExitCode::cancelled, "Python script was interrupted");
+        }
+        if (status != 0) {
+            throw CliError(ExitCode::invalid_arguments,
+                           "Python script failed with exit status " + std::to_string(status));
+        }
+        const std::vector<std::byte> output_bytes = read_input(staged.path(), options);
+        const ctex::io::ProjectContainer output =
+            ctex::io::read_project_container(output_bytes, project_limits(options)).container;
+        static_cast<void>(measure_container(output, options));
+        ctex::io::save_project_container_atomic(output_path, output);
+        const std::uintmax_t published_bytes = std::filesystem::file_size(output_path);
+
+        if (option_value(invocation, "--report") == "json") {
+            std::cout << '{'
+                      << standard_report_fields(invocation, executor, options, ExitCode::success,
+                                                "ok", elapsed_milliseconds(started))
+                      << ",\"outputs\":[{\"kind\":\"project\",\"path\":"
+                      << json_string(output_path.string()) << ",\"bytes\":" << published_bytes
+                      << "}],\"inputs\":[{\"kind\":\"document\",\"path\":"
+                      << json_string(document_path.string())
+                      << "},{\"kind\":\"script\",\"path\":" << json_string(script_path.string())
+                      << "}],\"operations\":[\"read\",\"open\",\"script\",\"save\"]"
+                      << ",\"document_asset\":" << json_string(document_identity)
+                      << ",\"python\":" << json_string(interpreter) << "}\n";
+        } else if (!invocation.quiet) {
+            std::cout << "ran " << script_path.string() << " and wrote " << output_path.string()
+                      << "\nexecutor: " << executor.selected << '\n';
+        }
+        return static_cast<int>(ExitCode::success);
+    } catch (const CliError&) {
+        throw;
+    } catch (const ctex::io::ProjectContainerError& error) {
+        const ExitCode code = error.code() == ctex::io::ProjectContainerErrorCode::over_limit
+                                  ? ExitCode::over_budget
+                                  : ExitCode::invalid_arguments;
+        throw CliError(code, "could not run script: " + std::string(error.what()));
+    } catch (const ctex::io::TextureDocumentIoError& error) {
+        throw CliError(ExitCode::invalid_arguments,
+                       "invalid texture document: " + std::string(error.what()));
+    }
+}
+
 std::string export_outputs_json(const ctex::io::TextureExportResult& result,
                                 const std::filesystem::path& output_directory) {
     std::string json{"["};
@@ -1108,6 +1305,9 @@ int dispatch(const Invocation& invocation) {
         }
         if (invocation.command->name == "export") {
             return export_command(invocation, executor, options, started);
+        }
+        if (invocation.command->name == "run") {
+            return run_command(invocation, executor, options, started);
         }
         const std::string diagnostic = "command '" + std::string(invocation.command->name) +
                                        "' is not implemented yet (roadmap task 15.2)";

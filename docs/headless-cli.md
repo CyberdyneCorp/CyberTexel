@@ -33,9 +33,21 @@ output directories are refused instead of being merged or overwritten. Mesh
 replacement arguments remain reserved and return the unsupported-operation
 outcome until the replacement-mesh input path is implemented.
 
-`bake-request` and `run` currently return the unsupported-operation outcome
-until the remaining parts of roadmap task 15.2 supply those operations; they
-never create partial output in this state.
+`run` opens the project's single texture-document asset through the installed
+Python binding and executes the selected script. A script defines
+`main(document)` and may use the supplied `cybertexel.Document` plus any other
+public Python API. Normal and file-descriptor-level script output is redirected
+to the diagnostic stream so a JSON report remains the only standard output.
+After successful execution, the edited document is written into the original
+container, revalidated by the parent process and atomically published at
+`--output`; a script exception or malformed result leaves an existing output
+unchanged. `CTEX_PYTHON` selects the interpreter and defaults to `python3` on
+POSIX or `python` on Windows. That interpreter must have the CyberTexel wheel
+installed.
+
+`bake-request` currently returns the unsupported-operation outcome until the
+remaining part of roadmap task 15.2 supplies provider attachment. Replacement
+mesh export also remains unsupported.
 
 Run `cybertexel --help` for the command list or
 `cybertexel <command> --help` for required and optional command arguments.

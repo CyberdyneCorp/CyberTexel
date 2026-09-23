@@ -2,9 +2,11 @@ from __future__ import annotations
 
 import ctypes
 from dataclasses import dataclass
+from typing import TYPE_CHECKING
 
-import numpy as np
-import numpy.typing as npt
+if TYPE_CHECKING:
+    import numpy as np
+    import numpy.typing as npt
 
 from ._native import (
     LIB,
@@ -69,6 +71,8 @@ def _texture_document_ids(project: bytes) -> list[str]:
 
 
 def _dtype(scalar_representation: int, bit_depth: int) -> np.dtype[np.generic]:
+    import numpy as np
+
     if scalar_representation == 1 and bit_depth == 32:
         return np.dtype(np.float32)
     if scalar_representation == 0 and bit_depth == 8:
@@ -289,6 +293,8 @@ class Document:
         intermediate Python pixel copy is made. The array remains valid after
         the document changes or closes because it is a snapshot, not a view.
         """
+
+        import numpy as np
 
         handle = self._require_open()
         identifier = texture_set.identifier.encode("utf-8")
