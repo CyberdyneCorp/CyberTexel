@@ -101,7 +101,10 @@ fuzz-image-decoders:
 test-vulkan: build-vulkan
     ./build/vulkan/ctex_vulkan_executor_test --require-device
 
-test-cli: build
+# Focused cross-platform build and process smoke suite for the installed CLI surface.
+test-cli: (_require "cmake" "3.24") (_require "python3" "3.10") (_require "ninja" "1.10")
+    cmake --preset headless
+    cmake --build --preset headless --target cybertexel_cli ctex_texture_document_io_test cybertexel_c
     ctest --test-dir build/headless --output-on-failure -R '^cli-headless-'
 
 test-image: build
