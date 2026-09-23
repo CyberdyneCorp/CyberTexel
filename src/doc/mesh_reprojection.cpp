@@ -438,7 +438,10 @@ ReprojectionEntryMapping map_entry(const TextureSet& texture_set,
     ReprojectionEntryMapping result{.texture_set_id = texture_set.id(),
                                     .entry_id = entry.identifier,
                                     .entry_revision = entry.revision,
-                                    .point_count = entry.surface_points.size()};
+                                    .point_count = entry.surface_points.size(),
+                                    .unmapped_point_count = 0,
+                                    .ambiguous_point_count = 0,
+                                    .points = {}};
     result.points.reserve(entry.surface_points.size());
     for (const EditableSurfacePoint& point : entry.surface_points) {
         std::size_t candidate_count = 0;
@@ -571,7 +574,14 @@ MeshReprojectionPreflight preflight_mesh_reprojection(
     MeshReprojectionPreflight result{.source_revision = source.revision(),
                                      .replacement_revision = replacement.revision(),
                                      .published_revision = replacement.revision(),
-                                     .limits = limits};
+                                     .limits = limits,
+                                     .texels = {},
+                                     .affected_entries = {},
+                                     .source_channels = {},
+                                     .mapped_texel_count = 0,
+                                     .unmapped_texel_count = 0,
+                                     .ambiguous_texel_count = 0,
+                                     .tested_candidate_count = 0};
     WorkControl work{limits, control};
     for (std::string_view texture_set_id : texture_set_ids) {
         if (texture_set_id.empty() || !document.contains_texture_set(texture_set_id) ||

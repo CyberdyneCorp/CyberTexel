@@ -3,6 +3,7 @@
 #include <cmath>
 #include <ctex/pick/region.hpp>
 #include <ctex/pick/spatial_index.hpp>
+#include <iterator>
 #include <stdexcept>
 
 namespace ctex::pick {
