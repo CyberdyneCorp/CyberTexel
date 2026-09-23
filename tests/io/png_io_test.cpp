@@ -1,4 +1,5 @@
 #include <lodepng.h>
+#include <tinyexr.h>
 
 #include <algorithm>
 #include <array>
@@ -76,8 +77,11 @@ float float_from(std::span<const std::byte> bytes, std::size_t component) {
     return value;
 }
 
-std::vector<std::byte> make_radiance_hdr() {
-    constexpr std::string_view header = "#?RADIANCE\nFORMAT=32-bit_rle_rgbe\n\n-Y 1 +X 2\n";
+std::vector<std::byte> make_radiance_hdr(std::string_view metadata = {}) {
+    std::string header = "#?RADIANCE\nFORMAT=32-bit_rle_rgbe\n";
+    header.append(metadata);
+    if (!metadata.empty() && !metadata.ends_with('\n')) header.push_back('\n');
+    header.append("\n-Y 1 +X 2\n");
     std::vector<std::byte> result;
     result.reserve(header.size() + 8);
     std::transform(header.begin(), header.end(), std::back_inserter(result),
@@ -87,6 +91,67 @@ std::vector<std::byte> make_radiance_hdr() {
         std::byte{32},  std::byte{64}, std::byte{128}, std::byte{129},
     };
     result.insert(result.end(), pixels.begin(), pixels.end());
+    return result;
+}
+
+std::vector<std::byte> make_openexr_with_chromaticities(const std::array<float, 8>& chromaticities,
+                                                        std::string_view color_interop_id = {}) {
+    EXRHeader header{};
+    EXRImage image{};
+    InitEXRHeader(&header);
+    InitEXRImage(&image);
+    std::array<EXRChannelInfo, 4> channels{};
+    std::array<int, 4> pixel_types{};
+    std::array<int, 4> requested_types{};
+    std::array<std::array<float, 1>, 4> samples{{{{1.0F}}, {{0.5F}}, {{2.0F}}, {{4.0F}}}};
+    std::array<unsigned char*, 4> sample_pointers{};
+    constexpr std::array<std::string_view, 4> channel_names{"A", "B", "G", "R"};
+    for (std::size_t index = 0; index < channels.size(); ++index) {
+        std::strncpy(channels[index].name, channel_names[index].data(), 255);
+        channels[index].pixel_type = TINYEXR_PIXELTYPE_FLOAT;
+        channels[index].x_sampling = 1;
+        channels[index].y_sampling = 1;
+        pixel_types[index] = TINYEXR_PIXELTYPE_FLOAT;
+        requested_types[index] = TINYEXR_PIXELTYPE_FLOAT;
+        sample_pointers[index] = reinterpret_cast<unsigned char*>(samples[index].data());
+    }
+    EXRAttribute attribute{};
+    if (color_interop_id.empty()) {
+        std::strncpy(attribute.name, "chromaticities", 255);
+        std::strncpy(attribute.type, "chromaticities", 255);
+        attribute.size = static_cast<int>(chromaticities.size() * sizeof(float));
+        attribute.value = reinterpret_cast<unsigned char*>(const_cast<float*>(
+            chromaticities.data()));  // TinyEXR's writer API is not const-correct.
+    } else {
+        std::strncpy(attribute.name, "colorInteropID", 255);
+        std::strncpy(attribute.type, "string", 255);
+        attribute.size = static_cast<int>(color_interop_id.size());
+        attribute.value = reinterpret_cast<unsigned char*>(const_cast<char*>(
+            color_interop_id.data()));  // TinyEXR's writer API is not const-correct.
+    }
+    header.num_channels = static_cast<int>(channels.size());
+    header.channels = channels.data();
+    header.pixel_types = pixel_types.data();
+    header.requested_pixel_types = requested_types.data();
+    header.compression_type = TINYEXR_COMPRESSIONTYPE_ZIP;
+    header.num_custom_attributes = 1;
+    header.custom_attributes = &attribute;
+    image.num_channels = static_cast<int>(channels.size());
+    image.width = 1;
+    image.height = 1;
+    image.images = sample_pointers.data();
+
+    unsigned char* encoded = nullptr;
+    const char* error = nullptr;
+    const std::size_t size = SaveEXRImageToMemory(&image, &header, &encoded, &error);
+    if (size == 0) {
+        const std::string message = error == nullptr ? "unknown error" : error;
+        if (error != nullptr) FreeEXRErrorMessage(error);
+        throw std::runtime_error("could not create chromaticity EXR fixture: " + message);
+    }
+    std::vector<std::byte> result(size);
+    std::memcpy(result.data(), encoded, size);
+    std::free(encoded);
     return result;
 }
 
@@ -379,6 +444,14 @@ std::vector<std::byte> make_rgb8_bmp_with_icc_profile(std::span<const unsigned c
     constexpr std::array pixels{std::byte{0},   std::byte{0}, std::byte{255}, std::byte{0},
                                 std::byte{255}, std::byte{0}, std::byte{0},   std::byte{0}};
     std::copy(pixels.begin(), pixels.end(), result.begin() + pixel_offset);
+    return result;
+}
+
+std::vector<std::byte> make_rgb8_bmp_with_srgb_declaration() {
+    const std::array<unsigned char, 0> no_profile{};
+    std::vector<std::byte> result = make_rgb8_bmp_with_icc_profile(no_profile);
+    write_le32(result, 14 + 56, 0x73524742);
+    write_le32(result, 14 + 112, 0);
     return result;
 }
 
@@ -756,6 +829,27 @@ bool bmp_icc_profile_is_interpreted() {
            expect(malformed_reported, "malformed BMP ICC profile was not reported");
 }
 
+bool bmp_srgb_declaration_is_interpreted() {
+    const auto profiled = make_rgb8_bmp_with_srgb_declaration();
+    const auto decoded = ctex::io::decode_image_memory({
+        .bytes = profiled,
+        .source_name = "base.bmp",
+        .intended_channel = ChannelSemantic::roughness,
+    });
+    const auto overridden = ctex::io::decode_image_memory({
+        .bytes = profiled,
+        .source_name = "base.bmp",
+        .intended_channel = ChannelSemantic::base_color,
+        .color_space = InputColorSpace::linear_rec709,
+    });
+    return expect(decoded.source_color_space == ColorSpace::srgb_rec709 &&
+                      decoded.report.color_space_source == ColorSpaceSource::embedded_srgb,
+                  "BMP sRGB declaration was not interpreted") &&
+           expect(overridden.source_color_space == ColorSpace::linear_rec709 &&
+                      overridden.report.color_space_source == ColorSpaceSource::caller,
+                  "caller declaration did not override BMP sRGB metadata");
+}
+
 bool uninterpretable_profile_is_reported_before_automatic_fallback() {
     const auto decoded = ctex::io::decode_image_memory({
         .bytes = make_gray8_png_with_icc_profile(),
@@ -873,6 +967,88 @@ bool radiance_hdr_preserves_unclamped_float_values() {
            expect(decoded.source_color_space == ColorSpace::linear_rec709 &&
                       decoded.report.color_space_source == ColorSpaceSource::automatic_rule,
                   "Radiance HDR automatic linear colour space was not reported");
+}
+
+bool radiance_hdr_primaries_are_interpreted() {
+    const auto profiled =
+        make_radiance_hdr("PRIMARIES=0.6400 0.3300 0.3000 0.6000 0.1500 0.0600 0.3127 0.3290");
+    const auto decoded = ctex::io::decode_image_memory({
+        .bytes = profiled,
+        .source_name = "environment.hdr",
+        .intended_channel = ChannelSemantic::base_color,
+    });
+    const auto overridden = ctex::io::decode_image_memory({
+        .bytes = profiled,
+        .source_name = "environment.hdr",
+        .intended_channel = ChannelSemantic::base_color,
+        .color_space = InputColorSpace::srgb_rec709,
+    });
+    const auto unsupported = ctex::io::decode_image_memory({
+        .bytes = make_radiance_hdr("PRIMARIES=0.7 0.3 0.2 0.7 0.1 0.1 0.3127 0.3290"),
+        .source_name = "wide.hdr",
+        .intended_channel = ChannelSemantic::base_color,
+    });
+    const bool reported =
+        std::ranges::any_of(unsupported.report.diagnostics, [](const std::string& message) {
+            return message.find("PRIMARIES declaration is not interpreted") != std::string::npos;
+        });
+    return expect(decoded.source_color_space == ColorSpace::linear_rec709 &&
+                      decoded.report.color_space_source == ColorSpaceSource::embedded_profile,
+                  "Radiance HDR Rec. 709 primaries were not interpreted") &&
+           expect(overridden.source_color_space == ColorSpace::srgb_rec709 &&
+                      overridden.report.color_space_source == ColorSpaceSource::caller,
+                  "caller declaration did not override Radiance HDR primaries") &&
+           expect(unsupported.report.color_space_source == ColorSpaceSource::automatic_rule &&
+                      reported,
+                  "unsupported Radiance HDR primaries were not reported before fallback");
+}
+
+bool openexr_chromaticities_are_interpreted() {
+    constexpr std::array rec709{0.64F, 0.33F, 0.30F, 0.60F, 0.15F, 0.06F, 0.3127F, 0.3290F};
+    constexpr std::array unsupported_values{0.7F, 0.3F, 0.2F, 0.7F, 0.1F, 0.1F, 0.3127F, 0.3290F};
+    const auto profiled = make_openexr_with_chromaticities(rec709);
+    const auto decoded = ctex::io::decode_image_memory({
+        .bytes = profiled,
+        .source_name = "environment.exr",
+        .intended_channel = ChannelSemantic::base_color,
+    });
+    const auto overridden = ctex::io::decode_image_memory({
+        .bytes = profiled,
+        .source_name = "environment.exr",
+        .intended_channel = ChannelSemantic::base_color,
+        .color_space = InputColorSpace::srgb_rec709,
+    });
+    const auto unsupported = ctex::io::decode_image_memory({
+        .bytes = make_openexr_with_chromaticities(unsupported_values),
+        .source_name = "wide.exr",
+        .intended_channel = ChannelSemantic::base_color,
+    });
+    const auto unsupported_identifier = ctex::io::decode_image_memory({
+        .bytes = make_openexr_with_chromaticities(rec709, "urn:example:wide-gamut"),
+        .source_name = "identified.exr",
+        .intended_channel = ChannelSemantic::base_color,
+    });
+    const bool reported =
+        std::ranges::any_of(unsupported.report.diagnostics, [](const std::string& message) {
+            return message.find("chromaticities are not interpreted") != std::string::npos;
+        });
+    const bool identifier_reported = std::ranges::any_of(
+        unsupported_identifier.report.diagnostics, [](const std::string& message) {
+            return message.find("colorInteropID is not interpreted") != std::string::npos;
+        });
+    return expect(decoded.source_color_space == ColorSpace::linear_rec709 &&
+                      decoded.report.color_space_source == ColorSpaceSource::embedded_profile,
+                  "OpenEXR Rec. 709 chromaticities were not interpreted") &&
+           expect(overridden.source_color_space == ColorSpace::srgb_rec709 &&
+                      overridden.report.color_space_source == ColorSpaceSource::caller,
+                  "caller declaration did not override OpenEXR chromaticities") &&
+           expect(unsupported.report.color_space_source == ColorSpaceSource::automatic_rule &&
+                      reported,
+                  "unsupported OpenEXR chromaticities were not reported before fallback") &&
+           expect(unsupported_identifier.report.color_space_source ==
+                          ColorSpaceSource::automatic_rule &&
+                      identifier_reported,
+                  "unsupported OpenEXR colorInteropID was not reported before fallback");
 }
 
 bool openexr_preserves_unclamped_float_values() {
@@ -1027,11 +1203,13 @@ int main() {
                    embedded_icc_profiles_are_interpreted() &&
                    multipart_jpeg_icc_profile_is_interpreted() &&
                    tiff_icc_profile_is_interpreted() && psd_icc_profile_is_interpreted() &&
-                   bmp_icc_profile_is_interpreted() &&
+                   bmp_icc_profile_is_interpreted() && bmp_srgb_declaration_is_interpreted() &&
                    uninterpretable_profile_is_reported_before_automatic_fallback() &&
                    hostile_input_is_bounded_and_named() && unsupported_content_is_named() &&
                    malformed_flat_inputs_are_named() && float_png_is_refused() &&
                    radiance_hdr_preserves_unclamped_float_values() &&
+                   radiance_hdr_primaries_are_interpreted() &&
+                   openexr_chromaticities_are_interpreted() &&
                    openexr_preserves_unclamped_float_values() &&
                    hdr_limits_are_checked_before_decode() &&
                    large_decode_reports_progress_and_cancels_before_allocation()

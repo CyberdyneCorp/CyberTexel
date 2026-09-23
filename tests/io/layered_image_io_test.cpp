@@ -130,6 +130,8 @@ std::vector<std::byte> make_multipart_exr() {
     std::array<std::array<int, 4>, 2> requested_types{};
     std::array<std::array<std::array<float, 1>, 4>, 2> samples{};
     std::array<std::array<unsigned char*, 4>, 2> sample_pointers{};
+    std::array<EXRAttribute, 2> color_attributes{};
+    std::array<std::array<float, 8>, 2> chromaticities{};
     std::array<const EXRHeader*, 2> header_pointers{};
     constexpr std::array<std::string_view, 4> channel_names{"A", "B", "G", "R"};
     constexpr std::array<std::string_view, 2> part_names{"Ground", "Glow"};
@@ -147,6 +149,14 @@ std::vector<std::byte> make_multipart_exr() {
         headers[part].compression_type = TINYEXR_COMPRESSIONTYPE_ZIP;
         headers[part].data_window = {0, 0, 0, 0};
         headers[part].display_window = {0, 0, 0, 0};
+        chromaticities[part] = {0.64F, 0.33F, 0.30F, 0.60F, 0.15F, 0.06F, 0.3127F, 0.3290F};
+        std::strncpy(color_attributes[part].name, "chromaticities", 255);
+        std::strncpy(color_attributes[part].type, "chromaticities", 255);
+        color_attributes[part].size = static_cast<int>(chromaticities[part].size() * sizeof(float));
+        color_attributes[part].value =
+            reinterpret_cast<unsigned char*>(chromaticities[part].data());
+        headers[part].num_custom_attributes = 1;
+        headers[part].custom_attributes = &color_attributes[part];
         EXRSetNameAttr(&headers[part], part_names[part].data());
         for (std::size_t channel = 0; channel < channel_names.size(); ++channel) {
             std::strncpy(channels[part][channel].name, channel_names[channel].data(), 255);
@@ -248,6 +258,15 @@ bool multipart_exr_supports_both_modes() {
            expect(component(glow, 0) == 0.0F && component(glow, 2) == 1.0F &&
                       component(glow, 3) == 0.5F,
                   "OpenEXR part channels changed") &&
+           expect(individual.images[0].image.source_color_space ==
+                          ctex::image::ColorSpace::linear_rec709 &&
+                      individual.images[0].image.report.color_space_source ==
+                          ctex::io::ColorSpaceSource::embedded_profile &&
+                      individual.images[1].image.report.color_space_source ==
+                          ctex::io::ColorSpaceSource::embedded_profile &&
+                      composite.images[0].image.report.color_space_source ==
+                          ctex::io::ColorSpaceSource::embedded_profile,
+                  "OpenEXR chromaticities were not applied to every part and composite") &&
            expect(composite.images.size() == 1 &&
                       std::abs(component(combined, 0) - 0.5F) < 0.0001F &&
                       std::abs(component(combined, 2) - 0.5F) < 0.0001F &&

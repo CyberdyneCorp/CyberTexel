@@ -164,21 +164,6 @@ private:
     std::size_t progress_events_{};
 };
 
-std::pair<image::ColorSpace, ColorSpaceSource> layered_color_space(const DecodeRequest& request,
-                                                                   bool high_dynamic_range) {
-    if (request.color_space != image::InputColorSpace::automatic) {
-        return {
-            image::resolve_input_space(request.color_space, request.intended_channel).color_space,
-            ColorSpaceSource::caller};
-    }
-    if (high_dynamic_range) {
-        return {image::ColorSpace::linear_rec709, ColorSpaceSource::automatic_rule};
-    }
-    return {image::resolve_input_space(image::InputColorSpace::automatic, request.intended_channel)
-                .color_space,
-            ColorSpaceSource::automatic_rule};
-}
-
 bool layered_extension_mismatch(std::string_view source_name, ImageFileFormat format) {
     const std::size_t dot = source_name.find_last_of('.');
     if (dot == std::string_view::npos) return false;
@@ -201,6 +186,31 @@ DecodeReport make_report(const DecodeRequest& request, ImageFileFormat format,
             .extension_mismatch = mismatch,
             .color_space_source = source,
             .diagnostics = std::move(diagnostics)};
+}
+
+detail::ResolvedProfileColorSpace combine_exr_color_spaces(
+    std::span<const detail::ResolvedProfileColorSpace> parts) {
+    detail::ResolvedProfileColorSpace result = parts.front();
+    result.diagnostics.clear();
+    for (const detail::ResolvedProfileColorSpace& part : parts) {
+        for (const std::string& diagnostic : part.diagnostics) {
+            if (std::ranges::find(result.diagnostics, diagnostic) == result.diagnostics.end()) {
+                result.diagnostics.push_back(diagnostic);
+            }
+        }
+        if (part.color_space != result.color_space || part.source != result.source) {
+            result.color_space = image::ColorSpace::linear_rec709;
+            result.source = ColorSpaceSource::automatic_rule;
+        }
+    }
+    if (result.source == ColorSpaceSource::automatic_rule &&
+        std::ranges::any_of(parts, [](const detail::ResolvedProfileColorSpace& part) {
+            return part.source != ColorSpaceSource::automatic_rule;
+        })) {
+        result.diagnostics.emplace_back(
+            "OpenEXR parts do not share one colour declaration; automatic channel rule applied");
+    }
+    return result;
 }
 
 image::TiledImage tiled_from_interleaved(std::span<const std::byte> pixels, ImageLayout layout,
@@ -857,21 +867,31 @@ LayeredDecodedImage decode_exr_parts(const LayeredDecodeRequest& request) {
                                              layouts[static_cast<std::size_t>(index)].height));
     }
     monitor.codec_finished();
-    const auto [color_space, color_source] = layered_color_space(request.image, true);
+    std::vector<detail::ResolvedProfileColorSpace> resolved_color_spaces;
+    resolved_color_spaces.reserve(static_cast<std::size_t>(headers.count()));
+    for (int index = 0; index < headers.count(); ++index) {
+        resolved_color_spaces.push_back(detail::resolve_exr_color_space(
+            request.image, *headers[static_cast<std::size_t>(index)]));
+    }
     LayeredDecodedImage result{
         .format = ImageFileFormat::openexr, .source_was_layered = true, .images = {}};
     result.images.reserve(static_cast<std::size_t>(headers.count()));
     for (int index = 0; index < headers.count(); ++index) {
         const std::size_t part = static_cast<std::size_t>(index);
         const EXRHeader& header = *headers[part];
+        detail::ResolvedProfileColorSpace& resolved = resolved_color_spaces[part];
         result.images.push_back(
             {.name = header.name,
              .origin_x = header.data_window.min_x,
              .origin_y = header.data_window.min_y,
-             .image = {tiled_from_interleaved(packed[part], layouts[part], monitor), color_space,
-                       make_report(request.image, ImageFileFormat::openexr, color_source)}});
+             .image = {tiled_from_interleaved(packed[part], layouts[part], monitor),
+                       resolved.color_space,
+                       make_report(request.image, ImageFileFormat::openexr, resolved.source,
+                                   resolved.diagnostics)}});
     }
     if (request.mode == LayeredDecodeMode::composite) {
+        detail::ResolvedProfileColorSpace resolved =
+            combine_exr_color_spaces(resolved_color_spaces);
         std::vector<std::byte> composite =
             composite_exr_parts(result.images, static_cast<std::int32_t>(min_x),
                                 static_cast<std::int32_t>(min_y), composite_layout);
@@ -879,8 +899,10 @@ LayeredDecodedImage decode_exr_parts(const LayeredDecodeRequest& request) {
             .name = "Composite",
             .origin_x = static_cast<std::int32_t>(min_x),
             .origin_y = static_cast<std::int32_t>(min_y),
-            .image = {tiled_from_interleaved(composite, composite_layout, monitor), color_space,
-                      make_report(request.image, ImageFileFormat::openexr, color_source)},
+            .image = {tiled_from_interleaved(composite, composite_layout, monitor),
+                      resolved.color_space,
+                      make_report(request.image, ImageFileFormat::openexr, resolved.source,
+                                  std::move(resolved.diagnostics))},
         };
         result.images.clear();
         result.images.push_back(std::move(output));

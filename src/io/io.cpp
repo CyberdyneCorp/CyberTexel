@@ -9,6 +9,8 @@
 #include <array>
 #include <bit>
 #include <cctype>
+#include <charconv>
+#include <cmath>
 #include <cstdint>
 #include <cstdlib>
 #include <cstring>
@@ -546,13 +548,89 @@ bool extension_mismatch(std::string_view source_name, ImageFileFormat detected) 
     return true;
 }
 
-std::pair<image::ColorSpace, ColorSpaceSource> resolve_float_color_space(
-    const DecodeRequest& request) {
-    if (request.color_space == image::InputColorSpace::automatic) {
-        return {image::ColorSpace::linear_rec709, ColorSpaceSource::automatic_rule};
+struct EmbeddedChromaticities {
+    bool present{};
+    bool malformed{};
+    std::array<float, 8> values{};
+};
+
+bool matches_rec709_chromaticities(const std::array<float, 8>& values) noexcept {
+    constexpr std::array expected{0.64F, 0.33F, 0.30F, 0.60F, 0.15F, 0.06F, 0.3127F, 0.3290F};
+    return std::ranges::equal(values, expected, [](float actual, float reference) {
+        return std::isfinite(actual) && std::abs(actual - reference) <= 0.0005F;
+    });
+}
+
+EmbeddedChromaticities extract_radiance_primaries(std::span<const std::byte> encoded) {
+    constexpr std::string_view prefix = "PRIMARIES=";
+    constexpr std::size_t maximum_header_bytes = 64ULL << 10;
+    const std::size_t limit = std::min(encoded.size(), maximum_header_bytes);
+    EmbeddedChromaticities result;
+    std::size_t line_start = 0;
+    while (line_start < limit) {
+        std::size_t line_end = line_start;
+        while (line_end < limit && encoded[line_end] != std::byte{'\n'}) ++line_end;
+        if (line_end == line_start) break;
+        const std::string_view line(reinterpret_cast<const char*>(encoded.data() + line_start),
+                                    line_end - line_start);
+        if (line.starts_with(prefix)) {
+            result = {.present = true, .malformed = false, .values = {}};
+            const char* cursor = line.data() + prefix.size();
+            const char* end = line.data() + line.size();
+            for (float& value : result.values) {
+                while (cursor != end && std::isspace(static_cast<unsigned char>(*cursor)) != 0) {
+                    ++cursor;
+                }
+                const auto parsed = std::from_chars(cursor, end, value);
+                if (parsed.ec != std::errc{} || parsed.ptr == cursor) {
+                    result.malformed = true;
+                    break;
+                }
+                cursor = parsed.ptr;
+            }
+            while (cursor != end && std::isspace(static_cast<unsigned char>(*cursor)) != 0) {
+                ++cursor;
+            }
+            result.malformed = result.malformed || cursor != end;
+        }
+        if (line_end == limit) break;
+        line_start = line_end + 1;
     }
-    const auto resolved = image::resolve_input_space(request.color_space, request.intended_channel);
-    return {resolved.color_space, ColorSpaceSource::caller};
+    return result;
+}
+
+detail::ResolvedProfileColorSpace resolve_radiance_color_space(const DecodeRequest& request) {
+    const EmbeddedChromaticities primaries = extract_radiance_primaries(request.bytes);
+    std::vector<std::string> diagnostics;
+    if (primaries.present && primaries.malformed) {
+        diagnostics.emplace_back(
+            "Radiance HDR PRIMARIES declaration is malformed" +
+            std::string(request.color_space == image::InputColorSpace::automatic
+                            ? "; automatic channel rule applied"
+                            : "; explicit caller declaration applied"));
+    }
+    if (request.color_space != image::InputColorSpace::automatic) {
+        const auto resolved =
+            image::resolve_input_space(request.color_space, request.intended_channel);
+        return {.color_space = resolved.color_space,
+                .source = ColorSpaceSource::caller,
+                .diagnostics = std::move(diagnostics)};
+    }
+    if (primaries.present && !primaries.malformed) {
+        if (matches_rec709_chromaticities(primaries.values)) {
+            diagnostics.emplace_back(
+                "Radiance HDR PRIMARIES declaration interpreted as Linear Rec. 709");
+            return {.color_space = image::ColorSpace::linear_rec709,
+                    .source = ColorSpaceSource::embedded_profile,
+                    .diagnostics = std::move(diagnostics)};
+        }
+        diagnostics.emplace_back(
+            "Radiance HDR PRIMARIES declaration is not interpreted; automatic channel rule "
+            "applied");
+    }
+    return {.color_space = image::ColorSpace::linear_rec709,
+            .source = ColorSpaceSource::automatic_rule,
+            .diagnostics = std::move(diagnostics)};
 }
 
 DecodeReport float_decode_report(const DecodeRequest& request, ImageFileFormat format,
@@ -699,6 +777,17 @@ ExtractedIccProfile extract_bmp_icc_profile(std::span<const std::byte> encoded) 
     std::ranges::transform(source, std::back_inserter(result.bytes),
                            [](std::byte value) { return std::to_integer<unsigned char>(value); });
     return result;
+}
+
+bool bmp_declares_srgb(std::span<const std::byte> encoded) {
+    constexpr std::size_t file_header_size = 14;
+    constexpr std::size_t bitmap_v4_header_size = 108;
+    constexpr std::uint32_t color_space_srgb = 0x73524742;
+    if (encoded.size() < file_header_size + 4) return false;
+    const std::size_t header_size = little_endian_u32(encoded, file_header_size);
+    return header_size >= bitmap_v4_header_size &&
+           header_size <= encoded.size() - file_header_size &&
+           little_endian_u32(encoded, file_header_size + 56) == color_space_srgb;
 }
 
 void require_tga_bytes(std::span<const std::byte> bytes, std::size_t offset, std::size_t count) {
@@ -857,12 +946,19 @@ DecodedImage decode_stbi_integer(const DecodeRequest& request, ImageFileFormat f
         profile.present && profile.diagnostic.empty()
             ? std::optional<std::span<const unsigned char>>{profile.bytes}
             : std::nullopt;
-    const auto [color_space, color_source] = resolve_raster_color_space(
-        request, profile_bytes, image_file_format_name(format), diagnostics);
+    std::pair<image::ColorSpace, ColorSpaceSource> resolved;
+    if (format == ImageFileFormat::bmp && bmp_declares_srgb(request.bytes) &&
+        request.color_space == image::InputColorSpace::automatic) {
+        diagnostics.emplace_back("BMP sRGB colour-space declaration interpreted");
+        resolved = {image::ColorSpace::srgb_rec709, ColorSpaceSource::embedded_srgb};
+    } else {
+        resolved = resolve_raster_color_space(request, profile_bytes,
+                                              image_file_format_name(format), diagnostics);
+    }
     DecodeReport report =
-        float_decode_report(request, format, color_source, std::move(diagnostics));
+        float_decode_report(request, format, resolved.second, std::move(diagnostics));
     session.finish(report);
-    return {std::move(pixels), color_space, std::move(report)};
+    return {std::move(pixels), resolved.first, std::move(report)};
 }
 
 bool looks_like_tga(std::span<const std::byte> bytes) noexcept {
@@ -1229,13 +1325,14 @@ DecodedImage decode_radiance_hdr(const DecodeRequest& request, DecodeSession& se
                                (reason == nullptr ? "unknown codec error" : reason));
     }
     session.codec_finished(static_cast<std::uint32_t>(height));
-    const auto [color_space, color_source] = resolve_float_color_space(request);
+    detail::ResolvedProfileColorSpace resolved = resolve_radiance_color_space(request);
     image::TiledImage unpacked = unpack_image(reinterpret_cast<const unsigned char*>(decoded.get()),
                                               static_cast<std::uint32_t>(width),
                                               static_cast<std::uint32_t>(height), format, session);
-    DecodeReport report = float_decode_report(request, ImageFileFormat::radiance_hdr, color_source);
+    DecodeReport report = float_decode_report(request, ImageFileFormat::radiance_hdr,
+                                              resolved.source, std::move(resolved.diagnostics));
     session.finish(report);
-    return {std::move(unpacked), color_space, std::move(report)};
+    return {std::move(unpacked), resolved.color_space, std::move(report)};
 }
 
 std::pair<std::uint32_t, std::uint32_t> exr_dimensions(const EXRHeader& header) {
@@ -1295,12 +1392,14 @@ DecodedImage decode_openexr(const DecodeRequest& request, DecodeSession& session
                            "OpenEXR decoded dimensions disagree with its header");
     }
     session.codec_finished(declared_height);
-    const auto [color_space, color_source] = resolve_float_color_space(request);
+    detail::ResolvedProfileColorSpace resolved =
+        detail::resolve_exr_color_space(request, *header.get());
     image::TiledImage unpacked = unpack_image(reinterpret_cast<const unsigned char*>(decoded.get()),
                                               declared_width, declared_height, format, session);
-    DecodeReport report = float_decode_report(request, ImageFileFormat::openexr, color_source);
+    DecodeReport report = float_decode_report(request, ImageFileFormat::openexr, resolved.source,
+                                              std::move(resolved.diagnostics));
     session.finish(report);
-    return {std::move(unpacked), color_space, std::move(report)};
+    return {std::move(unpacked), resolved.color_space, std::move(report)};
 }
 
 LodePNGColorType png_color_type(image::PixelFormat format) {
@@ -1357,6 +1456,79 @@ detail::ResolvedProfileColorSpace detail::resolve_psd_color_space(const DecodeRe
     auto [color_space, source] =
         resolve_raster_color_space(request, profile_bytes, "PSD", diagnostics);
     return {.color_space = color_space, .source = source, .diagnostics = std::move(diagnostics)};
+}
+
+detail::ResolvedProfileColorSpace detail::resolve_exr_color_space(const DecodeRequest& request,
+                                                                  const EXRHeader& header) {
+    const EXRAttribute* chromaticities = nullptr;
+    const EXRAttribute* color_interop_id = nullptr;
+    for (int index = 0; index < header.num_custom_attributes; ++index) {
+        const EXRAttribute& attribute = header.custom_attributes[index];
+        if (std::string_view(attribute.name) == "chromaticities") chromaticities = &attribute;
+        if (std::string_view(attribute.name) == "colorInteropID") color_interop_id = &attribute;
+    }
+
+    std::vector<std::string> diagnostics;
+    std::optional<std::array<float, 8>> decoded_chromaticities;
+    if (chromaticities != nullptr) {
+        if (std::string_view(chromaticities->type) != "chromaticities" ||
+            chromaticities->size != 32 || chromaticities->value == nullptr) {
+            diagnostics.emplace_back("OpenEXR chromaticities attribute is malformed");
+        } else {
+            std::array<float, 8> values{};
+            for (std::size_t index = 0; index < values.size(); ++index) {
+                const unsigned char* source = chromaticities->value + index * 4;
+                const std::uint32_t bits = static_cast<std::uint32_t>(source[0]) |
+                                           (static_cast<std::uint32_t>(source[1]) << 8U) |
+                                           (static_cast<std::uint32_t>(source[2]) << 16U) |
+                                           (static_cast<std::uint32_t>(source[3]) << 24U);
+                values[index] = std::bit_cast<float>(bits);
+            }
+            decoded_chromaticities = values;
+        }
+    }
+    if (color_interop_id != nullptr &&
+        (std::string_view(color_interop_id->type) != "string" || color_interop_id->size <= 0 ||
+         color_interop_id->value == nullptr)) {
+        diagnostics.emplace_back("OpenEXR colorInteropID attribute is malformed");
+    }
+    if (!diagnostics.empty()) {
+        diagnostics.back() += request.color_space == image::InputColorSpace::automatic
+                                  ? "; automatic channel rule applied"
+                                  : "; explicit caller declaration applied";
+    }
+    if (request.color_space != image::InputColorSpace::automatic) {
+        const auto resolved =
+            image::resolve_input_space(request.color_space, request.intended_channel);
+        return {.color_space = resolved.color_space,
+                .source = ColorSpaceSource::caller,
+                .diagnostics = std::move(diagnostics)};
+    }
+    if (color_interop_id != nullptr && color_interop_id->size > 0 &&
+        color_interop_id->value != nullptr) {
+        const std::string_view identifier(reinterpret_cast<const char*>(color_interop_id->value),
+                                          static_cast<std::size_t>(color_interop_id->size));
+        if (identifier != "unknown") {
+            diagnostics.emplace_back(
+                "OpenEXR colorInteropID is not interpreted; automatic channel rule applied");
+            return {.color_space = image::ColorSpace::linear_rec709,
+                    .source = ColorSpaceSource::automatic_rule,
+                    .diagnostics = std::move(diagnostics)};
+        }
+    }
+    if (decoded_chromaticities) {
+        if (matches_rec709_chromaticities(*decoded_chromaticities)) {
+            diagnostics.emplace_back("OpenEXR chromaticities interpreted as Linear Rec. 709");
+            return {.color_space = image::ColorSpace::linear_rec709,
+                    .source = ColorSpaceSource::embedded_profile,
+                    .diagnostics = std::move(diagnostics)};
+        }
+        diagnostics.emplace_back(
+            "OpenEXR chromaticities are not interpreted; automatic channel rule applied");
+    }
+    return {.color_space = image::ColorSpace::linear_rec709,
+            .source = ColorSpaceSource::automatic_rule,
+            .diagnostics = std::move(diagnostics)};
 }
 
 static_assert(!container_writer_version.string.empty());

@@ -480,11 +480,14 @@ packed, row-major and interleaved; 16-bit components use native byte order.
 bit depth, colour space and its source, detected format, extension mismatch and
 an uninterpretable-profile flag. Explicit caller colour declarations and the
 automatic per-channel rule use the same enums as the colour-management API.
-The source distinguishes an embedded sRGB PNG declaration from an interpreted
-ICC profile embedded in PNG, multipart JPEG, TIFF, flattened PSD or BMP;
-supported profiles resolve D50-adapted Rec. 709 primaries with either sRGB or
-linear transfer curves. Individual PSD layers use the same source profile in
-the C++ layered-image API.
+The source distinguishes an embedded PNG/BMP sRGB declaration from an
+interpreted ICC profile embedded in PNG, multipart JPEG, TIFF, flattened PSD or
+BMP, and from OpenEXR chromaticities or Radiance primaries. Supported ICC
+profiles resolve D50-adapted Rec. 709 primaries with either sRGB or linear
+transfer curves. Individual PSD layers use the same source profile in the C++
+layered-image API; OpenEXR resolves colour metadata per part. Unsupported
+embedded colour declarations set `uninterpretable_profile` before the automatic
+rule is applied.
 OpenEXR expands to RGBA float32 and Radiance HDR retains RGB float32; both use
 linear Rec. 709 in automatic mode and preserve finite values outside `[0, 1]`.
 

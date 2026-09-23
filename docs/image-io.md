@@ -60,14 +60,19 @@ samples and rejects unsupported compression, planar layouts, orientations or
 photometric interpretations by name. TIFF metadata fields unrelated to pixel
 layout are ignored safely.
 
-OpenEXR and Radiance HDR headers are inspected against the same limits
-before pixel allocation. They decode to native float32 storage without clamping:
+OpenEXR and Radiance HDR headers are inspected against the same limits before
+pixel allocation. They decode to native float32 storage without clamping:
 OpenEXR expands named colour channels to RGBA and Radiance HDR retains RGB.
-Automatic colour interpretation is linear Rec. 709; an explicit caller
-declaration remains authoritative. Multipart OpenEXR imports each named part as
-float32 RGBA at its data-window origin. Composited mode alpha-overs later file
-parts over earlier parts across the union of their data windows. Deep parts are
-refused because they are not two-dimensional image layers.
+Rec. 709 OpenEXR `chromaticities` attributes and Radiance `PRIMARIES`
+declarations resolve to linear Rec. 709. Other primaries and OpenEXR
+`colorInteropID` values that this two-space implementation cannot interpret are
+reported before the automatic linear rule is applied. An explicit caller
+declaration remains authoritative. Multipart OpenEXR resolves metadata per part
+and only reports an embedded source for a composite when every part agrees.
+Multipart imports place each named part at its data-window origin; composited
+mode alpha-overs later file parts over earlier parts across the union of their
+data windows. Deep parts are refused because they are not two-dimensional image
+layers.
 
 Layered decoding enforces the image-count, aggregate decoded-byte, dimension,
 and working-memory ceilings before codec pixel allocation. Its conservative
@@ -80,13 +85,16 @@ An explicit caller colour-space declaration overrides metadata. Otherwise an
 embedded PNG sRGB declaration is used. PNG iCCP payloads, ordered multipart
 JPEG APP2 `ICC_PROFILE` chunks, TIFF tag 34675, Photoshop image resource
 `0x040f` (for both flattened and individual-layer decoding), and embedded BMP
-V5 profiles are parsed with bounded tag-table reads. D50-adapted Rec. 709
+V5 profiles are parsed with bounded tag-table reads. BMP V4/V5 `LCS_sRGB`
+declarations resolve directly to sRGB. D50-adapted Rec. 709
 primaries plus either the standard sRGB parametric transfer curve or an identity
 curve resolve to sRGB Rec. 709 or linear Rec. 709 respectively. Missing or
 duplicate JPEG chunks, duplicate Photoshop resources, linked BMP profiles,
 profiles above the 16 MiB interpretation ceiling, unsupported primaries or
 transfer curves, malformed tag ranges, unsupported colour models and unknown
-types are reported before the automatic semantic rule is applied.
+types are reported before the automatic semantic rule is applied. TGA has no
+ICC container, so it follows an explicit caller declaration or the same
+automatic semantic rule.
 
 LodePNG is pinned for memory-based 8/16-bit PNG encoding and decoding. The
 pinned stb implementation decodes JPEG, TGA, BMP, flattened PSD and Radiance

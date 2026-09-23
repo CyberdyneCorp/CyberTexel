@@ -537,14 +537,22 @@ static int encode_honours_jpeg_quality(void) {
 }
 
 static int decode_preserves_radiance_hdr_values(void) {
-    static const char header[] = "#?RADIANCE\nFORMAT=32-bit_rle_rgbe\n\n-Y 1 +X 2\n";
+    static const char header[] =
+        "#?RADIANCE\nFORMAT=32-bit_rle_rgbe\nPRIMARIES=0.6400 0.3300 0.3000 0.6000 "
+        "0.1500 0.0600 0.3127 0.3290\n\n-Y 1 +X 2\n";
+    static const char unsupported_header[] =
+        "#?RADIANCE\nFORMAT=32-bit_rle_rgbe\nPRIMARIES=0.7 0.3 0.2 0.7 0.1 0.1 "
+        "0.3127 0.3290\n\n-Y 1 +X 2\n";
     static const unsigned char rgbe[] = {128, 64, 32, 130, 32, 64, 128, 129};
     unsigned char encoded[sizeof(header) - 1 + sizeof(rgbe)];
+    unsigned char unsupported[sizeof(unsupported_header) - 1 + sizeof(rgbe)];
     float pixels[6] = {0};
     ctex_decoded_image_info info = {.size = CTEX_DECODED_IMAGE_INFO_CURRENT_SIZE};
     size_t required_size = 0;
     memcpy(encoded, header, sizeof(header) - 1);
     memcpy(encoded + sizeof(header) - 1, rgbe, sizeof(rgbe));
+    memcpy(unsupported, unsupported_header, sizeof(unsupported_header) - 1);
+    memcpy(unsupported + sizeof(unsupported_header) - 1, rgbe, sizeof(rgbe));
     return expect(ctex_image_decode_memory(
                       encoded, sizeof(encoded), "environment.png", CTEX_CHANNEL_SEMANTIC_BASE_COLOR,
                       CTEX_INPUT_COLOR_SPACE_AUTOMATIC, NULL, &info, pixels, sizeof(pixels),
@@ -553,9 +561,17 @@ static int decode_preserves_radiance_hdr_values(void) {
                   info.scalar_representation == CTEX_SCALAR_REPRESENTATION_FLOATING_POINT &&
                   info.bit_depth == 32 && info.channel_count == 3 &&
                   info.color_space == CTEX_COLOR_SPACE_LINEAR_REC709 &&
-                  info.extension_mismatch == 1 && required_size == sizeof(pixels)) &&
+                  info.color_space_source == CTEX_COLOR_SPACE_SOURCE_EMBEDDED_PROFILE &&
+                  info.uninterpretable_profile == 0 && info.extension_mismatch == 1 &&
+                  required_size == sizeof(pixels)) &&
            expect(pixels[0] == 2.0f && pixels[1] == 1.0f && pixels[2] == 0.5f &&
-                  pixels[3] == 0.25f && pixels[4] == 0.5f && pixels[5] == 1.0f);
+                  pixels[3] == 0.25f && pixels[4] == 0.5f && pixels[5] == 1.0f) &&
+           expect(ctex_image_decode_memory(unsupported, sizeof(unsupported), "wide.hdr",
+                                           CTEX_CHANNEL_SEMANTIC_BASE_COLOR,
+                                           CTEX_INPUT_COLOR_SPACE_AUTOMATIC, NULL, &info, NULL, 0,
+                                           &required_size) == CTEX_RESULT_SUCCESS) &&
+           expect(info.color_space_source == CTEX_COLOR_SPACE_SOURCE_AUTOMATIC_RULE &&
+                  info.uninterpretable_profile == 1);
 }
 
 static int openexr_round_trip_preserves_hdr_values(void) {

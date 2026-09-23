@@ -710,7 +710,8 @@ if(BUILD_TESTING)
 
     add_executable(ctex_png_io_test tests/io/png_io_test.cpp)
     ctex_configure_cpp_target(ctex_png_io_test)
-    target_link_libraries(ctex_png_io_test PRIVATE cybertexel)
+    target_include_directories(ctex_png_io_test SYSTEM PRIVATE "${tinyexr_SOURCE_DIR}")
+    target_link_libraries(ctex_png_io_test PRIVATE cybertexel tinyexr)
     add_test(NAME png-io COMMAND ctex_png_io_test)
 
     add_executable(ctex_layered_image_io_test tests/io/layered_image_io_test.cpp)

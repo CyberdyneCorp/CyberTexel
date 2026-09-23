@@ -1628,7 +1628,7 @@ std::uint32_t color_space_source(ctex::io::ColorSpaceSource source) noexcept {
 
 bool has_uninterpretable_profile(const ctex::io::DecodeReport& report) {
     return std::ranges::any_of(report.diagnostics, [](const std::string& diagnostic) {
-        return diagnostic.find("profile is not interpreted") != std::string::npos;
+        return diagnostic.find("not interpreted") != std::string::npos;
     });
 }
 

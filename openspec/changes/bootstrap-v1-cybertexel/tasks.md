@@ -80,12 +80,13 @@ sRGB/caller/automatic declarations, extension mismatch reporting and limits
 checked before pixel allocation. Those full work packages remain unchecked
 until their other formats and scenarios land. Channels and texture sets are next.
 
-2026-09-23: Task 2.4 now interprets bounded Rec. 709 ICC profiles embedded in
-PNG, multipart JPEG, TIFF, BMP V5 and both flattened and individual-layer PSD
-sources. Caller declarations remain authoritative, and malformed, linked or
-unsupported profiles are reported before the automatic semantic fallback. The
-task remains open while the non-ICC colour metadata carried by HDR and legacy
-formats is audited and covered explicitly.
+2026-09-23: Task 2.4 is complete. Bounded Rec. 709 ICC profiles embedded in PNG,
+multipart JPEG, TIFF, BMP V5 and both flattened and individual-layer PSD
+sources are interpreted. Native PNG/BMP sRGB declarations, OpenEXR
+chromaticities (per part) and Radiance primaries are also resolved. Caller
+declarations remain authoritative, TGA uses the documented automatic rule
+because it has no ICC container, and malformed, linked or unsupported metadata
+is reported before automatic fallback.
 
 Task 3.2 is complete: the built-in nine-channel preset is expressed through the
 same extensible descriptors as custom semantics, channel precision is independent,
@@ -1492,7 +1493,7 @@ to the labeled native and strict-C test suite.
 - [x] 2.1 Decoders: PNG, JPEG, TGA, BMP, TIFF, OpenEXR, Radiance HDR, PSD
 - [x] 2.2 Content-based format detection and extension-mismatch reporting
 - [x] 2.3 Bit depth and channel preservation; documented expansion rules
-- [ ] 2.4 Colour space on read: embedded profiles, caller declaration, the automatic rule
+- [x] 2.4 Colour space on read: embedded profiles, caller declaration, the automatic rule
 - [x] 2.5 High dynamic range decoding without clamping
 - [x] 2.6 Layered sources: PSD layers and multi-part EXR, composited or per-layer
 - [x] 2.7 Encoders with per-format options and the impossible-combination refusal
