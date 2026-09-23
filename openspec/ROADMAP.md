@@ -7,7 +7,7 @@ decisions taken and questions still open.
 ## Status
 
 Implementation started. 24 capabilities, 332 requirements, 409 scenarios and
-224 tasks, 214 done. Every capability's runtime work is delivered; what remains
+224 tasks, 216 done. Every capability's runtime work is delivered; what remains
 is the reference hosts, the device measurements they enable, the release
 packages and example breadth. Foundation and the complete headless color-management
 scenario suite are green. Image input now detects and decodes PNG, JPEG, TGA,
@@ -408,7 +408,13 @@ release build is byte-identical across two builds of one commit, so task 18.3
 carries no documented variance.
 The desktop WGSL and mobile MSL reference hosts now execute an emitted pass plan
 on real `wgpu` and Metal devices, publish the completion revision and drive the
-explicit transport path. Both were run on the M3 Pro and agree on the rendered
+explicit transport path. The desktop host also builds the declared interactive-4k
+configuration and measures residency traffic: resident paint and undo both move
+zero synchronously read-back bytes, and undo exchanges storage owners with zero
+copied pixel bytes. The first library-side figures are recorded too — delta
+query, tile readback and material emission pass, and the position-gradient
+generator fails at 4273 ms against a 100 ms ceiling, its cost purely per texel.
+All three in-scope platform packages build, smoke-test and archive. Both were run on the M3 Pro and agree on the rendered
 texel across two device APIs. Task 18.4 is complete; task 18.2 stays open for
 the residency-traffic and input-to-visible instrumentation it also requires.
 
@@ -546,6 +552,15 @@ landed first as the smallest programs that honestly execute an emitted plan on
 `wgpu` and Metal, because that is what makes a pass-plan change fail in CI. An
 absent adapter exits 3 and is reported unmeasured, never passed. Pointer input,
 undo and export on a device follow with the numeric budgets in 17.12-17.14.
+
+**2026-09-23 — GCC's missing-field-initializer warning is off, and only on
+GCC.** Building the Linux package locally showed the preset had never compiled
+with GCC: 38 errors reporting every member a C++20 designated initializer omits.
+The standard value-initializes those members, which is what the descriptors
+rely on, and Clang and MSVC do not warn. Suppressing one warning for one
+compiler is cheaper and more honest than rewriting eight test files to satisfy a
+diagnostic that carries no information. Every other warning stays an error
+everywhere. Task 18.1.
 
 ## Open questions
 

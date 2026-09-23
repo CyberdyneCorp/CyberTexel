@@ -32,9 +32,9 @@ What is **not** done, stated plainly:
 | | |
 |---|---|
 | **Reference hosts** | [Both hosts](hosts/) execute an emitted pass plan on a real device API and have been run on the M3 Pro. They are not painting applications: pointer input, undo and export on a device remain part of task 18.2. |
-| **Performance numbers** | No figure has been measured on the named reference devices. `just gate-budgets` refuses to decide without dated result JSON from an exact device, and reports absent hardware as unmeasured (tasks 17.5, 17.10, 17.12–17.14). |
-| **Example breadth** | The numbered Python examples exercise 55 of the 353 public C ABI symbols. The other 298 are named individually in [`examples/feature_coverage.json`](examples/feature_coverage.json) (task 16.12). |
-| **Platform packages** | macOS, Linux and iPad are the first release slice (task 18.1); Windows and Android packaging follow in task 18.6. The Windows library, CLI and Python wheel are built and tested in CI today. |
+| **Performance numbers** | Six budgets are measured on the M3 Pro and five pass; the position-gradient generator fails at 4273 ms against a 100 ms ceiling. Input-to-visible needs a presenting surface (17.12) and every tablet budget needs the iPad Pro M4 (17.13). `just gate-budgets` reports absent hardware as unmeasured, never as a pass. |
+| **Example breadth** | The numbered Python examples exercise 84 of the 353 public C ABI symbols. The other 269 are named individually in [`examples/feature_coverage.json`](examples/feature_coverage.json) (task 16.12). |
+| **Platform packages** | macOS, Linux and iPad build, smoke-test and archive (`just gate-packages`). Windows and Android packaging follow in task 18.6; the Windows library, CLI and Python wheel are built and tested in CI today. |
 
 No claim about mobile responsiveness, memory efficiency or device parity is
 satisfied by a headless CPU test, and the gates are written so that one cannot
