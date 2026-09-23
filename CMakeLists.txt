@@ -1803,6 +1803,40 @@ if(BUILD_TESTING)
         c-abi-editable-authoring
         PROPERTIES LABELS "project-io-scenario;paint-tools-scenario;editable-authoring-scenario"
     )
+    add_test(
+        NAME paint-parameter-audit
+        COMMAND "${CTEX_PYTHON3_EXECUTABLE}" tools/check_paint_parameter_audit.py
+    )
+    add_test(
+        NAME paint-tool-scenario-matrix
+        COMMAND
+            "${CTEX_PYTHON3_EXECUTABLE}"
+            tests/tools/check_paint_tool_scenario_matrix.py
+    )
+    set_tests_properties(
+        paint-parameter-audit paint-tool-scenario-matrix
+        PROPERTIES
+            WORKING_DIRECTORY "${PROJECT_SOURCE_DIR}"
+            LABELS paint-tools-scenario
+    )
+    set_property(
+        TEST
+            stroke-reconstruction
+            paint-brush-eraser
+            paint-fill
+            paint-clone
+            paint-blur-smear
+            paint-decal-stencil
+            paint-projection
+            paint-text
+            paint-particle
+            paint-picker
+            paint-colour-id
+            paint-selection
+            paint-parameters
+            c-abi-paint-coverage
+        APPEND PROPERTY LABELS paint-tools-scenario
+    )
     set_tests_properties(
         operation-record
         c-abi-operation-record

@@ -1475,6 +1475,13 @@ and Rust surfaces plus Swift's direct C import expose the same operations. A
 checked six-row scenario matrix binds every editable-authoring OpenSpec scenario
 to the labeled native and strict-C test suite.
 
+Task 10.13 is complete. The paint-tools scenario matrix maps all twenty
+OpenSpec scenarios to the existing behavioral C++ and strict-C fixtures,
+registers the 69-control no-inert-parameter audit as executable evidence, and
+fails when evidence is missing, duplicated, unregistered or outside the
+capability label. Cross-binding runtime execution of the shared parameter
+validator remains explicitly assigned to task 14.14.
+
 ## 1. Foundation
 
 - [x] 1.1 CMake project, C++20, warnings as errors, presets for headless, macOS, Linux, Windows, iOS, Android
@@ -1624,7 +1631,7 @@ to the labeled native and strict-C test suite.
 - [x] 10.10 Colour ID selection with tolerance and its empty-selection reporting
 - [x] 10.11 Selection tool: rectangle, lasso, polygon fill; storable as a mask
 - [x] 10.12 Parameter validation at every entry point; the no-inert-parameter audit
-- [ ] 10.13 `paint-tools` scenarios as tests
+- [x] 10.13 `paint-tools` scenarios as tests
 
 ## 11. Mesh maps
 
