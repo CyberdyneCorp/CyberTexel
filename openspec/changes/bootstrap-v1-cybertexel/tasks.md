@@ -1659,7 +1659,7 @@ to the labeled native and strict-C test suite.
 
 ## 15. Command line
 
-- [ ] 15.1 Binary skeleton, subcommand dispatch, argument validation before any work
+- [x] 15.1 Binary skeleton, subcommand dispatch, argument validation before any work
 - [ ] 15.2 `export`, `bake-request`, `apply`, `run`, `info`, `validate`
 - [ ] 15.3 Distinct exit codes per outcome class
 - [ ] 15.4 Machine-readable reports; quiet mode; diagnostics on the error stream

@@ -101,6 +101,9 @@ fuzz-image-decoders:
 test-vulkan: build-vulkan
     ./build/vulkan/ctex_vulkan_executor_test --require-device
 
+test-cli: build
+    ctest --test-dir build/headless --output-on-failure -R '^cli-headless-'
+
 test-image: build
     ctest --test-dir build/headless --output-on-failure -R '^tiled-image$'
 
