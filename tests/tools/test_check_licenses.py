@@ -73,6 +73,16 @@ class LicenceGateTests(unittest.TestCase):
             ["untracked dependency: find_package declaration CMakeLists.txt"],
         )
 
+    def test_generated_cargo_cmake_modules_are_ignored(self) -> None:
+        root = self.make_root()
+        generated = root / "rust" / "target" / "native" / "_deps" / "dependency"
+        generated.mkdir(parents=True)
+        (generated / "FindGenerated.cmake").write_text(
+            "find_package(Generated REQUIRED)\n", encoding="utf-8"
+        )
+
+        self.assertEqual(CHECK_LICENSES.audit(root), [])
+
 
 if __name__ == "__main__":
     unittest.main()

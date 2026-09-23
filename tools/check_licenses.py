@@ -46,7 +46,13 @@ def load_manifest(root: Path) -> tuple[list[dict[str, Any]], list[str]]:
 
 def cmake_files(root: Path) -> list[Path]:
     paths = [root / "CMakeLists.txt", *root.rglob("*.cmake")]
-    return [path for path in paths if path.is_file() and "build" not in path.parts]
+    return [
+        path
+        for path in paths
+        if path.is_file()
+        and "build" not in path.relative_to(root).parts
+        and path.relative_to(root).parts[:2] != ("rust", "target")
+    ]
 
 
 def discovered_dependencies(root: Path) -> dict[str, str]:
