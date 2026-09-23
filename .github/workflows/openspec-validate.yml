@@ -100,6 +100,24 @@ jobs:
     - name: Test suite
       run: just test
 
+  cli-smoke:
+    name: cli-smoke-${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+    - uses: actions/checkout@v4
+    - uses: actions/setup-python@v5
+      with:
+        python-version: '3.12'
+    - uses: ilammy/msvc-dev-cmd@v1
+      if: runner.os == 'Windows'
+    - uses: extractions/setup-just@v2
+    - name: Build and exercise every CLI route
+      run: just test-cli
+
   python-wheel:
     name: python-wheel-${{ matrix.os }}
     strategy:

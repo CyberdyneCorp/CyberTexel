@@ -96,4 +96,5 @@ suite. The suite repeats `export`, `apply`, and Python `run` from identical
 inputs and byte-compares every resulting texture and project, in addition to
 treating command help as an interface: every implemented command option and
 every global option must appear in `--help`, together with accepted values and
-defaults.
+defaults. CI runs this focused build and suite independently on Linux, macOS,
+and Windows so a desktop package cannot ship an unexercised binary.
