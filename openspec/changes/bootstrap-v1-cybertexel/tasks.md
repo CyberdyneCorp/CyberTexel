@@ -1686,7 +1686,7 @@ to the labeled native and strict-C test suite.
 - [x] 15.4 Machine-readable reports; quiet mode; diagnostics on the error stream
 - [x] 15.5 Executor selection by flag and environment; fallback reporting
 - [x] 15.6 Budget flags and their refusals
-- [ ] 15.7 Interrupt handling with no partial files
+- [x] 15.7 Interrupt handling with no partial files
 - [x] 15.8 Help completeness gate
 - [x] 15.9 Determinism test across repeated runs
 - [ ] 15.10 CLI smoke tests on every desktop platform in CI

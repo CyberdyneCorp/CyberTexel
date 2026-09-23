@@ -45,6 +45,12 @@ unchanged. `CTEX_PYTHON` selects the interpreter and defaults to `python3` on
 POSIX or `python` on Windows. That interpreter must have the CyberTexel wheel
 installed.
 
+`SIGINT` and `SIGTERM` request cancellation. A running Python child is stopped,
+the command returns code 6, and its sibling staging directory is removed while
+an existing destination remains unchanged. Native export checks the same
+cancellation state between encoded outputs and publishes its staged directory
+only after the complete set has been written.
+
 `bake-request` currently returns the unsupported-operation outcome until the
 remaining part of roadmap task 15.2 supplies provider attachment. Replacement
 mesh export also remains unsupported.

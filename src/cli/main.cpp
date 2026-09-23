@@ -3,6 +3,7 @@
 #include <cerrno>
 #include <charconv>
 #include <chrono>
+#include <csignal>
 #include <cstddef>
 #include <cstdint>
 #include <cstdlib>
@@ -27,12 +28,12 @@
 #include <vector>
 
 #if defined(_WIN32)
+#define NOMINMAX
 #include <process.h>
+#include <windows.h>
 #else
 #include <sys/wait.h>
 #include <unistd.h>
-
-#include <csignal>
 #endif
 
 namespace {
@@ -47,6 +48,10 @@ enum class ExitCode : int {
     over_budget = 7,
     internal_error = 70,
 };
+
+volatile std::sig_atomic_t interrupt_requested = 0;
+
+extern "C" void handle_interrupt(int) { interrupt_requested = 1; }
 
 struct OptionSpec {
     std::string_view name;
@@ -143,6 +148,12 @@ public:
 private:
     ExitCode code_;
 };
+
+void throw_if_interrupted() {
+    if (interrupt_requested != 0) {
+        throw CliError(ExitCode::cancelled, "operation was interrupted");
+    }
+}
 
 const CommandSpec* find_command(std::string_view name) {
     for (const CommandSpec& command : commands) {
@@ -452,6 +463,7 @@ std::optional<Invocation> parse_invocation(int argc, char** argv, std::string& e
 
 std::vector<std::byte> read_input(const std::filesystem::path& path,
                                   const ExecutionOptions& options) {
+    throw_if_interrupted();
     std::ifstream stream(path, std::ios::binary | std::ios::ate);
     if (!stream) {
         throw CliError(ExitCode::missing_input, "could not read input '" + path.string() + "'");
@@ -477,6 +489,7 @@ std::vector<std::byte> read_input(const std::filesystem::path& path,
         throw CliError(ExitCode::missing_input,
                        "could not read complete input '" + path.string() + "'");
     }
+    throw_if_interrupted();
     return bytes;
 }
 
@@ -621,6 +634,7 @@ int validate_command(const Invocation& invocation, const SelectedExecutor& execu
         throw CliError(ExitCode::invalid_arguments,
                        "invalid " + std::string(kind) + ": " + error.what());
     }
+    throw_if_interrupted();
 
     if (option_value(invocation, "--report") == "json") {
         std::cout << '{'
@@ -662,6 +676,7 @@ int info_command(const Invocation& invocation, const SelectedExecutor& executor,
     const auto& container = result.container;
     ContainerMetrics metrics = measure_container(container, options);
     add_document_metrics(metrics, documents);
+    throw_if_interrupted();
     const std::string schema = std::to_string(container.schema_version.major) + '.' +
                                std::to_string(container.schema_version.minor) + '.' +
                                std::to_string(container.schema_version.patch);
@@ -811,6 +826,7 @@ int apply_command(const Invocation& invocation, const SelectedExecutor& executor
         const ctex::doc::PresetApplicationReport applied =
             texture_set.apply_smart_material(preset, application_identity);
         ctex::io::upsert_texture_document(project, document_identity, document);
+        throw_if_interrupted();
         ctex::io::save_project_container_atomic(output_path, project);
         const std::uintmax_t output_bytes = std::filesystem::file_size(output_path);
 
@@ -1080,16 +1096,65 @@ std::string python_executable() {
 #endif
 }
 
-int spawn_python(std::vector<std::string> arguments) {
 #if defined(_WIN32)
+int spawn_python_process(std::vector<std::string>& arguments) {
     std::vector<const char*> raw_arguments;
     raw_arguments.reserve(arguments.size() + 1);
     for (const std::string& argument : arguments) raw_arguments.push_back(argument.c_str());
     raw_arguments.push_back(nullptr);
-    const intptr_t result = _spawnvp(_P_WAIT, arguments.front().c_str(), raw_arguments.data());
+    const intptr_t result = _spawnvp(_P_NOWAIT, arguments.front().c_str(), raw_arguments.data());
     if (result == -1) return 127;
-    return static_cast<int>(result);
+    const HANDLE process = reinterpret_cast<HANDLE>(result);
+    for (;;) {
+        const DWORD wait_result = WaitForSingleObject(process, 25);
+        if (wait_result == WAIT_OBJECT_0) {
+            DWORD exit_code{};
+            const BOOL queried = GetExitCodeProcess(process, &exit_code);
+            CloseHandle(process);
+            if (queried == 0) {
+                throw CliError(ExitCode::internal_error, "could not query Python process outcome");
+            }
+            return static_cast<int>(exit_code);
+        }
+        if (wait_result == WAIT_FAILED) {
+            CloseHandle(process);
+            throw CliError(ExitCode::internal_error, "could not wait for Python process");
+        }
+        if (interrupt_requested != 0) {
+            static_cast<void>(TerminateProcess(process, 130));
+            static_cast<void>(WaitForSingleObject(process, INFINITE));
+            CloseHandle(process);
+            return 130;
+        }
+    }
+}
 #else
+int interrupted_python_process(pid_t child, int& status) {
+    static_cast<void>(kill(child, SIGINT));
+    while (waitpid(child, &status, 0) < 0 && errno == EINTR) {
+    }
+    return 130;
+}
+
+int wait_for_python_process(pid_t child) {
+    int status{};
+    for (;;) {
+        const pid_t waited = waitpid(child, &status, WNOHANG);
+        if (waited == child) break;
+        if (waited < 0 && errno != EINTR) {
+            throw CliError(ExitCode::internal_error, "could not wait for Python process");
+        }
+        if (interrupt_requested != 0) return interrupted_python_process(child, status);
+        std::this_thread::sleep_for(std::chrono::milliseconds(25));
+    }
+    if (WIFEXITED(status)) return WEXITSTATUS(status);
+    if (WIFSIGNALED(status) && (WTERMSIG(status) == SIGINT || WTERMSIG(status) == SIGTERM)) {
+        return 130;
+    }
+    return 1;
+}
+
+int spawn_python_process(std::vector<std::string>& arguments) {
     std::vector<char*> raw_arguments;
     raw_arguments.reserve(arguments.size() + 1);
     for (std::string& argument : arguments) raw_arguments.push_back(argument.data());
@@ -1102,18 +1167,13 @@ int spawn_python(std::vector<std::string> arguments) {
         execvp(arguments.front().c_str(), raw_arguments.data());
         _exit(127);
     }
-    int status{};
-    while (waitpid(child, &status, 0) < 0) {
-        if (errno != EINTR) {
-            throw CliError(ExitCode::internal_error, "could not wait for Python process");
-        }
-    }
-    if (WIFEXITED(status)) return WEXITSTATUS(status);
-    if (WIFSIGNALED(status) && (WTERMSIG(status) == SIGINT || WTERMSIG(status) == SIGTERM)) {
-        return 130;
-    }
-    return 1;
+    return wait_for_python_process(child);
+}
 #endif
+
+int spawn_python(std::vector<std::string> arguments) {
+    throw_if_interrupted();
+    return spawn_python_process(arguments);
 }
 
 void require_combined_input_budget(std::uint64_t document_bytes, std::uint64_t script_bytes,
@@ -1157,10 +1217,12 @@ int run_command(const Invocation& invocation, const SelectedExecutor& executor,
             throw CliError(ExitCode::invalid_arguments,
                            "Python script failed with exit status " + std::to_string(status));
         }
+        throw_if_interrupted();
         const std::vector<std::byte> output_bytes = read_input(staged.path(), options);
         const ctex::io::ProjectContainer output =
             ctex::io::read_project_container(output_bytes, project_limits(options)).container;
         static_cast<void>(measure_container(output, options));
+        throw_if_interrupted();
         ctex::io::save_project_container_atomic(output_path, output);
         const std::uintmax_t published_bytes = std::filesystem::file_size(output_path);
 
@@ -1244,10 +1306,13 @@ int export_command(const Invocation& invocation, const SelectedExecutor& executo
         export_options.dry_run = false;
         const ctex::io::TextureExportResult result = ctex::io::export_texture_document_to_memory(
             project_name, document, preset, export_options);
+        throw_if_interrupted();
         StagedOutputDirectory staging(output_directory);
         for (const ctex::io::InMemoryTextureExport& output : result.buffers) {
+            throw_if_interrupted();
             staging.write(output);
         }
+        throw_if_interrupted();
         staging.publish();
 
         if (option_value(invocation, "--report") == "json") {
@@ -1294,6 +1359,7 @@ int dispatch(const Invocation& invocation) {
     const SelectedExecutor executor = select_executor(invocation);
     const ExecutionOptions options = execution_options(invocation);
     try {
+        throw_if_interrupted();
         if (invocation.command->name == "validate") {
             return validate_command(invocation, executor, options, started);
         }
@@ -1340,6 +1406,8 @@ int dispatch(const Invocation& invocation) {
 }  // namespace
 
 int main(int argc, char** argv) {
+    std::signal(SIGINT, handle_interrupt);
+    std::signal(SIGTERM, handle_interrupt);
     if (argc == 2 && std::string_view(argv[1]) == "--help") {
         print_usage(std::cout);
         return static_cast<int>(ExitCode::success);

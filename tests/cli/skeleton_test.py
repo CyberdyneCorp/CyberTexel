@@ -6,9 +6,11 @@ from __future__ import annotations
 import json
 import os
 from pathlib import Path
+import signal
 import subprocess
 import sys
 import tempfile
+import time
 
 
 BINARY = sys.argv[1]
@@ -35,22 +37,26 @@ COMMAND_OPTIONS = {
 }
 
 
-def run(
-    *arguments: str, environment: dict[str, str] | None = None
-) -> subprocess.CompletedProcess[str]:
+def process_environment(overrides: dict[str, str] | None = None) -> dict[str, str]:
     child_environment = os.environ.copy()
     child_environment.pop("CTEX_EXECUTOR", None)
     child_environment["CTEX_PYTHON"] = sys.executable
     child_environment["CYBERTEXEL_LIBRARY"] = NATIVE_LIBRARY
     child_environment["PYTHONPATH"] = str(ROOT / "python" / "src")
-    if environment:
-        child_environment.update(environment)
+    if overrides:
+        child_environment.update(overrides)
+    return child_environment
+
+
+def run(
+    *arguments: str, environment: dict[str, str] | None = None
+) -> subprocess.CompletedProcess[str]:
     return subprocess.run(
         [BINARY, *arguments],
         capture_output=True,
         text=True,
         check=False,
-        env=child_environment,
+        env=process_environment(environment),
     )
 
 
@@ -563,5 +569,54 @@ with tempfile.TemporaryDirectory(prefix="ctex-cli-apply-") as temporary:
     assert "intentional-script-failure" in failed_script.stderr
     assert protected_script_output.read_bytes() == b"previous-good-output"
     assert json.loads(failed_script.stdout)["outputs"] == []
+
+    if os.name != "nt":
+        interrupt_script = directory / "interrupt.py"
+        interrupt_script.write_text(
+            "import time\n"
+            "def main(document):\n"
+            "    time.sleep(30)\n",
+            encoding="utf-8",
+        )
+        interrupted_output = directory / "interrupted.ctex"
+        interrupted_output.write_bytes(b"previous-good-output")
+        interrupted = subprocess.Popen(
+            [
+                BINARY,
+                "run",
+                "--document",
+                str(source),
+                "--script",
+                str(interrupt_script),
+                "--output",
+                str(interrupted_output),
+                "--report",
+                "json",
+            ],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            env=process_environment(),
+        )
+        try:
+            for _ in range(200):
+                if list(directory.glob(".interrupted.ctex.ctex-run-*")):
+                    break
+                if interrupted.poll() is not None:
+                    raise AssertionError("interrupt fixture exited before staging")
+                time.sleep(0.01)
+            else:
+                raise AssertionError("interrupt fixture did not reach staging")
+            interrupted.send_signal(signal.SIGINT)
+            interrupt_stdout, interrupt_stderr = interrupted.communicate(timeout=10)
+        finally:
+            if interrupted.poll() is None:
+                interrupted.kill()
+                interrupted.communicate()
+        assert interrupted.returncode == 6, (interrupt_stdout, interrupt_stderr)
+        assert json.loads(interrupt_stdout)["exit_code"] == 6
+        assert "interrupted" in interrupt_stderr
+        assert interrupted_output.read_bytes() == b"previous-good-output"
+        assert not list(directory.glob(".interrupted.ctex.ctex-run-*"))
 
 print("headless CLI contract passed")
