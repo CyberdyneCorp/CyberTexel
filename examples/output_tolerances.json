@@ -10,6 +10,10 @@
     "03_mesh_map_generator/ambient_occlusion_mask.png": {
       "maximum_absolute_error": 0,
       "mode": "pixels"
+    },
+    "04_software_host_execution/material_preview.png": {
+      "maximum_absolute_error": 0,
+      "mode": "pixels"
     }
   },
   "schema": 1

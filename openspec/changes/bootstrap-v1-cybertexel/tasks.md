@@ -1411,23 +1411,25 @@ wheel's bundled library. Both generated language surfaces pin the header digest;
 Swift imports that header directly. The parity gate is green, and the Python
 wheel, macOS/iOS Swift package and Rust workspace suites all pass.
 
-Tasks 16.1, 16.2, 16.4, 16.6 and 16.10 are complete. The fixture set now contains valid UV and UDIM
-meshes, a four-image mesh-map set, brush alpha, reference image and OFL-licensed
-Roboto variable font. Every asset has a pinned digest, origin, licence and human
-attribution, and the generated PNGs reproduce byte-identically. The installed-
-wheel runner discovers numbered scripts and provides tested assert, committed-
-output compare and CPU-only update modes. Compare mode executes every example
-twice and rejects byte-level nondeterminism before applying the declared output
-tolerance. The first examples exercise versioned C ABI project-container
-creation and public NumPy image decode/encode. Their complete committed outputs
-are linked from a checked documentation gallery; full capability coverage
-remains a separate open task. The example-coverage gate is live rather than a
-placeholder: it reads literal declarations from every numbered script, compares
-them with the capability index and reports every missing capability by name.
-The third example carries the checked UV quad and AO fixture through mesh ingest,
-a texture document, external map binding and deterministic mask generation. Nine
-of 24 capabilities now have numbered example evidence; the gate names the
-remaining 15.
+Tasks 16.1, 16.2, 16.4, 16.6, 16.8 and 16.10 are complete. The fixture set now
+contains valid UV and UDIM meshes, a four-image mesh-map set, brush alpha,
+reference image and OFL-licensed Roboto variable font. Every asset has a pinned
+digest, origin, licence and human attribution, and the generated PNGs reproduce
+byte-identically. The installed-wheel runner discovers numbered scripts and
+provides tested assert, committed-output compare and CPU-only update modes.
+Compare mode executes every example twice and rejects byte-level nondeterminism
+before applying the declared output tolerance. The first examples exercise
+versioned C ABI project-container creation and public NumPy image decode/encode.
+Their complete committed outputs are linked from a checked documentation
+gallery; full capability coverage remains a separate open task. The live
+example-coverage gate reads literal declarations from every numbered script,
+compares them with the capability index and reports every missing capability by
+name. The third example carries the checked UV quad and AO fixture through mesh
+ingest, a texture document, external map binding and deterministic mask
+generation. The fourth executes an emitted WGSL material pass plan in a
+display-free software host, publishes its host-resident output with recovery
+evidence and records zero synchronous readback bytes. Numbered examples now
+cover 14 of 24 capabilities, and the gate names the remaining ten.
 
 Editable-authoring group 20 is complete. Versioned operation records retain
 algorithm and preset versions, seeds, channel descriptors, mesh identity,
@@ -1671,7 +1673,7 @@ to the labeled native and strict-C test suite.
 - [ ] 16.5 Example coverage gate over capabilities
 - [x] 16.6 Determinism: explicit seeds, identical output across runs
 - [ ] 16.7 End-to-end example: mesh and maps through layers, graph, smart material, export
-- [ ] 16.8 Host-executed route example with a software stand-in
+- [x] 16.8 Host-executed route example with a software stand-in
 - [ ] 16.9 Examples runnable against any executor as a parity check
 - [x] 16.10 Published gallery in the documentation
 - [ ] 16.11 `examples` scenarios as tests

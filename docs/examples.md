@@ -42,6 +42,8 @@ Python C ABI, version synchronization and canonical project-container creation.
 `02_image_io.py` demonstrates the public NumPy decode/encode path and produces
 the first visual gallery output. `03_mesh_map_generator.py` carries the checked
 UV quad and AO fixture through a texture document and deterministic generator.
+`04_software_host_execution.py` consumes an emitted WGSL pass plan with a
+display-free stand-in and returns a host-resident result without readback.
 Full capability example coverage remains roadmap work. Every numbered script
 declares a literal `CAPABILITIES` tuple;
 `just gate-example-coverage` compares those declarations with

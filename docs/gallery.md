@@ -37,3 +37,17 @@ set resolution. It covers `mesh-and-texture-sets`, `mesh-maps` and
 
 The [generator summary](../examples/outputs/03_mesh_map_generator/summary.json)
 records mesh counts, source/output resolutions and asserted mask statistics.
+
+## `04_software_host_execution`
+
+Emits a real WGSL material and pass plan, validates the render target and draw
+contract, executes the constant material with a display-free software stand-in,
+then publishes the host-resident generation with recovery evidence and no pixel
+readback. It covers `execution-backends`, `host-transport`, `material-graph`,
+`resource-residency` and `shader-emission`.
+
+![Software-host material preview](../examples/outputs/04_software_host_execution/material_preview.png)
+
+The committed [pass plan](../examples/outputs/04_software_host_execution/pass_plan.json)
+and [execution summary](../examples/outputs/04_software_host_execution/summary.json)
+make the resource contract and residency result inspectable.

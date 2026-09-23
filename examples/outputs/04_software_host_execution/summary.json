@@ -1,0 +1,15 @@
+{
+  "capabilities": [
+    "execution-backends",
+    "host-transport",
+    "material-graph",
+    "resource-residency",
+    "shader-emission"
+  ],
+  "fragment_artifact_bytes": 1627,
+  "host_resident_bytes": 16384,
+  "pass_count": 1,
+  "published_revision": 1,
+  "readback_bytes": 0,
+  "vertex_artifact_bytes": 426
+}

@@ -1,0 +1,141 @@
+{
+  "lifetimes": [
+    {
+      "first_pass": 0,
+      "last_pass": 0,
+      "resource": {
+        "generation": 1,
+        "logical_id": "material-output"
+      }
+    }
+  ],
+  "passes": [
+    {
+      "accesses": [
+        {
+          "load": "clear",
+          "mode": "write",
+          "resource": {
+            "generation": 1,
+            "logical_id": "material-output"
+          },
+          "store": "store",
+          "subresources": {
+            "first_layer": 0,
+            "first_mip": 0,
+            "layer_count": 1,
+            "mip_count": 1,
+            "tiles": null
+          }
+        }
+      ],
+      "command": {
+        "base_vertex": 0,
+        "first_index": 0,
+        "first_instance": 0,
+        "first_vertex": 0,
+        "index_count": 0,
+        "indexed": false,
+        "instance_count": 1,
+        "kind": "draw",
+        "topology": "triangle_list",
+        "vertex_count": 3
+      },
+      "dependencies": [],
+      "depth_state": {
+        "compare": "always",
+        "test_enabled": false,
+        "write_enabled": false
+      },
+      "depth_target": null,
+      "entry_points": {
+        "compute": "",
+        "fragment": "main",
+        "vertex": "main"
+      },
+      "identifier": "material-graph",
+      "kind": "render",
+      "render_targets": [
+        {
+          "blend": {
+            "alpha": {
+              "destination": "zero",
+              "operation": "add",
+              "source": "one"
+            },
+            "colour": {
+              "destination": "zero",
+              "operation": "add",
+              "source": "one"
+            },
+            "enabled": false,
+            "write_mask": 15
+          },
+          "clear_colour": [
+            0.0,
+            0.0,
+            0.0,
+            0.0
+          ],
+          "format": "rgba8_unorm",
+          "height": 64,
+          "load": "clear",
+          "resource": {
+            "generation": 1,
+            "logical_id": "material-output"
+          },
+          "role": "material graph colour output",
+          "store": "store",
+          "subresources": {
+            "first_layer": 0,
+            "first_mip": 0,
+            "layer_count": 1,
+            "mip_count": 1,
+            "tiles": null
+          },
+          "width": 64
+        }
+      ],
+      "sampler_bindings": [],
+      "texture_bindings": [],
+      "uniform_blocks": [],
+      "vertex_buffers": [
+        {
+          "attributes": [
+            {
+              "format": "float32x2",
+              "location": 0,
+              "offset": 0,
+              "semantic": "position"
+            }
+          ],
+          "slot": 0,
+          "step_mode": "vertex",
+          "stride": 8
+        }
+      ]
+    }
+  ],
+  "resources": [
+    {
+      "extent": {
+        "height": 64,
+        "layers": 1,
+        "width": 64
+      },
+      "externally_initialized": false,
+      "format": "rgba8_unorm",
+      "mip_levels": 1,
+      "role": "material output",
+      "tile_shape": {
+        "height": 64,
+        "width": 64
+      },
+      "version": {
+        "generation": 1,
+        "logical_id": "material-output"
+      }
+    }
+  ],
+  "stable_identity": "example/software-host"
+}
