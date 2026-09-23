@@ -1,0 +1,276 @@
+{
+  "links": [
+    {
+      "source_node": 2,
+      "source_socket": "colour",
+      "target_node": 1,
+      "target_socket": "pbr.base_color"
+    },
+    {
+      "source_node": 4,
+      "source_socket": "colour",
+      "target_node": 1,
+      "target_socket": "pbr.roughness"
+    }
+  ],
+  "nodes": [
+    {
+      "display_name": "Material Output",
+      "id": 1,
+      "inputs": [
+        {
+          "default": [
+            0.5,
+            0.5,
+            0.5,
+            1.0
+          ],
+          "display_name": "pbr.base_color",
+          "id": "pbr.base_color",
+          "type": "colour"
+        },
+        {
+          "default": 1.0,
+          "display_name": "pbr.opacity",
+          "id": "pbr.opacity",
+          "type": "scalar"
+        },
+        {
+          "default": 0.5,
+          "display_name": "pbr.roughness",
+          "id": "pbr.roughness",
+          "type": "scalar"
+        },
+        {
+          "default": 0.0,
+          "display_name": "pbr.metallic",
+          "id": "pbr.metallic",
+          "type": "scalar"
+        },
+        {
+          "default": [
+            0.5,
+            0.5,
+            1.0
+          ],
+          "display_name": "pbr.normal",
+          "id": "pbr.normal",
+          "type": "vector"
+        },
+        {
+          "default": 0.0,
+          "display_name": "pbr.height",
+          "id": "pbr.height",
+          "type": "scalar"
+        },
+        {
+          "default": 1.0,
+          "display_name": "pbr.occlusion",
+          "id": "pbr.occlusion",
+          "type": "scalar"
+        },
+        {
+          "default": [
+            0.0,
+            0.0,
+            0.0,
+            1.0
+          ],
+          "display_name": "pbr.emission",
+          "id": "pbr.emission",
+          "type": "colour"
+        },
+        {
+          "default": 0.0,
+          "display_name": "pbr.subsurface",
+          "id": "pbr.subsurface",
+          "type": "scalar"
+        }
+      ],
+      "outputs": [],
+      "position": [
+        0.0,
+        0.0
+      ],
+      "properties": [],
+      "role": "output",
+      "type_id": "ctex.output",
+      "type_version": 1
+    },
+    {
+      "display_name": "Image",
+      "id": 2,
+      "inputs": [
+        {
+          "default": [
+            2.0,
+            2.0,
+            0.0
+          ],
+          "display_name": "Vector",
+          "id": "vector",
+          "type": "vector"
+        }
+      ],
+      "outputs": [
+        {
+          "default": null,
+          "display_name": "Colour",
+          "id": "colour",
+          "type": "colour"
+        },
+        {
+          "default": null,
+          "display_name": "Alpha",
+          "id": "alpha",
+          "type": "scalar"
+        }
+      ],
+      "position": [
+        -320.0,
+        40.0
+      ],
+      "properties": [
+        {
+          "id": "image",
+          "type": "image",
+          "value": "library/copper/plate_albedo.png"
+        },
+        {
+          "id": "interpolation",
+          "type": "string",
+          "value": "linear"
+        },
+        {
+          "id": "extension",
+          "type": "string",
+          "value": "repeat"
+        },
+        {
+          "id": "colour_space",
+          "type": "string",
+          "value": "automatic"
+        }
+      ],
+      "role": "regular",
+      "type_id": "ctex.texture.image",
+      "type_version": 1
+    },
+    {
+      "display_name": "Constant Value",
+      "id": 3,
+      "inputs": [],
+      "outputs": [
+        {
+          "default": null,
+          "display_name": "Value",
+          "id": "value",
+          "type": "scalar"
+        }
+      ],
+      "position": [
+        -320.0,
+        -120.0
+      ],
+      "properties": [
+        {
+          "id": "value",
+          "type": "scalar",
+          "value": 0.0
+        }
+      ],
+      "role": "regular",
+      "type_id": "ctex.input.constant-value",
+      "type_version": 1
+    },
+    {
+      "display_name": "Constant Colour",
+      "id": 4,
+      "inputs": [],
+      "outputs": [
+        {
+          "default": null,
+          "display_name": "Colour",
+          "id": "colour",
+          "type": "colour"
+        }
+      ],
+      "position": [
+        -320.0,
+        -260.0
+      ],
+      "properties": [
+        {
+          "id": "colour",
+          "type": "colour",
+          "value": [
+            0.8,
+            0.8,
+            0.8,
+            1.0
+          ]
+        }
+      ],
+      "role": "regular",
+      "type_id": "ctex.input.constant-colour",
+      "type_version": 1
+    },
+    {
+      "display_name": "Blend",
+      "id": 5,
+      "inputs": [
+        {
+          "default": [
+            0.0,
+            0.0,
+            0.0,
+            1.0
+          ],
+          "display_name": "Background",
+          "id": "background",
+          "type": "colour"
+        },
+        {
+          "default": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "display_name": "Foreground",
+          "id": "foreground",
+          "type": "colour"
+        },
+        {
+          "default": 1.0,
+          "display_name": "Opacity",
+          "id": "opacity",
+          "type": "scalar"
+        }
+      ],
+      "outputs": [
+        {
+          "default": null,
+          "display_name": "Colour",
+          "id": "colour",
+          "type": "colour"
+        }
+      ],
+      "position": [
+        -140.0,
+        220.0
+      ],
+      "properties": [
+        {
+          "id": "mode",
+          "type": "string",
+          "value": "darken"
+        }
+      ],
+      "role": "regular",
+      "type_id": "ctex.colour.blend",
+      "type_version": 1
+    }
+  ],
+  "output_node_id": 1
+}

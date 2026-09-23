@@ -1,0 +1,30 @@
+{
+  "capabilities": [
+    "editable-authoring"
+  ],
+  "project_round_trip": {
+    "asset_count": 1,
+    "canonical_bytes": 832,
+    "restored_entry_count": 2
+  },
+  "replay_assessment": {
+    "canonical_bytes": 357,
+    "checkpoint_images": 1,
+    "fallback_disposition": 4
+  },
+  "resolution_change": {
+    "replayed": 0,
+    "resampled": 1,
+    "target_width": 256
+  },
+  "surface_path": {
+    "planned_tiles": 2,
+    "stamp_count": 7,
+    "swept_segment_count": 6
+  },
+  "text_entry": {
+    "entry_count": 1,
+    "revision_after_undo": 1,
+    "undo_steps": 1
+  }
+}

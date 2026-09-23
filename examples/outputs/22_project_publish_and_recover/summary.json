@@ -1,0 +1,32 @@
+{
+  "capabilities": [
+    "project-io",
+    "smart-materials",
+    "texture-export"
+  ],
+  "export_preset_ids": [
+    "pbr-individual",
+    "occlusion-roughness-metallic",
+    "metallic-occlusion-smoothness",
+    "metallic-emission-roughness",
+    "base-color",
+    "specular-glossiness"
+  ],
+  "exported_package_bytes": 3160,
+  "install_report_assets": [
+    {
+      "id": "materials/foundry-brass",
+      "image_dependencies": 0,
+      "kind": "smart-material",
+      "payload_bytes": 2915,
+      "resource_dependencies": 1,
+      "version": 6
+    }
+  ],
+  "library_bytes": 3160,
+  "packed_package_bytes": 3160,
+  "recovered_revision": 2,
+  "recovery_file": "foundry-brass.ctex-recovery",
+  "recovery_rejections": 1,
+  "referenced_package_bytes": 3155
+}

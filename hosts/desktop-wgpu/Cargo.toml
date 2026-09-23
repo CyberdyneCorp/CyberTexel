@@ -8,10 +8,12 @@ description = "Desktop WGSL reference host: runs an emitted CyberTexel pass plan
 
 [dependencies]
 cybertexel = { path = "../../rust/cybertexel" }
+cybertexel-sys = { path = "../../rust/cybertexel-sys" }
 pollster = "0.4"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 wgpu = "30"
+winit = "0.30"
 
 [[bin]]
 name = "cybertexel-host-desktop"

@@ -1,0 +1,50 @@
+{
+  "capabilities": [
+    "execution-backends",
+    "host-transport"
+  ],
+  "device_loss": {
+    "cancelled_submission": 4,
+    "recovered_revision": 2,
+    "released_identity": "pending-output",
+    "retained_bytes": 128
+  },
+  "executors": [
+    "cpu",
+    "host"
+  ],
+  "fallback_message": "executor 'host' failed: device removed; restored recovery state and fell back to 'cpu'",
+  "in_tolerance_gate": {
+    "drift": false,
+    "failed_count": 0,
+    "names_fixture": false,
+    "passed": 1,
+    "passed_count": 1
+  },
+  "numeric_contract": {
+    "maximum_absolute_deviation": 0.09999999999999998,
+    "unorm8_absolute": 0.00392156862745098
+  },
+  "out_of_tolerance_gate": {
+    "drift": true,
+    "failed_count": 1,
+    "names_fixture": true,
+    "passed": 0,
+    "passed_count": 0
+  },
+  "raster": {
+    "covered_pixels": 10,
+    "projected_screen": [
+      1.25,
+      1.875
+    ]
+  },
+  "selection_messages": {
+    "explicit": "selected the requested compiled-in executor",
+    "pinned": "using the pinned process default"
+  },
+  "staged_execution": {
+    "required_memory_bytes": 72,
+    "staged_bytes": 64
+  }
+}

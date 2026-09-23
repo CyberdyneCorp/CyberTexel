@@ -169,3 +169,85 @@ refused. It covers `mesh-and-texture-sets`.
 The [UDIM and atlas summary](../examples/outputs/14_udim_and_atlases/udim_and_atlases.json)
 records the occupied tiles, the write report, both recovered texels and the
 atlas extent.
+
+## `15_masked_panel_selection_fill`
+
+Decide what is paintable on a two-island panel, then fill, blend and erase it. A trim pass on a hull panel: cache the surface map for one tile, read the channels under the cursor, narrow the paintable area with colour-ID, screen, polygon and stencil masks, intersect every mask class, then plan the tiles, fill, blend, erase and dilate the result across the island gutter. It covers `paint-engine`, `paint-tools`.
+
+The gallery retains [`summary.json`](../examples/outputs/15_masked_panel_selection_fill/summary.json).
+
+## `16_badge_stamping_and_seam_healing`
+
+Stamp a badge onto a crate panel with the retained tools, then heal its seams. The badge pass end to end: restore the saved preset against the published catalogue, stamp a decal and a text label, project, spray, filter, pad, defer a dilation session and report what a cancelled preview leaves behind. It covers `paint-tools`, `paint-engine`, `stroke-model`.
+
+The gallery retains [`summary.json`](../examples/outputs/16_badge_stamping_and_seam_healing/summary.json).
+
+## `17_material_graph_authoring`
+
+Author a material graph, publish it, and share a node group across a workspace. The example browses the built-in node catalogue, grows the default document into a copper material, validates it against the resources a project owns, stores it under a stable library identity, and propagates one reusable node group to every material in a workspace without losing the values each instance already carried. It covers `material-graph`.
+
+The gallery retains [`copper_graph.json`](../examples/outputs/17_material_graph_authoring/copper_graph.json), [`summary.json`](../examples/outputs/17_material_graph_authoring/summary.json).
+
+## `18_shader_emission_pipeline`
+
+Register a host node type and emit every shader a viewport needs from it. The example teaches the graph a studio node type, holds it to the reference contract that proves its CPU and emission paths agree, places it in a material, then emits that material, a layer-stack composite and the lit preview for the declared targets, reusing one emission cache and reading the pass plan back. It covers `material-graph`, `shader-emission`.
+
+The gallery retains [`summary.json`](../examples/outputs/18_shader_emission_pipeline/summary.json).
+
+## `19_mesh_uv_audit_and_retopology`
+
+Audit a scan's UV sets, derive texture sets from it and stage a retopology. A scanned mesh arrives with two UV sets: the raw ``scan`` layout the scanner produced and a hand-packed ``packed`` layout. The example measures both, derives one texture set per mesh partition from the layout that survived the audit, packs those sets into an atlas, picks it back by face material, and stages a retopologised replacement that carries a declared tangent frame, so every affected texture set gets an explicit policy before any mesh is published. It covers `mesh-and-texture-sets`.
+
+The gallery retains [`summary.json`](../examples/outputs/19_mesh_uv_audit_and_retopology/summary.json).
+
+## `20_layer_gesture_and_undo`
+
+Composite a masked layer group, then edit it as one undoable gesture. The example builds a masked group, asks what participates in a channel and composites it from caller-owned rasters and from an owned snapshot. A bare tile-history capture retains nothing for a layer-stack edit, while a transaction mixing pixel writes with stack edits commits, undoes and redoes as one step. It covers `texture-document`.
+
+The gallery retains [`summary.json`](../examples/outputs/20_layer_gesture_and_undo/summary.json).
+
+## `21_smart_material_authoring`
+
+Author a parameterised, anchored smart material and apply it to a texture set. One exposed parameter drives the same graph input in two differently authored stack entries, an anchor publishes the base layer into the coat, and the finished material is applied, masked, edited and undone on a texture set. It covers `smart-materials`.
+
+The gallery retains [`applications.json`](../examples/outputs/21_smart_material_authoring/applications.json), [`atelier_copper.smart-material`](../examples/outputs/21_smart_material_authoring/atelier_copper.smart-material), [`atelier_grime.smart-mask`](../examples/outputs/21_smart_material_authoring/atelier_grime.smart-mask), [`summary.json`](../examples/outputs/21_smart_material_authoring/summary.json).
+
+## `22_project_publish_and_recover`
+
+Publish a smart material into a project library, then recover it after a lost session. The material is packaged with its image resource and imported back packed, referenced and missing; the library it is installed into is normalized, saved atomically, autosaved, enumerated from the recovery directory and resumed, and a published texture-export preset plans the delivery maps it would write. It covers `project-io`, `smart-materials`, `texture-export`.
+
+The gallery retains [`foundry_brass.ctex-asset`](../examples/outputs/22_project_publish_and_recover/foundry_brass.ctex-asset), [`foundry_library.ctex`](../examples/outputs/22_project_publish_and_recover/foundry_library.ctex), [`recovered_project.json`](../examples/outputs/22_project_publish_and_recover/recovered_project.json), [`summary.json`](../examples/outputs/22_project_publish_and_recover/summary.json).
+
+## `23_viewport_picking_survey`
+
+Answer every viewport picking question about a two-panel prop from one index. A front panel and a back panel share the same UV square. The script builds one acceleration structure over both and asks it what is under the cursor, what is behind that, what a snapped point lands on, what a rubber band encloses, and what a whole grid of rays reached, then asks the same question in UV space. The grid answer is published through the raw image expansion and resampling calls. It covers `picking`, `image-io`.
+
+![Answer every viewport picking question about a two-panel prop from one index](../examples/outputs/23_viewport_picking_survey/pick_coverage.png)
+
+The gallery retains [`pick_coverage.png`](../examples/outputs/23_viewport_picking_survey/pick_coverage.png), [`summary.json`](../examples/outputs/23_viewport_picking_survey/summary.json).
+
+## `24_mesh_map_delivery`
+
+Turn a delivered layered PSD into a bound, colour-managed mesh-map set. A vendor delivers baked maps as one layered PSD. The script splits the layers, resolves what colour space each delivered channel meant, binds scalar maps to a texture set, proves a missing map is named rather than guessed, generates a wear mask, re-bakes one map through versioned tokens, and releases what it made resident. It covers `mesh-maps`, `image-io`, `color-management`.
+
+![Turn a delivered layered PSD into a bound, colour-managed mesh-map set](../examples/outputs/24_mesh_map_delivery/wear_mask.png)
+
+The gallery retains [`summary.json`](../examples/outputs/24_mesh_map_delivery/summary.json), [`wear_mask.png`](../examples/outputs/24_mesh_map_delivery/wear_mask.png).
+
+## `25_executor_routes_and_parity`
+
+Pick an executor route, survive a device loss, and gate CPU/host parity. A host enumerates the routes it was compiled with, asks for one by name, and pins a process default. Its GPU then disappears mid-frame: the session publishes what a checkpoint can restore, cancels what cannot finish, names every resource the host must recreate, and only with recovery restored authorises the CPU fallback. That route rasterizes a camera view and a UV tile and runs staged work under a memory ceiling it refuses to exceed; the parity gate then proves the two routes agree inside the declared tolerance. It covers `execution-backends`, `host-transport`.
+
+The gallery retains [`device_loss_fallback.json`](../examples/outputs/25_executor_routes_and_parity/device_loss_fallback.json).
+
+## `26_budgeted_residency_and_upload`
+
+Account every resident byte, then upload only the tiles a host has not seen. A host owns the allocator and the log sink, so every byte and every refusal is its own. It records what it holds in the resource ledger, which admits large work as bounded tile batches, evicts cache before breaking a limit, and degrades preview quality rather than overrunning. It then pins a snapshot of an in-flight paint preview, negotiates the pixel format it can upload, reads the converted tile back, drives asynchronous readbacks through completion, cancellation and device-loss failure, and finally spills a cold tile to its own backing store. Two checks are non-mutation contracts rather than computed results: a refused report and an unpublished readback must leave the host's sentinel bytes intact. It covers `resource-residency`, `host-transport`, `c-abi`.
+
+The gallery retains [`residency_and_upload.json`](../examples/outputs/26_budgeted_residency_and_upload/residency_and_upload.json).
+
+## `27_editable_authoring_round_trip`
+
+Keep authored text and a surface path editable across edits, saves and a resize. Text and surface paths stay first-class source in the document: they carry their own revision, refuse an edit whose report cannot be delivered, undo and redo as a unit, and resolve through the same stroke model the paint engine uses. The project container round-trips them without flattening, a resolution change replays the operation records that can be replayed and resamples the rest, and the replay assessment plus the resource ledger decide whether the recovery bytes that make all of that possible actually fit in the host's budget. It covers `editable-authoring`.
+
+The gallery retains [`editable_authoring.json`](../examples/outputs/27_editable_authoring_round_trip/editable_authoring.json).

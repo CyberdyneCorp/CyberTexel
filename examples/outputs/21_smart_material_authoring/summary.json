@@ -1,0 +1,23 @@
+{
+  "anchor_evaluation_plan": "[\"coat\"]",
+  "anchor_reference_count": 1,
+  "applied_presets": [
+    "copper",
+    "grime"
+  ],
+  "capabilities": [
+    "smart-materials"
+  ],
+  "cycle_diagnostic": "ctex_smart_material_add_anchor_reference: anchor reference would create cycle base -> coat -> base",
+  "entry_count": 2,
+  "material_bytes": 6947,
+  "parameter_bindings": 2,
+  "roughness_after_parameter": [
+    0.75,
+    0.75
+  ],
+  "roughness_before_parameter": [
+    0.5,
+    0.5
+  ]
+}

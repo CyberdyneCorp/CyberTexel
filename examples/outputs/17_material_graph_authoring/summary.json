@@ -1,0 +1,92 @@
+{
+  "canonical_bytes": 2307,
+  "capabilities": [
+    "material-graph"
+  ],
+  "catalogue": {
+    "categories": [
+      "colour_filter",
+      "input",
+      "texture",
+      "vector_math"
+    ],
+    "choices": [
+      "normal",
+      "darken",
+      "multiply",
+      "color_burn",
+      "lighten",
+      "screen",
+      "color_dodge",
+      "add",
+      "overlay",
+      "soft_light",
+      "linear_light",
+      "difference",
+      "exclusion",
+      "subtract",
+      "divide",
+      "hue",
+      "saturation",
+      "color",
+      "value",
+      "pass_through"
+    ],
+    "type_count": 52
+  },
+  "diagnostics": [
+    {
+      "code": "missing_image_resource",
+      "code_value": 2,
+      "message": "image resource 'library/copper/plate_albedo.png' referenced by property:image on node 2 (Image) is unavailable",
+      "node_id": 2,
+      "node_type": "ctex.texture.image",
+      "severity": "error",
+      "subject": "library/copper/plate_albedo.png"
+    },
+    {
+      "code": "unreachable_node",
+      "code_value": 7,
+      "message": "node 3 (Constant Value) cannot reach the graph output",
+      "node_id": 3,
+      "node_type": "ctex.input.constant-value",
+      "severity": "warning",
+      "subject": "Constant Value"
+    },
+    {
+      "code": "unreachable_node",
+      "code_value": 7,
+      "message": "node 5 (Blend) cannot reach the graph output",
+      "node_id": 5,
+      "node_type": "ctex.colour.blend",
+      "severity": "warning",
+      "subject": "Blend"
+    }
+  ],
+  "library": {
+    "bytes": 6652,
+    "presets": [
+      "studio.material.blank",
+      "studio.material.copper"
+    ],
+    "refusal": "ctex_material_graph_library_resolve_preset: material preset does not exist: studio.material.ghost"
+  },
+  "link_count": 2,
+  "link_refusal": "ctex_material_graph_add_link: cannot connect image output to scalar input",
+  "node_count": 5,
+  "node_ids": {
+    "blend": 5,
+    "output": 1,
+    "plate": 2,
+    "scratch": 3
+  },
+  "workspace": {
+    "instances": {
+      "brushed": 2,
+      "oxidised": 2,
+      "polished": 2
+    },
+    "recursion_refusal": "ctex_material_graph_workspace_instantiate_group: group instance would create recursion: weathering -> weathering",
+    "version": 2
+  }
+}

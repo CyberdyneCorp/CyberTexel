@@ -1,0 +1,47 @@
+{
+  "atlas": {
+    "identifier": "props",
+    "regions": [
+      "material/4:body/uv/6:packed",
+      "material/4:trim/uv/6:packed"
+    ],
+    "size": [
+      16,
+      8
+    ]
+  },
+  "capabilities": [
+    "mesh-and-texture-sets"
+  ],
+  "packed_audit": {
+    "candidate_pairs": 1,
+    "covered_texels": 6,
+    "overlap_pairs": 0,
+    "overlapping_faces": [],
+    "tested_texels": 8,
+    "uncovered_fraction": 0.625
+  },
+  "retopology": {
+    "changed": "material/4:body/uv/6:packed",
+    "cleared": 1
+  },
+  "scan_audit": {
+    "candidate_pairs": 1,
+    "covered_texels": 10,
+    "overlap_pairs": 1,
+    "overlapping_faces": [
+      0,
+      1
+    ],
+    "tested_texels": 17,
+    "uncovered_fraction": 0.375
+  },
+  "texture_sets": [
+    "material/4:body/uv/6:packed",
+    "material/4:trim/uv/6:packed"
+  ],
+  "uv_sets": [
+    "scan",
+    "packed"
+  ]
+}

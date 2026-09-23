@@ -270,6 +270,18 @@ host-desktop: host-desktop-build
         --report build/reference-hosts/desktop-wgsl.json \
         --measurements benchmarks/results/host-desktop-wgsl.json
 
+# Input-to-visible latency on the desktop reference host.
+#
+# This needs a VISIBLE window: a hidden or occluded window is throttled by the
+# compositor, and the host refuses to report throttled frames as an interaction
+# measurement. Run it from an interactive session, not from a detached shell.
+host-desktop-benchmark frames="600": host-desktop-build
+    CTEX_RUN_DATE="$(date -u +%Y-%m-%d)" CTEX_RUN_COMMIT="$(git rev-parse HEAD)" \
+    cargo run --manifest-path hosts/desktop-wgpu/Cargo.toml --release -- \
+        --benchmark --frames {{frames}} \
+        --report build/reference-hosts/desktop-wgsl-benchmark.json \
+        --measurements benchmarks/results/host-desktop-wgsl-latency.json
+
 # Build and lint the desktop reference host without requiring a device.
 host-desktop-build: (_require "cargo" "Rust stable")
     cargo fmt --manifest-path hosts/desktop-wgpu/Cargo.toml -- --check

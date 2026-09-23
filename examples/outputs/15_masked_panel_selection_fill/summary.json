@@ -1,0 +1,29 @@
+{
+  "accepted_texels": 4,
+  "capabilities": [
+    "paint-engine",
+    "paint-tools"
+  ],
+  "combined_mask_texels": 2,
+  "dilated_texels": 8,
+  "painted_texels": 2,
+  "planned_tiles": [
+    [
+      0,
+      0
+    ],
+    [
+      0,
+      1
+    ],
+    [
+      1,
+      0
+    ],
+    [
+      1,
+      1
+    ]
+  ],
+  "texture_set_id": "material/5:panel/uv/3:uv0"
+}

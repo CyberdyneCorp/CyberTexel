@@ -10,11 +10,18 @@
 //! It is an integration host, not an example. The display-free Python examples
 //! prove the contract with a software stand-in; this proves it on a device API.
 //!
+//! With `--benchmark` it also opens a window, configures a surface on it and
+//! measures input-to-visible latency there. See `benchmark.rs` for what each
+//! stage covers and where the figure's boundaries are.
+//!
 //! Exit codes:
 //!   0  the route ran on a device and every assertion held
 //!   2  the route failed
-//!   3  no adapter was available, so the run is unmeasured (never a pass)
+//!   3  no adapter, display or surface was available, so the run is
+//!      unmeasured (never a pass)
 
+mod authoring;
+mod benchmark;
 mod plan;
 mod residency;
 
@@ -41,6 +48,9 @@ const TEXTURE_EXTENT: u32 = 4096;
 const MESH_TRIANGLES: usize = 250_000;
 const LAYER_COUNT: usize = 8;
 const UNMEASURED: i32 = 3;
+
+/// Frames the windowed benchmark records once warm-up has passed.
+const BENCHMARK_FRAMES: usize = 600;
 
 pub struct Device {
     pub device: wgpu::Device,
@@ -84,6 +94,46 @@ fn acquire_device() -> Result<Device, String> {
         backend: format!("{:?}", information.backend),
         adapter: information.name,
     })
+}
+
+/// Acquire a device that can present to this window's surface.
+///
+/// The headless route above asks for any adapter; a presenting route must ask
+/// for one the surface is compatible with, and reports its absence rather than
+/// falling back to an adapter that cannot reach the display.
+fn acquire_presenting_device(
+    instance: &wgpu::Instance,
+    surface: &wgpu::Surface<'static>,
+) -> Result<Option<(wgpu::Adapter, Device)>, String> {
+    let Ok(adapter) = pollster::block_on(instance.request_adapter(&wgpu::RequestAdapterOptions {
+        power_preference: wgpu::PowerPreference::HighPerformance,
+        force_fallback_adapter: false,
+        compatible_surface: Some(surface),
+        ..Default::default()
+    })) else {
+        return Ok(None);
+    };
+    let information = adapter.get_info();
+    // The measured configuration is 4096 square, which downlevel defaults
+    // forbid, so the device asks for what this adapter actually offers.
+    let (device, queue) = pollster::block_on(adapter.request_device(&wgpu::DeviceDescriptor {
+        label: Some("cybertexel-reference-host-presenting"),
+        required_features: wgpu::Features::empty(),
+        required_limits: adapter.limits(),
+        memory_hints: wgpu::MemoryHints::default(),
+        trace: wgpu::Trace::Off,
+        ..Default::default()
+    }))
+    .map_err(|error| format!("the presenting adapter refused a device: {error}"))?;
+    Ok(Some((
+        adapter,
+        Device {
+            device,
+            queue,
+            backend: format!("{:?}", information.backend),
+            adapter: information.name,
+        },
+    )))
 }
 
 /// Execute one render pass of the plan and return the rendered texels.
@@ -529,41 +579,149 @@ fn run() -> Result<serde_json::Value, String> {
     }))
 }
 
+/// What the command line asked for.
+struct Options {
+    report: Option<PathBuf>,
+    measurements: Option<PathBuf>,
+    benchmark: bool,
+    frames: usize,
+}
+
+impl Options {
+    fn parse() -> Self {
+        let arguments: Vec<String> = std::env::args().collect();
+        let value = |name: &str| {
+            arguments
+                .iter()
+                .position(|argument| argument == name)
+                .and_then(|index| arguments.get(index + 1))
+                .cloned()
+        };
+        Self {
+            report: value("--report").map(PathBuf::from),
+            measurements: value("--measurements").map(PathBuf::from),
+            benchmark: arguments.iter().any(|argument| argument == "--benchmark"),
+            frames: value("--frames")
+                .and_then(|frames| frames.parse().ok())
+                .filter(|frames| *frames > 0)
+                .unwrap_or(BENCHMARK_FRAMES),
+        }
+    }
+}
+
+/// The three latency measurements, emitted only when a surface produced them.
+fn latency_measurements(measured: &benchmark::Measured) -> Vec<serde_json::Value> {
+    [
+        ("desktop-visible-median", measured.median_ms),
+        ("desktop-visible-p95", measured.p95_ms),
+        ("desktop-visible-p99", measured.p99_ms),
+    ]
+    .into_iter()
+    .map(|(budget_id, value)| {
+        serde_json::json!({
+            "budget_id": budget_id,
+            "value": value,
+            "unit": "ms",
+            "configuration": "interactive-4k",
+            "batch_size": 1,
+        })
+    })
+    .collect()
+}
+
+/// The command that produced this run.
+///
+/// The headless route is the named recipe; a benchmark run records the
+/// invocation it actually ran, because the recipe does not carry the flag.
+fn command_line(benchmark: bool) -> String {
+    if !benchmark {
+        return "just host-desktop".to_string();
+    }
+    let mut parts: Vec<String> = std::env::args().collect();
+    if let Some(first) = parts.first_mut() {
+        *first = std::path::Path::new(first.as_str())
+            .file_name()
+            .map_or_else(|| first.clone(), |name| name.to_string_lossy().into_owned());
+    }
+    parts.join(" ")
+}
+
+/// Why a figure is absent, stated precisely enough to be actionable.
+fn unmeasured_reasons(measured: Option<&benchmark::Measured>) -> Vec<String> {
+    let mut reasons = vec![
+        "the instrumented residency paint step uses write_channel_pixel, a convenience that \
+zeroes a whole-canvas coverage buffer, so its wall time is not a latency figure"
+            .to_string(),
+    ];
+    if measured.is_none() {
+        reasons.insert(
+            0,
+            "desktop-visible-* needs a presenting surface; run with --benchmark".to_string(),
+        );
+    }
+    reasons
+}
+
 /// Write the schema-1 measurement run device-gate decides on.
 ///
-/// Only the residency byte budgets are emitted. The host does not yet present
-/// to a surface, so input-to-visible has no honest presentation stage and is
-/// left out rather than approximated; the gate then reports it as unmeasured.
-fn write_measurements(path: &std::path::Path, report: &serde_json::Value) -> Result<(), String> {
+/// The residency byte budgets come from the headless route. The three
+/// input-to-visible budgets are emitted only when `--benchmark` actually
+/// presented frames; an absent figure is listed with its reason rather than
+/// approximated, because device-gate forbids substituting a missing
+/// measurement and a fabricated latency is worse than none.
+fn write_measurements(
+    path: &std::path::Path,
+    report: &serde_json::Value,
+    measured: Option<&benchmark::Measured>,
+) -> Result<(), String> {
     let residency = &report["residency"];
-    let run = serde_json::json!({
+    let mut measurements = vec![
+        serde_json::json!({
+            "budget_id": "desktop-paint-sync-readback",
+            "value": residency["paint_synchronous_readback_bytes"],
+            "unit": "bytes",
+            "configuration": "interactive-4k",
+            "batch_size": 1,
+        }),
+        serde_json::json!({
+            "budget_id": "desktop-undo-sync-readback",
+            "value": residency["undo_synchronous_readback_bytes"],
+            "unit": "bytes",
+            "configuration": "interactive-4k",
+            "batch_size": 1,
+        }),
+    ];
+    if let Some(measured) = measured {
+        measurements.extend(latency_measurements(measured));
+    }
+    let mut run = serde_json::json!({
         "schema": 1,
         "device_id": "macbook-pro-m3-pro-18gpu-36gb",
         "date": report["date"],
         "commit": report["commit"],
-        "command": "just host-desktop",
-        "measurements": [
-            {
-                "budget_id": "desktop-paint-sync-readback",
-                "value": residency["paint_synchronous_readback_bytes"],
-                "unit": "bytes",
-                "configuration": "interactive-4k",
-                "batch_size": 1,
-            },
-            {
-                "budget_id": "desktop-undo-sync-readback",
-                "value": residency["undo_synchronous_readback_bytes"],
-                "unit": "bytes",
-                "configuration": "interactive-4k",
-                "batch_size": 1,
-            },
-        ],
-        "not_measured": [
-            "desktop-visible-* needs a presenting surface; this host is headless",
-            "the instrumented paint step uses write_channel_pixel, a convenience that \
-    zeroes a whole-canvas coverage buffer, so its wall time is not a latency figure",
-        ],
+        "command": command_line(measured.is_some()),
+        "measurements": measurements,
+        "not_measured": unmeasured_reasons(measured),
     });
+    if let Some(measured) = measured {
+        run["interaction"] = measured.trace();
+        let interval = if measured.refresh_rate_hz > 0.0 {
+            1000.0 / measured.refresh_rate_hz
+        } else {
+            0.0
+        };
+        run["notes"] = serde_json::json!([
+            format!(
+                "a handed-over frame becomes visible at the next refresh, so the pessimistic \
+reading of every figure is the measured value plus one {interval:.3} ms refresh interval"
+            ),
+            "the presentation stage ends when the display frees the drawable the presented frame \
+was queued behind; wgpu exposes no scanout timestamp, so the remaining wait is bounded rather than \
+measured",
+            "the benchmark waits for the device between stages, so the figure is a serialized \
+upper bound rather than a pipelined best case",
+        ]);
+    }
     if let Some(parent) = path.parent() {
         std::fs::create_dir_all(parent).map_err(|error| error.to_string())?;
     }
@@ -574,41 +732,84 @@ fn write_measurements(path: &std::path::Path, report: &serde_json::Value) -> Res
     .map_err(|error| error.to_string())
 }
 
-fn main() {
-    let report = std::env::args()
-        .skip_while(|argument| argument != "--report")
-        .nth(1)
-        .map(PathBuf::from);
-    let measurements = std::env::args()
-        .skip_while(|argument| argument != "--measurements")
-        .nth(1)
-        .map(PathBuf::from);
-    match run() {
-        Ok(mut value) => {
-            value["date"] = serde_json::Value::String(
-                std::env::var("CTEX_RUN_DATE").unwrap_or_else(|_| "unknown".to_string()),
-            );
-            value["commit"] = serde_json::Value::String(
-                std::env::var("CTEX_RUN_COMMIT").unwrap_or_else(|_| "unknown".to_string()),
-            );
-            if let Some(path) = &measurements {
-                if let Err(error) = write_measurements(path, &value) {
-                    eprintln!("desktop reference host failed: {error}");
-                    std::process::exit(2);
-                }
-            }
-            let text = serde_json::to_string_pretty(&value).expect("report serializes");
-            if let Some(path) = report {
-                if let Some(parent) = path.parent() {
-                    let _ = std::fs::create_dir_all(parent);
-                }
-                std::fs::write(&path, format!("{text}\n")).expect("report writes");
-            }
-            println!("{text}");
-            println!("ok: the desktop WGSL reference host ran the pass plan on a device");
+fn write_report(path: &std::path::Path, text: &str) {
+    if let Some(parent) = path.parent() {
+        let _ = std::fs::create_dir_all(parent);
+    }
+    std::fs::write(path, format!("{text}\n")).expect("report writes");
+}
+
+/// Run the windowed benchmark, or report why it is unmeasured.
+fn run_benchmark(options: &Options) -> Result<benchmark::Outcome, String> {
+    benchmark::measure(
+        benchmark::Plan {
+            frames: options.frames,
+            extent: TEXTURE_EXTENT,
+            mesh_triangles: MESH_TRIANGLES,
+            layers: LAYER_COUNT,
+        },
+        &CHANNELS,
+    )
+}
+
+fn publish(options: &Options, value: &serde_json::Value, measured: Option<&benchmark::Measured>) {
+    if let Some(path) = &options.measurements {
+        if let Err(error) = write_measurements(path, value, measured) {
+            eprintln!("desktop reference host failed: {error}");
+            std::process::exit(2);
         }
+    }
+    let text = serde_json::to_string_pretty(value).expect("report serializes");
+    if let Some(path) = &options.report {
+        write_report(path, &text);
+    }
+    println!("{text}");
+}
+
+fn main() {
+    let options = Options::parse();
+    let mut value = match run() {
+        Ok(value) => value,
         Err(message) if message.starts_with("no wgpu adapter") => {
             eprintln!("unmeasured: {message}");
+            std::process::exit(UNMEASURED);
+        }
+        Err(message) => {
+            eprintln!("desktop reference host failed: {message}");
+            std::process::exit(2);
+        }
+    };
+    value["date"] = serde_json::Value::String(
+        std::env::var("CTEX_RUN_DATE").unwrap_or_else(|_| "unknown".to_string()),
+    );
+    value["commit"] = serde_json::Value::String(
+        std::env::var("CTEX_RUN_COMMIT").unwrap_or_else(|_| "unknown".to_string()),
+    );
+    if !options.benchmark {
+        publish(&options, &value, None);
+        println!("ok: the desktop WGSL reference host ran the pass plan on a device");
+        return;
+    }
+    match run_benchmark(&options) {
+        Ok(benchmark::Outcome::Measured(measured)) => {
+            value["benchmark"] = measured.report();
+            publish(&options, &value, Some(&measured));
+            println!(
+                "ok: input-to-visible median {:.3} ms, p95 {:.3} ms, p99 {:.3} ms over {} frames",
+                measured.median_ms,
+                measured.p95_ms,
+                measured.p99_ms,
+                measured.frames.len()
+            );
+        }
+        Ok(benchmark::Outcome::Unavailable(reason)) => {
+            value["benchmark"] = serde_json::json!({ "not_measured": reason });
+            let text = serde_json::to_string_pretty(&value).expect("report serializes");
+            if let Some(path) = &options.report {
+                write_report(path, &text);
+            }
+            println!("{text}");
+            eprintln!("unmeasured: desktop-visible-* was not measured: {reason}");
             std::process::exit(UNMEASURED);
         }
         Err(message) => {

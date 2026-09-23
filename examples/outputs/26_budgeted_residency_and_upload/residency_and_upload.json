@@ -1,0 +1,39 @@
+{
+  "capabilities": [
+    "resource-residency",
+    "host-transport",
+    "c-abi"
+  ],
+  "residency": {
+    "admitted_work_items": 2,
+    "evicted_cache_identities": [
+      50,
+      51
+    ],
+    "host_allocations": 4,
+    "logged_refusals": 2,
+    "physical_bytes": 7168,
+    "preview_width": 512
+  },
+  "tile_spill": {
+    "evicted_bytes": 12288,
+    "loads": 1,
+    "resident_after_eviction": 0
+  },
+  "transport": {
+    "changed_tiles": 1,
+    "converted_row_pitch": 384,
+    "pinned_bytes": 12288,
+    "readback_outcomes": {
+      "cancelled": {
+        "detail": "",
+        "status": 2
+      },
+      "failed": {
+        "detail": "device lost",
+        "status": 3
+      }
+    },
+    "reset_epoch": 3
+  }
+}

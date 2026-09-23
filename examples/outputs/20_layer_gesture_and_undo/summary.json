@@ -1,0 +1,20 @@
+{
+  "capabilities": [
+    "texture-document"
+  ],
+  "composited_texel": [
+    0.55625,
+    0.48125,
+    0.44375
+  ],
+  "created_layer": "fill",
+  "effective_opacity": {
+    "full_channel": 0.25,
+    "half_channel": 0.125
+  },
+  "gesture": {
+    "retained_bytes": 12288,
+    "tiles": 1,
+    "undo_steps_after_undo": 0
+  }
+}

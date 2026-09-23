@@ -1647,6 +1647,55 @@ initializers, now spelled out.
 macos-universal with executed smoke tests and ios-arm64 linked. Windows and
 Android remain named deferrals under task 18.6.
 
+2026-09-23: Task 17.5 is complete and the example surface went from 84 to 322 of 353
+symbols. Thirteen new examples (15-27) cover the paint engine and tools, the material graph and
+shader emission, the layer stack and mesh/texture sets, project I/O, smart materials and export,
+mesh maps, picking, colour management and image I/O, and the executor, residency, transport and
+editable-authoring runtime. Thirty-one symbols stay named in
+`examples/feature_coverage.json`.
+
+Stamp scaling passes on the M3 Pro: the identical 64-texel-radius stamp plans the same 16 touched
+tiles and deposits the same 12,892 texels at 2048 and 16384 square, whose canvas tile counts differ
+64-fold. The measured ratio is 0.999 against a 1.5 ceiling.
+
+The examples were written by one pass and then adversarially reviewed by another, which was worth
+more than the writing. It found assertions that could not fail, and a repair pass then
+mutation-tested every fix: 906 mutations were confirmed to make an example fail. Three narrow echo
+conjuncts survive and are recorded below.
+
+The most important defect was structural rather than local. An assertion inside a ctypes callback
+can never fail a run: CPython prints "Exception ignored" and returns 0 from the callback, and
+CTEX_RESULT_SUCCESS is 0, so a failed assertion is reported to the library as success. Two
+assertions in the shader-emission example were decorative because of it. Host callbacks are
+therefore a silent-failure surface for any ctypes-based binding, and the C ABI would be safer if
+success were non-zero.
+
+Library findings recorded while writing the examples:
+- `ctex_texture_set_apply_layer_operation` mutates the caller's layer snapshot: a CREATE appends
+  its content rasters to the snapshot's content list. That is the only way a caller can observe an
+  operation's content payload and the header documents none of it.
+- `ctex_cpu_reference_rasterize_viewport` and `ctex_cpu_reference_rasterize_uv` disagree on the
+  sense of the vertical axis. Both are self-consistent; an example probing only the u==v diagonal
+  cannot see the difference.
+- `ctex_operation_record_info.report_size` is exact, not an upper bound: 592 is refused where 593
+  is required, leaving the caller's buffer unwritten.
+- `ctex_material_graph_set_property_value` reaches node properties only, not input-socket defaults,
+  which the entry point's name does not suggest.
+- `ctex_texture_set_transaction_set_fill_graph` and the corner tangents of
+  `ctex_mesh_replacement_plan_create_with_tangent_data` have no read-back path, so one valid
+  payload cannot be told from another. The examples assert the effects that are observable and say
+  so rather than implying more.
+- The reported `required_raster_opacity_count` of 96 against a later 16 was investigated and is
+  correct: the two figures belong to different tracking values, and the example's defect was
+  reusing an info record it never re-read.
+
+Task 17.12 is measured but not recorded. The desktop host now opens a window, configures a surface
+and times five contiguous stages that sum to input-to-visible by construction. A run reported a
+median of 6.68 ms, p95 10.30 ms and p99 10.69 ms against ceilings of 16, 25 and 33 ms. Those
+figures are not committed because they could not be reproduced from a detached shell: the host
+refuses to report a run whose window was hidden, since a hidden window is compositor-throttled.
+`just host-desktop-benchmark` runs it from an interactive session.
+
 Editable-authoring group 20 is complete. Versioned operation records retain
 algorithm and preset versions, seeds, channel descriptors, mesh identity,
 pinned input bytes and checkpoint identities in canonical project-container
@@ -1927,7 +1976,7 @@ threading and per-binding example evidence.
 - [x] 17.2 Budget table as a repository document updated by the gate
 - [x] 17.3 Budgets for stamp, stroke, composite, emission, generator, delta query, tile readback, smart material, export
 - [x] 17.4 Memory budgets alongside time budgets
-- [ ] 17.5 Scaling verification: a stamp costs what it touches, not what the canvas holds
+- [x] 17.5 Scaling verification: a stamp costs what it touches, not what the canvas holds
 - [x] 17.6 Absolute-floor comparison; unreachable budgets reported rather than passed
 - [x] 17.7 Batch attribution so a batch cannot stand in for the operation it names
 - [x] 17.8 Coverage counted over what the gate decides

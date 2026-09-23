@@ -1,0 +1,1 @@
+{"schema":{"major":0,"minor":1,"patch":0},"newer_schema":false,"images":[],"resources":[{"id":"images/noise","kind":"image","path":"textures/noise.bin","storage":"packed","packed_bytes":5}],"assets":[{"id":"materials/foundry-brass","kind":"smart-material","version":6,"resource_dependencies":1,"image_dependencies":0,"payload_bytes":2915}],"unknown_parts":[]}

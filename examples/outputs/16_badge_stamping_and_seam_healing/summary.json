@@ -1,0 +1,23 @@
+{
+  "capabilities": [
+    "paint-tools",
+    "paint-engine",
+    "stroke-model"
+  ],
+  "catalogue_parameter_count": 74,
+  "changed_tiles": [
+    [
+      1,
+      1
+    ]
+  ],
+  "decal_strength": [
+    0.5,
+    0.5
+  ],
+  "padded_texels": 4,
+  "particle_contacts": 2,
+  "preset_bytes": 1364,
+  "preset_schema_version": 2,
+  "session_pass_count": 2
+}

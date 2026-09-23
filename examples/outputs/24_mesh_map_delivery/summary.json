@@ -1,0 +1,43 @@
+{
+  "bake_settings_revision": 7,
+  "baked_corner": 0.784314,
+  "bound_kinds": [
+    3,
+    4
+  ],
+  "capabilities": [
+    "mesh-maps",
+    "image-io",
+    "color-management"
+  ],
+  "delivery_bytes": 218,
+  "delivery_layers": [
+    "Top",
+    "Bottom"
+  ],
+  "generator_inputs": [
+    3,
+    4
+  ],
+  "generator_parameters": [
+    "strength",
+    "contrast",
+    "curvature-weight"
+  ],
+  "mask_mean": 0.534297,
+  "missing_diagnostic": "mesh-map consumer 'wear' for texture set 'material/4:mesh/uv/3:uv0' requires missing map 'thickness'",
+  "preview_tint": [
+    0.0,
+    1.0,
+    1.0
+  ],
+  "released_bytes_per_map": 4096,
+  "resident_pixel_bytes": 8192,
+  "stale_after_synchronize": 0,
+  "strength_clamped_to": 2.0,
+  "working_tint": [
+    1.0,
+    0.0,
+    0.0
+  ]
+}

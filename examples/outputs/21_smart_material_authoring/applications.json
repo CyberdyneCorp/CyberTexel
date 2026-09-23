@@ -1,0 +1,49 @@
+{
+  "application_count": 2,
+  "applications": [
+    {
+      "entries": [
+        {
+          "enabled": false,
+          "id": "copper/base",
+          "kind": 0,
+          "opacity": 0.25,
+          "parent": ""
+        },
+        {
+          "enabled": true,
+          "id": "copper/coat",
+          "kind": 0,
+          "opacity": 1.0,
+          "parent": ""
+        }
+      ],
+      "id": "copper",
+      "kind": "smart-material",
+      "origin": {
+        "preset": "materials/atelier-copper",
+        "schema_version": 6
+      },
+      "target": ""
+    },
+    {
+      "entries": [
+        {
+          "enabled": true,
+          "id": "grime/root",
+          "kind": 2,
+          "opacity": 1.0,
+          "parent": ""
+        }
+      ],
+      "id": "grime",
+      "kind": "smart-mask",
+      "origin": {
+        "preset": "masks/atelier-grime",
+        "schema_version": 1
+      },
+      "target": "copper/base"
+    }
+  ],
+  "undo_step_count": 2
+}

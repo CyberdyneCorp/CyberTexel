@@ -1,0 +1,45 @@
+{
+  "cache": {
+    "entries": 4,
+    "hits": 5,
+    "misses": 4
+  },
+  "capabilities": [
+    "material-graph",
+    "shader-emission"
+  ],
+  "emission": {
+    "artifact_bytes": {
+      "HLSL": 1857,
+      "MSL": 2104,
+      "SPIR-V": 3228,
+      "WGSL": 2341
+    },
+    "target_refusal": "ctex_shader_emit_material: shader target unknown(99); available targets: WGSL, MSL, SPIR-V, HLSL"
+  },
+  "host_contract": {
+    "parity_failures": [],
+    "parity_passed": true,
+    "reason": "",
+    "replay_eligible": true,
+    "unpinned_dependencies": []
+  },
+  "host_node_calls": {
+    "cpu": 2,
+    "emit": 16
+  },
+  "host_node_id": 2,
+  "layer_stack": {
+    "bytes": 4984,
+    "layers": 6,
+    "passes": 1,
+    "split_passes": 3
+  },
+  "preview": {
+    "bindings": [
+      9,
+      6
+    ],
+    "bytes": 833
+  }
+}
