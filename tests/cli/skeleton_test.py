@@ -280,8 +280,10 @@ with tempfile.TemporaryDirectory(prefix="ctex-cli-apply-") as temporary:
         "json",
     )
     assert internal_failure.returncode == 70
-    assert json.loads(internal_failure.stdout)["exit_code"] == 70
-    assert "could not inspect export output" in internal_failure.stderr
+    internal_report = json.loads(internal_failure.stdout)
+    assert internal_report["exit_code"] == 70
+    assert internal_report["diagnostic"] in internal_failure.stderr
+    assert internal_report["outputs"] == []
 
     export_directory = directory / "textures"
     exported = run(
