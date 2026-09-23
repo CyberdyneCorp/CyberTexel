@@ -1,13 +1,17 @@
+#include <lodepng.h>
+
 #include <algorithm>
 #include <array>
 #include <cstddef>
 #include <cstdint>
+#include <cstdlib>
 #include <cstring>
 #include <ctex/io/image_io.hpp>
 #include <ctex/io/texture_encode.hpp>
 #include <exception>
 #include <iostream>
 #include <span>
+#include <stdexcept>
 #include <string>
 #include <string_view>
 
@@ -89,6 +93,37 @@ std::vector<std::byte> make_gray8_png(ColorSpace color_space = ColorSpace::linea
     source.write_pixel(0, 0, first);
     source.write_pixel(1, 0, second);
     return ctex::io::encode_png_memory(source, {.color_space = color_space});
+}
+
+std::vector<std::byte> make_gray8_png_with_icc_profile() {
+    std::array<unsigned char, 128> profile{};
+    profile[3] = static_cast<unsigned char>(profile.size());
+    std::memcpy(profile.data() + 12, "mntr", 4);
+    std::memcpy(profile.data() + 16, "GRAY", 4);
+    std::memcpy(profile.data() + 20, "XYZ ", 4);
+    std::memcpy(profile.data() + 36, "acsp", 4);
+    constexpr std::array<unsigned char, 2> pixels{17, 230};
+    LodePNGState state;
+    lodepng_state_init(&state);
+    state.info_raw.colortype = LCT_GREY;
+    state.info_raw.bitdepth = 8;
+    state.info_png.color.colortype = LCT_GREY;
+    state.info_png.color.bitdepth = 8;
+    unsigned error = lodepng_set_icc(&state.info_png, "fixture", profile.data(), profile.size());
+    unsigned char* output = nullptr;
+    std::size_t output_size{};
+    if (error == 0) {
+        error = lodepng_encode(&output, &output_size, pixels.data(), 2, 1, &state);
+    }
+    lodepng_state_cleanup(&state);
+    if (error != 0) {
+        throw std::runtime_error("could not create ICC PNG fixture: " +
+                                 std::string(lodepng_error_text(error)));
+    }
+    std::vector<std::byte> encoded(output_size);
+    std::memcpy(encoded.data(), output, output_size);
+    std::free(output);
+    return encoded;
 }
 
 TiledImage red_green_rgb8() {
@@ -356,6 +391,23 @@ bool embedded_space_and_caller_override() {
                   "caller source was not reported");
 }
 
+bool uninterpretable_profile_is_reported_before_automatic_fallback() {
+    const auto decoded = ctex::io::decode_image_memory({
+        .bytes = make_gray8_png_with_icc_profile(),
+        .source_name = "roughness.png",
+        .intended_channel = ChannelSemantic::roughness,
+    });
+    const bool diagnostic =
+        std::ranges::any_of(decoded.report.diagnostics, [](const std::string& message) {
+            return message.find("ICC profile is not interpreted") != std::string::npos;
+        });
+    return expect(decoded.source_color_space == ColorSpace::linear_rec709,
+                  "unsupported ICC profile bypassed the automatic semantic rule") &&
+           expect(decoded.report.color_space_source == ColorSpaceSource::automatic_rule,
+                  "unsupported ICC profile reported the wrong colour-space source") &&
+           expect(diagnostic, "unsupported ICC profile was not reported");
+}
+
 bool hostile_input_is_bounded_and_named() {
     const std::vector<std::byte> encoded = make_gray8_png();
     const bool bounded = expect_error(
@@ -607,6 +659,7 @@ int main() {
                    decoder_set_covers_flat_formats() &&
                    tiff_preserves_integer_and_float_precision() &&
                    psd_preserves_sixteen_bit_composite() && embedded_space_and_caller_override() &&
+                   uninterpretable_profile_is_reported_before_automatic_fallback() &&
                    hostile_input_is_bounded_and_named() && unsupported_content_is_named() &&
                    malformed_flat_inputs_are_named() && float_png_is_refused() &&
                    radiance_hdr_preserves_unclamped_float_values() &&

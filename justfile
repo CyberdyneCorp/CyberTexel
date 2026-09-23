@@ -116,6 +116,9 @@ test-color: build
 test-png: build
     ctest --test-dir build/headless --output-on-failure -R '^png-io$'
 
+test-image-io-scenarios: build
+    ctest --test-dir build/headless --output-on-failure -L '^image-io-scenario$'
+
 test-channels: build
     ctest --test-dir build/headless --output-on-failure -R '^document-channels$'
 

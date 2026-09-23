@@ -1494,7 +1494,7 @@ to the labeled native and strict-C test suite.
 - [x] 2.10 Decoder fuzzing gate in CI
 - [x] 2.11 Cancellation, progress and bounded working memory for large decodes
 - [x] 2.12 Documented resampling filters with a stated default
-- [ ] 2.13 `image-io` scenarios as tests
+- [x] 2.13 `image-io` scenarios as tests
 
 ## 3. Document
 

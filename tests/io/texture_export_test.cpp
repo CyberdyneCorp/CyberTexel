@@ -283,14 +283,27 @@ bool jpeg_quality_is_reported() {
     ExportPreset preset = one_texture_preset();
     preset.textures.front().format = ExportImageFormat::jpeg;
     TextureExportOptions options;
-    options.dry_run = true;
     options.jpeg_quality = 73;
-    const TextureExportResult result = export_textures_to_memory(catalogue(), preset, options);
+    const auto provider = [](const PlannedTextureExport&) { return gradient_source(4, 4); };
+    const TextureExportResult result =
+        export_textures_to_memory(catalogue(), preset, options, provider);
+    options.jpeg_quality = 20;
+    const TextureExportResult lower_quality =
+        export_textures_to_memory(catalogue(), preset, options, provider);
     const std::string json = texture_export_report_json(result.report);
     return expect(result.report.outputs.front().jpeg_quality == 73,
                   "JPEG quality was not retained in the export report") &&
            expect(json.find("\"jpeg_quality\":73") != std::string::npos,
-                  "machine-readable report omitted JPEG quality");
+                  "machine-readable report omitted JPEG quality") &&
+           expect(result.buffers.front().bytes != lower_quality.buffers.front().bytes,
+                  "JPEG quality did not change the encoded output") &&
+           expect(decode_image_memory(
+                      {.bytes = result.buffers.front().bytes, .source_name = "quality-73.jpg"})
+                              .report.detected_format == ImageFileFormat::jpeg &&
+                      decode_image_memory({.bytes = lower_quality.buffers.front().bytes,
+                                           .source_name = "quality-20.jpg"})
+                              .report.detected_format == ImageFileFormat::jpeg,
+                  "quality-controlled JPEG outputs were not decodable");
 }
 
 bool live_document_channels_export_without_a_host_provider() {

@@ -715,6 +715,13 @@ if(BUILD_TESTING)
     target_include_directories(ctex_layered_image_io_test SYSTEM PRIVATE "${tinyexr_SOURCE_DIR}")
     target_link_libraries(ctex_layered_image_io_test PRIVATE cybertexel tinyexr)
     add_test(NAME layered-image-io COMMAND ctex_layered_image_io_test)
+    add_test(
+        NAME image-io-scenario-matrix
+        COMMAND "${CTEX_PYTHON3_EXECUTABLE}" tests/tools/check_image_io_scenario_matrix.py
+    )
+    set_tests_properties(
+        image-io-scenario-matrix PROPERTIES WORKING_DIRECTORY "${PROJECT_SOURCE_DIR}"
+    )
 
     add_executable(ctex_project_container_test tests/io/project_container_test.cpp)
     ctex_configure_cpp_target(ctex_project_container_test)
@@ -1867,5 +1874,16 @@ if(BUILD_TESTING)
             c-abi-host-transport-snapshot
             resource-residency-scenario-matrix
         APPEND PROPERTY LABELS resource-residency-scenario
+    )
+    set_property(
+        TEST
+            png-io
+            layered-image-io
+            tiled-image
+            c-abi-image-io
+            texture-export-execution
+            shader-emission-licence-audit
+            image-io-scenario-matrix
+        APPEND PROPERTY LABELS image-io-scenario
     )
 endif()
