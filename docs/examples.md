@@ -58,7 +58,10 @@ multi-channel paint-tool path.
 `09_end_to_end_material_export.py` carries the fixture mesh and AO map through a
 texture set, generated mask, canonical graph, applied smart material and actual
 PNG texture export.
-Full capability example coverage remains roadmap work. Every numbered script
-declares a literal `CAPABILITIES` tuple;
+`10_headless_script_pipeline.py` executes the installed wheel's isolated
+document-script bridge and verifies the persisted edit and stdout/stderr
+contract. `11_device_gate_policy.py` demonstrates the performance gate's
+decision semantics without presenting its deterministic fixtures as hardware
+measurements. Every numbered script declares a literal `CAPABILITIES` tuple;
 `just gate-example-coverage` compares those declarations with
 `abi/capi-capabilities.json` and names every missing capability.

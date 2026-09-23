@@ -40,7 +40,7 @@ class BindingTest(unittest.TestCase):
         )
         self.assertEqual(result, cybertexel.capi.CTEX_RESULT_SUCCESS)
         self.assertGreater(required.value, 40)
-        self.assertEqual(len(operations), 350)
+        self.assertEqual(len(operations), 353)
         self.assertIn("ctex_image_decode_layered_memory", operations)
 
     def test_version_and_numpy_decode(self) -> None:

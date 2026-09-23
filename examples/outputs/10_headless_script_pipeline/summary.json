@@ -1,0 +1,15 @@
+{
+  "capabilities": [
+    "cli-headless"
+  ],
+  "diagnostic": "headless-script-progress",
+  "output_sha256": "da0e8219dc856e8501877e8709582a8674022e663af326dd3c964a204149ca2d",
+  "roughness_shape": [
+    4,
+    4,
+    1
+  ],
+  "roughness_value": 128,
+  "source_sha256": "f4326af98b9cf59ed55672bc6f3216f3f02ef12da0bdd7df011131f1eb179346",
+  "texture_set": "material/4:body/uv/3:uv0"
+}

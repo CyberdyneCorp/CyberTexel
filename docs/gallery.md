@@ -113,3 +113,22 @@ and is the worked end-to-end pipeline example.
 The [pipeline summary](../examples/outputs/09_end_to_end_material_export/summary.json)
 records the material application, model size, generated filename and decoded
 output shape.
+
+## `10_headless_script_pipeline`
+
+Creates a small project, invokes the installed wheel's isolated headless script
+runner, verifies that script output is diagnostic-only, and reopens the result
+to prove the roughness-channel edit persisted. It covers `cli-headless`.
+
+The gallery retains the edited [project container](../examples/outputs/10_headless_script_pipeline/scripted.ctex)
+and the checked [headless summary](../examples/outputs/10_headless_script_pipeline/summary.json).
+
+## `11_device_gate_policy`
+
+Exercises the `device-gate` decision vocabulary with deterministic policy
+fixtures: a named reference result may pass or fail, while an unnamed machine,
+an absent device and a value below the absolute floor remain informational,
+unmeasured and unreachable. It explicitly makes no hardware performance claim.
+
+The [policy summary](../examples/outputs/11_device_gate_policy/summary.json)
+records all five asserted decisions and the native version used.

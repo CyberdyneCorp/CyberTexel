@@ -1477,6 +1477,14 @@ shared triangle boundary plus a distinct miss and raises coverage to 16 of 24.
 The seventh pins the fixture alpha in a replayable brush operation and requires
 byte-identical extraction from project storage, raising coverage to 17 of 24.
 
+Tasks 16.3 and 16.5 are complete. Eleven numbered installed-wheel examples now
+cover all 24 capability identifiers, and the checked coverage gate rejects
+missing, unknown, duplicate or non-literal declarations by name. The headless
+example drives the same isolated document-script bridge used by the CLI and
+reopens its canonical output. The device-gate example asserts the pass, fail,
+informational, unmeasured and unreachable decision vocabulary while explicitly
+refusing to present deterministic policy fixtures as hardware measurements.
+
 Editable-authoring group 20 is complete. Versioned operation records retain
 algorithm and preset versions, seeds, channel descriptors, mesh identity,
 pinned input bytes and checkpoint identities in canonical project-container
@@ -1740,9 +1748,9 @@ threading and per-binding example evidence.
 
 - [x] 16.1 Fixture assets: meshes with UVs and UDIM layouts, a mesh map set, alphas, images, fonts — with provenance recorded
 - [x] 16.2 Runner (`examples/run_all.py`) with assert, compare and update modes
-- [ ] 16.3 One numbered example per capability, each asserting its result
+- [x] 16.3 One numbered example per capability, each asserting its result
 - [x] 16.4 Committed outputs and the CI comparison at stated tolerances
-- [ ] 16.5 Example coverage gate over capabilities
+- [x] 16.5 Example coverage gate over capabilities
 - [x] 16.6 Determinism: explicit seeds, identical output across runs
 - [x] 16.7 End-to-end example: mesh and maps through layers, graph, smart material, export
 - [x] 16.8 Host-executed route example with a software stand-in
