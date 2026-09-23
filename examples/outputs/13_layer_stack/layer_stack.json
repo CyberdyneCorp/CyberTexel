@@ -1,0 +1,28 @@
+{
+  "capabilities": [
+    "texture-document"
+  ],
+  "channels": [
+    "pbr.base_color",
+    "pbr.emission",
+    "pbr.height",
+    "pbr.metallic",
+    "pbr.normal",
+    "pbr.occlusion",
+    "pbr.opacity",
+    "pbr.roughness",
+    "pbr.subsurface",
+    "studio.wear_mask"
+  ],
+  "edited_blend_mode": "overlay",
+  "entries_after_append": [
+    "group.metal",
+    "mask.edges",
+    "paint.rust"
+  ],
+  "entries_after_removal": [
+    "group.metal",
+    "paint.rust"
+  ],
+  "invalid_batch_refused": true
+}

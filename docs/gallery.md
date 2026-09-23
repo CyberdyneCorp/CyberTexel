@@ -145,3 +145,15 @@ carrying the native diagnostic code. It covers `host-transport`, `paint-engine`,
 The [transport summary](../examples/outputs/12_host_transport_readback/host_transport.json)
 records both revision cursors, the tile count and byte sizes, the refused
 pending readback and the diagnostic code.
+
+## `13_layer_stack`
+
+Registers a custom channel semantic through the same descriptor the built-in PBR
+preset uses, appends a group, a nested paint entry and an attached mask as one
+atomically validated batch, proves that an entry naming an absent parent leaves
+the stack revision unchanged, then edits and removes entries. It covers
+`texture-document`.
+
+The [stack summary](../examples/outputs/13_layer_stack/layer_stack.json) records
+the resolved channels, the entries before and after removal, the refused batch
+and the edited blend mode.

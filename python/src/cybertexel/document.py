@@ -1,8 +1,10 @@
 from __future__ import annotations
 
 import ctypes
+import json
 from dataclasses import dataclass
-from typing import TYPE_CHECKING
+from enum import IntEnum
+from typing import TYPE_CHECKING, Sequence
 
 if TYPE_CHECKING:
     import numpy as np
@@ -10,12 +12,88 @@ if TYPE_CHECKING:
 
 from ._native import (
     LIB,
+    ChannelDescriptor,
     ChannelInfo,
+    LayerChannelDescriptor,
+    LayerEntryDescriptor,
     PaintPreviewInfo,
     ProjectContainerInfo,
     TextureSetDescriptor,
     check,
 )
+
+
+class LayerKind(IntEnum):
+    """The explicit kind a layer-stack entry declares."""
+
+    PAINT = 0
+    FILL = 1
+    GROUP = 2
+    MASK = 3
+    FILTER = 4
+    INSTANCE = 5
+    EDITABLE_DECAL = 6
+    EDITABLE_TEXT = 7
+    SURFACE_PATH = 8
+
+
+class SourceDeletionPolicy(IntEnum):
+    """What removing an entry other entries reference does.
+
+    `texture-document` makes this the caller's choice rather than a rule.
+    """
+
+    REFUSE = 0
+    CONVERT_INSTANCES_TO_COPIES = 1
+
+
+@dataclass(frozen=True)
+class LayerChannel:
+    """One channel's participation in a layer entry."""
+
+    semantic_id: str
+    enabled: bool = True
+    opacity: float = 1.0
+
+
+@dataclass(frozen=True)
+class LayerEntry:
+    """An ordered layer-stack entry.
+
+    `parent_identifier` nests the entry in a group, `target_identifier` attaches
+    a mask or filter to exactly one entry, and `source_identifier` is the entry
+    an instance references.
+    """
+
+    identifier: str
+    display_name: str
+    kind: LayerKind = LayerKind.PAINT
+    parent_identifier: str | None = None
+    target_identifier: str | None = None
+    source_identifier: str | None = None
+    enabled: bool = True
+    opacity: float = 1.0
+    blend_mode: str = "normal"
+    channels: tuple[LayerChannel, ...] = ()
+
+
+@dataclass(frozen=True)
+class TextureChannel:
+    """An extensible channel descriptor.
+
+    The nine-channel PBR preset is expressed through exactly these fields, so a
+    custom semantic is not a second-class citizen.
+    """
+
+    semantic_id: str
+    component_count: int
+    scalar_representation: int = 0
+    preferred_bit_depth: int = 8
+    default_value: tuple[float, ...] = (0.0,)
+    classification: int = 0
+    blending_policy: int = 0
+    export_mapping: str = ""
+    evaluable: bool = True
 
 
 def _input_buffer(value: bytes) -> ctypes.Array[ctypes.c_char]:
@@ -390,3 +468,182 @@ class Document:
             check(LIB.ctex_paint_preview_session_commit(session, ctypes.byref(info)))
         finally:
             LIB.ctex_paint_preview_session_destroy(session)
+
+    def register_channel(self, texture_set: TextureSet, channel: TextureChannel) -> None:
+        """Register an extensible channel semantic on a texture set.
+
+        The built-in PBR preset uses the same descriptor, so a custom semantic
+        carries the same precision, classification and export policy.
+        """
+
+        if not 1 <= channel.component_count <= 4:
+            raise ValueError("a channel carries one to four components")
+        if len(channel.default_value) > 4:
+            raise ValueError("a channel default carries at most four values")
+        descriptor = ChannelDescriptor()
+        descriptor.size = ctypes.sizeof(ChannelDescriptor)
+        descriptor.semantic_id = channel.semantic_id.encode("utf-8")
+        descriptor.component_count = channel.component_count
+        descriptor.scalar_representation = channel.scalar_representation
+        descriptor.preferred_bit_depth = channel.preferred_bit_depth
+        for index, value in enumerate(channel.default_value):
+            descriptor.default_value[index] = value
+        descriptor.default_value_count = len(channel.default_value)
+        descriptor.classification = channel.classification
+        descriptor.blending_policy = channel.blending_policy
+        descriptor.export_mapping = channel.export_mapping.encode("utf-8")
+        descriptor.evaluable = 1 if channel.evaluable else 0
+        check(
+            LIB.ctex_texture_set_register_channel(
+                self._require_open(),
+                texture_set.identifier.encode("utf-8"),
+                ctypes.byref(descriptor),
+            )
+        )
+
+    def channel_ids(self, texture_set: TextureSet) -> list[str]:
+        """Every channel semantic the texture set carries, in canonical order."""
+
+        handle = self._require_open()
+        identifier = texture_set.identifier.encode("utf-8")
+        required = ctypes.c_size_t()
+        count = ctypes.c_size_t()
+        check(
+            LIB.ctex_texture_set_get_channel_ids(
+                handle, identifier, None, 0, ctypes.byref(required), ctypes.byref(count)
+            )
+        )
+        if required.value == 0:
+            return []
+        buffer = ctypes.create_string_buffer(required.value)
+        check(
+            LIB.ctex_texture_set_get_channel_ids(
+                handle,
+                identifier,
+                buffer,
+                required.value,
+                ctypes.byref(required),
+                ctypes.byref(count),
+            )
+        )
+        names = buffer.raw[: required.value].split(b"\0")
+        return [name.decode("utf-8") for name in names if name][: count.value]
+
+    def append_layers(
+        self, texture_set: TextureSet, entries: Sequence[LayerEntry]
+    ) -> None:
+        """Append a complete ordered batch, validated atomically.
+
+        The whole batch is validated against the resulting stack before any of
+        it is published, so a batch that would produce an invalid stack changes
+        nothing.
+        """
+
+        if not entries:
+            raise ValueError("a layer batch carries at least one entry")
+        # Keep every encoded string and channel array alive until the call ends.
+        retained: list[object] = []
+        descriptors = (LayerEntryDescriptor * len(entries))()
+
+        def text(value: str | None) -> bytes | None:
+            if value is None:
+                return None
+            encoded = value.encode("utf-8")
+            retained.append(encoded)
+            return encoded
+
+        for index, entry in enumerate(entries):
+            channels = (LayerChannelDescriptor * len(entry.channels))()
+            for slot, channel in enumerate(entry.channels):
+                channels[slot].size = ctypes.sizeof(LayerChannelDescriptor)
+                channels[slot].semantic_id = text(channel.semantic_id)
+                channels[slot].enabled = 1 if channel.enabled else 0
+                channels[slot].opacity = channel.opacity
+            retained.append(channels)
+            descriptor = descriptors[index]
+            descriptor.size = ctypes.sizeof(LayerEntryDescriptor)
+            descriptor.identifier = text(entry.identifier)
+            descriptor.display_name = text(entry.display_name)
+            descriptor.kind = int(entry.kind)
+            descriptor.parent_identifier = text(entry.parent_identifier)
+            descriptor.target_identifier = text(entry.target_identifier)
+            descriptor.source_identifier = text(entry.source_identifier)
+            descriptor.enabled = 1 if entry.enabled else 0
+            descriptor.opacity = entry.opacity
+            descriptor.blend_mode = text(entry.blend_mode)
+            descriptor.channels = channels if entry.channels else None
+            descriptor.channel_count = len(entry.channels)
+        check(
+            LIB.ctex_texture_set_layer_append(
+                self._require_open(),
+                texture_set.identifier.encode("utf-8"),
+                descriptors,
+                len(entries),
+            )
+        )
+
+    def inspect_layers(self, texture_set: TextureSet) -> dict[str, object]:
+        """The canonical stack snapshot, including its revision and entry kinds."""
+
+        handle = self._require_open()
+        identifier = texture_set.identifier.encode("utf-8")
+        required = ctypes.c_size_t()
+        check(
+            LIB.ctex_texture_set_layer_inspect(
+                handle, identifier, None, 0, ctypes.byref(required)
+            )
+        )
+        buffer = ctypes.create_string_buffer(required.value)
+        check(
+            LIB.ctex_texture_set_layer_inspect(
+                handle, identifier, buffer, required.value, ctypes.byref(required)
+            )
+        )
+        return json.loads(buffer.value.decode("utf-8"))
+
+    def set_layer_state(
+        self,
+        texture_set: TextureSet,
+        entry_identifier: str,
+        *,
+        display_name: str,
+        enabled: bool,
+        opacity: float,
+        blend_mode: str,
+    ) -> None:
+        """Edit one entry's display name, visibility, opacity and blend mode."""
+
+        check(
+            LIB.ctex_texture_set_layer_set_state(
+                self._require_open(),
+                texture_set.identifier.encode("utf-8"),
+                entry_identifier.encode("utf-8"),
+                display_name.encode("utf-8"),
+                1 if enabled else 0,
+                opacity,
+                blend_mode.encode("utf-8"),
+            )
+        )
+
+    def remove_layers(
+        self,
+        texture_set: TextureSet,
+        entry_identifiers: Sequence[str],
+        *,
+        source_deletion_policy: SourceDeletionPolicy = SourceDeletionPolicy.REFUSE,
+    ) -> None:
+        """Remove entries, choosing what happens to instances that reference them."""
+
+        if not entry_identifiers:
+            raise ValueError("removal names at least one entry")
+        encoded = [value.encode("utf-8") for value in entry_identifiers]
+        array = (ctypes.c_char_p * len(encoded))(*encoded)
+        check(
+            LIB.ctex_texture_set_layer_remove(
+                self._require_open(),
+                texture_set.identifier.encode("utf-8"),
+                array,
+                len(encoded),
+                int(source_deletion_policy),
+            )
+        )

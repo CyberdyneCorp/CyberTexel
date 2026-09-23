@@ -115,6 +115,49 @@ class ChannelInfo(ctypes.Structure):
     ]
 
 
+
+class ChannelDescriptor(ctypes.Structure):
+    _fields_ = [
+        ("size", ctypes.c_uint32),
+        ("semantic_id", ctypes.c_char_p),
+        ("component_count", ctypes.c_uint32),
+        ("scalar_representation", ctypes.c_uint32),
+        ("preferred_bit_depth", ctypes.c_uint32),
+        ("default_value", ctypes.c_double * 4),
+        ("default_value_count", ctypes.c_uint32),
+        ("classification", ctypes.c_uint32),
+        ("blending_policy", ctypes.c_uint32),
+        ("export_mapping", ctypes.c_char_p),
+        ("evaluable", ctypes.c_uint32),
+    ]
+
+
+class LayerChannelDescriptor(ctypes.Structure):
+    _fields_ = [
+        ("size", ctypes.c_uint32),
+        ("semantic_id", ctypes.c_char_p),
+        ("enabled", ctypes.c_uint32),
+        ("opacity", ctypes.c_double),
+    ]
+
+
+class LayerEntryDescriptor(ctypes.Structure):
+    _fields_ = [
+        ("size", ctypes.c_uint32),
+        ("identifier", ctypes.c_char_p),
+        ("display_name", ctypes.c_char_p),
+        ("kind", ctypes.c_uint32),
+        ("parent_identifier", ctypes.c_char_p),
+        ("target_identifier", ctypes.c_char_p),
+        ("source_identifier", ctypes.c_char_p),
+        ("enabled", ctypes.c_uint32),
+        ("opacity", ctypes.c_double),
+        ("blend_mode", ctypes.c_char_p),
+        ("channels", ctypes.POINTER(LayerChannelDescriptor)),
+        ("channel_count", ctypes.c_size_t),
+    ]
+
+
 class PaintPreviewInfo(ctypes.Structure):
     _fields_ = [
         ("size", ctypes.c_uint32),
@@ -435,6 +478,74 @@ def _load() -> ctypes.CDLL:
             ctypes.c_void_p,
             ctypes.c_size_t,
             ctypes.POINTER(ctypes.c_size_t),
+        ],
+        ctypes.c_uint32,
+    )
+    _signature(
+        library,
+        "ctex_texture_set_register_channel",
+        [ctypes.c_void_p, ctypes.c_char_p, ctypes.POINTER(ChannelDescriptor)],
+        ctypes.c_uint32,
+    )
+    _signature(
+        library,
+        "ctex_texture_set_get_channel_ids",
+        [
+            ctypes.c_void_p,
+            ctypes.c_char_p,
+            ctypes.c_char_p,
+            ctypes.c_size_t,
+            ctypes.POINTER(ctypes.c_size_t),
+            ctypes.POINTER(ctypes.c_size_t),
+        ],
+        ctypes.c_uint32,
+    )
+    _signature(
+        library,
+        "ctex_texture_set_layer_append",
+        [
+            ctypes.c_void_p,
+            ctypes.c_char_p,
+            ctypes.POINTER(LayerEntryDescriptor),
+            ctypes.c_size_t,
+        ],
+        ctypes.c_uint32,
+    )
+    _signature(
+        library,
+        "ctex_texture_set_layer_inspect",
+        [
+            ctypes.c_void_p,
+            ctypes.c_char_p,
+            ctypes.c_char_p,
+            ctypes.c_size_t,
+            ctypes.POINTER(ctypes.c_size_t),
+        ],
+        ctypes.c_uint32,
+    )
+    _signature(
+        library,
+        "ctex_texture_set_layer_remove",
+        [
+            ctypes.c_void_p,
+            ctypes.c_char_p,
+            ctypes.POINTER(ctypes.c_char_p),
+            ctypes.c_size_t,
+            ctypes.c_uint32,
+        ],
+        ctypes.c_uint32,
+    )
+    _signature(
+        library,
+        "ctex_texture_set_layer_set_state",
+        [
+            ctypes.c_void_p,
+            ctypes.c_char_p,
+            ctypes.c_char_p,
+            ctypes.c_char_p,
+            ctypes.c_uint32,
+            ctypes.c_double,
+            ctypes.c_char_p,
         ],
         ctypes.c_uint32,
     )

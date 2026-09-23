@@ -2,7 +2,15 @@ from typing import TYPE_CHECKING
 
 from . import capi
 from ._native import native_version
-from .document import Document, TextureSet
+from .document import (
+    Document,
+    LayerChannel,
+    LayerEntry,
+    LayerKind,
+    SourceDeletionPolicy,
+    TextureChannel,
+    TextureSet,
+)
 from .errors import (
     BufferTooSmallError,
     CancelledError,
@@ -98,6 +106,11 @@ __all__ = [
     "CyberTexelError",
     "DecodedImage",
     "Document",
+    "LayerChannel",
+    "LayerEntry",
+    "LayerKind",
+    "SourceDeletionPolicy",
+    "TextureChannel",
     "HostExecutionSession",
     "HostMaterialProgram",
     "HostReadback",
