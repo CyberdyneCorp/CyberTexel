@@ -10,12 +10,14 @@ let package = Package(
     name: "CyberTexel",
     platforms: [.macOS(.v13), .iOS(.v16)],
     products: [
-        .library(name: "CyberTexel", targets: ["CyberTexel"])
+        .library(name: "CyberTexel", targets: ["CyberTexel"]),
+        .executable(name: "CyberTexelWorkflowExample", targets: ["CyberTexelWorkflowExample"])
     ],
     targets: [
         .systemLibrary(name: "CyberTexelC", pkgConfig: "cybertexel"),
         .target(name: "CyberTexel", dependencies: ["CyberTexelC"]),
         .executableTarget(name: "CyberTexelLinkCheck", dependencies: ["CyberTexel"]),
+        .executableTarget(name: "CyberTexelWorkflowExample", dependencies: ["CyberTexelC"]),
         .testTarget(name: "CyberTexelTests", dependencies: ["CyberTexel"])
     ]
 )

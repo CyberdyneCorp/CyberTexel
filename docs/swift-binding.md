@@ -27,6 +27,19 @@ continues to import the complete public C header; the macOS and iOS package test
 then compile and link that imported surface. Together with the generated Python
 and Rust raw layers, this completes task 14.13.
 
+`CyberTexelWorkflowExample` exercises the imported C surface end to end: it
+creates a document, paints a channel, authors a material graph, binds an AO mesh
+map, applies a smart material and validates a dry-run export report. The macOS
+package gate executes the example; its source remains portable to the declared
+Apple platforms.
+
+Swift descriptors borrow strings and arrays only while a synchronous C call is
+active, and the library copies retained values. The idiomatic layer converts
+returned text, shader artifacts, reports and completed readback bytes into
+Swift-owned storage. Native handles are retained by reference storage until all
+dependent values are gone. No public result is a view invalidated by a later
+document mutation.
+
 Build and test the macOS package, then link its native and Swift layers into an
 iOS arm64 check executable, with:
 

@@ -1838,6 +1838,18 @@ if(BUILD_TESTING)
         NAME c-abi-scenario-matrix
         COMMAND "${CTEX_PYTHON3_EXECUTABLE}" tests/tools/check_cabi_scenario_matrix.py
     )
+    add_test(
+        NAME language-binding-scenario-matrix
+        COMMAND
+            "${CTEX_PYTHON3_EXECUTABLE}"
+            tests/tools/check_language_binding_scenario_matrix.py
+    )
+    set_tests_properties(
+        language-binding-scenario-matrix
+        PROPERTIES
+            WORKING_DIRECTORY "${PROJECT_SOURCE_DIR}"
+            LABELS language-bindings-scenario
+    )
     set_tests_properties(
         c-abi-compatibility-policy c-abi-full-surface-coverage c-abi-scenario-matrix
         PROPERTIES

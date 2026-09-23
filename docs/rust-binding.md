@@ -20,6 +20,12 @@ The sys build accepts `CYBERTEXEL_LIBRARY_DIR` for development against an
 already-built shared library. Without it, the build script configures and builds
 the native C ABI from the checked-out source.
 
+`cybertexel-sys/examples/workflow.rs` is the complete raw-binding example. It
+creates a document, paints a channel, authors a material graph, binds an AO mesh
+map, applies a smart material and validates a dry-run export report. The raw
+example deliberately lives below the safe-wrapper boundary; the binding gate
+executes it after Clippy and the workspace tests.
+
 `cybertexel-sys/src/lib.rs` is generated from the public C header with bindgen
 0.72.1 and committed so crate consumers do not need libclang. Run
 `just generate-rust-sys` after changing the C header. The parity gate checks both
@@ -33,6 +39,13 @@ lifetime rules without exposing raw pointers. Pending readback output returns a
 typed error. The [binding parity gate](binding-parity.md) compares every C
 operation with the public `cybertexel-sys` declarations. The raw Rust surface is
 complete, and task 14.13 is complete across all three official bindings.
+
+All safe-wrapper outputs are owned Rust values. Descriptor strings and slices
+are borrowed only for the synchronous FFI call and retained native state copies
+them. `HostReadback` owns its native request and output allocations; bytes are
+unavailable while pending and remain owned by the Rust result after completion.
+The public safe wrapper therefore returns no view whose validity depends on a
+subsequent document mutation.
 
 Run formatting, Clippy, unit tests, compile-fail tests and the unsafe-boundary
 audit with:

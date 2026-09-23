@@ -1480,21 +1480,26 @@ OpenSpec scenarios to the existing behavioral C++ and strict-C fixtures,
 registers the 69-control no-inert-parameter audit as executable evidence, and
 fails when evidence is missing, duplicated, unregistered or outside the
 capability label. Cross-binding runtime execution of the shared parameter
-validator remains explicitly assigned to task 14.14.
+validator now runs through the Python, Swift and Rust workflow gates completed
+under task 14.14.
 
-The C ABI half of task 14.14 now maps all twenty boundary scenarios to a
-dedicated labeled suite. A regression fixture forces a C++ allocator callback
-to throw during document creation and proves that the `noexcept` C boundary
-returns the stable internal-error result and diagnostic instead of unwinding
-into the host. The language-binding scenarios, including their per-binding
-example gate, remain before task 14.14 can be marked complete.
+Task 14.14 maps all twenty C ABI boundary scenarios and all fourteen
+language-binding scenarios to dedicated checked matrices. A regression fixture
+forces a C++ allocator callback to throw during document creation and proves
+that the `noexcept` C boundary returns the stable internal-error result and
+diagnostic instead of unwinding into the host. The per-binding workflow gates
+also execute the shared paint-parameter validator before their document,
+material, mesh-map, smart-material and export assertions.
 
-All three idiomatic binding layers now inject an incompatible ABI version in
-their own suites and require a typed failure naming the expected major and the
-complete native version. CI also runs the installed-wheel Python integration
-examples and compares every output with the committed gallery. Per-binding
-examples for the full document, paint, material, mesh-map, smart-material and
-export workflow remain the open language-binding scenario dependency.
+All three idiomatic binding layers inject an incompatible ABI version in their
+own suites and require a typed failure naming the expected major and complete
+native version. CI runs the installed-wheel Python integration examples and
+compares every output with the committed gallery. The Swift and raw Rust
+workflow examples independently create a document, paint, author a material,
+bind a mesh map, apply a smart material and plan an export; their existing
+package gates execute them. The checked language-binding matrix maps all
+fourteen scenarios to the same CI recipes, including parity, ownership,
+threading and per-binding example evidence.
 
 ## 1. Foundation
 
@@ -1705,7 +1710,7 @@ export workflow remain the open language-binding scenario dependency.
 - [x] 14.11 Rust `-sys` and safe crates, typed errors, `Send`/`Sync` matching the contract
 - [x] 14.12 Host-executed route and host transport reachable from all three bindings
 - [x] 14.13 Binding parity gate
-- [ ] 14.14 `c-abi` and `language-bindings` scenarios as tests
+- [x] 14.14 `c-abi` and `language-bindings` scenarios as tests
 
 ## 15. Command line
 

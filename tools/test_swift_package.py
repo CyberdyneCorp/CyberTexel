@@ -90,6 +90,22 @@ def main() -> int:
         library,
         env=environment,
     )
+    run(
+        "swift",
+        "run",
+        "--package-path",
+        "swift",
+        "-Xcc",
+        f"-I{include}",
+        "-Xlinker",
+        f"-L{library}",
+        "-Xlinker",
+        "-rpath",
+        "-Xlinker",
+        library,
+        "CyberTexelWorkflowExample",
+        env=environment,
+    )
 
     install_native("ios-arm64", IOS_PREFIX, environment)
     environment["PKG_CONFIG_PATH"] = str(IOS_PREFIX / "lib" / "pkgconfig")

@@ -51,6 +51,8 @@ jobs:
       run: just gate-layering
     - name: Version consistency
       run: just gate-version-consistency
+    - name: Binding surface parity
+      run: just gate-binding-parity
     - name: ABI compatibility
       run: just gate-abi-diff
     - name: Dependency licences

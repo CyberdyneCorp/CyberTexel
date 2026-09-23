@@ -23,6 +23,23 @@ HEIGHT = 64
 PIXEL_COUNT = WIDTH * HEIGHT
 
 
+def validate_shared_parameter(capi: object) -> None:
+    info = capi.ctex_paint_parameter_validation_info()
+    info.size = capi.CTEX_PAINT_PARAMETER_VALIDATION_INFO_CURRENT_SIZE
+    assert (
+        capi.ctex_paint_validate_parameter(
+            capi.String(b"stroke.radius"),
+            capi.CTEX_PAINT_PARAMETER_CONTEXT_GENERAL,
+            2_000_000.0,
+            capi.byref(info),
+        )
+        == capi.CTEX_RESULT_SUCCESS
+    )
+    assert info.supplied == 2_000_000.0
+    assert info.resolved == 1_000_000.0
+    assert info.clamped == 1
+
+
 def input_sample(capi: object, x: float, y: float, timestamp: int) -> object:
     frame = capi.ctex_stroke_frame(
         capi.ctex_vec3d(1.0, 0.0, 0.0),
@@ -232,6 +249,7 @@ def main() -> None:
     assert arguments.executor == "cpu", "paint coverage uses the CPU reference executor"
 
     capi = cybertexel.capi
+    validate_shared_parameter(capi)
     positions = np.array(
         [[0, 0, 0], [10, 0, 0], [10, 1, 0], [0, 1, 0]], dtype=np.float32
     )

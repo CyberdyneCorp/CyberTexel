@@ -57,6 +57,12 @@ Build and test the platform wheel with:
 just test-python-binding
 ```
 
+The numbered scripts under `examples/` are the Python binding's runnable
+workflows. Together they cover document creation, painting, material authoring,
+mesh-map binding, smart-material application and export; `just examples` runs
+them from an installed wheel and compares their asserted outputs with the
+published gallery.
+
 Set `CTEX_PYTHON_VERSION` to select a supported interpreter for the isolated
 wheel smoke test. Set `CYBERTEXEL_LIBRARY` only when building against a shared
 library outside `build/`; installed wheels normally load their bundled copy.

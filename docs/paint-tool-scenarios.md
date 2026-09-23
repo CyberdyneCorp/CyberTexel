@@ -29,6 +29,6 @@ domain instead of independently reinterpreting symmetry.
 | Selecting a region | `paint-colour-id` | Tolerance-matched colour-ID selection is reused as paint restriction, mask source and visibility filter. |
 | Tolerance of zero | `paint-colour-id` | A filtered map with no exact match reports an empty selection without widening tolerance. |
 | Restricting to a region | `paint-selection` | Lasso coverage rejects paint outside the active selection and the selection can be stored as a mask. |
-| Out-of-range radius | `stroke-reconstruction`, `c-abi-paint-coverage` | The shared descriptor clamps radius and reports supplied/resolved values; the C ABI exposes the same catalogue and validator used by generated bindings. Binding runtime scenarios remain assigned to task 14.14. |
+| Out-of-range radius | `stroke-reconstruction`, `c-abi-paint-coverage` | The shared descriptor clamps radius and reports supplied/resolved values; the Python, Swift and Rust workflow gates execute the same public validator through their generated/imported C surfaces. |
 | Parameter audit | `paint-parameter-audit` | All 69 documented numeric controls match implementation descriptors and named behavioral assertions showing that each resolved value changes output. |
 | Editing a painted seam line | `editable-authoring`, `c-abi-editable-authoring` | Moving an attached control point re-evaluates the surface path through stroke-model, invalidates old/new tiles, and undo restores the original path. |

@@ -162,7 +162,13 @@ test-rust-binding: (_require "cargo" "Rust stable") (_require "cmake" "3.24")
     cargo fmt --all --manifest-path rust/Cargo.toml -- --check
     cargo clippy --manifest-path rust/Cargo.toml --workspace --all-targets -- -D warnings
     cargo test --manifest-path rust/Cargo.toml --workspace
+    cargo run --manifest-path rust/Cargo.toml -p cybertexel-sys --example workflow
     python3 tools/check_rust_unsafe.py
+
+# Full cross-language scenario gate. Swift makes this aggregate macOS-only;
+# platform CI runs each constituent recipe in its native job.
+test-language-binding-scenarios: test-python-binding test-swift-binding test-rust-binding examples gate-binding-parity build
+    ctest --test-dir build/headless --output-on-failure -L '^language-bindings-scenario$'
 
 generate-rust-sys: (_require "bindgen" "bindgen-cli 0.72.1")
     python3 tools/generate_rust_sys.py
