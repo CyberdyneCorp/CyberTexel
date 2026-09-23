@@ -49,6 +49,7 @@ from .mesh import (
     MeshMapImportReport,
     MeshMapKind,
     MeshMapSet,
+    PickHit,
 )
 
 __all__ = [
@@ -75,6 +76,7 @@ __all__ = [
     "MeshMapImportReport",
     "MeshMapKind",
     "MeshMapSet",
+    "PickHit",
     "MissingResourceError",
     "NoRedoError",
     "NoUndoError",

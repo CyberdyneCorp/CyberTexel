@@ -18,6 +18,10 @@
     "05_color_management/transfer_and_dither.png": {
       "maximum_absolute_error": 0,
       "mode": "pixels"
+    },
+    "06_uv_picking/uv_hits.png": {
+      "maximum_absolute_error": 0,
+      "mode": "pixels"
     }
   },
   "schema": 1

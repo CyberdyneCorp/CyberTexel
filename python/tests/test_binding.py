@@ -141,6 +141,28 @@ class BindingTest(unittest.TestCase):
         self.assertIn("requires missing map", raised.exception.diagnostic)
         self.assertIn("position", raised.exception.diagnostic)
 
+    def test_uv_picking_returns_typed_hit_and_distinct_miss(self) -> None:
+        positions = np.array([[0, 0, 0], [1, 0, 0], [0, 1, 0]], dtype=np.float32)
+        normals = np.array([[0, 0, 1], [0, 0, 1], [0, 0, 1]], dtype=np.float32)
+        uv = np.array([[0, 0], [1, 0], [0, 1]], dtype=np.float32)
+        triangles = np.array([[0, 1, 2]], dtype=np.uint32)
+        with cybertexel.Mesh(
+            positions,
+            triangles,
+            normals=normals,
+            uv=uv,
+            partition_key="body",
+        ) as mesh:
+            hit = mesh.pick_uv(0.25, 0.25)
+            miss = mesh.pick_uv(2.0, 2.0)
+        self.assertIsInstance(hit, cybertexel.PickHit)
+        assert hit is not None
+        np.testing.assert_allclose(hit.position, [0.25, 0.25, 0.0])
+        np.testing.assert_allclose(hit.barycentric, [0.5, 0.25, 0.25])
+        self.assertEqual(hit.triangle_index, 0)
+        self.assertEqual(hit.texture_set_id, "material/4:body/uv/3:uv0")
+        self.assertIsNone(miss)
+
     def test_host_execution_retains_resident_result_without_readback(self) -> None:
         program = cybertexel.emit_default_host_material(
             stable_identity="binding/paint",

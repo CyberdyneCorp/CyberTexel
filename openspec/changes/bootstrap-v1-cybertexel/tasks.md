@@ -1433,6 +1433,8 @@ cover 14 of 24 capabilities, and the gate names the remaining ten.
 The fifth example adds working-space conversion, channel precision policy,
 pre-quantization height accumulation and deterministic dithering, raising
 coverage to 15 of 24 capabilities.
+The sixth example adds a typed Python UV picking result, asserts both sides of a
+shared triangle boundary plus a distinct miss and raises coverage to 16 of 24.
 
 Editable-authoring group 20 is complete. Versioned operation records retain
 algorithm and preset versions, seeds, channel descriptors, mesh identity,

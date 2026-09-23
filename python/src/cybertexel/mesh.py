@@ -60,6 +60,17 @@ class MeshMapImportReport:
     map_height: int
 
 
+@dataclass(frozen=True)
+class PickHit:
+    position: tuple[float, float, float]
+    normal: tuple[float, float, float]
+    uv: tuple[float, float]
+    barycentric: tuple[float, float, float]
+    triangle_index: int
+    material_id: int
+    texture_set_id: str
+
+
 def _array(
     value: npt.ArrayLike, dtype: np.dtype[np.generic], columns: int
 ) -> np.ndarray:
@@ -133,6 +144,7 @@ class Mesh:
         handle = ctypes.c_void_p()
         check(LIB.ctex_mesh_create(ctypes.byref(descriptor), ctypes.byref(handle)))
         self._handle = handle
+        self._uv_name = uv_name
 
     def __enter__(self) -> Mesh:  # noqa: PYI034
         self._require_open()
@@ -155,6 +167,65 @@ class Mesh:
         if handle:
             LIB.ctex_mesh_destroy(handle)
             self._handle = None
+
+    def pick_uv(self, u: float, v: float) -> PickHit | None:
+        """Return the deterministic surface hit at a UV coordinate, or ``None``."""
+
+        from . import capi
+
+        mesh = ctypes.cast(self._require_open(), ctypes.POINTER(capi.ctex_mesh))
+        index = ctypes.POINTER(capi.ctex_uv_pick_index)()
+        check(capi.ctex_uv_pick_index_create(mesh, self._uv_name.encode(), ctypes.byref(index)))
+        try:
+            binding = capi.ctex_pick_texture_set_binding_descriptor(
+                ctypes.sizeof(capi.ctex_pick_texture_set_binding_descriptor),
+                0,
+                capi.String(self._uv_name.encode()),
+            )
+            info = capi.ctex_pick_query_info()
+            info.size = ctypes.sizeof(info)
+            coordinate = capi.ctex_vec2f(u, v)
+            check(
+                capi.ctex_pick_uv_query(
+                    index,
+                    coordinate,
+                    ctypes.byref(binding),
+                    None,
+                    None,
+                    0,
+                    ctypes.byref(info),
+                )
+            )
+            if info.result_count == 0:
+                return None
+            hit = capi.ctex_pick_hit()
+            identity = ctypes.create_string_buffer(info.required_texture_set_id_size)
+            check(
+                capi.ctex_pick_uv_query(
+                    index,
+                    coordinate,
+                    ctypes.byref(binding),
+                    ctypes.byref(hit),
+                    identity,
+                    len(identity),
+                    ctypes.byref(info),
+                )
+            )
+            return PickHit(
+                (hit.position.x, hit.position.y, hit.position.z),
+                (
+                    hit.interpolated_normal.x,
+                    hit.interpolated_normal.y,
+                    hit.interpolated_normal.z,
+                ),
+                (hit.uv.x, hit.uv.y),
+                (hit.barycentric.x, hit.barycentric.y, hit.barycentric.z),
+                int(hit.triangle_index),
+                int(hit.material_id),
+                identity.value.decode("utf-8"),
+            )
+        finally:
+            capi.ctex_uv_pick_index_destroy(index)
 
 
 class MeshMapSet:

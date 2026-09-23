@@ -62,3 +62,14 @@ the deterministic ordered-dither pattern. It covers `color-management`.
 
 The [colour summary](../examples/outputs/05_color_management/summary.json)
 records the reference midpoint, precision recommendation and quantized values.
+
+## `06_uv_picking`
+
+Builds the deterministic UV acceleration index, queries one hit on each quad
+triangle, asserts interpolated positions and barycentrics, and verifies that an
+outside coordinate is a distinct miss. It covers `picking`.
+
+![UV diagonal with one hit on each triangle](../examples/outputs/06_uv_picking/uv_hits.png)
+
+The [picking summary](../examples/outputs/06_uv_picking/summary.json) records the
+resolved texture-set identity, triangle indices and world positions.
