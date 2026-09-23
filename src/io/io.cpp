@@ -14,6 +14,7 @@
 #include <cstring>
 #include <ctex/io/container_version.hpp>
 #include <ctex/io/image_io.hpp>
+#include <iterator>
 #include <limits>
 #include <map>
 #include <memory>
@@ -398,6 +399,29 @@ std::optional<image::ColorSpace> interpret_icc_profile(
                                     : image::ColorSpace::linear_rec709;
 }
 
+std::pair<image::ColorSpace, ColorSpaceSource> resolve_raster_color_space(
+    const DecodeRequest& request, std::optional<std::span<const unsigned char>> profile,
+    std::string_view format_name, std::vector<std::string>& diagnostics) {
+    if (request.color_space != image::InputColorSpace::automatic) {
+        const auto resolved =
+            image::resolve_input_space(request.color_space, request.intended_channel);
+        return {resolved.color_space, ColorSpaceSource::caller};
+    }
+    if (profile) {
+        if (const auto interpreted = interpret_icc_profile(*profile)) {
+            diagnostics.emplace_back(std::string(format_name) + " ICC profile interpreted as " +
+                                     std::string(image::color_space_name(*interpreted)));
+            return {*interpreted, ColorSpaceSource::embedded_profile};
+        }
+        diagnostics.emplace_back(std::string(format_name) +
+                                 " ICC profile is not interpreted; automatic channel rule "
+                                 "applied");
+    }
+    const auto resolved =
+        image::resolve_input_space(image::InputColorSpace::automatic, request.intended_channel);
+    return {resolved.color_space, ColorSpaceSource::automatic_rule};
+}
+
 std::pair<image::ColorSpace, ColorSpaceSource> resolve_color_space(
     const DecodeRequest& request, const LodePNGInfo& png_info,
     std::vector<std::string>& diagnostics) {
@@ -410,20 +434,86 @@ std::pair<image::ColorSpace, ColorSpaceSource> resolve_color_space(
         return {image::ColorSpace::srgb_rec709, ColorSpaceSource::embedded_srgb};
     }
     if (png_info.iccp_defined != 0) {
-        const auto interpreted = interpret_icc_profile(
-            {png_info.iccp_profile, static_cast<std::size_t>(png_info.iccp_profile_size)});
-        if (interpreted) {
-            diagnostics.emplace_back("PNG ICC profile interpreted as " +
-                                     std::string(image::color_space_name(*interpreted)));
-            return {*interpreted, ColorSpaceSource::embedded_profile};
-        }
-        diagnostics.emplace_back(
-            "PNG ICC profile is not interpreted; automatic channel rule "
-            "applied");
+        return resolve_raster_color_space(
+            request,
+            std::span<const unsigned char>{png_info.iccp_profile,
+                                           static_cast<std::size_t>(png_info.iccp_profile_size)},
+            "PNG", diagnostics);
     }
-    const auto resolved =
-        image::resolve_input_space(image::InputColorSpace::automatic, request.intended_channel);
-    return {resolved.color_space, ColorSpaceSource::automatic_rule};
+    return resolve_raster_color_space(request, std::nullopt, "PNG", diagnostics);
+}
+
+struct ExtractedIccProfile {
+    bool present{};
+    std::vector<unsigned char> bytes;
+    std::string diagnostic;
+};
+
+std::uint8_t encoded_byte(std::span<const std::byte> bytes, std::size_t offset) noexcept {
+    return std::to_integer<std::uint8_t>(bytes[offset]);
+}
+
+ExtractedIccProfile extract_jpeg_icc_profile(std::span<const std::byte> encoded) {
+    constexpr std::size_t maximum_profile_bytes = 16ULL << 20;
+    constexpr std::array<unsigned char, 12> identifier{'I', 'C', 'C', '_', 'P', 'R',
+                                                       'O', 'F', 'I', 'L', 'E', 0};
+    std::array<std::span<const std::byte>, 256> chunks{};
+    std::uint8_t expected_count{};
+    bool present = false;
+    std::size_t cursor = 2;
+    while (cursor < encoded.size()) {
+        if (encoded_byte(encoded, cursor) != 0xff) break;
+        while (cursor < encoded.size() && encoded_byte(encoded, cursor) == 0xff) ++cursor;
+        if (cursor >= encoded.size()) break;
+        const std::uint8_t marker = encoded_byte(encoded, cursor++);
+        if (marker == 0xd9 || marker == 0xda) break;
+        if (marker == 0x01 || (marker >= 0xd0 && marker <= 0xd8)) continue;
+        if (encoded.size() - cursor < 2) break;
+        const std::size_t segment_size =
+            (static_cast<std::size_t>(encoded_byte(encoded, cursor)) << 8U) |
+            encoded_byte(encoded, cursor + 1);
+        if (segment_size < 2 || segment_size > encoded.size() - cursor) break;
+        const auto payload = encoded.subspan(cursor + 2, segment_size - 2);
+        cursor += segment_size;
+        if (marker != 0xe2 || payload.size() < identifier.size() ||
+            !std::equal(identifier.begin(), identifier.end(), payload.begin(),
+                        [](unsigned char left, std::byte right) {
+                            return left == std::to_integer<unsigned char>(right);
+                        })) {
+            continue;
+        }
+        present = true;
+        if (payload.size() < 14) {
+            return {true, {}, "JPEG ICC profile chunk header is truncated"};
+        }
+        const std::uint8_t sequence = std::to_integer<std::uint8_t>(payload[12]);
+        const std::uint8_t count = std::to_integer<std::uint8_t>(payload[13]);
+        if (sequence == 0 || count == 0 || sequence > count ||
+            (expected_count != 0 && expected_count != count) || !chunks[sequence].empty()) {
+            return {true, {}, "JPEG ICC profile chunk sequence is invalid"};
+        }
+        expected_count = count;
+        chunks[sequence] = payload.subspan(14);
+    }
+    if (!present) return {};
+    std::size_t total{};
+    for (std::uint16_t sequence = 1; sequence <= expected_count; ++sequence) {
+        if (chunks[sequence].empty()) {
+            return {true, {}, "JPEG ICC profile is missing a declared chunk"};
+        }
+        if (chunks[sequence].size() > maximum_profile_bytes - total) {
+            return {true, {}, "JPEG ICC profile exceeds the 16 MiB interpretation limit"};
+        }
+        total += chunks[sequence].size();
+    }
+    ExtractedIccProfile result{.present = true, .bytes = {}, .diagnostic = {}};
+    result.bytes.reserve(total);
+    for (std::uint16_t sequence = 1; sequence <= expected_count; ++sequence) {
+        std::ranges::transform(
+            chunks[sequence], std::back_inserter(result.bytes),
+            [](std::byte value) { return std::to_integer<unsigned char>(value); });
+    }
+    return result;
 }
 
 bool extension_mismatch(std::string_view source_name, ImageFileFormat detected) {
@@ -464,9 +554,9 @@ std::pair<image::ColorSpace, ColorSpaceSource> resolve_float_color_space(
 }
 
 DecodeReport float_decode_report(const DecodeRequest& request, ImageFileFormat format,
-                                 ColorSpaceSource source) {
+                                 ColorSpaceSource source,
+                                 std::vector<std::string> diagnostics = {}) {
     const bool mismatch = extension_mismatch(request.source_name, format);
-    std::vector<std::string> diagnostics;
     if (mismatch) {
         diagnostics.emplace_back("source extension disagrees with detected " +
                                  std::string(image_file_format_name(format)) + " content");
@@ -625,8 +715,25 @@ DecodedImage decode_stbi_integer(const DecodeRequest& request, ImageFileFormat f
     session.preflight(static_cast<std::uint32_t>(layout.width),
                       static_cast<std::uint32_t>(layout.height), layout.pixel_format);
     image::TiledImage pixels = load_stbi_integer(request.bytes, layout, format, session);
-    const auto [color_space, color_source] = resolve_float_color_space(request);
-    DecodeReport report = float_decode_report(request, format, color_source);
+    std::vector<std::string> diagnostics;
+    ExtractedIccProfile profile;
+    if (format == ImageFileFormat::jpeg) {
+        profile = extract_jpeg_icc_profile(request.bytes);
+        if (!profile.diagnostic.empty()) {
+            diagnostics.push_back(profile.diagnostic +
+                                  (request.color_space == image::InputColorSpace::automatic
+                                       ? "; automatic channel rule applied"
+                                       : "; explicit caller declaration applied"));
+        }
+    }
+    const std::optional<std::span<const unsigned char>> profile_bytes =
+        profile.present && profile.diagnostic.empty()
+            ? std::optional<std::span<const unsigned char>>{profile.bytes}
+            : std::nullopt;
+    const auto [color_space, color_source] = resolve_raster_color_space(
+        request, profile_bytes, image_file_format_name(format), diagnostics);
+    DecodeReport report =
+        float_decode_report(request, format, color_source, std::move(diagnostics));
     session.finish(report);
     return {std::move(pixels), color_space, std::move(report)};
 }

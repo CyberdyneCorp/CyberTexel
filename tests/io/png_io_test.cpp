@@ -226,6 +226,35 @@ std::vector<std::byte> make_rgb8_png_with_icc_profile(bool linear) {
     return encoded;
 }
 
+std::vector<std::byte> add_jpeg_icc_profile(std::span<const std::byte> jpeg,
+                                            std::span<const unsigned char> profile,
+                                            bool omit_last_chunk = false) {
+    if (jpeg.size() < 2 || jpeg[0] != std::byte{0xff} || jpeg[1] != std::byte{0xd8}) {
+        throw std::runtime_error("ICC fixture requires JPEG content");
+    }
+    std::vector<std::byte> result{jpeg[0], jpeg[1]};
+    constexpr std::array identifier{std::byte{'I'}, std::byte{'C'}, std::byte{'C'}, std::byte{'_'},
+                                    std::byte{'P'}, std::byte{'R'}, std::byte{'O'}, std::byte{'F'},
+                                    std::byte{'I'}, std::byte{'L'}, std::byte{'E'}, std::byte{0}};
+    const std::size_t split = profile.size() / 2;
+    const std::array chunks{profile.first(split), profile.subspan(split)};
+    const std::size_t emitted = omit_last_chunk ? 1 : chunks.size();
+    for (std::size_t index = 0; index < emitted; ++index) {
+        result.push_back(std::byte{0xff});
+        result.push_back(std::byte{0xe2});
+        const std::size_t segment_size = 2 + identifier.size() + 2 + chunks[index].size();
+        result.push_back(static_cast<std::byte>(segment_size >> 8U));
+        result.push_back(static_cast<std::byte>(segment_size));
+        result.insert(result.end(), identifier.begin(), identifier.end());
+        result.push_back(static_cast<std::byte>(index + 1));
+        result.push_back(std::byte{2});
+        std::ranges::transform(chunks[index], std::back_inserter(result),
+                               [](unsigned char value) { return static_cast<std::byte>(value); });
+    }
+    result.insert(result.end(), jpeg.begin() + 2, jpeg.end());
+    return result;
+}
+
 TiledImage red_green_rgb8() {
     TiledImage source(2, 1, PixelFormat{ChannelType::uint8_unorm, 3});
     const std::array red{std::byte{255}, std::byte{0}, std::byte{0}};
@@ -526,6 +555,45 @@ bool embedded_icc_profiles_are_interpreted() {
            expect(interpreted, "interpreted ICC profile was not reported");
 }
 
+bool multipart_jpeg_icc_profile_is_interpreted() {
+    const std::vector<std::byte> jpeg = ctex::io::encode_texture_memory(
+        red_green_rgb8(), {.format = ctex::io::ExportImageFormat::jpeg,
+                           .bit_depth = ctex::io::ExportBitDepth::bits_8,
+                           .color_space = ColorSpace::srgb_rec709,
+                           .jpeg_quality = 100});
+    const std::vector<unsigned char> profile = make_rec709_icc_profile(false);
+    const std::vector<std::byte> profiled = add_jpeg_icc_profile(jpeg, profile);
+    const auto decoded = ctex::io::decode_image_memory({
+        .bytes = profiled,
+        .source_name = "base.jpg",
+        .intended_channel = ChannelSemantic::base_color,
+    });
+    const auto overridden = ctex::io::decode_image_memory({
+        .bytes = profiled,
+        .source_name = "base.jpg",
+        .intended_channel = ChannelSemantic::base_color,
+        .color_space = InputColorSpace::linear_rec709,
+    });
+    const auto incomplete = ctex::io::decode_image_memory({
+        .bytes = add_jpeg_icc_profile(jpeg, profile, true),
+        .source_name = "base.jpg",
+        .intended_channel = ChannelSemantic::base_color,
+    });
+    const bool missing_chunk =
+        std::ranges::any_of(incomplete.report.diagnostics, [](const std::string& message) {
+            return message.find("missing a declared chunk") != std::string::npos;
+        });
+    return expect(decoded.source_color_space == ColorSpace::srgb_rec709 &&
+                      decoded.report.color_space_source == ColorSpaceSource::embedded_profile,
+                  "multipart JPEG ICC profile was not interpreted") &&
+           expect(overridden.source_color_space == ColorSpace::linear_rec709 &&
+                      overridden.report.color_space_source == ColorSpaceSource::caller,
+                  "caller declaration did not override JPEG ICC") &&
+           expect(incomplete.report.color_space_source == ColorSpaceSource::automatic_rule,
+                  "incomplete JPEG ICC profile bypassed the automatic rule") &&
+           expect(missing_chunk, "incomplete JPEG ICC profile was not reported");
+}
+
 bool uninterpretable_profile_is_reported_before_automatic_fallback() {
     const auto decoded = ctex::io::decode_image_memory({
         .bytes = make_gray8_png_with_icc_profile(),
@@ -795,6 +863,7 @@ int main() {
                    tiff_preserves_integer_and_float_precision() &&
                    psd_preserves_sixteen_bit_composite() && embedded_space_and_caller_override() &&
                    embedded_icc_profiles_are_interpreted() &&
+                   multipart_jpeg_icc_profile_is_interpreted() &&
                    uninterpretable_profile_is_reported_before_automatic_fallback() &&
                    hostile_input_is_bounded_and_named() && unsupported_content_is_named() &&
                    malformed_flat_inputs_are_named() && float_png_is_refused() &&
