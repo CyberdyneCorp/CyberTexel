@@ -427,6 +427,10 @@ if(BUILD_TESTING)
         ctex_configure_c_target(ctex_capi_allocator_test)
         target_link_libraries(ctex_capi_allocator_test PRIVATE cybertexel_c)
         add_test(NAME c-abi-host-allocator COMMAND ctex_capi_allocator_test)
+        add_executable(ctex_capi_boundary_test tests/capi/boundary_test.cpp)
+        ctex_configure_cpp_target(ctex_capi_boundary_test)
+        target_link_libraries(ctex_capi_boundary_test PRIVATE cybertexel_c)
+        add_test(NAME c-abi-boundary-contract COMMAND ctex_capi_boundary_test)
         add_executable(ctex_capi_channels_test tests/capi/channels_test.c)
         ctex_configure_c_target(ctex_capi_channels_test)
         target_link_libraries(ctex_capi_channels_test PRIVATE cybertexel_c)
@@ -676,7 +680,10 @@ if(BUILD_TESTING)
                     "$<TARGET_FILE:cybertexel_c>" "${CMAKE_NM}"
             )
             set_tests_properties(
-                c-abi-export-surface PROPERTIES WORKING_DIRECTORY "${PROJECT_SOURCE_DIR}"
+                c-abi-export-surface
+                PROPERTIES
+                    WORKING_DIRECTORY "${PROJECT_SOURCE_DIR}"
+                    LABELS c-abi-scenario
             )
             add_test(
                 NAME c-abi-compatibility
@@ -1818,6 +1825,36 @@ if(BUILD_TESTING)
         PROPERTIES
             WORKING_DIRECTORY "${PROJECT_SOURCE_DIR}"
             LABELS paint-tools-scenario
+    )
+    add_test(
+        NAME c-abi-compatibility-policy
+        COMMAND "${CTEX_PYTHON3_EXECUTABLE}" tests/tools/test_check_abi.py
+    )
+    add_test(
+        NAME c-abi-full-surface-coverage
+        COMMAND "${CTEX_PYTHON3_EXECUTABLE}" tools/check_capi_coverage.py
+    )
+    add_test(
+        NAME c-abi-scenario-matrix
+        COMMAND "${CTEX_PYTHON3_EXECUTABLE}" tests/tools/check_cabi_scenario_matrix.py
+    )
+    set_tests_properties(
+        c-abi-compatibility-policy c-abi-full-surface-coverage c-abi-scenario-matrix
+        PROPERTIES
+            WORKING_DIRECTORY "${PROJECT_SOURCE_DIR}"
+            LABELS c-abi-scenario
+    )
+    set_tests_properties(
+        version-consistency
+        c-abi-foundation
+        c-abi-caller-buffers
+        c-abi-versioned-descriptors
+        c-abi-two-document-concurrency
+        c-abi-host-logging
+        c-abi-host-allocator
+        c-abi-boundary-contract
+        c-abi-cpu-execution
+        PROPERTIES LABELS c-abi-scenario
     )
     set_property(
         TEST

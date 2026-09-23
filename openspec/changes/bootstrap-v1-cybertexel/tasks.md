@@ -1482,6 +1482,13 @@ fails when evidence is missing, duplicated, unregistered or outside the
 capability label. Cross-binding runtime execution of the shared parameter
 validator remains explicitly assigned to task 14.14.
 
+The C ABI half of task 14.14 now maps all twenty boundary scenarios to a
+dedicated labeled suite. A regression fixture forces a C++ allocator callback
+to throw during document creation and proves that the `noexcept` C boundary
+returns the stable internal-error result and diagnostic instead of unwinding
+into the host. The language-binding scenarios, including their per-binding
+example gate, remain before task 14.14 can be marked complete.
+
 ## 1. Foundation
 
 - [x] 1.1 CMake project, C++20, warnings as errors, presets for headless, macOS, Linux, Windows, iOS, Android

@@ -147,7 +147,10 @@ test-smart-material-scenarios: build
     ctest --test-dir build/headless --output-on-failure -L '^smart-materials-scenario$'
 
 test-c-api: build
-    ctest --test-dir build/headless --output-on-failure -R '^c-abi-(foundation|caller-buffers|versioned-descriptors|two-document-concurrency|host-logging|host-allocator|export-surface|compatibility)$'
+    ctest --test-dir build/headless --output-on-failure -R '^c-abi-(foundation|caller-buffers|versioned-descriptors|two-document-concurrency|host-logging|host-allocator|boundary-contract|export-surface|compatibility)$'
+
+test-c-abi-scenarios: build
+    ctest --test-dir build/headless --output-on-failure -L '^c-abi-scenario$'
 
 test-python-binding: (_require "uv" "Python wheel builder") (_require "cmake" "3.24")
     uv run --no-project --python 3.12 -- python tools/test_python_wheel.py
