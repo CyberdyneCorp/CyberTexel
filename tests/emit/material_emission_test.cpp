@@ -172,7 +172,8 @@ bool host_resources_are_explicit_and_float_filtering_is_gated() {
         texture("host/albedo", 4, "host albedo", TextureFormat::rgba16_float, true)}};
     const auto emitted =
         ctex::emit::emit_material_shader(host_material(registry), registry, fixture);
-    const auto& pass = emitted.pass_plan.passes().front();
+    const auto passes = emitted.pass_plan.passes();
+    const auto& pass = passes.front();
     const auto& source =
         std::get<ctex::emit::SplitTextShaderProgram>(emitted.shader.payload).fragment_source;
     return expect(

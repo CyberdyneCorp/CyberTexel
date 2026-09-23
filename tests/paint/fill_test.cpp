@@ -172,9 +172,10 @@ bool invalid_fill_is_refused() {
     }
     bool non_finite_angle_refused = false;
     try {
+        const auto triangles = topology();
         FillScopeRequest request = scope_request(FillScope::connected_by_angle, 0);
         request.maximum_angle_degrees = std::numeric_limits<double>::infinity();
-        request.triangle_topology = topology();
+        request.triangle_topology = triangles;
         static_cast<void>(resolve_fill_scope(maps, request));
     } catch (const std::invalid_argument&) {
         non_finite_angle_refused = true;

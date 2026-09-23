@@ -5,7 +5,9 @@
 #include <cmath>
 #include <cstdint>
 #include <limits>
+#include <locale>
 #include <map>
+#include <sstream>
 #include <stdexcept>
 #include <string_view>
 #include <tuple>
@@ -43,13 +45,20 @@ std::pair<std::string_view, std::string_view> split_first(std::string_view value
 template <typename Value>
 Value number(std::string_view text, std::string_view field) {
     Value value{};
-    const auto parsed = std::from_chars(text.data(), text.data() + text.size(), value);
-    if (text.empty() || parsed.ec != std::errc{} || parsed.ptr != text.data() + text.size()) {
-        throw std::invalid_argument("OBJ has an invalid " + std::string(field));
-    }
     if constexpr (std::is_floating_point_v<Value>) {
+        std::istringstream stream{std::string(text)};
+        stream.imbue(std::locale::classic());
+        stream >> std::noskipws >> value;
+        if (text.empty() || stream.fail() || !stream.eof()) {
+            throw std::invalid_argument("OBJ has an invalid " + std::string(field));
+        }
         if (!std::isfinite(value)) {
             throw std::invalid_argument("OBJ has a non-finite " + std::string(field));
+        }
+    } else {
+        const auto parsed = std::from_chars(text.data(), text.data() + text.size(), value);
+        if (text.empty() || parsed.ec != std::errc{} || parsed.ptr != text.data() + text.size()) {
+            throw std::invalid_argument("OBJ has an invalid " + std::string(field));
         }
     }
     return value;

@@ -119,7 +119,8 @@ bool environment_contract_is_complete() {
 bool fallback_lighting_compiles_for_every_target() {
     for (const ShaderTarget target : supported_shader_targets()) {
         const PreviewEmission emitted = emit_lit_preview(request(target, false));
-        const auto& bindings = emitted.pass_plan.passes().front().texture_bindings;
+        const auto passes = emitted.pass_plan.passes();
+        const auto& bindings = passes.front().texture_bindings;
         if (!expect(emitted.shader.target == target && emitted.fallback_lighting &&
                         std::ranges::none_of(bindings,
                                              [](const TextureBinding& binding) {

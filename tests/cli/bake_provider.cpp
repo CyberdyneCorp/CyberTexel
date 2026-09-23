@@ -54,21 +54,19 @@ std::uint32_t request(void* user_data, const ctex_mesh_map_bake_request_descript
     if (control != nullptr && control->report_progress != nullptr) {
         control->report_progress(control->user_data, 0.5);
     }
-    *output = {
-        .size = CTEX_MESH_MAP_BAKE_OUTPUT_DESCRIPTOR_CURRENT_SIZE,
-        .buffer =
-            {
-                .size = CTEX_MESH_MAP_PIXEL_BUFFER_DESCRIPTOR_CURRENT_SIZE,
-                .width = request->width,
-                .height = request->height,
-                .component_type = CTEX_TRANSPORT_COMPONENT_UINT8_UNORM,
-                .component_count = 1,
-                .row_stride_bytes = request->width,
-                .pixels = provider.pixels.data(),
-                .pixel_bytes = provider.pixels.size(),
-            },
-        .detail = "fixture ambient occlusion",
+    *output = {};
+    output->size = CTEX_MESH_MAP_BAKE_OUTPUT_DESCRIPTOR_CURRENT_SIZE;
+    output->buffer = {
+        .size = CTEX_MESH_MAP_PIXEL_BUFFER_DESCRIPTOR_CURRENT_SIZE,
+        .width = request->width,
+        .height = request->height,
+        .component_type = CTEX_TRANSPORT_COMPONENT_UINT8_UNORM,
+        .component_count = 1,
+        .row_stride_bytes = request->width,
+        .pixels = provider.pixels.data(),
+        .pixel_bytes = provider.pixels.size(),
     };
+    output->detail = "fixture ambient occlusion";
     return CTEX_MESH_MAP_BAKE_PROVIDER_COMPLETED;
 }
 

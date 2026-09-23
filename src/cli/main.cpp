@@ -344,9 +344,9 @@ private:
                 .user_data = &bridge,
                 .is_cancelled = provider_cancelled,
                 .report_progress = provider_progress};
-            ctex_mesh_map_bake_output_descriptor capi_output{
-                .size = CTEX_MESH_MAP_BAKE_OUTPUT_DESCRIPTOR_CURRENT_SIZE,
-                .buffer = {.size = CTEX_MESH_MAP_PIXEL_BUFFER_DESCRIPTOR_CURRENT_SIZE}};
+            ctex_mesh_map_bake_output_descriptor capi_output{};
+            capi_output.size = CTEX_MESH_MAP_BAKE_OUTPUT_DESCRIPTOR_CURRENT_SIZE;
+            capi_output.buffer.size = CTEX_MESH_MAP_PIXEL_BUFFER_DESCRIPTOR_CURRENT_SIZE;
             const std::uint32_t status = descriptor_.request(descriptor_.user_data, &capi_request,
                                                              &capi_control, &capi_output);
             detail_ = capi_output.detail == nullptr ? "" : capi_output.detail;
@@ -1924,7 +1924,8 @@ ctex::doc::MeshReprojectionCommitReport reproject_document(
         .progress_interval = 256};
     const ctex::doc::MeshReprojectionPreflight preflight = ctex::doc::preflight_mesh_reprojection(
         document, source, replacement, limits,
-        {.is_cancelled = [] { return interrupt_requested != 0; }}, texture_sets);
+        {.is_cancelled = [] { return interrupt_requested != 0; }, .report_progress = {}},
+        texture_sets);
     return ctex::doc::commit_mesh_reprojection(
         document, source, replacement, preflight, ctex::doc::ReprojectionHolePolicy::retain_target,
         ctex::doc::ReprojectionAmbiguityPolicy::nearest_then_lowest_triangle);

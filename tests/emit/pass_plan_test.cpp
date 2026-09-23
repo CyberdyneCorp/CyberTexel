@@ -296,7 +296,8 @@ bool compute_dispatch_and_storage_bindings_are_complete() {
         {texture("compute-source", 1, "generator input", TextureFormat::rgba16_float, true),
          texture("compute-destination", 2, "generator output", TextureFormat::rgba16_float, false)},
         {std::move(compute)});
-    const auto& pass = plan.passes().front();
+    const auto passes = plan.passes();
+    const auto& pass = passes.front();
     const auto dispatch = std::get<DispatchCommand>(pass.command);
     return expect(pass.compute_entry_point == "generate_main" &&
                       pass.texture_bindings[1].kind == TextureBindingKind::storage_write &&

@@ -10850,9 +10850,12 @@ struct PreparedShaderEmission {
 };
 
 std::vector<std::byte> shader_text_artifact(std::string_view source) {
-    std::vector<std::byte> output(source.size() + 1);
-    std::memcpy(output.data(), source.data(), source.size());
-    output.back() = std::byte{};
+    std::vector<std::byte> output;
+    output.reserve(source.size());
+    for (const char value : source) {
+        output.push_back(static_cast<std::byte>(static_cast<unsigned char>(value)));
+    }
+    output.push_back(std::byte{});
     return output;
 }
 
