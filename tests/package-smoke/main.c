@@ -1,6 +1,5 @@
 #include <ctex/capi.h>
 #include <ctex/version.h>
-
 #include <stdio.h>
 
 int main(void) {

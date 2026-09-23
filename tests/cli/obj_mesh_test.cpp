@@ -62,15 +62,13 @@ bool portable_float_parser_accepts_scientific_and_rejects_invalid_values() {
     bool non_finite_refused{};
     try {
         static_cast<void>(ctex::cli::parse_obj_mesh(
-            bytes("v 0 0 0\nv 1.0x 0 0\nv 0 1 0\nvt 0 0\nvt 1 0\nvt 0 1\nf 1/1 2/2 3/3\n"),
-            3, 1));
+            bytes("v 0 0 0\nv 1.0x 0 0\nv 0 1 0\nvt 0 0\nvt 1 0\nvt 0 1\nf 1/1 2/2 3/3\n"), 3, 1));
     } catch (const std::invalid_argument&) {
         suffix_refused = true;
     }
     try {
         static_cast<void>(ctex::cli::parse_obj_mesh(
-            bytes("v 0 0 0\nv nan 0 0\nv 0 1 0\nvt 0 0\nvt 1 0\nvt 0 1\nf 1/1 2/2 3/3\n"),
-            3, 1));
+            bytes("v 0 0 0\nv nan 0 0\nv 0 1 0\nvt 0 0\nvt 1 0\nvt 0 1\nf 1/1 2/2 3/3\n"), 3, 1));
     } catch (const std::invalid_argument&) {
         non_finite_refused = true;
     }
@@ -82,7 +80,8 @@ bool portable_float_parser_accepts_scientific_and_rejects_invalid_values() {
 }  // namespace
 
 int main() {
-    return polygon_negative_indices_and_generated_normals() && limits_and_missing_uv_are_refused() &&
+    return polygon_negative_indices_and_generated_normals() &&
+                   limits_and_missing_uv_are_refused() &&
                    portable_float_parser_accepts_scientific_and_rejects_invalid_values()
                ? 0
                : 1;
