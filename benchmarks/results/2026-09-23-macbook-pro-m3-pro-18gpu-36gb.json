@@ -1,0 +1,51 @@
+{
+  "channels": 4,
+  "command": "just bench",
+  "commit": "cbedfdc715b0d84a873a127f47db4ebab482d7de",
+  "date": "2026-09-23",
+  "device_id": "macbook-pro-m3-pro-18gpu-36gb",
+  "layers": 8,
+  "measurements": [
+    {
+      "batch_size": 1,
+      "budget_id": "desktop-delta-query",
+      "configuration": "interactive-4k",
+      "unit": "ms",
+      "value": 0.0040839659050107
+    },
+    {
+      "batch_size": 1,
+      "budget_id": "desktop-tile-readback",
+      "configuration": "interactive-4k",
+      "unit": "ms",
+      "value": 0.03870902583003044
+    },
+    {
+      "batch_size": 1,
+      "budget_id": "desktop-emission",
+      "configuration": "batch-4k",
+      "unit": "ms",
+      "value": 0.06866699550300837
+    },
+    {
+      "batch_size": 1,
+      "budget_id": "desktop-generator",
+      "configuration": "batch-4k",
+      "unit": "ms",
+      "value": 4273.041708045639
+    }
+  ],
+  "mesh_triangles": 250632,
+  "not_measured": [
+    "desktop-stamp-median, desktop-stamp-p95, desktop-stroke and stamp scaling need the bounded paint-work surface wrapped (task 16.12)",
+    "desktop-composite, desktop-smart-material and desktop-export need their surfaces wrapped (task 16.12)",
+    "every peak_working_bytes budget needs per-operation working-set accounting rather than document residency (task 16.12)",
+    "desktop-visible-* and the synchronous readback budgets are host figures produced by hosts/ (tasks 17.12, 17.14)",
+    "every tablet budget needs a run on the iPad Pro M4 (task 17.13)"
+  ],
+  "notes": [
+    "The position-gradient generator cost is purely per texel: 206-225 ns/texel measured at 512, 1024 and 2048 square, and unchanged between a 2,048-triangle and a 250,632-triangle mesh. The 4096-square figure is consistent with that rate. Meeting the 100 ms budget needs roughly 6 ns/texel, so the reference generator is about thirty-five times short and is single-threaded."
+  ],
+  "recorded_utc": "2026-09-23T16:20:44+00:00",
+  "schema": 1
+}

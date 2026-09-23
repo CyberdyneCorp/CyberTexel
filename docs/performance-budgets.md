@@ -25,34 +25,34 @@ device is recorded; developer-machine timings are informational only.
 
 | ID | Operation | Metric | Ceiling | Device | Configuration | Latest |
 | --- | --- | --- | ---: | --- | --- | --- |
-| `desktop-stamp-median` | stamp | median_ms | 4 ms | `macbook-pro-m3-pro-18gpu-36gb` | `interactive-4k` | **unmeasured** |
-| `desktop-stamp-p95` | stamp | p95_ms | 8 ms | `macbook-pro-m3-pro-18gpu-36gb` | `interactive-4k` | **unmeasured** |
-| `desktop-stroke` | stroke | p95_ms | 25 ms | `macbook-pro-m3-pro-18gpu-36gb` | `interactive-4k` | **unmeasured** |
-| `desktop-composite` | composite | p95_ms | 20 ms | `macbook-pro-m3-pro-18gpu-36gb` | `batch-4k` | **unmeasured** |
-| `desktop-emission` | emission | p95_ms | 50 ms | `macbook-pro-m3-pro-18gpu-36gb` | `batch-4k` | **unmeasured** |
-| `desktop-generator` | generator | p95_ms | 100 ms | `macbook-pro-m3-pro-18gpu-36gb` | `batch-4k` | **unmeasured** |
-| `desktop-delta-query` | delta-query | p95_ms | 1 ms | `macbook-pro-m3-pro-18gpu-36gb` | `interactive-4k` | **unmeasured** |
-| `desktop-tile-readback` | tile-readback | p95_ms | 4 ms | `macbook-pro-m3-pro-18gpu-36gb` | `interactive-4k` | **unmeasured** |
-| `desktop-smart-material` | smart-material | p95_ms | 50 ms | `macbook-pro-m3-pro-18gpu-36gb` | `batch-4k` | **unmeasured** |
-| `desktop-export` | export | p95_ms | 250 ms | `macbook-pro-m3-pro-18gpu-36gb` | `batch-4k` | **unmeasured** |
-| `desktop-stroke-memory` | stroke | peak_working_bytes | 67108864 bytes | `macbook-pro-m3-pro-18gpu-36gb` | `interactive-4k` | **unmeasured** |
-| `desktop-composite-memory` | composite | peak_working_bytes | 268435456 bytes | `macbook-pro-m3-pro-18gpu-36gb` | `batch-4k` | **unmeasured** |
-| `desktop-smart-material-memory` | smart-material | peak_working_bytes | 268435456 bytes | `macbook-pro-m3-pro-18gpu-36gb` | `batch-4k` | **unmeasured** |
-| `desktop-export-memory` | export | peak_working_bytes | 536870912 bytes | `macbook-pro-m3-pro-18gpu-36gb` | `batch-4k` | **unmeasured** |
+| `desktop-stamp-median` | stamp | median_ms | 4 ms | `macbook-pro-m3-pro-18gpu-36gb` | `interactive-4k` | **unmeasured** — n/a; 2026-09-23; `cbedfdc715b0d84a873a127f47db4ebab482d7de` |
+| `desktop-stamp-p95` | stamp | p95_ms | 8 ms | `macbook-pro-m3-pro-18gpu-36gb` | `interactive-4k` | **unmeasured** — n/a; 2026-09-23; `cbedfdc715b0d84a873a127f47db4ebab482d7de` |
+| `desktop-stroke` | stroke | p95_ms | 25 ms | `macbook-pro-m3-pro-18gpu-36gb` | `interactive-4k` | **unmeasured** — n/a; 2026-09-23; `cbedfdc715b0d84a873a127f47db4ebab482d7de` |
+| `desktop-composite` | composite | p95_ms | 20 ms | `macbook-pro-m3-pro-18gpu-36gb` | `batch-4k` | **unmeasured** — n/a; 2026-09-23; `cbedfdc715b0d84a873a127f47db4ebab482d7de` |
+| `desktop-emission` | emission | p95_ms | 50 ms | `macbook-pro-m3-pro-18gpu-36gb` | `batch-4k` | **passed** — 0.068667 ms; 2026-09-23; `cbedfdc715b0d84a873a127f47db4ebab482d7de` |
+| `desktop-generator` | generator | p95_ms | 100 ms | `macbook-pro-m3-pro-18gpu-36gb` | `batch-4k` | **failed** — 4273.04 ms; 2026-09-23; `cbedfdc715b0d84a873a127f47db4ebab482d7de` |
+| `desktop-delta-query` | delta-query | p95_ms | 1 ms | `macbook-pro-m3-pro-18gpu-36gb` | `interactive-4k` | **passed** — 0.00408397 ms; 2026-09-23; `cbedfdc715b0d84a873a127f47db4ebab482d7de` |
+| `desktop-tile-readback` | tile-readback | p95_ms | 4 ms | `macbook-pro-m3-pro-18gpu-36gb` | `interactive-4k` | **passed** — 0.038709 ms; 2026-09-23; `cbedfdc715b0d84a873a127f47db4ebab482d7de` |
+| `desktop-smart-material` | smart-material | p95_ms | 50 ms | `macbook-pro-m3-pro-18gpu-36gb` | `batch-4k` | **unmeasured** — n/a; 2026-09-23; `cbedfdc715b0d84a873a127f47db4ebab482d7de` |
+| `desktop-export` | export | p95_ms | 250 ms | `macbook-pro-m3-pro-18gpu-36gb` | `batch-4k` | **unmeasured** — n/a; 2026-09-23; `cbedfdc715b0d84a873a127f47db4ebab482d7de` |
+| `desktop-stroke-memory` | stroke | peak_working_bytes | 67108864 bytes | `macbook-pro-m3-pro-18gpu-36gb` | `interactive-4k` | **unmeasured** — n/a; 2026-09-23; `cbedfdc715b0d84a873a127f47db4ebab482d7de` |
+| `desktop-composite-memory` | composite | peak_working_bytes | 268435456 bytes | `macbook-pro-m3-pro-18gpu-36gb` | `batch-4k` | **unmeasured** — n/a; 2026-09-23; `cbedfdc715b0d84a873a127f47db4ebab482d7de` |
+| `desktop-smart-material-memory` | smart-material | peak_working_bytes | 268435456 bytes | `macbook-pro-m3-pro-18gpu-36gb` | `batch-4k` | **unmeasured** — n/a; 2026-09-23; `cbedfdc715b0d84a873a127f47db4ebab482d7de` |
+| `desktop-export-memory` | export | peak_working_bytes | 536870912 bytes | `macbook-pro-m3-pro-18gpu-36gb` | `batch-4k` | **unmeasured** — n/a; 2026-09-23; `cbedfdc715b0d84a873a127f47db4ebab482d7de` |
 | `tablet-stroke-memory` | stroke | peak_working_bytes | 50331648 bytes | `ipad-pro-13-m4-16gb` | `interactive-4k` | **unmeasured** |
 | `tablet-composite-memory` | composite | peak_working_bytes | 201326592 bytes | `ipad-pro-13-m4-16gb` | `batch-4k` | **unmeasured** |
 | `tablet-smart-material-memory` | smart-material | peak_working_bytes | 201326592 bytes | `ipad-pro-13-m4-16gb` | `batch-4k` | **unmeasured** |
 | `tablet-export-memory` | export | peak_working_bytes | 402653184 bytes | `ipad-pro-13-m4-16gb` | `batch-4k` | **unmeasured** |
-| `desktop-visible-median` | input-to-visible | median_ms | 16 ms | `macbook-pro-m3-pro-18gpu-36gb` | `interactive-4k` | **unmeasured** |
-| `desktop-visible-p95` | input-to-visible | p95_ms | 25 ms | `macbook-pro-m3-pro-18gpu-36gb` | `interactive-4k` | **unmeasured** |
-| `desktop-visible-p99` | input-to-visible | p99_ms | 33 ms | `macbook-pro-m3-pro-18gpu-36gb` | `interactive-4k` | **unmeasured** |
+| `desktop-visible-median` | input-to-visible | median_ms | 16 ms | `macbook-pro-m3-pro-18gpu-36gb` | `interactive-4k` | **unmeasured** — n/a; 2026-09-23; `cbedfdc715b0d84a873a127f47db4ebab482d7de` |
+| `desktop-visible-p95` | input-to-visible | p95_ms | 25 ms | `macbook-pro-m3-pro-18gpu-36gb` | `interactive-4k` | **unmeasured** — n/a; 2026-09-23; `cbedfdc715b0d84a873a127f47db4ebab482d7de` |
+| `desktop-visible-p99` | input-to-visible | p99_ms | 33 ms | `macbook-pro-m3-pro-18gpu-36gb` | `interactive-4k` | **unmeasured** — n/a; 2026-09-23; `cbedfdc715b0d84a873a127f47db4ebab482d7de` |
 | `tablet-visible-median` | input-to-visible | median_ms | 20 ms | `ipad-pro-13-m4-16gb` | `interactive-4k` | **unmeasured** |
 | `tablet-visible-p95` | input-to-visible | p95_ms | 33 ms | `ipad-pro-13-m4-16gb` | `interactive-4k` | **unmeasured** |
 | `tablet-visible-p99` | input-to-visible | p99_ms | 50 ms | `ipad-pro-13-m4-16gb` | `interactive-4k` | **unmeasured** |
 | `tablet-sustained-final-p95` | sustained-mobile | final_five_minute_p95_ms | 33 ms | `ipad-pro-13-m4-16gb` | `sustained-mobile-4k` | **unmeasured** |
 | `tablet-sustained-memory` | sustained-mobile | peak_physical_bytes | 1073741824 bytes | `ipad-pro-13-m4-16gb` | `sustained-mobile-4k` | **unmeasured** |
-| `desktop-paint-sync-readback` | resident-paint | synchronous_readback_bytes | 0 bytes | `macbook-pro-m3-pro-18gpu-36gb` | `interactive-4k` | **unmeasured** |
-| `desktop-undo-sync-readback` | resident-undo | synchronous_readback_bytes | 0 bytes | `macbook-pro-m3-pro-18gpu-36gb` | `interactive-4k` | **unmeasured** |
+| `desktop-paint-sync-readback` | resident-paint | synchronous_readback_bytes | 0 bytes | `macbook-pro-m3-pro-18gpu-36gb` | `interactive-4k` | **unmeasured** — n/a; 2026-09-23; `cbedfdc715b0d84a873a127f47db4ebab482d7de` |
+| `desktop-undo-sync-readback` | resident-undo | synchronous_readback_bytes | 0 bytes | `macbook-pro-m3-pro-18gpu-36gb` | `interactive-4k` | **unmeasured** — n/a; 2026-09-23; `cbedfdc715b0d84a873a127f47db4ebab482d7de` |
 | `tablet-paint-sync-readback` | resident-paint | synchronous_readback_bytes | 0 bytes | `ipad-pro-13-m4-16gb` | `interactive-4k` | **unmeasured** |
 | `tablet-undo-sync-readback` | resident-undo | synchronous_readback_bytes | 0 bytes | `ipad-pro-13-m4-16gb` | `interactive-4k` | **unmeasured** |
 

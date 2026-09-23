@@ -474,8 +474,20 @@ examples: test-python-binding
     python3 tools/check_example_features.py
     python3 tools/check_example_gallery.py
 
-bench:
-    @just _unimplemented bench 17.3
+# Measure the library-side budgets on a named reference device. Figures from
+# any other machine are informational, so the device id is required.
+bench device="" : (_require "uv" "Python wheel builder") (_require "python3" "3.10")
+    #!/usr/bin/env sh
+    set -eu
+    if [ -n "{{device}}" ]; then device="{{device}}"; \
+    else device=""; fi
+    if [ -z "$device" ]; then
+        printf 'name the reference device: just bench <device-id>\n' >&2
+        printf 'ids come from benchmarks/device_gate.json\n' >&2
+        exit 2
+    fi
+    just test-python-binding
+    python3 tools/run_library_bench.py --device "$device"
 
 format: (_require "clang-format" "14")
     find src include tests examples -type f \( -name '*.c' -o -name '*.h' -o -name '*.cpp' -o -name '*.hpp' \) -print0 | xargs -0 clang-format -i
@@ -572,7 +584,8 @@ gate-budgets: (_require "python3" "3.10")
     python3 tools/device_gate.py validate
     python3 tools/device_gate.py document
     @if [ -z "${CTEX_DEVICE_GATE_RESULTS:-}" ]; then printf 'missing prerequisite: CTEX_DEVICE_GATE_RESULTS (dated reference-device result JSON)\n' >&2; exit 2; fi
-    @if [ -n "${CTEX_DEVICE_GATE_BASELINES:-}" ]; then python3 tools/device_gate.py gate --results "$CTEX_DEVICE_GATE_RESULTS" --baselines "$CTEX_DEVICE_GATE_BASELINES"; else python3 tools/device_gate.py gate --results "$CTEX_DEVICE_GATE_RESULTS"; fi
+    @baselines="${CTEX_DEVICE_GATE_BASELINES:-benchmarks/baselines.json}"; \
+     if [ -f "$baselines" ]; then python3 tools/device_gate.py gate --results "$CTEX_DEVICE_GATE_RESULTS" --baselines "$baselines"; else python3 tools/device_gate.py gate --results "$CTEX_DEVICE_GATE_RESULTS"; fi
 
 # --- aggregate ---------------------------------------------------------------
 

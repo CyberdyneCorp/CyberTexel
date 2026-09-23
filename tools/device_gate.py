@@ -15,6 +15,7 @@ from typing import Any
 ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_CONFIG = ROOT / "benchmarks" / "device_gate.json"
 DEFAULT_DOCUMENT = ROOT / "docs" / "performance-budgets.md"
+RECORDED_RESULTS = ROOT / "benchmarks" / "results"
 REQUIRED_TIME_OPERATIONS = {
     "stamp",
     "stroke",
@@ -425,6 +426,18 @@ def render_document(
     return "\n".join(lines)
 
 
+def recorded_result_paths(directory: Path = RECORDED_RESULTS) -> tuple[Path, ...]:
+    """Every committed measurement run, oldest first.
+
+    The generated document reflects what has actually been recorded, so a run
+    that is committed is a run the document accounts for.
+    """
+
+    if not directory.is_dir():
+        return ()
+    return tuple(sorted(directory.glob("*.json")))
+
+
 def parse_arguments() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("command", choices=("validate", "document", "gate"))
@@ -451,7 +464,8 @@ def main() -> int:
         baselines = (
             load_json(arguments.baselines).get("baselines", {}) if arguments.baselines else {}
         )
-        result_sets = tuple(load_json(path) for path in arguments.results)
+        paths = tuple(arguments.results) or recorded_result_paths()
+        result_sets = tuple(load_json(path) for path in paths)
         for results in result_sets:
             metadata_failures = validate_run_metadata(results)
             if metadata_failures:

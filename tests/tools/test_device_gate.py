@@ -209,7 +209,12 @@ class DeviceGateTests(unittest.TestCase):
         self.assertEqual(GATE.decide_budget(budget, hidden, budget["device"], None, 0.15).status, "failed")
 
     def test_generated_document_is_current(self) -> None:
-        expected = GATE.render_document(self.config)
+        # The document accounts for every committed measurement run, so adding a
+        # run without regenerating it fails here.
+        recorded_runs = tuple(
+            GATE.load_json(path) for path in GATE.recorded_result_paths()
+        )
+        expected = GATE.render_document(self.config, recorded_runs)
         actual = (ROOT / "docs" / "performance-budgets.md").read_text(encoding="utf-8")
         self.assertEqual(actual, expected)
         recorded = GATE.render_document(

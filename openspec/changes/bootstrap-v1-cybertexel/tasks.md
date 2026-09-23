@@ -1576,6 +1576,32 @@ allocation and occupancy reporting, and typed atlas region placements — and
 examples 13 and 14 exercise them. Recorded coverage is 84 of 353 symbols; the
 remaining 269 stay named individually in `examples/feature_coverage.json`.
 
+2026-09-23: The project has its first measured reference-device figures. The
+development machine is the named desktop reference device in every declared
+field — Mac15,7, MRW23LL/A, M3 Pro 12-core, 18 GPU cores, Metal 4, 36 GB, macOS
+27.0 (26A428) — so its numbers are decisions rather than informational data.
+`just bench <device-id>` replaces the unimplemented `bench` recipe that task 17.3
+had left behind, and writes a schema-1 run with device, date, commit and command.
+
+Recorded on 2026-09-23: delta-query 0.0041 ms against a 1 ms ceiling, tile
+readback 0.0387 ms against 4 ms, material emission 0.0687 ms against 50 ms — all
+passed — and the position-gradient generator at 4273 ms against a 100 ms ceiling,
+which failed. That failure is characterised, not guessed: the generator costs
+206-225 ns per texel at 512, 1024 and 2048 square and is unchanged between a
+2,048-triangle and a 250,632-triangle mesh, so the cost is per texel and
+independent of mesh complexity. Meeting the budget needs roughly 6 ns/texel.
+
+The harness also caught itself. The first tile-readback figure was 241 ms because
+the run timed a preview-session write and snapshot alongside the readback; moving
+that setup outside the timed region gave 0.0387 ms. `device-gate`'s rule that a
+batch may not stand in for the operation it names applies to the benchmark as
+much as to the library.
+
+Task 17.10 is complete. `benchmarks/baselines.json` records the best value each
+budget has actually achieved; a budget that has never passed is absent rather
+than baselined at its failure. A run more than fifteen per cent above a baseline
+fails and names it, verified against a deliberately inflated delta-query figure.
+
 Editable-authoring group 20 is complete. Versioned operation records retain
 algorithm and preset versions, seeds, channel descriptors, mesh identity,
 pinned input bytes and checkpoint identities in canonical project-container
@@ -1861,7 +1887,7 @@ threading and per-binding example evidence.
 - [x] 17.7 Batch attribution so a batch cannot stand in for the operation it names
 - [x] 17.8 Coverage counted over what the gate decides
 - [x] 17.9 Unmeasured cases reported, never substituted
-- [ ] 17.10 Regression detection against the recorded baseline
+- [x] 17.10 Regression detection against the recorded baseline
 - [x] 17.11 `device-gate` scenarios as tests
 - [ ] 17.12 End-to-end input-to-visible median/p95/p99 budgets and pipeline-stage measurements on both reference hosts
 - [ ] 17.13 Twenty-minute mobile benchmark, final-five-minute budgets and pressure/suspend/device-loss fixtures
