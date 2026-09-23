@@ -135,6 +135,95 @@ int main(void) {
                         strstr(inspected_report, "sha256:pinned-alpha") != NULL,
                     "pinned replay metadata changed after source mutation");
 
+    static const char* checkpoints[] = {"checkpoints/stroke-9/base-color"};
+    ctex_operation_record_descriptor replay_source = descriptor(pinned_bytes);
+    replay_source.checkpoint_image_identifiers = checkpoints;
+    replay_source.checkpoint_image_count = 1;
+    ctex_operation_record_info replay_record_info = {
+        .size = CTEX_OPERATION_RECORD_INFO_CURRENT_SIZE,
+    };
+    passed = passed && expect(ctex_operation_record_create(&replay_source, &replay_record_info,
+                                                           NULL, 0, NULL, 0) == CTEX_RESULT_SUCCESS,
+                              "checkpoint replay record sizing failed");
+    void* replay_record = malloc(replay_record_info.canonical_size);
+    if (replay_record == NULL) return 1;
+    passed = passed &&
+             expect(ctex_operation_record_create(&replay_source, &replay_record_info, replay_record,
+                                                 replay_record_info.canonical_size, NULL,
+                                                 0) == CTEX_RESULT_SUCCESS,
+                    "checkpoint replay record creation failed");
+    const size_t replay_record_size = replay_record_info.canonical_size;
+
+    ctex_operation_algorithm_support_descriptor support = {
+        .size = CTEX_OPERATION_ALGORITHM_SUPPORT_DESCRIPTOR_CURRENT_SIZE,
+        .identifier = "cybertexel.paint.brush",
+        .minimum_version = 2,
+        .maximum_version = 2,
+    };
+    ctex_operation_replay_assessment_descriptor assessment = {
+        .size = CTEX_OPERATION_REPLAY_ASSESSMENT_DESCRIPTOR_CURRENT_SIZE,
+        .supported_algorithms = &support,
+        .supported_algorithm_count = 1,
+        .target_resolution_changed = 1,
+    };
+    ctex_operation_replay_info replay = {.size = CTEX_OPERATION_REPLAY_INFO_CURRENT_SIZE};
+    passed =
+        passed &&
+        expect(ctex_operation_record_assess_replay(replay_record, replay_record_size, &assessment,
+                                                   &replay, NULL, 0) == CTEX_RESULT_SUCCESS &&
+                   replay.replay_available == 1 && replay.checkpoint_available == 1 &&
+                   replay.disposition == CTEX_OPERATION_REPLAY_RESOLUTION_INDEPENDENT_AVAILABLE,
+               "supported resolution-independent replay was not reported");
+    support.minimum_version = 1;
+    support.maximum_version = 1;
+    replay.size = CTEX_OPERATION_REPLAY_INFO_CURRENT_SIZE;
+    passed = passed && expect(ctex_operation_record_assess_replay(replay_record, replay_record_size,
+                                                                  &assessment, &replay, NULL,
+                                                                  0) == CTEX_RESULT_SUCCESS,
+                              "unknown algorithm replay sizing failed");
+    char* replay_report = malloc(replay.required_report_size);
+    if (replay_report == NULL) return 1;
+    const size_t replay_report_size = replay.required_report_size;
+    replay.size = CTEX_OPERATION_REPLAY_INFO_CURRENT_SIZE;
+    passed =
+        passed && expect(ctex_operation_record_assess_replay(
+                             replay_record, replay_record_size, &assessment, &replay, replay_report,
+                             replay_report_size) == CTEX_RESULT_SUCCESS &&
+                             replay.replay_available == 0 && replay.checkpoint_available == 1 &&
+                             replay.disposition == CTEX_OPERATION_REPLAY_UNSUPPORTED_ALGORITHM &&
+                             strstr(replay_report, "raster checkpoint retained") != NULL,
+                         "unknown algorithm version did not report checkpoint fallback");
+
+    ctex_resource_ledger* ledger = NULL;
+    ctex_resource_reservation* reservation = NULL;
+    ctex_resource_budget_limits budget = {
+        .size = CTEX_RESOURCE_BUDGET_LIMITS_CURRENT_SIZE,
+        .cpu_bytes = replay_record_size,
+        .backing_store_bytes = 64,
+    };
+    ctex_resource_admission_report admission = {
+        .size = CTEX_RESOURCE_ADMISSION_REPORT_CURRENT_SIZE,
+    };
+    passed = passed &&
+             expect(ctex_resource_ledger_create(&ledger) == CTEX_RESULT_SUCCESS,
+                    "resource ledger creation failed") &&
+             expect(ctex_resource_ledger_admit_operation_recovery(
+                        ledger, &budget, replay_record, replay_record_size, 64, &reservation,
+                        &admission) == CTEX_RESULT_SUCCESS &&
+                        admission.status == CTEX_RESOURCE_ADMITTED_WHOLE && reservation != NULL,
+                    "bounded recovery data was not admitted");
+    ctex_resource_reservation_destroy(reservation);
+    reservation = NULL;
+    budget.backing_store_bytes = 63;
+    admission.size = CTEX_RESOURCE_ADMISSION_REPORT_CURRENT_SIZE;
+    passed =
+        passed && expect(ctex_resource_ledger_admit_operation_recovery(
+                             ledger, &budget, replay_record, replay_record_size, 64, &reservation,
+                             &admission) == CTEX_RESULT_SUCCESS &&
+                             admission.status == CTEX_RESOURCE_OVER_BUDGET && reservation == NULL,
+                         "over-budget recovery data was admitted");
+    ctex_resource_ledger_destroy(ledger);
+
     source.replay_class = 99;
     record_info.size = CTEX_OPERATION_RECORD_INFO_CURRENT_SIZE;
     passed = passed && expect(ctex_operation_record_create(&source, &record_info, NULL, 0, NULL,
@@ -142,6 +231,8 @@ int main(void) {
                               "invalid replay class was accepted");
 
     free(inspected_report);
+    free(replay_report);
+    free(replay_record);
     free(restored);
     free(project_report);
     free(project);

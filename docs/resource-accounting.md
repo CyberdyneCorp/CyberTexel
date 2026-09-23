@@ -139,3 +139,9 @@ counted until their owners finish or cancel and release them;
 The gate stays closed across a missed suspension deadline and reopens only via
 `resume_admission()`. The project lifecycle C operations combine this gate with
 the durable autosave protocol described in `project-autosave.md`.
+
+Operation recovery uses the same admission boundary.
+`ctex_resource_ledger_admit_operation_recovery` accounts canonical operation
+records as pinned CPU-resident recovery data and their named raster checkpoints
+as pinned backing-store bytes. The returned reservation keeps both charges
+active until commit or explicit release; refusal leaves the ledger unchanged.

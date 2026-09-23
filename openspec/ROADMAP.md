@@ -372,6 +372,11 @@ through the project container without consulting mutable shelf content. Task
 20.1 remains open until all three language bindings expose this surface. The
 matching public-surface mapping reduces the exact task-14.8 gap to 9 runtime
 requirements.
+Replay assessment now consumes explicit supported algorithm-version ranges,
+preserves checkpoints for unknown versions, requires pinned source snapshots
+for clone/blur/smear replay, and admits retained record/checkpoint bytes through
+the resource ledger. This completes task 20.2 and reduces the task-14.8 gap to 8
+runtime requirements; atomic resize policy remains task 20.3.
 
 ## Milestones
 

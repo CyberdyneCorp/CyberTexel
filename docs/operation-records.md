@@ -13,8 +13,17 @@ The replay class is explicit:
 - `same_resolution` may replay only at the recorded document resolution; and
 - `resolution_independent` may be considered by a later resize/replay policy.
 
-The record format does not itself decide replay eligibility or perform replay.
-Those policies remain part of editable-authoring task 20.2.
+`assess_operation_replay` compares the recorded algorithm version with explicit
+host-supported ranges. It distinguishes same-resolution recovery,
+resolution-independent replay, checkpoint-only recovery, required checkpoint
+resampling, and an unsupported algorithm. An unknown version never substitutes
+a different implementation: replay is disabled and any named raster checkpoint
+remains available with a diagnostic.
+
+Clone, blur, and smear records that declare replay eligibility must own a pinned
+resource with role `source-snapshot`; otherwise validation refuses the record.
+They may instead declare checkpoint-only recovery. This prevents replay from
+sampling a later mutable layer state.
 
 ## Pinned inputs and checkpoints
 
@@ -54,6 +63,13 @@ without replacing an asset of another kind.
 record. Project-container read limits continue to bound the enclosing untrusted
 container; operation-record decoding additionally applies its own bounded
 defaults.
+
+`ctex_operation_record_assess_replay` accepts explicit supported
+algorithm-version ranges and reports the effective replay disposition as JSON
+and typed fields. `ctex_resource_ledger_admit_operation_recovery` reserves the
+canonical record as pinned CPU memory and its named checkpoint bytes as pinned
+backing storage. A caller must retain that reservation through commit; an
+over-budget or quiescing ledger returns no reservation.
 
 Python, Swift, and Rust wrappers are still required before editable-authoring
 task 20.1 is complete.

@@ -620,6 +620,18 @@ checkpoint dependencies, and payload. These functions follow the usual
 caller-owned sizing contract and are described with the binary format in
 [Versioned operation records](operation-records.md).
 
+`ctex_operation_record_assess_replay` compares a record with host-declared
+algorithm version ranges and reports same-resolution, resolution-independent,
+checkpoint-only, resample-required, or unsupported-algorithm disposition.
+Unknown versions retain named raster checkpoints and return an explicit
+diagnostic. Replayable clone, blur, and smear records are valid only with an
+owned `source-snapshot` input.
+
+`ctex_resource_ledger_admit_operation_recovery` subjects the canonical record
+and its checkpoint byte count to the existing CPU and backing-store budgets.
+Success returns a normal reservation that must remain alive through commit;
+budget refusal and quiescence publish no reservation.
+
 ## Smart materials
 
 The smart-material boundary accepts the canonical versioned serialization used

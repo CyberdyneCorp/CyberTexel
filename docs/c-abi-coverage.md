@@ -215,5 +215,11 @@ now cross the C boundary with pinned input bytes and explicit raster checkpoint
 dependencies. Mapping that editable-authoring requirement reduces the exact
 remaining gap to 9 runtime requirements; binding parity and replay policy remain
 separate roadmap work.
+Explicit supported-version assessment now distinguishes same-resolution,
+resolution-independent, checkpoint-only, resample-required and unknown
+algorithm records. Clone, blur and smear require pinned source snapshots for
+replay, and recovery records plus checkpoint bytes pass through resource-ledger
+admission before commit. This reduces the exact remaining gap to 8 runtime
+requirements.
 The gate is not part of the aggregate `just check` until that count reaches zero;
 its unit tests run in the normal tooling suite throughout the migration.

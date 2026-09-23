@@ -110,12 +110,61 @@ bool malformed_and_over_limit_records_are_refused() {
     return invalid_resource && bounded && truncated;
 }
 
+bool replay_eligibility_is_explicit_and_snapshot_safe() {
+    EditableOperationRecord source = fixture();
+    const std::array supported{
+        ctex::io::OperationAlgorithmSupport{
+            .identifier = "cybertexel.paint.brush", .minimum_version = 2, .maximum_version = 3},
+    };
+    const ctex::io::OperationReplayAssessment eligible =
+        ctex::io::assess_operation_replay(source, supported, true);
+
+    source.algorithm_version = 4;
+    const ctex::io::OperationReplayAssessment unavailable =
+        ctex::io::assess_operation_replay(source, supported, false);
+
+    source.algorithm_version = 3;
+    source.replay_class = ctex::io::OperationReplayClass::same_resolution;
+    const ctex::io::OperationReplayAssessment resample =
+        ctex::io::assess_operation_replay(source, supported, true);
+
+    EditableOperationRecord clone = fixture();
+    clone.algorithm_identifier = "cybertexel.paint.clone";
+    const bool missing_source =
+        expect_error([&] { static_cast<void>(ctex::io::serialize_operation_record(clone)); },
+                     "clone replay accepted a mutable or missing source snapshot");
+    clone.pinned_resources.front().role = "source-snapshot";
+    const std::array clone_support{
+        ctex::io::OperationAlgorithmSupport{
+            .identifier = "cybertexel.paint.clone", .minimum_version = 3, .maximum_version = 3},
+    };
+    const ctex::io::OperationReplayAssessment pinned =
+        ctex::io::assess_operation_replay(clone, clone_support, false);
+
+    return expect(eligible.replay_available &&
+                      eligible.disposition ==
+                          ctex::io::OperationReplayDisposition::replay_resolution_independent,
+                  "resolution-independent record was not replay eligible") &&
+           expect(!unavailable.replay_available && unavailable.checkpoint_available &&
+                      unavailable.disposition ==
+                          ctex::io::OperationReplayDisposition::unsupported_algorithm,
+                  "unknown algorithm version did not retain checkpoint fallback") &&
+           expect(!resample.replay_available && resample.checkpoint_available &&
+                      resample.disposition ==
+                          ctex::io::OperationReplayDisposition::resample_checkpoint,
+                  "same-resolution replay did not require explicit resampling") &&
+           missing_source &&
+           expect(pinned.replay_available,
+                  "clone with a pinned source snapshot was not replay eligible");
+}
+
 }  // namespace
 
 int main() {
     return canonical_record_round_trips() &&
                    project_container_keeps_pinned_inputs_and_checkpoint() &&
-                   malformed_and_over_limit_records_are_refused()
+                   malformed_and_over_limit_records_are_refused() &&
+                   replay_eligibility_is_explicit_and_snapshot_safe()
                ? 0
                : 1;
 }

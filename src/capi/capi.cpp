@@ -7175,6 +7175,58 @@ void write_operation_record_outputs(const PreparedOperationRecord& prepared, voi
     }
 }
 
+std::vector<ctex::io::OperationAlgorithmSupport> operation_algorithm_support(
+    const ctex_operation_replay_assessment_descriptor& descriptor) {
+    validate_structure_size(descriptor.size, CTEX_OPERATION_REPLAY_ASSESSMENT_DESCRIPTOR_V1_SIZE,
+                            CTEX_OPERATION_REPLAY_ASSESSMENT_DESCRIPTOR_CURRENT_SIZE,
+                            "operation replay assessment descriptor size");
+    if (descriptor.supported_algorithms == nullptr && descriptor.supported_algorithm_count != 0) {
+        throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                       "supported_algorithms=null with nonzero count");
+    }
+    if (descriptor.target_resolution_changed > 1U) {
+        throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_INVALID_ENUM_VALUE,
+                       "target_resolution_changed must be zero or one");
+    }
+    std::vector<ctex::io::OperationAlgorithmSupport> supported;
+    supported.reserve(descriptor.supported_algorithm_count);
+    for (std::size_t index = 0; index < descriptor.supported_algorithm_count; ++index) {
+        const ctex_operation_algorithm_support_descriptor& source =
+            descriptor.supported_algorithms[index];
+        validate_structure_size(source.size, CTEX_OPERATION_ALGORITHM_SUPPORT_DESCRIPTOR_V1_SIZE,
+                                CTEX_OPERATION_ALGORITHM_SUPPORT_DESCRIPTOR_CURRENT_SIZE,
+                                "operation algorithm support descriptor size");
+        if (source.identifier == nullptr) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                           "operation algorithm support identifier is null");
+        }
+        supported.push_back({.identifier = source.identifier,
+                             .minimum_version = source.minimum_version,
+                             .maximum_version = source.maximum_version});
+    }
+    return supported;
+}
+
+std::string operation_replay_json(const ctex::io::EditableOperationRecord& record,
+                                  const ctex::io::OperationReplayAssessment& assessment) {
+    std::string report = "{\"operation\":";
+    append_json_text(report, record.identifier);
+    report += ",\"algorithm\":";
+    append_json_text(report, record.algorithm_identifier);
+    report +=
+        ",\"algorithm_version\":" + std::to_string(record.algorithm_version) +
+        ",\"declared_replay_class\":" +
+        std::to_string(static_cast<std::uint32_t>(record.replay_class)) +
+        ",\"disposition\":" + std::to_string(static_cast<std::uint32_t>(assessment.disposition)) +
+        ",\"replay_available\":" + (assessment.replay_available ? "true" : "false") +
+        ",\"checkpoint_available\":" + (assessment.checkpoint_available ? "true" : "false") +
+        ",\"target_resolution_changed\":" +
+        (assessment.target_resolution_changed ? "true" : "false") + ",\"diagnostic\":";
+    append_json_text(report, assessment.diagnostic);
+    report.push_back('}');
+    return report;
+}
+
 void upsert_operation_record_asset(ctex::io::ProjectContainer& project,
                                    const ctex::io::EditableOperationRecord& record) {
     ctex::io::StandaloneAsset asset = ctex::io::package_operation_record(record);
@@ -12645,6 +12697,50 @@ extern "C" ctex_result ctex_operation_record_inspect(
         validate_operation_record_outputs(prepared, canonical_output, canonical_output_size,
                                           report_output, report_output_size);
         write_operation_record_outputs(prepared, canonical_output, report_output);
+    });
+}
+
+extern "C" ctex_result ctex_operation_record_assess_replay(
+    const void* serialized, std::size_t serialized_size,
+    const ctex_operation_replay_assessment_descriptor* descriptor,
+    ctex_operation_replay_info* out_info, char* report_output, std::size_t report_output_size) {
+    return call_boundary("ctex_operation_record_assess_replay", [&] {
+        if (descriptor == nullptr || out_info == nullptr ||
+            (serialized == nullptr && serialized_size != 0)) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                           "serialized, descriptor and out_info are required");
+        }
+        validate_structure_size(out_info->size, CTEX_OPERATION_REPLAY_INFO_V1_SIZE,
+                                CTEX_OPERATION_REPLAY_INFO_CURRENT_SIZE,
+                                "operation replay info size");
+        const auto bytes = serialized_size == 0
+                               ? std::span<const std::byte>{}
+                               : std::span<const std::byte>(
+                                     static_cast<const std::byte*>(serialized), serialized_size);
+        PreparedOperationRecord prepared = prepare_operation_record(bytes);
+        try {
+            const std::vector supported = operation_algorithm_support(*descriptor);
+            const ctex::io::OperationReplayAssessment assessment =
+                ctex::io::assess_operation_replay(prepared.record, supported,
+                                                  descriptor->target_resolution_changed != 0U);
+            const std::string report = operation_replay_json(prepared.record, assessment);
+            const ctex_operation_replay_info info{
+                .size = CTEX_OPERATION_REPLAY_INFO_CURRENT_SIZE,
+                .disposition = static_cast<std::uint32_t>(assessment.disposition),
+                .declared_replay_class = static_cast<std::uint32_t>(prepared.record.replay_class),
+                .replay_available = assessment.replay_available ? 1U : 0U,
+                .checkpoint_available = assessment.checkpoint_available ? 1U : 0U,
+                .target_resolution_changed = assessment.target_resolution_changed ? 1U : 0U,
+                .required_report_size = report.size() + 1,
+            };
+            validate_string_buffer(report_output, report_output_size, info.required_report_size);
+            *out_info = info;
+            if (report_output != nullptr) {
+                std::memcpy(report_output, report.c_str(), info.required_report_size);
+            }
+        } catch (const ctex::io::OperationRecordError& error) {
+            throw_operation_record_error(error);
+        }
     });
 }
 
@@ -18643,6 +18739,81 @@ extern "C" ctex_result ctex_resource_ledger_admit(
                                      .fixed_requirements = fixed,
                                      .per_work_item = per_work_item,
                                      .work_item_count = descriptor->work_item_count});
+        } catch (...) {
+            destroy_resource_reservation(handle);
+            throw;
+        }
+        const ctex::xport::ResourceAdmissionReport& report = handle->value.report();
+        *out_report = {
+            .size = CTEX_RESOURCE_ADMISSION_REPORT_CURRENT_SIZE,
+            .status = static_cast<std::uint32_t>(report.status),
+            .work_item_count = report.work_item_count,
+            .admitted_work_items = report.admitted_work_items,
+            .projected_cpu_bytes = report.projected_usage.cpu_bytes,
+            .projected_gpu_bytes = report.projected_usage.gpu_bytes,
+            .projected_backing_store_bytes = report.projected_usage.backing_store_bytes,
+            .projected_temporary_bytes = report.projected_usage.temporary_bytes,
+            .evicted_allocation_count = report.evicted_allocation_identities.size(),
+        };
+        if (handle->value.active()) {
+            *out_reservation = handle;
+        } else {
+            destroy_resource_reservation(handle);
+        }
+    });
+}
+
+extern "C" ctex_result ctex_resource_ledger_admit_operation_recovery(
+    ctex_resource_ledger* ledger, const ctex_resource_budget_limits* limits,
+    const void* operation_record, std::size_t operation_record_size, std::size_t checkpoint_bytes,
+    ctex_resource_reservation** out_reservation, ctex_resource_admission_report* out_report) {
+    return call_boundary("ctex_resource_ledger_admit_operation_recovery", [&] {
+        if (ledger == nullptr || limits == nullptr || out_reservation == nullptr ||
+            out_report == nullptr || (operation_record == nullptr && operation_record_size != 0)) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                           "ledger, limits, operation record, reservation and report are required");
+        }
+        validate_structure_size(limits->size, CTEX_RESOURCE_BUDGET_LIMITS_V1_SIZE,
+                                CTEX_RESOURCE_BUDGET_LIMITS_CURRENT_SIZE,
+                                "resource budget limits size");
+        validate_structure_size(out_report->size, CTEX_RESOURCE_ADMISSION_REPORT_V1_SIZE,
+                                CTEX_RESOURCE_ADMISSION_REPORT_CURRENT_SIZE,
+                                "resource admission report size");
+        const auto bytes =
+            operation_record_size == 0
+                ? std::span<const std::byte>{}
+                : std::span<const std::byte>(static_cast<const std::byte*>(operation_record),
+                                             operation_record_size);
+        PreparedOperationRecord prepared = prepare_operation_record(bytes);
+        const bool has_checkpoints = !prepared.record.checkpoint_image_identifiers.empty();
+        if (has_checkpoints != (checkpoint_bytes != 0)) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_INVALID_OPERATION_RECORD,
+                           "checkpoint byte count must match the operation-record dependencies");
+        }
+        std::vector<ctex::xport::ResourceRequirement> requirements{
+            {.category = ctex::xport::ResourceCategory::recovery_record,
+             .physical_bytes = prepared.canonical.size(),
+             .roles = ctex::xport::resource_role_cpu_resident | ctex::xport::resource_role_pinned},
+        };
+        if (has_checkpoints) {
+            requirements.push_back({.category = ctex::xport::ResourceCategory::recovery_record,
+                                    .physical_bytes = checkpoint_bytes,
+                                    .roles = ctex::xport::resource_role_backing_store |
+                                             ctex::xport::resource_role_pinned});
+        }
+
+        *out_reservation = nullptr;
+        ctex_resource_reservation* handle =
+            create_resource_reservation(ledger->allocator, ctex::xport::ResourceReservation{});
+        try {
+            handle->value = ledger->value.admit({.cpu_bytes = limits->cpu_bytes,
+                                                 .gpu_bytes = limits->gpu_bytes,
+                                                 .backing_store_bytes = limits->backing_store_bytes,
+                                                 .temporary_bytes = limits->temporary_bytes},
+                                                {.operation = "retain operation recovery",
+                                                 .fixed_requirements = requirements,
+                                                 .per_work_item = {},
+                                                 .work_item_count = 0});
         } catch (...) {
             destroy_resource_reservation(handle);
             throw;

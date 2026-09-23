@@ -131,6 +131,29 @@ void validate_unique_string(std::set<std::string_view>& values, std::string_view
     }
 }
 
+bool source_snapshot_operation(std::string_view algorithm) noexcept {
+    return algorithm == "cybertexel.paint.clone" || algorithm == "cybertexel.paint.blur" ||
+           algorithm == "cybertexel.paint.smear";
+}
+
+bool has_pinned_source_snapshot(const EditableOperationRecord& record) noexcept {
+    return std::ranges::any_of(
+        record.pinned_resources,
+        [](const PinnedOperationResource& resource) { return resource.role == "source-snapshot"; });
+}
+
+void validate_algorithm_support(std::span<const OperationAlgorithmSupport> supported_algorithms) {
+    std::set<std::string_view> identifiers;
+    for (const OperationAlgorithmSupport& support : supported_algorithms) {
+        if (support.identifier.empty() || support.minimum_version == 0 ||
+            support.minimum_version > support.maximum_version ||
+            !identifiers.insert(support.identifier).second) {
+            throw OperationRecordError(
+                "operation algorithm support ranges must be named, ordered and unique");
+        }
+    }
+}
+
 OperationChannelRecord read_channel(Reader& reader) {
     OperationChannelRecord channel;
     channel.semantic_id = reader.string("channel semantic identity");
@@ -218,6 +241,12 @@ void validate_operation_record(const EditableOperationRecord& record) {
     }
     if (record.replay_class == OperationReplayClass::checkpoint_only && checkpoints.empty()) {
         throw OperationRecordError("checkpoint-only operation has no raster checkpoint");
+    }
+    if (source_snapshot_operation(record.algorithm_identifier) &&
+        record.replay_class != OperationReplayClass::checkpoint_only &&
+        !has_pinned_source_snapshot(record)) {
+        throw OperationRecordError(
+            "clone, blur and smear replay requires a pinned source-snapshot resource");
     }
 }
 
@@ -319,6 +348,56 @@ EditableOperationRecord deserialize_operation_record(std::span<const std::byte> 
     }
     validate_operation_record(record);
     return record;
+}
+
+OperationReplayAssessment assess_operation_replay(
+    const EditableOperationRecord& record,
+    std::span<const OperationAlgorithmSupport> supported_algorithms,
+    bool target_resolution_changed) {
+    validate_operation_record(record);
+    validate_algorithm_support(supported_algorithms);
+    const bool checkpoint_available = !record.checkpoint_image_identifiers.empty();
+    const auto supported =
+        std::ranges::find_if(supported_algorithms, [&](const OperationAlgorithmSupport& candidate) {
+            return candidate.identifier == record.algorithm_identifier &&
+                   candidate.minimum_version != 0 &&
+                   candidate.minimum_version <= record.algorithm_version &&
+                   record.algorithm_version <= candidate.maximum_version;
+        });
+    if (supported == supported_algorithms.end()) {
+        return {.disposition = OperationReplayDisposition::unsupported_algorithm,
+                .replay_available = false,
+                .checkpoint_available = checkpoint_available,
+                .target_resolution_changed = target_resolution_changed,
+                .diagnostic = "algorithm " + record.algorithm_identifier + " version " +
+                              std::to_string(record.algorithm_version) +
+                              " is unavailable; raster checkpoint retained"};
+    }
+    if (record.replay_class == OperationReplayClass::checkpoint_only) {
+        return {.disposition = OperationReplayDisposition::checkpoint_only,
+                .replay_available = false,
+                .checkpoint_available = checkpoint_available,
+                .target_resolution_changed = target_resolution_changed,
+                .diagnostic = "operation declares checkpoint-only recovery"};
+    }
+    if (target_resolution_changed && record.replay_class == OperationReplayClass::same_resolution) {
+        return {.disposition = OperationReplayDisposition::resample_checkpoint,
+                .replay_available = false,
+                .checkpoint_available = checkpoint_available,
+                .target_resolution_changed = true,
+                .diagnostic = "same-resolution operation requires explicit checkpoint resampling"};
+    }
+    return {
+        .disposition = record.replay_class == OperationReplayClass::resolution_independent
+                           ? OperationReplayDisposition::replay_resolution_independent
+                           : OperationReplayDisposition::replay_same_resolution,
+        .replay_available = true,
+        .checkpoint_available = checkpoint_available,
+        .target_resolution_changed = target_resolution_changed,
+        .diagnostic = record.replay_class == OperationReplayClass::resolution_independent
+                          ? "operation is eligible for resolution-independent replay"
+                          : "operation is eligible for same-resolution recovery replay",
+    };
 }
 
 StandaloneAsset package_operation_record(const EditableOperationRecord& record) {

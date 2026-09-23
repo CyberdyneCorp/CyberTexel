@@ -36,7 +36,8 @@
     ]},
     {"name": "device-gate", "kind": "non-runtime", "rationale": "Device performance policy is repository and CI evidence.", "evidence": ["task 17"]},
     {"name": "editable-authoring", "kind": "runtime", "requirements": [
-      {"requirement": "Versioned operation records", "symbols": ["ctex_operation_record_create", "ctex_operation_record_inspect", "ctex_project_container_upsert_operation_record", "ctex_project_container_get_operation_record"]}
+      {"requirement": "Versioned operation records", "symbols": ["ctex_operation_record_create", "ctex_operation_record_inspect", "ctex_project_container_upsert_operation_record", "ctex_project_container_get_operation_record"]},
+      {"requirement": "Explicit replay eligibility", "symbols": ["ctex_operation_record_assess_replay", "ctex_resource_ledger_admit_operation_recovery", "ctex_paint_apply_clone", "ctex_paint_apply_blur", "ctex_paint_apply_smear"]}
     ]},
     {"name": "examples", "kind": "non-runtime", "rationale": "Examples consume the bindings and are not library operations.", "evidence": ["task 16"]},
     {"name": "execution-backends", "kind": "runtime", "requirements": [

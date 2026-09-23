@@ -4648,6 +4648,14 @@ typedef enum ctex_operation_payload_kind {
     CTEX_OPERATION_PAYLOAD_OPAQUE_ALGORITHM_DATA = 2
 } ctex_operation_payload_kind;
 
+typedef enum ctex_operation_replay_disposition {
+    CTEX_OPERATION_REPLAY_SAME_RESOLUTION_AVAILABLE = 0,
+    CTEX_OPERATION_REPLAY_RESOLUTION_INDEPENDENT_AVAILABLE = 1,
+    CTEX_OPERATION_REPLAY_CHECKPOINT_ONLY_AVAILABLE = 2,
+    CTEX_OPERATION_REPLAY_RESAMPLE_CHECKPOINT_REQUIRED = 3,
+    CTEX_OPERATION_REPLAY_UNSUPPORTED_ALGORITHM = 4
+} ctex_operation_replay_disposition;
+
 typedef struct ctex_operation_channel_descriptor {
     uint32_t size;
     const char* semantic_id;
@@ -4725,6 +4733,43 @@ typedef struct ctex_operation_record_info {
 
 #define CTEX_OPERATION_RECORD_INFO_V1_SIZE ((uint32_t)sizeof(ctex_operation_record_info))
 #define CTEX_OPERATION_RECORD_INFO_CURRENT_SIZE ((uint32_t)sizeof(ctex_operation_record_info))
+
+typedef struct ctex_operation_algorithm_support_descriptor {
+    uint32_t size;
+    const char* identifier;
+    uint32_t minimum_version;
+    uint32_t maximum_version;
+} ctex_operation_algorithm_support_descriptor;
+
+#define CTEX_OPERATION_ALGORITHM_SUPPORT_DESCRIPTOR_V1_SIZE \
+    ((uint32_t)sizeof(ctex_operation_algorithm_support_descriptor))
+#define CTEX_OPERATION_ALGORITHM_SUPPORT_DESCRIPTOR_CURRENT_SIZE \
+    ((uint32_t)sizeof(ctex_operation_algorithm_support_descriptor))
+
+typedef struct ctex_operation_replay_assessment_descriptor {
+    uint32_t size;
+    const ctex_operation_algorithm_support_descriptor* supported_algorithms;
+    size_t supported_algorithm_count;
+    uint32_t target_resolution_changed;
+} ctex_operation_replay_assessment_descriptor;
+
+#define CTEX_OPERATION_REPLAY_ASSESSMENT_DESCRIPTOR_V1_SIZE \
+    ((uint32_t)sizeof(ctex_operation_replay_assessment_descriptor))
+#define CTEX_OPERATION_REPLAY_ASSESSMENT_DESCRIPTOR_CURRENT_SIZE \
+    ((uint32_t)sizeof(ctex_operation_replay_assessment_descriptor))
+
+typedef struct ctex_operation_replay_info {
+    uint32_t size;
+    uint32_t disposition;
+    uint32_t declared_replay_class;
+    uint32_t replay_available;
+    uint32_t checkpoint_available;
+    uint32_t target_resolution_changed;
+    size_t required_report_size;
+} ctex_operation_replay_info;
+
+#define CTEX_OPERATION_REPLAY_INFO_V1_SIZE ((uint32_t)sizeof(ctex_operation_replay_info))
+#define CTEX_OPERATION_REPLAY_INFO_CURRENT_SIZE ((uint32_t)sizeof(ctex_operation_replay_info))
 
 typedef struct ctex_preset_shelf_entry_descriptor {
     uint32_t size;
@@ -5700,6 +5745,10 @@ CTEX_API ctex_result ctex_operation_record_inspect(const void* serialized, size_
                                                    void* canonical_output,
                                                    size_t canonical_output_size,
                                                    char* report_output, size_t report_output_size);
+CTEX_API ctex_result ctex_operation_record_assess_replay(
+    const void* serialized, size_t serialized_size,
+    const ctex_operation_replay_assessment_descriptor* descriptor,
+    ctex_operation_replay_info* out_info, char* report_output, size_t report_output_size);
 
 /* Atomically adds or replaces one operation-record asset in canonical project bytes. */
 CTEX_API ctex_result ctex_project_container_upsert_operation_record(
@@ -6741,6 +6790,10 @@ CTEX_API ctex_result ctex_resource_ledger_set_cache_eviction_callback(
     ctex_resource_ledger* ledger, ctex_resource_cache_eviction_callback callback, void* user_data);
 CTEX_API ctex_result ctex_resource_ledger_admit(
     ctex_resource_ledger* ledger, const ctex_resource_admission_descriptor* descriptor,
+    ctex_resource_reservation** out_reservation, ctex_resource_admission_report* out_report);
+CTEX_API ctex_result ctex_resource_ledger_admit_operation_recovery(
+    ctex_resource_ledger* ledger, const ctex_resource_budget_limits* limits,
+    const void* operation_record, size_t operation_record_size, size_t checkpoint_bytes,
     ctex_resource_reservation** out_reservation, ctex_resource_admission_report* out_report);
 CTEX_API ctex_result ctex_resource_ledger_admit_preview_quality(
     ctex_resource_ledger* ledger, const ctex_preview_quality_admission_descriptor* descriptor,

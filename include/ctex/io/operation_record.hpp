@@ -77,6 +77,28 @@ struct OperationRecordReadLimits {
     std::size_t maximum_checkpoint_images{65'536};
 };
 
+struct OperationAlgorithmSupport {
+    std::string identifier;
+    std::uint32_t minimum_version{};
+    std::uint32_t maximum_version{};
+};
+
+enum class OperationReplayDisposition : std::uint8_t {
+    replay_same_resolution,
+    replay_resolution_independent,
+    checkpoint_only,
+    resample_checkpoint,
+    unsupported_algorithm,
+};
+
+struct OperationReplayAssessment {
+    OperationReplayDisposition disposition{OperationReplayDisposition::checkpoint_only};
+    bool replay_available{};
+    bool checkpoint_available{};
+    bool target_resolution_changed{};
+    std::string diagnostic;
+};
+
 class OperationRecordError final : public std::runtime_error {
 public:
     using std::runtime_error::runtime_error;
@@ -87,6 +109,11 @@ void validate_operation_record(const EditableOperationRecord& record);
     const EditableOperationRecord& record);
 [[nodiscard]] EditableOperationRecord deserialize_operation_record(
     std::span<const std::byte> serialized, OperationRecordReadLimits limits = {});
+
+[[nodiscard]] OperationReplayAssessment assess_operation_replay(
+    const EditableOperationRecord& record,
+    std::span<const OperationAlgorithmSupport> supported_algorithms,
+    bool target_resolution_changed);
 
 [[nodiscard]] StandaloneAsset package_operation_record(const EditableOperationRecord& record);
 [[nodiscard]] EditableOperationRecord unpack_operation_record(

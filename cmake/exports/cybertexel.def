@@ -54,6 +54,7 @@ EXPORTS
     ctex_resource_ledger_get_report
     ctex_resource_ledger_set_cache_eviction_callback
     ctex_resource_ledger_admit
+    ctex_resource_ledger_admit_operation_recovery
     ctex_resource_ledger_admit_preview_quality
     ctex_resource_reservation_destroy
     ctex_resource_reservation_release
@@ -325,5 +326,6 @@ EXPORTS
     ctex_texture_set_set_channel_enabled
     ctex_operation_record_create
     ctex_operation_record_inspect
+    ctex_operation_record_assess_replay
     ctex_project_container_upsert_operation_record
     ctex_project_container_get_operation_record

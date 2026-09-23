@@ -1315,6 +1315,14 @@ mutation, and lossless project-container round trips. The task remains open
 until Python, Swift, and Rust expose the same surface. The C coverage mapping
 reduces the exact task-14.8 gap to 9 runtime requirements.
 
+Task 20.2 adds explicit supported algorithm-version ranges and reports
+same-resolution, resolution-independent, checkpoint-only, resample-required or
+unsupported replay. Unknown versions keep raster checkpoints without
+substitution; clone, blur and smear require owned `source-snapshot` bytes unless
+checkpoint-only. Recovery record and checkpoint bytes must obtain a pinned
+resource-ledger reservation before commit. Core and strict-C tests cover each
+policy and over-budget refusal, reducing the task-14.8 gap to 8 requirements.
+
 ## 1. Foundation
 
 - [x] 1.1 CMake project, C++20, warnings as errors, presets for headless, macOS, Linux, Windows, iOS, Android
@@ -1591,7 +1599,7 @@ reduces the exact task-14.8 gap to 9 runtime requirements.
 ## 20. Editable authoring
 
 - [ ] 20.1 Versioned operation records, pinned input assets and checkpoint storage; expose through C ABI and bindings and round-trip in project-io
-- [ ] 20.2 Same-resolution recovery versus resolution-independent replay eligibility; clone/blur/smear source snapshots and checkpoint-only policy
+- [x] 20.2 Same-resolution recovery versus resolution-independent replay eligibility; clone/blur/smear source snapshots and checkpoint-only policy
 - [ ] 20.3 Atomic undoable resize with explicit replay/resample/cancel policy and mixed-layer fixtures
 - [ ] 20.4 Persistent editable decals, text and surface paths; parameter editing, invalidation, save/reopen and undo
 - [ ] 20.5 Reprojection preflight, distance/angle/visibility limits, ambiguity and hole policy, tangent conversion and cancellation
