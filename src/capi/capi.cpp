@@ -1609,6 +1609,9 @@ std::uint32_t color_space_source(ctex::io::ColorSpaceSource source) noexcept {
         case ctex::io::ImageIoErrorCode::over_limit:
             throw_boundary(CTEX_RESULT_OVER_BUDGET, CTEX_DIAGNOSTIC_IMAGE_LIMIT_EXCEEDED,
                            error.what());
+        case ctex::io::ImageIoErrorCode::cancelled:
+            throw_boundary(CTEX_RESULT_CANCELLED, CTEX_DIAGNOSTIC_IMAGE_DECODE_CANCELLED,
+                           error.what());
         case ctex::io::ImageIoErrorCode::malformed_input:
         case ctex::io::ImageIoErrorCode::decode_failed:
         case ctex::io::ImageIoErrorCode::encode_failed:
@@ -12463,61 +12466,166 @@ extern "C" ctex_result ctex_cube_lut_apply_preview(const ctex_cube_lut* lut,
     });
 }
 
+namespace {
+
+struct ImageDecodeObserver {
+    const ctex_image_decode_control_descriptor* control{};
+    std::size_t estimated_peak_working_bytes{};
+    std::size_t progress_event_count{};
+    bool cancelled{};
+
+    [[nodiscard]] ctex::io::DecodeControl core_control() {
+        ctex::io::DecodeControl result;
+        if (control != nullptr) {
+            result.maximum_working_bytes = control->maximum_working_bytes;
+            result.progress_interval_rows = control->progress_interval_rows;
+        }
+        result.is_cancelled = [this] {
+            if (control != nullptr && control->is_cancelled != nullptr &&
+                control->is_cancelled(control->user_data) != 0U) {
+                cancelled = true;
+            }
+            return cancelled;
+        };
+        result.report_progress = [this](const ctex::io::DecodeProgress& progress) {
+            ++progress_event_count;
+            estimated_peak_working_bytes =
+                std::max(estimated_peak_working_bytes, progress.estimated_peak_working_bytes);
+            if (control != nullptr && control->report_progress != nullptr) {
+                const ctex_image_decode_progress_info info{
+                    .size = CTEX_IMAGE_DECODE_PROGRESS_INFO_CURRENT_SIZE,
+                    .phase = static_cast<std::uint32_t>(progress.phase),
+                    .completed_rows = progress.completed_rows,
+                    .total_rows = progress.total_rows,
+                    .estimated_peak_working_bytes = progress.estimated_peak_working_bytes,
+                };
+                control->report_progress(control->user_data, &info);
+            }
+        };
+        return result;
+    }
+};
+
+void write_image_decode_execution_info(const ImageDecodeObserver& observer,
+                                       ctex_image_decode_execution_info* out_info) {
+    if (out_info != nullptr) {
+        *out_info = {
+            .size = CTEX_IMAGE_DECODE_EXECUTION_INFO_CURRENT_SIZE,
+            .estimated_peak_working_bytes = observer.estimated_peak_working_bytes,
+            .progress_event_count = observer.progress_event_count,
+            .cancelled = observer.cancelled ? 1U : 0U,
+        };
+    }
+}
+
+void validate_image_decode_control(const ctex_image_decode_control_descriptor* control) {
+    if (control == nullptr) return;
+    validate_structure_size(control->size, CTEX_IMAGE_DECODE_CONTROL_DESCRIPTOR_V1_SIZE,
+                            CTEX_IMAGE_DECODE_CONTROL_DESCRIPTOR_CURRENT_SIZE, "control.size");
+    if (control->maximum_working_bytes == 0 || control->progress_interval_rows == 0) {
+        throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_INVALID_DESCRIPTOR_VALUE,
+                       "image decode working ceiling and progress interval must be non-zero");
+    }
+}
+
+void image_decode_memory_boundary(const void* encoded, std::size_t encoded_size,
+                                  const char* source_name, std::uint32_t intended_channel,
+                                  std::uint32_t input_color_space_value,
+                                  const ctex_image_decode_limits_descriptor* limits,
+                                  const ctex_image_decode_control_descriptor* control,
+                                  ctex_image_decode_execution_info* out_execution_info,
+                                  ctex_decoded_image_info* out_info, void* pixel_buffer,
+                                  std::size_t pixel_buffer_size, std::size_t* out_required_size) {
+    if (encoded == nullptr && encoded_size != 0) {
+        throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                       "encoded=null with nonzero encoded_size");
+    }
+    if (source_name == nullptr || out_info == nullptr || out_required_size == nullptr) {
+        throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                       "source_name, out_info and out_required_size are required");
+    }
+    validate_structure_size(out_info->size, CTEX_DECODED_IMAGE_INFO_V1_SIZE,
+                            CTEX_DECODED_IMAGE_INFO_CURRENT_SIZE, "out_info.size");
+    if (out_execution_info != nullptr) {
+        validate_structure_size(out_execution_info->size, CTEX_IMAGE_DECODE_EXECUTION_INFO_V1_SIZE,
+                                CTEX_IMAGE_DECODE_EXECUTION_INFO_CURRENT_SIZE,
+                                "out_execution_info.size");
+    }
+    validate_image_decode_control(control);
+    const std::span<const std::byte> bytes =
+        encoded_size == 0
+            ? std::span<const std::byte>{}
+            : std::span<const std::byte>(static_cast<const std::byte*>(encoded), encoded_size);
+    ImageDecodeObserver observer{.control = control};
+    ctex::io::DecodedImage decoded = [&] {
+        try {
+            return ctex::io::decode_image_memory({
+                .bytes = bytes,
+                .source_name = source_name,
+                .intended_channel = channel_semantic(intended_channel),
+                .color_space = input_color_space(input_color_space_value),
+                .limits = image_decode_limits(limits),
+                .control = observer.core_control(),
+            });
+        } catch (const ctex::io::ImageIoError& error) {
+            write_image_decode_execution_info(observer, out_execution_info);
+            throw_image_io_error(error);
+        }
+    }();
+    const ctex::image::PixelFormat format = decoded.pixels.format();
+    const std::size_t required_size = decoded_image_size(decoded.pixels);
+    *out_required_size = required_size;
+    *out_info = {
+        .size = CTEX_DECODED_IMAGE_INFO_CURRENT_SIZE,
+        .width = decoded.pixels.width(),
+        .height = decoded.pixels.height(),
+        .channel_count = format.channel_count,
+        .scalar_representation = format.channel_type == ctex::image::ChannelType::float32
+                                     ? CTEX_SCALAR_REPRESENTATION_FLOATING_POINT
+                                     : CTEX_SCALAR_REPRESENTATION_UNSIGNED_NORMALIZED,
+        .bit_depth = static_cast<std::uint32_t>(format.bytes_per_channel() * 8),
+        .color_space = static_cast<std::uint32_t>(decoded.source_color_space),
+        .detected_format = image_file_format(decoded.report.detected_format),
+        .extension_mismatch = decoded.report.extension_mismatch ? 1U : 0U,
+        .color_space_source = color_space_source(decoded.report.color_space_source),
+        .uninterpretable_profile = has_uninterpretable_profile(decoded.report) ? 1U : 0U,
+    };
+    validate_string_buffer(static_cast<char*>(pixel_buffer), pixel_buffer_size, required_size);
+    if (pixel_buffer != nullptr) {
+        copy_decoded_pixels(decoded.pixels, pixel_buffer);
+    }
+    write_image_decode_execution_info(observer, out_execution_info);
+}
+
+}  // namespace
+
 extern "C" ctex_result ctex_image_decode_memory(
     const void* encoded, std::size_t encoded_size, const char* source_name,
     std::uint32_t intended_channel, std::uint32_t input_color_space_value,
     const ctex_image_decode_limits_descriptor* limits, ctex_decoded_image_info* out_info,
     void* pixel_buffer, std::size_t pixel_buffer_size, std::size_t* out_required_size) {
     return call_boundary("ctex_image_decode_memory", [&] {
-        if (encoded == nullptr && encoded_size != 0) {
+        image_decode_memory_boundary(encoded, encoded_size, source_name, intended_channel,
+                                     input_color_space_value, limits, nullptr, nullptr, out_info,
+                                     pixel_buffer, pixel_buffer_size, out_required_size);
+    });
+}
+
+extern "C" ctex_result ctex_image_decode_memory_bounded(
+    const void* encoded, std::size_t encoded_size, const char* source_name,
+    std::uint32_t intended_channel, std::uint32_t input_color_space_value,
+    const ctex_image_decode_limits_descriptor* limits,
+    const ctex_image_decode_control_descriptor* control,
+    ctex_image_decode_execution_info* out_execution_info, ctex_decoded_image_info* out_info,
+    void* pixel_buffer, std::size_t pixel_buffer_size, std::size_t* out_required_size) {
+    return call_boundary("ctex_image_decode_memory_bounded", [&] {
+        if (control == nullptr || out_execution_info == nullptr) {
             throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
-                           "encoded=null with nonzero encoded_size");
+                           "control and out_execution_info are required");
         }
-        if (source_name == nullptr || out_info == nullptr || out_required_size == nullptr) {
-            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
-                           "source_name, out_info and out_required_size are required");
-        }
-        validate_structure_size(out_info->size, CTEX_DECODED_IMAGE_INFO_V1_SIZE,
-                                CTEX_DECODED_IMAGE_INFO_CURRENT_SIZE, "out_info.size");
-        const std::span<const std::byte> bytes =
-            encoded_size == 0
-                ? std::span<const std::byte>{}
-                : std::span<const std::byte>(static_cast<const std::byte*>(encoded), encoded_size);
-        ctex::io::DecodedImage decoded = [&] {
-            try {
-                return ctex::io::decode_image_memory({
-                    .bytes = bytes,
-                    .source_name = source_name,
-                    .intended_channel = channel_semantic(intended_channel),
-                    .color_space = input_color_space(input_color_space_value),
-                    .limits = image_decode_limits(limits),
-                });
-            } catch (const ctex::io::ImageIoError& error) {
-                throw_image_io_error(error);
-            }
-        }();
-        const ctex::image::PixelFormat format = decoded.pixels.format();
-        const std::size_t required_size = decoded_image_size(decoded.pixels);
-        *out_required_size = required_size;
-        *out_info = {
-            .size = CTEX_DECODED_IMAGE_INFO_CURRENT_SIZE,
-            .width = decoded.pixels.width(),
-            .height = decoded.pixels.height(),
-            .channel_count = format.channel_count,
-            .scalar_representation = format.channel_type == ctex::image::ChannelType::float32
-                                         ? CTEX_SCALAR_REPRESENTATION_FLOATING_POINT
-                                         : CTEX_SCALAR_REPRESENTATION_UNSIGNED_NORMALIZED,
-            .bit_depth = static_cast<std::uint32_t>(format.bytes_per_channel() * 8),
-            .color_space = static_cast<std::uint32_t>(decoded.source_color_space),
-            .detected_format = image_file_format(decoded.report.detected_format),
-            .extension_mismatch = decoded.report.extension_mismatch ? 1U : 0U,
-            .color_space_source = color_space_source(decoded.report.color_space_source),
-            .uninterpretable_profile = has_uninterpretable_profile(decoded.report) ? 1U : 0U,
-        };
-        validate_string_buffer(static_cast<char*>(pixel_buffer), pixel_buffer_size, required_size);
-        if (pixel_buffer != nullptr) {
-            copy_decoded_pixels(decoded.pixels, pixel_buffer);
-        }
+        image_decode_memory_boundary(encoded, encoded_size, source_name, intended_channel,
+                                     input_color_space_value, limits, control, out_execution_info,
+                                     out_info, pixel_buffer, pixel_buffer_size, out_required_size);
     });
 }
 

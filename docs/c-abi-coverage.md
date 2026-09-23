@@ -251,5 +251,10 @@ re-evaluation and atomic undo. The existing mesh-reprojection preflight and
 commit operations cover attachment migration and invalid-attachment reporting.
 Mapping that paint-tools requirement reduces the exact remaining gap to 3
 runtime requirements.
+Bounded image decode now exposes a separate working-memory ceiling, phase and
+row progress, and cooperative cancellation without partial caller output. C++
+and strict-C fixtures cover a large OpenEXR plus the public callback boundary.
+Mapping that image-io requirement reduces the exact remaining gap to 2 runtime
+requirements.
 The gate is not part of the aggregate `just check` until that count reaches zero;
 its unit tests run in the normal tooling suite throughout the migration.

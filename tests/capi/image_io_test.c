@@ -221,6 +221,84 @@ static int decode_refuses_unsupported_and_truncated_content(void) {
            expect(ctex_get_last_diagnostic_code() == CTEX_DIAGNOSTIC_INVALID_IMAGE_DATA);
 }
 
+typedef struct decode_control_state {
+    size_t callback_count;
+    size_t peak_working_bytes;
+    uint32_t cancel;
+    uint32_t cancel_after_inspection;
+} decode_control_state;
+
+static uint32_t decode_is_cancelled(void* user_data) {
+    return ((decode_control_state*)user_data)->cancel;
+}
+
+static void decode_progress(void* user_data, const ctex_image_decode_progress_info* progress) {
+    decode_control_state* state = (decode_control_state*)user_data;
+    ++state->callback_count;
+    if (progress->estimated_peak_working_bytes > state->peak_working_bytes) {
+        state->peak_working_bytes = progress->estimated_peak_working_bytes;
+    }
+    if (state->cancel_after_inspection != 0 &&
+        progress->phase == CTEX_IMAGE_DECODE_PHASE_INSPECTION && progress->total_rows != 0) {
+        state->cancel = 1;
+    }
+}
+
+static int bounded_decode_reports_progress_budget_and_atomic_cancellation(void) {
+    decode_control_state state = {0};
+    ctex_image_decode_control_descriptor control = {
+        .size = CTEX_IMAGE_DECODE_CONTROL_DESCRIPTOR_CURRENT_SIZE,
+        .maximum_working_bytes = 2u << 20u,
+        .progress_interval_rows = 1,
+        .user_data = &state,
+        .is_cancelled = decode_is_cancelled,
+        .report_progress = decode_progress,
+    };
+    ctex_image_decode_execution_info execution = {
+        .size = CTEX_IMAGE_DECODE_EXECUTION_INFO_CURRENT_SIZE,
+    };
+    ctex_decoded_image_info info = {.size = CTEX_DECODED_IMAGE_INFO_CURRENT_SIZE};
+    size_t required_size = 0;
+    if (!expect(ctex_image_decode_memory_bounded(
+                    gray8_png, sizeof(gray8_png), "bounded.png", CTEX_CHANNEL_SEMANTIC_ROUGHNESS,
+                    CTEX_INPUT_COLOR_SPACE_AUTOMATIC, NULL, &control, &execution, &info, NULL, 0,
+                    &required_size) == CTEX_RESULT_SUCCESS) ||
+        !expect(required_size == 2 && execution.cancelled == 0 &&
+                execution.progress_event_count == state.callback_count &&
+                execution.estimated_peak_working_bytes == state.peak_working_bytes &&
+                execution.estimated_peak_working_bytes > 0)) {
+        return 0;
+    }
+
+    control.maximum_working_bytes = execution.estimated_peak_working_bytes - 1;
+    execution.size = CTEX_IMAGE_DECODE_EXECUTION_INFO_CURRENT_SIZE;
+    if (!expect(ctex_image_decode_memory_bounded(gray8_png, sizeof(gray8_png), "over-budget.png",
+                                                 CTEX_CHANNEL_SEMANTIC_ROUGHNESS,
+                                                 CTEX_INPUT_COLOR_SPACE_AUTOMATIC, NULL, &control,
+                                                 &execution, &info, NULL, 0,
+                                                 &required_size) == CTEX_RESULT_OVER_BUDGET) ||
+        !expect(execution.estimated_peak_working_bytes > control.maximum_working_bytes &&
+                ctex_get_last_diagnostic_code() == CTEX_DIAGNOSTIC_IMAGE_LIMIT_EXCEEDED)) {
+        return 0;
+    }
+
+    state = (decode_control_state){.cancel_after_inspection = 1};
+    control.maximum_working_bytes = 2u << 20u;
+    execution.size = CTEX_IMAGE_DECODE_EXECUTION_INFO_CURRENT_SIZE;
+    info = (ctex_decoded_image_info){.size = CTEX_DECODED_IMAGE_INFO_CURRENT_SIZE, .width = 99};
+    required_size = 77;
+    unsigned char pixel = 0xa5;
+    return expect(ctex_image_decode_memory_bounded(gray8_png, sizeof(gray8_png), "cancelled.png",
+                                                   CTEX_CHANNEL_SEMANTIC_ROUGHNESS,
+                                                   CTEX_INPUT_COLOR_SPACE_AUTOMATIC, NULL, &control,
+                                                   &execution, &info, &pixel, sizeof(pixel),
+                                                   &required_size) == CTEX_RESULT_CANCELLED) &&
+           expect(execution.cancelled == 1 && execution.progress_event_count == 2 &&
+                  state.callback_count == 2) &&
+           expect(info.width == 99 && required_size == 77 && pixel == 0xa5) &&
+           expect(ctex_get_last_diagnostic_code() == CTEX_DIAGNOSTIC_IMAGE_DECODE_CANCELLED);
+}
+
 static ctex_image_encode_descriptor rgba8_descriptor(uint32_t format) {
     ctex_image_encode_descriptor descriptor = {
         CTEX_IMAGE_ENCODE_DESCRIPTOR_CURRENT_SIZE,
@@ -430,6 +508,7 @@ int main(void) {
                    sixteen_bit_png_round_trip_is_lossless() &&
                    decode_honours_color_and_resource_limits() &&
                    decode_refuses_unsupported_and_truncated_content() &&
+                   bounded_decode_reports_progress_budget_and_atomic_cancellation() &&
                    encode_supports_every_output_format() &&
                    encode_round_trips_png_and_honours_stride() &&
                    encode_refuses_invalid_depth_and_small_output() &&

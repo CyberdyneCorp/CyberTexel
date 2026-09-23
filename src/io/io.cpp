@@ -90,6 +90,15 @@ std::size_t checked_multiply(std::size_t left, std::size_t right,
     return left * right;
 }
 
+std::size_t checked_add(std::size_t left, std::size_t right, ImageFileFormat format) {
+    if (left > std::numeric_limits<std::size_t>::max() - right) {
+        throw ImageIoError(ImageIoErrorCode::over_limit, format,
+                           std::string(image_file_format_name(format)) +
+                               " working byte count overflows the platform size type");
+    }
+    return left + right;
+}
+
 bool starts_with(std::span<const std::byte> bytes, std::span<const std::uint8_t> signature) {
     if (bytes.size() < signature.size()) {
         return false;
@@ -140,9 +149,9 @@ RawLayout choose_raw_layout(const LodePNGColorMode& source) {
     }
 }
 
-void enforce_limits(std::uint32_t width, std::uint32_t height,
-                    const image::PixelFormat& pixel_format, const DecodeLimits& limits,
-                    ImageFileFormat file_format = ImageFileFormat::png) {
+std::size_t enforce_limits(std::uint32_t width, std::uint32_t height,
+                           const image::PixelFormat& pixel_format, const DecodeLimits& limits,
+                           ImageFileFormat file_format = ImageFileFormat::png) {
     const std::size_t pixels = checked_multiply(width, height, file_format);
     const std::size_t decoded_bytes =
         checked_multiply(pixels, pixel_format.bytes_per_pixel(), file_format);
@@ -155,7 +164,105 @@ void enforce_limits(std::uint32_t width, std::uint32_t height,
                 << limits.maximum_decoded_bytes << " bytes";
         throw ImageIoError(ImageIoErrorCode::over_limit, file_format, message.str());
     }
+    return decoded_bytes;
 }
+
+class DecodeSession {
+public:
+    DecodeSession(const DecodeRequest& request, ImageFileFormat format)
+        : request_(request), format_(format) {
+        checkpoint(DecodePhase::inspection, 0, 0);
+    }
+
+    void preflight(std::uint32_t width, std::uint32_t height,
+                   const image::PixelFormat& pixel_format) {
+        const std::size_t decoded_bytes =
+            enforce_limits(width, height, pixel_format, request_.limits, format_);
+        const std::size_t tile_columns =
+            1 + (static_cast<std::size_t>(width) - 1) / image::default_tile_size;
+        const std::size_t tile_rows =
+            1 + (static_cast<std::size_t>(height) - 1) / image::default_tile_size;
+        const std::size_t tile_count = checked_multiply(tile_columns, tile_rows, format_);
+        const std::size_t tile_bytes = checked_multiply(
+            checked_multiply(image::default_tile_size, image::default_tile_size, format_),
+            pixel_format.bytes_per_pixel(), format_);
+        const std::size_t resident_tile_bytes = checked_multiply(tile_count, tile_bytes, format_);
+        constexpr std::size_t estimated_metadata_bytes_per_tile = 256;
+        const std::size_t tile_metadata_bytes =
+            checked_multiply(tile_count, estimated_metadata_bytes_per_tile, format_);
+        estimated_peak_working_bytes_ =
+            checked_add(checked_multiply(decoded_bytes, 2, format_), resident_tile_bytes, format_);
+        estimated_peak_working_bytes_ =
+            checked_add(estimated_peak_working_bytes_, tile_metadata_bytes, format_);
+        constexpr std::size_t codec_overhead = 1ULL << 20;
+        estimated_peak_working_bytes_ =
+            checked_add(estimated_peak_working_bytes_, codec_overhead, format_);
+        checkpoint(DecodePhase::inspection, 0, height);
+        if (request_.control.maximum_working_bytes == 0 ||
+            estimated_peak_working_bytes_ > request_.control.maximum_working_bytes) {
+            std::ostringstream message;
+            message << image_file_format_name(format_) << " decode requires at most "
+                    << estimated_peak_working_bytes_ << " working bytes; ceiling is "
+                    << request_.control.maximum_working_bytes << " bytes";
+            throw ImageIoError(ImageIoErrorCode::over_limit, format_, message.str());
+        }
+    }
+
+    void codec_started(std::uint32_t rows) { checkpoint(DecodePhase::codec, 0, rows); }
+    void codec_finished(std::uint32_t rows) { checkpoint(DecodePhase::codec, rows, rows); }
+
+    void codec_progress(std::uint32_t completed_rows, std::uint32_t total_rows) {
+        const std::uint32_t interval = std::max(request_.control.progress_interval_rows, 1U);
+        if (completed_rows == total_rows || completed_rows % interval == 0) {
+            checkpoint(DecodePhase::codec, completed_rows, total_rows);
+        } else {
+            cancel_if_requested(DecodePhase::codec);
+        }
+    }
+
+    void unpacked_row(std::uint32_t completed_rows, std::uint32_t total_rows) {
+        const std::uint32_t interval = std::max(request_.control.progress_interval_rows, 1U);
+        if (completed_rows == total_rows || completed_rows % interval == 0) {
+            checkpoint(DecodePhase::unpack, completed_rows, total_rows);
+        } else {
+            cancel_if_requested(DecodePhase::unpack);
+        }
+    }
+
+    void finish(DecodeReport& report) {
+        checkpoint(DecodePhase::complete, 0, 0);
+        report.estimated_peak_working_bytes = estimated_peak_working_bytes_;
+        report.progress_event_count = progress_event_count_;
+    }
+
+private:
+    void cancel_if_requested(DecodePhase phase) const {
+        if (request_.control.is_cancelled && request_.control.is_cancelled()) {
+            throw ImageIoError(ImageIoErrorCode::cancelled, format_,
+                               std::string(image_file_format_name(format_)) +
+                                   " decode cancelled during phase " +
+                                   std::to_string(static_cast<unsigned>(phase)));
+        }
+    }
+
+    void checkpoint(DecodePhase phase, std::uint32_t completed_rows, std::uint32_t total_rows) {
+        cancel_if_requested(phase);
+        ++progress_event_count_;
+        if (request_.control.report_progress) {
+            request_.control.report_progress(
+                {.phase = phase,
+                 .completed_rows = completed_rows,
+                 .total_rows = total_rows,
+                 .estimated_peak_working_bytes = estimated_peak_working_bytes_});
+        }
+        cancel_if_requested(phase);
+    }
+
+    const DecodeRequest& request_;
+    ImageFileFormat format_;
+    std::size_t estimated_peak_working_bytes_{};
+    std::size_t progress_event_count_{};
+};
 
 std::vector<std::byte> native_pixel(const unsigned char* source, const image::PixelFormat& format) {
     std::vector<std::byte> pixel(format.bytes_per_pixel());
@@ -165,7 +272,7 @@ std::vector<std::byte> native_pixel(const unsigned char* source, const image::Pi
 
 image::TiledImage unpack_image(const unsigned char* decoded, std::uint32_t width,
                                std::uint32_t height, image::PixelFormat format,
-                               bool source_uint16_is_big_endian = false) {
+                               DecodeSession& session, bool source_uint16_is_big_endian = false) {
     image::TiledImage result(width, height, format);
     const std::size_t stride = format.bytes_per_pixel();
     for (std::uint32_t y = 0; y < height; ++y) {
@@ -180,6 +287,7 @@ image::TiledImage unpack_image(const unsigned char* decoded, std::uint32_t width
             }
             result.write_pixel(x, y, pixel);
         }
+        session.unpacked_row(y + 1, height);
     }
     result.clear_dirty();
     return result;
@@ -359,9 +467,6 @@ StbiIntegerLayout inspect_stbi_integer(const DecodeRequest& request, ImageFileFo
     result.pixel_format = {
         result.sixteen_bit ? image::ChannelType::uint16_unorm : image::ChannelType::uint8_unorm,
         static_cast<std::uint8_t>(result.output_channels)};
-    enforce_limits(static_cast<std::uint32_t>(result.width),
-                   static_cast<std::uint32_t>(result.height), result.pixel_format, request.limits,
-                   format);
     if (format == ImageFileFormat::tga) validate_tga_payload(request.bytes);
     return result;
 }
@@ -374,34 +479,43 @@ StbiIntegerLayout inspect_stbi_integer(const DecodeRequest& request, ImageFileFo
 }
 
 image::TiledImage load_stbi_integer(std::span<const std::byte> bytes,
-                                    const StbiIntegerLayout& layout, ImageFileFormat format) {
+                                    const StbiIntegerLayout& layout, ImageFileFormat format,
+                                    DecodeSession& session) {
     const auto* encoded = reinterpret_cast<const stbi_uc*>(bytes.data());
     const int encoded_size = static_cast<int>(bytes.size());
     int width = layout.width;
     int height = layout.height;
     int channels = layout.source_channels;
+    session.codec_started(static_cast<std::uint32_t>(height));
     if (layout.sixteen_bit) {
         StbiWordBuffer decoded(stbi_load_16_from_memory(encoded, encoded_size, &width, &height,
                                                         &channels, layout.output_channels),
                                &stbi_image_free);
         if (decoded == nullptr) throw_stbi_decode_error(format);
+        session.codec_finished(static_cast<std::uint32_t>(height));
         return unpack_image(reinterpret_cast<const unsigned char*>(decoded.get()),
                             static_cast<std::uint32_t>(width), static_cast<std::uint32_t>(height),
-                            layout.pixel_format);
+                            layout.pixel_format, session);
     }
     StbiByteBuffer decoded(stbi_load_from_memory(encoded, encoded_size, &width, &height, &channels,
                                                  layout.output_channels),
                            &stbi_image_free);
     if (decoded == nullptr) throw_stbi_decode_error(format);
+    session.codec_finished(static_cast<std::uint32_t>(height));
     return unpack_image(decoded.get(), static_cast<std::uint32_t>(width),
-                        static_cast<std::uint32_t>(height), layout.pixel_format);
+                        static_cast<std::uint32_t>(height), layout.pixel_format, session);
 }
 
-DecodedImage decode_stbi_integer(const DecodeRequest& request, ImageFileFormat format) {
+DecodedImage decode_stbi_integer(const DecodeRequest& request, ImageFileFormat format,
+                                 DecodeSession& session) {
     const StbiIntegerLayout layout = inspect_stbi_integer(request, format);
-    image::TiledImage pixels = load_stbi_integer(request.bytes, layout, format);
+    session.preflight(static_cast<std::uint32_t>(layout.width),
+                      static_cast<std::uint32_t>(layout.height), layout.pixel_format);
+    image::TiledImage pixels = load_stbi_integer(request.bytes, layout, format, session);
     const auto [color_space, color_source] = resolve_float_color_space(request);
-    return {std::move(pixels), color_space, float_decode_report(request, format, color_source)};
+    DecodeReport report = float_decode_report(request, format, color_source);
+    session.finish(report);
+    return {std::move(pixels), color_space, std::move(report)};
 }
 
 bool looks_like_tga(std::span<const std::byte> bytes) noexcept {
@@ -644,7 +758,7 @@ TiffLayout inspect_tiff_layout(const TiffReader& reader, const TiffEntries& entr
 }
 
 std::vector<std::byte> read_tiff_pixels(const TiffReader& reader, const TiffEntries& entries,
-                                        const TiffLayout& layout) {
+                                        const TiffLayout& layout, DecodeSession& session) {
     const std::vector<std::uint32_t> offsets =
         tiff_values(reader, tiff_required(entries, 273, "StripOffsets"));
     const std::vector<std::uint32_t> byte_counts =
@@ -661,6 +775,7 @@ std::vector<std::byte> read_tiff_pixels(const TiffReader& reader, const TiffEntr
     std::vector<std::byte> pixels(
         checked_multiply(row_bytes, layout.height, ImageFileFormat::tiff));
     std::size_t destination = 0;
+    session.codec_started(layout.height);
     for (std::size_t index = 0; index < offsets.size(); ++index) {
         const std::size_t remaining = pixels.size() - destination;
         const std::size_t expected = std::min(
@@ -670,6 +785,9 @@ std::vector<std::byte> read_tiff_pixels(const TiffReader& reader, const TiffEntr
         std::copy(strip.begin(), strip.end(),
                   pixels.begin() + static_cast<std::ptrdiff_t>(destination));
         destination += strip.size();
+        const std::uint32_t completed_rows = static_cast<std::uint32_t>(std::min<std::size_t>(
+            layout.height, (index + 1) * static_cast<std::size_t>(layout.rows_per_strip)));
+        session.codec_progress(completed_rows, layout.height);
     }
     if (destination != pixels.size()) TiffReader::fail("strip data is incomplete");
     normalize_tiff_byte_order(pixels, layout.pixel_format.bytes_per_channel(),
@@ -677,18 +795,22 @@ std::vector<std::byte> read_tiff_pixels(const TiffReader& reader, const TiffEntr
     return pixels;
 }
 
-DecodedImage decode_tiff(const DecodeRequest& request) {
+DecodedImage decode_tiff(const DecodeRequest& request, DecodeSession& session) {
     const TiffReader reader(request.bytes);
     const TiffEntries entries = tiff_entries(reader);
     const TiffLayout layout = inspect_tiff_layout(reader, entries, request.limits);
-    const std::vector<std::byte> pixels = read_tiff_pixels(reader, entries, layout);
+    session.preflight(layout.width, layout.height, layout.pixel_format);
+    const std::vector<std::byte> pixels = read_tiff_pixels(reader, entries, layout, session);
     const auto [color_space, color_source] = resolve_float_color_space(request);
-    return {unpack_image(reinterpret_cast<const unsigned char*>(pixels.data()), layout.width,
-                         layout.height, layout.pixel_format),
-            color_space, float_decode_report(request, ImageFileFormat::tiff, color_source)};
+    image::TiledImage unpacked =
+        unpack_image(reinterpret_cast<const unsigned char*>(pixels.data()), layout.width,
+                     layout.height, layout.pixel_format, session);
+    DecodeReport report = float_decode_report(request, ImageFileFormat::tiff, color_source);
+    session.finish(report);
+    return {std::move(unpacked), color_space, std::move(report)};
 }
 
-DecodedImage decode_radiance_hdr(const DecodeRequest& request) {
+DecodedImage decode_radiance_hdr(const DecodeRequest& request, DecodeSession& session) {
     if (request.bytes.size() > static_cast<std::size_t>(std::numeric_limits<int>::max())) {
         throw ImageIoError(ImageIoErrorCode::over_limit, ImageFileFormat::radiance_hdr,
                            "Radiance HDR input exceeds the codec byte-count limit");
@@ -705,8 +827,9 @@ DecodedImage decode_radiance_hdr(const DecodeRequest& request) {
     }
     const image::PixelFormat format{image::ChannelType::float32,
                                     static_cast<std::uint8_t>(channels)};
-    enforce_limits(static_cast<std::uint32_t>(width), static_cast<std::uint32_t>(height), format,
-                   request.limits, ImageFileFormat::radiance_hdr);
+    session.preflight(static_cast<std::uint32_t>(width), static_cast<std::uint32_t>(height),
+                      format);
+    session.codec_started(static_cast<std::uint32_t>(height));
     StbiFloatBuffer decoded(
         stbi_loadf_from_memory(encoded, encoded_size, &width, &height, &channels, 0),
         &stbi_image_free);
@@ -716,13 +839,14 @@ DecodedImage decode_radiance_hdr(const DecodeRequest& request) {
                            std::string("Radiance HDR decode failed: ") +
                                (reason == nullptr ? "unknown codec error" : reason));
     }
+    session.codec_finished(static_cast<std::uint32_t>(height));
     const auto [color_space, color_source] = resolve_float_color_space(request);
-    return {
-        unpack_image(reinterpret_cast<const unsigned char*>(decoded.get()),
-                     static_cast<std::uint32_t>(width), static_cast<std::uint32_t>(height), format),
-        color_space,
-        float_decode_report(request, ImageFileFormat::radiance_hdr, color_source),
-    };
+    image::TiledImage unpacked = unpack_image(reinterpret_cast<const unsigned char*>(decoded.get()),
+                                              static_cast<std::uint32_t>(width),
+                                              static_cast<std::uint32_t>(height), format, session);
+    DecodeReport report = float_decode_report(request, ImageFileFormat::radiance_hdr, color_source);
+    session.finish(report);
+    return {std::move(unpacked), color_space, std::move(report)};
 }
 
 std::pair<std::uint32_t, std::uint32_t> exr_dimensions(const EXRHeader& header) {
@@ -738,7 +862,7 @@ std::pair<std::uint32_t, std::uint32_t> exr_dimensions(const EXRHeader& header) 
     return {static_cast<std::uint32_t>(width), static_cast<std::uint32_t>(height)};
 }
 
-DecodedImage decode_openexr(const DecodeRequest& request) {
+DecodedImage decode_openexr(const DecodeRequest& request, DecodeSession& session) {
     const auto* encoded = reinterpret_cast<const unsigned char*>(request.bytes.data());
     EXRVersion version{};
     if (ParseEXRVersionFromMemory(&version, encoded, request.bytes.size()) != TINYEXR_SUCCESS) {
@@ -758,8 +882,7 @@ DecodedImage decode_openexr(const DecodeRequest& request) {
     }
     const auto [declared_width, declared_height] = exr_dimensions(*header.get());
     const image::PixelFormat format{image::ChannelType::float32, 4};
-    enforce_limits(declared_width, declared_height, format, request.limits,
-                   ImageFileFormat::openexr);
+    session.preflight(declared_width, declared_height, format);
     if (declared_width > static_cast<std::uint32_t>(std::numeric_limits<int>::max()) ||
         declared_height > static_cast<std::uint32_t>(std::numeric_limits<int>::max())) {
         throw ImageIoError(ImageIoErrorCode::over_limit, ImageFileFormat::openexr,
@@ -770,6 +893,7 @@ DecodedImage decode_openexr(const DecodeRequest& request) {
     int width = 0;
     int height = 0;
     TinyExrError decode_error;
+    session.codec_started(declared_height);
     const int decode_result = LoadEXRFromMemory(&allocation, &width, &height, encoded,
                                                 request.bytes.size(), decode_error.output());
     ExrFloatBuffer decoded(allocation, &std::free);
@@ -781,13 +905,13 @@ DecodedImage decode_openexr(const DecodeRequest& request) {
         throw ImageIoError(ImageIoErrorCode::decode_failed, ImageFileFormat::openexr,
                            "OpenEXR decoded dimensions disagree with its header");
     }
+    session.codec_finished(declared_height);
     const auto [color_space, color_source] = resolve_float_color_space(request);
-    return {
-        unpack_image(reinterpret_cast<const unsigned char*>(decoded.get()), declared_width,
-                     declared_height, format),
-        color_space,
-        float_decode_report(request, ImageFileFormat::openexr, color_source),
-    };
+    image::TiledImage unpacked = unpack_image(reinterpret_cast<const unsigned char*>(decoded.get()),
+                                              declared_width, declared_height, format, session);
+    DecodeReport report = float_decode_report(request, ImageFileFormat::openexr, color_source);
+    session.finish(report);
+    return {std::move(unpacked), color_space, std::move(report)};
 }
 
 LodePNGColorType png_color_type(image::PixelFormat format) {
@@ -880,18 +1004,26 @@ std::string_view image_file_format_name(ImageFileFormat format) noexcept {
 
 DecodedImage decode_image_memory(const DecodeRequest& request) {
     const ImageFileFormat detected = detect_image_format(request.bytes);
+    if (detected == ImageFileFormat::unknown) {
+        std::string message = "unsupported image format ";
+        message += image_file_format_name(detected);
+        message +=
+            "; supported formats are PNG, JPEG, TGA, BMP, TIFF, OpenEXR, Radiance HDR and PSD";
+        throw ImageIoError(ImageIoErrorCode::unsupported_format, detected, std::move(message));
+    }
+    DecodeSession session(request, detected);
     if (detected == ImageFileFormat::radiance_hdr) {
-        return decode_radiance_hdr(request);
+        return decode_radiance_hdr(request, session);
     }
     if (detected == ImageFileFormat::openexr) {
-        return decode_openexr(request);
+        return decode_openexr(request, session);
     }
     if (detected == ImageFileFormat::tiff) {
-        return decode_tiff(request);
+        return decode_tiff(request, session);
     }
     if (detected == ImageFileFormat::jpeg || detected == ImageFileFormat::tga ||
         detected == ImageFileFormat::bmp || detected == ImageFileFormat::psd) {
-        return decode_stbi_integer(request, detected);
+        return decode_stbi_integer(request, detected, session);
     }
     if (detected != ImageFileFormat::png) {
         std::string message = "unsupported image format ";
@@ -913,13 +1045,14 @@ DecodedImage decode_image_memory(const DecodeRequest& request) {
             std::string("PNG header inspection failed: ") + lodepng_error_text(error));
     }
     const RawLayout layout = choose_raw_layout(inspection.get()->info_png.color);
-    enforce_limits(width, height, layout.pixel_format, request.limits);
+    session.preflight(width, height, layout.pixel_format);
 
     LodePngState decoding;
     decoding.get()->info_raw.colortype = layout.color_type;
     decoding.get()->info_raw.bitdepth =
         static_cast<unsigned>(layout.pixel_format.bytes_per_channel() * 8);
     unsigned char* allocation = nullptr;
+    session.codec_started(height);
     error =
         lodepng_decode(&allocation, &width, &height, decoding.get(), encoded, request.bytes.size());
     LodePngBuffer decoded(allocation, &std::free);
@@ -927,6 +1060,7 @@ DecodedImage decode_image_memory(const DecodeRequest& request) {
         throw ImageIoError(ImageIoErrorCode::decode_failed, detected,
                            std::string("PNG decode failed: ") + lodepng_error_text(error));
     }
+    session.codec_finished(height);
 
     std::vector<std::string> diagnostics;
     const auto [color_space, color_source] =
@@ -935,11 +1069,11 @@ DecodedImage decode_image_memory(const DecodeRequest& request) {
     if (mismatch) {
         diagnostics.emplace_back("source extension disagrees with detected PNG content");
     }
-    return {
-        unpack_image(decoded.get(), width, height, layout.pixel_format, true),
-        color_space,
-        {detected, mismatch, color_source, std::move(diagnostics)},
-    };
+    image::TiledImage unpacked =
+        unpack_image(decoded.get(), width, height, layout.pixel_format, session, true);
+    DecodeReport report{detected, mismatch, color_source, std::move(diagnostics)};
+    session.finish(report);
+    return {std::move(unpacked), color_space, std::move(report)};
 }
 
 std::vector<std::byte> encode_png_memory(const image::TiledImage& source,

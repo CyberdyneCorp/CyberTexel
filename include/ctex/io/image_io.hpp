@@ -5,6 +5,7 @@
 #include <cstdint>
 #include <ctex/image/color_policy.hpp>
 #include <ctex/image/tiled_image.hpp>
+#include <functional>
 #include <span>
 #include <stdexcept>
 #include <string>
@@ -22,6 +23,7 @@ enum class ImageIoErrorCode {
     decode_failed,
     encode_failed,
     unsupported_pixel_format,
+    cancelled,
 };
 
 enum class ColorSpaceSource { caller, embedded_srgb, automatic_rule };
@@ -32,12 +34,32 @@ struct DecodeLimits {
     std::size_t maximum_decoded_bytes = 1ULL << 30;
 };
 
+enum class DecodePhase : std::uint8_t { inspection, codec, unpack, complete };
+
+struct DecodeProgress {
+    DecodePhase phase{};
+    std::uint32_t completed_rows{};
+    std::uint32_t total_rows{};
+    std::size_t estimated_peak_working_bytes{};
+};
+
+inline constexpr std::size_t default_decode_working_byte_limit =
+    sizeof(std::size_t) >= 8 ? (4ULL << 30) : (2ULL << 30);
+
+struct DecodeControl {
+    std::size_t maximum_working_bytes = default_decode_working_byte_limit;
+    std::uint32_t progress_interval_rows = 64;
+    std::function<bool()> is_cancelled;
+    std::function<void(const DecodeProgress&)> report_progress;
+};
+
 struct DecodeRequest {
     std::span<const std::byte> bytes;
     std::string_view source_name;
     image::ChannelSemantic intended_channel = image::ChannelSemantic::base_color;
     image::InputColorSpace color_space = image::InputColorSpace::automatic;
     DecodeLimits limits{};
+    DecodeControl control{};
 };
 
 struct DecodeReport {
@@ -45,6 +67,8 @@ struct DecodeReport {
     bool extension_mismatch;
     ColorSpaceSource color_space_source;
     std::vector<std::string> diagnostics;
+    std::size_t estimated_peak_working_bytes{};
+    std::size_t progress_event_count{};
 };
 
 struct DecodedImage {

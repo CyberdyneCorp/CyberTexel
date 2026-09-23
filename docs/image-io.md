@@ -37,6 +37,16 @@ allocation. The default ceiling is 16384×16384 and 1 GiB of decoded pixels;
 hosts can lower each limit. Truncated or malformed data produces a named error
 and no partial image.
 
+Large decode control is separate from the retained-pixel limit. Before codec
+allocation, CyberTexel computes a conservative working-set bound of two decoded
+buffers, exact padded 64×64 tile storage, 256 bytes of metadata per tile and
+1 MiB of codec scratch, then refuses work above the caller's ceiling. The
+default ceiling is 4 GiB on 64-bit hosts and 2 GiB on 32-bit hosts. Synchronous progress names inspection, codec,
+row unpack and completion phases. Cancellation is checked before and after
+codec work and on every unpacked row; a host can cancel from the inspected-header
+progress callback to stop before the codec allocates. Cancelled work destroys
+all staged storage and never publishes a partial decoded image.
+
 JPEG, TGA and BMP decode to their native one-to-four-channel 8-bit layouts.
 Flattened PSD composites retain one-to-four 8-bit or 16-bit channels; importing
 individual PSD layers remains part of task 2.6. The baseline TIFF path accepts

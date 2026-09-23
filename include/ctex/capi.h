@@ -100,7 +100,8 @@ typedef enum ctex_diagnostic_code {
     CTEX_DIAGNOSTIC_INVALID_OPERATION_RECORD = 61,
     CTEX_DIAGNOSTIC_INVALID_EDITABLE_AUTHORING = 62,
     CTEX_DIAGNOSTIC_INVALID_MESH_REPROJECTION = 63,
-    CTEX_DIAGNOSTIC_INVALID_RESOLUTION_CHANGE = 64
+    CTEX_DIAGNOSTIC_INVALID_RESOLUTION_CHANGE = 64,
+    CTEX_DIAGNOSTIC_IMAGE_DECODE_CANCELLED = 65
 } ctex_diagnostic_code;
 
 typedef enum ctex_log_severity {
@@ -2590,6 +2591,55 @@ typedef struct ctex_image_decode_limits_descriptor {
     ((uint32_t)sizeof(ctex_image_decode_limits_descriptor))
 #define CTEX_IMAGE_DECODE_LIMITS_DESCRIPTOR_CURRENT_SIZE \
     ((uint32_t)sizeof(ctex_image_decode_limits_descriptor))
+
+typedef enum ctex_image_decode_phase {
+    CTEX_IMAGE_DECODE_PHASE_INSPECTION = 0,
+    CTEX_IMAGE_DECODE_PHASE_CODEC = 1,
+    CTEX_IMAGE_DECODE_PHASE_UNPACK = 2,
+    CTEX_IMAGE_DECODE_PHASE_COMPLETE = 3
+} ctex_image_decode_phase;
+
+typedef struct ctex_image_decode_progress_info {
+    uint32_t size;
+    uint32_t phase;
+    uint32_t completed_rows;
+    uint32_t total_rows;
+    size_t estimated_peak_working_bytes;
+} ctex_image_decode_progress_info;
+
+#define CTEX_IMAGE_DECODE_PROGRESS_INFO_V1_SIZE ((uint32_t)sizeof(ctex_image_decode_progress_info))
+#define CTEX_IMAGE_DECODE_PROGRESS_INFO_CURRENT_SIZE \
+    ((uint32_t)sizeof(ctex_image_decode_progress_info))
+
+typedef uint32_t (*ctex_image_decode_cancel_callback)(void* user_data);
+typedef void (*ctex_image_decode_progress_callback)(
+    void* user_data, const ctex_image_decode_progress_info* progress);
+
+typedef struct ctex_image_decode_control_descriptor {
+    uint32_t size;
+    size_t maximum_working_bytes;
+    uint32_t progress_interval_rows;
+    void* user_data;
+    ctex_image_decode_cancel_callback is_cancelled;
+    ctex_image_decode_progress_callback report_progress;
+} ctex_image_decode_control_descriptor;
+
+#define CTEX_IMAGE_DECODE_CONTROL_DESCRIPTOR_V1_SIZE \
+    ((uint32_t)sizeof(ctex_image_decode_control_descriptor))
+#define CTEX_IMAGE_DECODE_CONTROL_DESCRIPTOR_CURRENT_SIZE \
+    ((uint32_t)sizeof(ctex_image_decode_control_descriptor))
+
+typedef struct ctex_image_decode_execution_info {
+    uint32_t size;
+    size_t estimated_peak_working_bytes;
+    size_t progress_event_count;
+    uint32_t cancelled;
+} ctex_image_decode_execution_info;
+
+#define CTEX_IMAGE_DECODE_EXECUTION_INFO_V1_SIZE \
+    ((uint32_t)sizeof(ctex_image_decode_execution_info))
+#define CTEX_IMAGE_DECODE_EXECUTION_INFO_CURRENT_SIZE \
+    ((uint32_t)sizeof(ctex_image_decode_execution_info))
 
 typedef struct ctex_decoded_image_info {
     uint32_t size;
@@ -5843,6 +5893,17 @@ CTEX_API ctex_result ctex_image_decode_memory(const void* encoded, size_t encode
                                               const ctex_image_decode_limits_descriptor* limits,
                                               ctex_decoded_image_info* out_info, void* pixel_buffer,
                                               size_t pixel_buffer_size, size_t* out_required_size);
+
+/*
+ * Adds a separate working-memory ceiling plus cooperative cancellation and
+ * progress checkpoints. No pixel bytes are published unless decode completes.
+ */
+CTEX_API ctex_result ctex_image_decode_memory_bounded(
+    const void* encoded, size_t encoded_size, const char* source_name, uint32_t intended_channel,
+    uint32_t input_color_space, const ctex_image_decode_limits_descriptor* limits,
+    const ctex_image_decode_control_descriptor* control,
+    ctex_image_decode_execution_info* out_execution_info, ctex_decoded_image_info* out_info,
+    void* pixel_buffer, size_t pixel_buffer_size, size_t* out_required_size);
 
 /*
  * Expands packed or row-strided pixels without changing component bit depth.

@@ -86,6 +86,7 @@
       {"requirement": "Decoding from memory", "symbols": ["ctex_image_decode_memory"]},
       {"requirement": "Every image source is untrusted", "symbols": ["ctex_image_decode_memory"]},
       {"requirement": "Decoder fuzzing gate", "symbols": ["ctex_image_decode_memory"]},
+      {"requirement": "Decoding is cancellable and bounded", "symbols": ["ctex_image_decode_memory_bounded"]},
       {"requirement": "Resampling is documented", "symbols": ["ctex_image_resample"]},
       {"requirement": "Round-trip fidelity", "symbols": ["ctex_image_decode_memory", "ctex_image_encode_memory"]},
       {"requirement": "Third-party decoders are audited", "symbols": ["ctex_image_decode_memory"]}

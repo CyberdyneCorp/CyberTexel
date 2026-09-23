@@ -21,6 +21,7 @@ using ctex::image::PixelFormat;
 using ctex::image::TiledImage;
 using ctex::io::ColorSpaceSource;
 using ctex::io::DecodeLimits;
+using ctex::io::DecodePhase;
 using ctex::io::DecodeRequest;
 using ctex::io::ImageFileFormat;
 using ctex::io::ImageIoError;
@@ -519,6 +520,86 @@ bool hdr_limits_are_checked_before_decode() {
         ImageIoErrorCode::over_limit, "2x1", ImageFileFormat::radiance_hdr);
 }
 
+bool large_decode_reports_progress_and_cancels_before_allocation() {
+    TiledImage source(128, 128, PixelFormat{ChannelType::float32, 4});
+    const std::vector<std::byte> encoded =
+        ctex::io::encode_texture_memory(source, {.format = ctex::io::ExportImageFormat::openexr,
+                                                 .bit_depth = ctex::io::ExportBitDepth::bits_32,
+                                                 .color_space = ColorSpace::linear_rec709});
+    std::size_t callback_count = 0;
+    const auto decoded = ctex::io::decode_image_memory({
+        .bytes = encoded,
+        .source_name = "large.exr",
+        .control = {.progress_interval_rows = 8,
+                    .report_progress =
+                        [&](const ctex::io::DecodeProgress& progress) {
+                            ++callback_count;
+                            expect(progress.estimated_peak_working_bytes > 0 ||
+                                       progress.phase == DecodePhase::inspection,
+                                   "decode progress omitted its working-memory estimate");
+                        }},
+    });
+    if (!expect(decoded.report.progress_event_count == callback_count && callback_count > 4,
+                "large decode did not report incremental progress") ||
+        !expect(decoded.report.estimated_peak_working_bytes >
+                    decoded.pixels.width() * decoded.pixels.height() * decoded.pixels.pixel_bytes(),
+                "decode did not account for codec working memory")) {
+        return false;
+    }
+
+    const bool bounded = expect_error(
+        [&] {
+            static_cast<void>(ctex::io::decode_image_memory({
+                .bytes = encoded,
+                .source_name = "working-limit.exr",
+                .control = {.maximum_working_bytes =
+                                decoded.report.estimated_peak_working_bytes - 1},
+            }));
+        },
+        ImageIoErrorCode::over_limit, "working bytes", ImageFileFormat::openexr);
+
+    bool cancel = false;
+    std::size_t cancellation_events = 0;
+    const bool cancelled = expect_error(
+        [&] {
+            static_cast<void>(ctex::io::decode_image_memory({
+                .bytes = encoded,
+                .source_name = "cancelled.exr",
+                .control = {.is_cancelled = [&] { return cancel; },
+                            .report_progress =
+                                [&](const ctex::io::DecodeProgress& progress) {
+                                    ++cancellation_events;
+                                    if (progress.phase == DecodePhase::inspection &&
+                                        progress.total_rows == 128) {
+                                        cancel = true;
+                                    }
+                                }},
+            }));
+        },
+        ImageIoErrorCode::cancelled, "cancelled", ImageFileFormat::openexr);
+    if (!bounded || !cancelled ||
+        !expect(cancellation_events == 2,
+                "cancelled EXR continued beyond its inspected-header checkpoint")) {
+        return false;
+    }
+
+    TiledImage skinny_source(1, 128, PixelFormat{ChannelType::float32, 4});
+    const std::vector<std::byte> skinny_encoded = ctex::io::encode_texture_memory(
+        skinny_source, {.format = ctex::io::ExportImageFormat::openexr,
+                        .bit_depth = ctex::io::ExportBitDepth::bits_32,
+                        .color_space = ColorSpace::linear_rec709});
+    constexpr std::size_t tightly_packed_bytes = 1 * 128 * 4 * sizeof(float);
+    return expect_error(
+        [&] {
+            static_cast<void>(ctex::io::decode_image_memory({
+                .bytes = skinny_encoded,
+                .source_name = "skinny.exr",
+                .control = {.maximum_working_bytes = 2 * tightly_packed_bytes + (1ULL << 20) + 1},
+            }));
+        },
+        ImageIoErrorCode::over_limit, "working bytes", ImageFileFormat::openexr);
+}
+
 }  // namespace
 
 int main() {
@@ -530,7 +611,8 @@ int main() {
                    malformed_flat_inputs_are_named() && float_png_is_refused() &&
                    radiance_hdr_preserves_unclamped_float_values() &&
                    openexr_preserves_unclamped_float_values() &&
-                   hdr_limits_are_checked_before_decode()
+                   hdr_limits_are_checked_before_decode() &&
+                   large_decode_reports_progress_and_cancels_before_allocation()
                ? 0
                : 1;
 }

@@ -1363,6 +1363,13 @@ re-evaluation, then proves undo restores the original path. Together with the
 existing bounded mesh-reprojection preflight and atomic commit, this maps the
 paint-tools requirement and reduces the exact task-14.8 gap to 3 requirements.
 
+Task 2.11 adds a separate decode working-memory ceiling with a conservative
+preflight bound, synchronous phase/row progress and cooperative cancellation
+before and after codec work plus every output row. Cancellation destroys staged
+codec and tiled-image storage without publishing caller pixels. C++ and
+strict-C EXR/PNG fixtures cover progress, over-budget refusal and atomic early
+cancellation, reducing the exact task-14.8 gap to 2 requirements.
+
 ## 1. Foundation
 
 - [x] 1.1 CMake project, C++20, warnings as errors, presets for headless, macOS, Linux, Windows, iOS, Android
@@ -1388,7 +1395,7 @@ paint-tools requirement and reduces the exact task-14.8 gap to 3 requirements.
 - [x] 2.8 Decoding from memory buffers
 - [x] 2.9 Untrusted input bounds: dimension validation before allocation, configurable ceiling, named refusals
 - [x] 2.10 Decoder fuzzing gate in CI
-- [ ] 2.11 Cancellation, progress and bounded working memory for large decodes
+- [x] 2.11 Cancellation, progress and bounded working memory for large decodes
 - [x] 2.12 Documented resampling filters with a stated default
 - [ ] 2.13 `image-io` scenarios as tests
 
