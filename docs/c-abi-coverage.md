@@ -238,5 +238,12 @@ policies, stale-source refusal and atomic replacement publication. Tangent-space
 normal samples are converted through the source and destination bases. Mapping
 the reprojection requirement reduces the exact remaining gap to 5 runtime
 requirements.
+Texture-set resolution changes now accept an explicit replay-eligible,
+resample-all or cancel decision. Canonical operation records are assessed
+against the host version catalogue; mixed checkpoint segments require a named
+filter; complete host replay rasters are validated and published under working
+and history byte ceilings. Dedicated undo/redo entry points exchange the whole
+base/UDIM state atomically. Mapping the resolution-change requirement reduces
+the exact remaining gap to 4 runtime requirements.
 The gate is not part of the aggregate `just check` until that count reaches zero;
 its unit tests run in the normal tooling suite throughout the migration.

@@ -646,6 +646,17 @@ record against the host-supported version ranges. Counts distinguish replayable,
 checkpoint-fallback and unsupported records; the JSON report names each record,
 its disposition and diagnostic. Report-buffer refusal is atomic.
 
+`ctex_texture_set_change_resolution` requires replay-eligible, resample-all or
+cancel policy. Replay mode assesses the supplied canonical operation records,
+requires an explicit nearest or bilinear policy for every checkpoint fallback,
+and validates one complete host-evaluated raster for each enabled base or UDIM
+channel. Resample-all evaluates the same filter in the core. Both paths enforce
+working and retained-history byte ceilings before atomically swapping any
+state. `ctex_texture_set_undo_resolution_change` and
+`ctex_texture_set_redo_resolution_change` restore dimensions, pixels, UDIM
+storage and tile-history context as one step. See
+[`resolution-changes.md`](resolution-changes.md).
+
 ## Smart materials
 
 The smart-material boundary accepts the canonical versioned serialization used

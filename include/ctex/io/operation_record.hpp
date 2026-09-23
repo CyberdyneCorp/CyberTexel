@@ -4,6 +4,7 @@
 #include <array>
 #include <cstddef>
 #include <cstdint>
+#include <ctex/doc/resolution_change.hpp>
 #include <ctex/image/color.hpp>
 #include <ctex/image/pixel_format.hpp>
 #include <ctex/io/project_container.hpp>
@@ -123,6 +124,9 @@ void validate_operation_record(const EditableOperationRecord& record);
     const ProjectContainer& project,
     std::span<const OperationAlgorithmSupport> supported_algorithms, bool target_resolution_changed,
     OperationRecordReadLimits limits = {});
+
+[[nodiscard]] doc::ResolutionReplaySource resolution_replay_source(
+    const EditableOperationRecord& record, const OperationReplayAssessment& assessment);
 
 [[nodiscard]] StandaloneAsset package_operation_record(const EditableOperationRecord& record);
 [[nodiscard]] EditableOperationRecord unpack_operation_record(

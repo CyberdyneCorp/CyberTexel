@@ -1347,6 +1347,16 @@ ambiguity resolution; stale sources and unmapped attachments refuse atomically.
 Normal-vector channels convert through source and destination tangent bases.
 C++ and strict-C fixtures reduce the exact task-14.8 gap to 5 requirements.
 
+Task 20.3 makes texture-set resolution changes an explicit replay-eligible,
+resample-all or cancel operation. Canonical record assessments distinguish
+target-resolution replay from checkpoint fallback, and mixed content requires a
+named fallback filter plus complete host-evaluated base/UDIM rasters. The core
+stages every result under working and retained-history byte ceilings before an
+atomic swap; resize undo/redo restores dimensions, pixels, UDIM storage and the
+prior tile-history context. C++ and strict-C fixtures prove target-resolution
+stroke output, mixed replay/checkpoint policy, budget refusal and atomic
+undo/redo, reducing the exact task-14.8 gap to 4 requirements.
+
 ## 1. Foundation
 
 - [x] 1.1 CMake project, C++20, warnings as errors, presets for headless, macOS, Linux, Windows, iOS, Android
@@ -1624,7 +1634,7 @@ C++ and strict-C fixtures reduce the exact task-14.8 gap to 5 requirements.
 
 - [ ] 20.1 Versioned operation records, pinned input assets and checkpoint storage; expose through C ABI and bindings and round-trip in project-io
 - [x] 20.2 Same-resolution recovery versus resolution-independent replay eligibility; clone/blur/smear source snapshots and checkpoint-only policy
-- [ ] 20.3 Atomic undoable resize with explicit replay/resample/cancel policy and mixed-layer fixtures
+- [x] 20.3 Atomic undoable resize with explicit replay/resample/cancel policy and mixed-layer fixtures
 - [x] 20.4 Persistent editable decals, text and surface paths; parameter editing, invalidation, save/reopen and undo
 - [x] 20.5 Reprojection preflight, distance/angle/visibility limits, ambiguity and hole policy, tangent conversion and cancellation
 - [ ] 20.6 `editable-authoring` scenarios as tests

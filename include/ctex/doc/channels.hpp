@@ -45,6 +45,10 @@ public:
     TextureChannels(const TextureChannels& other);
     TextureChannels& operator=(const TextureChannels& other);
 
+    // Exchanges complete channel configuration and storage. Both instances
+    // must use the same memory resource so the operation is allocation-free.
+    void swap(TextureChannels& other);
+
     [[nodiscard]] TextureChannels clone_configuration() const;
     void synchronize_configuration(const TextureChannels& source);
     void register_descriptor(ChannelDescriptor descriptor);

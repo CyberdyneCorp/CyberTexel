@@ -26,6 +26,20 @@ class MeshView;
 namespace ctex::doc {
 
 struct TextureSetMemoryState;
+struct TextureSetResolutionHistory;
+struct TextureSetResolutionSnapshot;
+struct TextureSetResolutionStaged;
+struct ResolutionChangeRequest;
+struct ResolutionChangeReport;
+struct ResolutionRestoreReport;
+class TextureSet;
+
+[[nodiscard]] ResolutionChangeReport change_texture_set_resolution(
+    TextureSet& texture_set, const ResolutionChangeRequest& request);
+[[nodiscard]] ResolutionRestoreReport undo_texture_set_resolution(TextureSet& texture_set);
+[[nodiscard]] ResolutionRestoreReport redo_texture_set_resolution(TextureSet& texture_set);
+[[nodiscard]] ResolutionRestoreReport restore_texture_set_resolution(TextureSet& texture_set,
+                                                                     bool undoing);
 
 enum class TextureSetMemoryCategory : std::uint8_t { mesh_maps };
 
@@ -253,6 +267,14 @@ public:
 
 private:
     friend class TextureSetTransaction;
+    friend ResolutionChangeReport change_texture_set_resolution(
+        TextureSet& texture_set, const ResolutionChangeRequest& request);
+    friend ResolutionRestoreReport undo_texture_set_resolution(TextureSet& texture_set);
+    friend ResolutionRestoreReport redo_texture_set_resolution(TextureSet& texture_set);
+    friend ResolutionRestoreReport restore_texture_set_resolution(TextureSet& texture_set,
+                                                                  bool undoing);
+    friend struct TextureSetResolutionSnapshot;
+    friend struct TextureSetResolutionStaged;
     std::pmr::memory_resource* memory_resource_;
     std::pmr::string display_name_;
     PartitionSourceKind partition_kind_;
@@ -268,6 +290,8 @@ private:
     LayerStack layer_stack_;
     EditableAuthoringStore editable_authoring_;
     TileHistory tile_history_;
+    std::shared_ptr<TextureSetResolutionHistory> resolution_history_;
+    std::size_t resolution_history_bytes_{};
     std::shared_ptr<TextureSetMemoryState> memory_state_;
     std::pmr::vector<AppliedPresetApplication> preset_applications_;
 };

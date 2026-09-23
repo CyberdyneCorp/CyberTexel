@@ -11,6 +11,7 @@
 #include <ctex/doc/material_graph.hpp>
 #include <ctex/doc/mesh_replacement.hpp>
 #include <ctex/doc/mesh_reprojection.hpp>
+#include <ctex/doc/resolution_change.hpp>
 #include <ctex/doc/smart_material.hpp>
 #include <ctex/emit/emission_cache.hpp>
 #include <ctex/exec/cpu_reference.hpp>
@@ -7233,6 +7234,136 @@ std::string operation_replay_json(const ctex::io::EditableOperationRecord& recor
     return report;
 }
 
+[[noreturn]] void throw_resolution_change_error(const ctex::doc::ResolutionChangeError& error) {
+    switch (error.code()) {
+        case ctex::doc::ResolutionChangeErrorCode::over_budget:
+            throw_boundary(CTEX_RESULT_OVER_BUDGET, CTEX_DIAGNOSTIC_INVALID_RESOLUTION_CHANGE,
+                           error.what());
+        case ctex::doc::ResolutionChangeErrorCode::replay_unavailable:
+            throw_boundary(CTEX_RESULT_UNSUPPORTED_OPERATION,
+                           CTEX_DIAGNOSTIC_INVALID_RESOLUTION_CHANGE, error.what());
+        case ctex::doc::ResolutionChangeErrorCode::no_undo:
+            throw_boundary(CTEX_RESULT_NO_UNDO, CTEX_DIAGNOSTIC_INVALID_RESOLUTION_CHANGE,
+                           error.what());
+        case ctex::doc::ResolutionChangeErrorCode::no_redo:
+            throw_boundary(CTEX_RESULT_NO_REDO, CTEX_DIAGNOSTIC_INVALID_RESOLUTION_CHANGE,
+                           error.what());
+        case ctex::doc::ResolutionChangeErrorCode::invalid_request:
+        case ctex::doc::ResolutionChangeErrorCode::missing_replay_output:
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_INVALID_RESOLUTION_CHANGE,
+                           error.what());
+    }
+    throw_boundary(CTEX_RESULT_INTERNAL_ERROR, CTEX_DIAGNOSTIC_INVALID_RESOLUTION_CHANGE,
+                   error.what());
+}
+
+ctex::doc::ResolutionChangePolicy resolution_change_policy(std::uint32_t policy) {
+    if (policy > CTEX_RESOLUTION_CANCEL) {
+        throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_INVALID_ENUM_VALUE,
+                       "resolution change policy is invalid");
+    }
+    return static_cast<ctex::doc::ResolutionChangePolicy>(policy);
+}
+
+ctex::doc::CheckpointResamplePolicy checkpoint_resample_policy(std::uint32_t policy) {
+    if (policy > CTEX_CHECKPOINT_RESAMPLE_BILINEAR) {
+        throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_INVALID_ENUM_VALUE,
+                       "checkpoint resampling policy is invalid");
+    }
+    return static_cast<ctex::doc::CheckpointResamplePolicy>(policy);
+}
+
+void validate_resolution_change_descriptor(
+    const ctex_texture_set_resolution_change_descriptor& descriptor) {
+    validate_structure_size(descriptor.size, CTEX_TEXTURE_SET_RESOLUTION_CHANGE_DESCRIPTOR_V1_SIZE,
+                            CTEX_TEXTURE_SET_RESOLUTION_CHANGE_DESCRIPTOR_CURRENT_SIZE,
+                            "texture-set resolution change descriptor size");
+    if ((descriptor.operation_records == nullptr && descriptor.operation_record_count != 0) ||
+        (descriptor.supported_algorithms == nullptr && descriptor.supported_algorithm_count != 0) ||
+        (descriptor.replay_rasters == nullptr && descriptor.replay_raster_count != 0)) {
+        throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                       "resolution change contains a null array with a non-zero count");
+    }
+}
+
+std::vector<ctex::doc::ResolutionReplaySource> resolution_replay_sources(
+    const ctex_texture_set_resolution_change_descriptor& descriptor) {
+    const ctex_operation_replay_assessment_descriptor assessment_descriptor{
+        .size = CTEX_OPERATION_REPLAY_ASSESSMENT_DESCRIPTOR_CURRENT_SIZE,
+        .supported_algorithms = descriptor.supported_algorithms,
+        .supported_algorithm_count = descriptor.supported_algorithm_count,
+        .target_resolution_changed = 1,
+    };
+    const std::vector supported = operation_algorithm_support(assessment_descriptor);
+    std::vector<ctex::doc::ResolutionReplaySource> result;
+    result.reserve(descriptor.operation_record_count);
+    for (std::size_t index = 0; index < descriptor.operation_record_count; ++index) {
+        const ctex_resolution_operation_record_descriptor& source =
+            descriptor.operation_records[index];
+        validate_structure_size(source.size, CTEX_RESOLUTION_OPERATION_RECORD_DESCRIPTOR_V1_SIZE,
+                                CTEX_RESOLUTION_OPERATION_RECORD_DESCRIPTOR_CURRENT_SIZE,
+                                "resolution operation-record descriptor size");
+        if (source.canonical_record == nullptr && source.canonical_record_size != 0) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                           "resolution operation record is null with a non-zero size");
+        }
+        const auto bytes =
+            source.canonical_record_size == 0
+                ? std::span<const std::byte>{}
+                : std::span<const std::byte>(static_cast<const std::byte*>(source.canonical_record),
+                                             source.canonical_record_size);
+        const ctex::io::EditableOperationRecord record =
+            ctex::io::deserialize_operation_record(bytes);
+        result.push_back(ctex::io::resolution_replay_source(
+            record, ctex::io::assess_operation_replay(record, supported, true)));
+    }
+    return result;
+}
+
+std::vector<ctex::doc::ResolutionReplayRaster> resolution_replay_rasters(
+    const ctex_texture_set_resolution_change_descriptor& descriptor) {
+    std::vector<ctex::doc::ResolutionReplayRaster> result;
+    result.reserve(descriptor.replay_raster_count);
+    for (std::size_t index = 0; index < descriptor.replay_raster_count; ++index) {
+        const ctex_resolution_replay_raster_descriptor& source = descriptor.replay_rasters[index];
+        validate_structure_size(source.size, CTEX_RESOLUTION_REPLAY_RASTER_DESCRIPTOR_V1_SIZE,
+                                CTEX_RESOLUTION_REPLAY_RASTER_DESCRIPTOR_CURRENT_SIZE,
+                                "resolution replay raster descriptor size");
+        if (source.semantic_id == nullptr ||
+            (source.pixels == nullptr && source.pixel_bytes != 0)) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                           "resolution replay raster contains a required null pointer");
+        }
+        result.push_back({.semantic_id = source.semantic_id,
+                          .udim_tile_number = source.udim_tile_number,
+                          .pixels = source.pixel_bytes == 0
+                                        ? std::span<const std::byte>{}
+                                        : std::span<const std::byte>(
+                                              static_cast<const std::byte*>(source.pixels),
+                                              source.pixel_bytes)});
+    }
+    return result;
+}
+
+ctex_texture_set_resolution_change_info resolution_change_info(
+    const ctex::doc::ResolutionChangeReport& report) {
+    return {
+        .size = CTEX_TEXTURE_SET_RESOLUTION_CHANGE_INFO_CURRENT_SIZE,
+        .committed = report.committed ? 1U : 0U,
+        .policy = static_cast<std::uint32_t>(report.policy),
+        .source_width = report.source_width,
+        .source_height = report.source_height,
+        .target_width = report.target_width,
+        .target_height = report.target_height,
+        .replayed_source_count = report.replayed_source_count,
+        .resampled_source_count = report.resampled_source_count,
+        .procedural_entry_count = report.procedural_entry_count,
+        .raster_count = report.raster_count,
+        .staged_pixel_bytes = report.staged_pixel_bytes,
+        .retained_history_bytes = report.retained_history_bytes,
+    };
+}
+
 std::string project_operation_replay_json(
     std::span<const ctex::io::ProjectOperationReplayAssessment> assessments) {
     std::string report = "{\"operation_records\":[";
@@ -13134,6 +13265,95 @@ extern "C" ctex_result ctex_operation_record_assess_replay(
             }
         } catch (const ctex::io::OperationRecordError& error) {
             throw_operation_record_error(error);
+        }
+    });
+}
+
+extern "C" ctex_result ctex_texture_set_change_resolution(
+    ctex_document* document, const char* texture_set_id,
+    const ctex_texture_set_resolution_change_descriptor* descriptor,
+    ctex_texture_set_resolution_change_info* out_info) {
+    return call_boundary("ctex_texture_set_change_resolution", [&] {
+        if (document == nullptr || descriptor == nullptr || out_info == nullptr) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                           "document, descriptor and out_info are required");
+        }
+        validate_resolution_change_descriptor(*descriptor);
+        validate_structure_size(out_info->size, CTEX_TEXTURE_SET_RESOLUTION_CHANGE_INFO_V1_SIZE,
+                                CTEX_TEXTURE_SET_RESOLUTION_CHANGE_INFO_CURRENT_SIZE,
+                                "texture-set resolution change info size");
+        try {
+            const std::vector sources = resolution_replay_sources(*descriptor);
+            const std::vector rasters = resolution_replay_rasters(*descriptor);
+            ctex::doc::TextureSet& texture_set = require_texture_set(*document, texture_set_id);
+            const ctex::doc::ResolutionChangeReport report =
+                ctex::doc::change_texture_set_resolution(
+                    texture_set,
+                    {.width = descriptor->width,
+                     .height = descriptor->height,
+                     .policy = resolution_change_policy(descriptor->policy),
+                     .checkpoint_policy = checkpoint_resample_policy(descriptor->checkpoint_policy),
+                     .replay_sources = sources,
+                     .replay_rasters = rasters,
+                     .maximum_working_bytes = descriptor->maximum_working_bytes == 0
+                                                  ? ctex::doc::default_resolution_change_byte_limit
+                                                  : descriptor->maximum_working_bytes,
+                     .maximum_history_bytes = descriptor->maximum_history_bytes == 0
+                                                  ? ctex::doc::default_resolution_change_byte_limit
+                                                  : descriptor->maximum_history_bytes});
+            *out_info = resolution_change_info(report);
+        } catch (const ctex::doc::ResolutionChangeError& error) {
+            throw_resolution_change_error(error);
+        } catch (const ctex::io::OperationRecordError& error) {
+            throw_operation_record_error(error);
+        }
+    });
+}
+
+extern "C" ctex_result ctex_texture_set_undo_resolution_change(
+    ctex_document* document, const char* texture_set_id,
+    ctex_texture_set_resolution_restore_info* out_info) {
+    return call_boundary("ctex_texture_set_undo_resolution_change", [&] {
+        if (document == nullptr || out_info == nullptr) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                           document == nullptr ? "document=null" : "out_info=null");
+        }
+        validate_structure_size(out_info->size, CTEX_TEXTURE_SET_RESOLUTION_RESTORE_INFO_V1_SIZE,
+                                CTEX_TEXTURE_SET_RESOLUTION_RESTORE_INFO_CURRENT_SIZE,
+                                "texture-set resolution restore info size");
+        try {
+            const auto report = ctex::doc::undo_texture_set_resolution(
+                require_texture_set(*document, texture_set_id));
+            *out_info = {.size = CTEX_TEXTURE_SET_RESOLUTION_RESTORE_INFO_CURRENT_SIZE,
+                         .width = report.width,
+                         .height = report.height,
+                         .retained_history_bytes = report.retained_history_bytes};
+        } catch (const ctex::doc::ResolutionChangeError& error) {
+            throw_resolution_change_error(error);
+        }
+    });
+}
+
+extern "C" ctex_result ctex_texture_set_redo_resolution_change(
+    ctex_document* document, const char* texture_set_id,
+    ctex_texture_set_resolution_restore_info* out_info) {
+    return call_boundary("ctex_texture_set_redo_resolution_change", [&] {
+        if (document == nullptr || out_info == nullptr) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                           document == nullptr ? "document=null" : "out_info=null");
+        }
+        validate_structure_size(out_info->size, CTEX_TEXTURE_SET_RESOLUTION_RESTORE_INFO_V1_SIZE,
+                                CTEX_TEXTURE_SET_RESOLUTION_RESTORE_INFO_CURRENT_SIZE,
+                                "texture-set resolution restore info size");
+        try {
+            const auto report = ctex::doc::redo_texture_set_resolution(
+                require_texture_set(*document, texture_set_id));
+            *out_info = {.size = CTEX_TEXTURE_SET_RESOLUTION_RESTORE_INFO_CURRENT_SIZE,
+                         .width = report.width,
+                         .height = report.height,
+                         .retained_history_bytes = report.retained_history_bytes};
+        } catch (const ctex::doc::ResolutionChangeError& error) {
+            throw_resolution_change_error(error);
         }
     });
 }

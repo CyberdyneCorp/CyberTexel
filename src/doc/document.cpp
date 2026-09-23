@@ -425,7 +425,9 @@ TextureSetMemoryReport TextureSet::memory_report() const {
                                     "UDIM channel memory report overflow");
     }
     const std::size_t map_bytes = memory_state_->mesh_map_pixel_bytes;
-    const std::size_t history_bytes = tile_history_.budget_report().retained_bytes;
+    const std::size_t history_bytes =
+        checked_add(tile_history_.budget_report().retained_bytes, resolution_history_bytes_,
+                    "texture-set history report overflow");
     const std::size_t pixel_and_map_bytes =
         checked_add(channel_bytes, map_bytes, "texture-set save estimate overflow");
     constexpr std::size_t container_metadata_estimate = 512;

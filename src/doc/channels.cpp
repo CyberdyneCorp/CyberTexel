@@ -187,6 +187,17 @@ TextureChannels& TextureChannels::operator=(const TextureChannels& other) {
     return *this;
 }
 
+void TextureChannels::swap(TextureChannels& other) {
+    if (memory_resource_ != other.memory_resource_) {
+        throw std::invalid_argument("texture channel swap requires the same memory resource");
+    }
+    using std::swap;
+    swap(width_, other.width_);
+    swap(height_, other.height_);
+    swap(default_bit_depth_, other.default_bit_depth_);
+    channels_.swap(other.channels_);
+}
+
 TextureChannels TextureChannels::clone_configuration() const {
     TextureChannels result(width_, height_, default_bit_depth_, {}, memory_resource_);
     result.synchronize_configuration(*this);

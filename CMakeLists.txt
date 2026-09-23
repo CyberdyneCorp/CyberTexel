@@ -171,6 +171,7 @@ ctex_add_module(
         src/doc/mesh_replacement.cpp
         src/doc/mesh_reprojection.cpp
         src/doc/preset_application.cpp
+        src/doc/resolution_change.cpp
         src/doc/tile_history.cpp
         src/doc/transaction.cpp
         src/doc/smart_mask.cpp
@@ -486,6 +487,13 @@ if(BUILD_TESTING)
         ctex_configure_c_target(ctex_capi_operation_record_test)
         target_link_libraries(ctex_capi_operation_record_test PRIVATE cybertexel_c)
         add_test(NAME c-abi-operation-record COMMAND ctex_capi_operation_record_test)
+        add_executable(ctex_capi_resolution_change_test tests/capi/resolution_change_test.c)
+        ctex_configure_c_target(ctex_capi_resolution_change_test)
+        target_link_libraries(ctex_capi_resolution_change_test PRIVATE cybertexel_c)
+        add_test(NAME c-abi-resolution-change COMMAND ctex_capi_resolution_change_test)
+        set_tests_properties(
+            c-abi-resolution-change PROPERTIES LABELS "editable-authoring-scenario;mesh-and-texture-sets-scenario"
+        )
         add_executable(ctex_capi_editable_authoring_test tests/capi/editable_authoring_test.c)
         ctex_configure_c_target(ctex_capi_editable_authoring_test)
         target_link_libraries(ctex_capi_editable_authoring_test PRIVATE cybertexel_c)
@@ -775,6 +783,13 @@ if(BUILD_TESTING)
     add_test(NAME mesh-reprojection COMMAND ctex_mesh_reprojection_test)
     set_tests_properties(
         mesh-reprojection PROPERTIES LABELS "editable-authoring-scenario;mesh-and-texture-sets-scenario"
+    )
+    add_executable(ctex_resolution_change_test tests/doc/resolution_change_test.cpp)
+    ctex_configure_cpp_target(ctex_resolution_change_test)
+    target_link_libraries(ctex_resolution_change_test PRIVATE cybertexel)
+    add_test(NAME resolution-change COMMAND ctex_resolution_change_test)
+    set_tests_properties(
+        resolution-change PROPERTIES LABELS "editable-authoring-scenario;mesh-and-texture-sets-scenario"
     )
     add_executable(ctex_smart_material_test tests/doc/smart_material_test.cpp)
     ctex_configure_cpp_target(ctex_smart_material_test)

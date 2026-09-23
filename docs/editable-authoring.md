@@ -40,3 +40,15 @@ triangle, barycentric coordinates and mesh revision as a revision-checked edit.
 Ambiguous attachments require the explicit ambiguity policy; an unmapped
 attachment refuses commit rather than silently retaining an invalid reference.
 See [mesh-reprojection.md](mesh-reprojection.md).
+
+Texture-set resolution changes are also explicit retained-source operations.
+Replay mode assesses canonical operation records against the host's supported
+algorithm versions and accepts a complete target-resolution raster for every
+enabled base and UDIM channel. Resolution-independent strokes are therefore
+rasterized by the host at the target size; checkpoint-only, same-resolution and
+unsupported-version segments require an explicit nearest or bilinear fallback.
+Resample-all uses that same named filter in the core, while cancel publishes
+nothing. Both paths stage the complete result under working-memory and retained
+history ceilings before changing dimensions. Resize undo/redo exchanges the
+whole base/UDIM state and its tile-history context. See
+[Resolution changes](resolution-changes.md).

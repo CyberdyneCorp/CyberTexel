@@ -329,6 +329,9 @@ EXPORTS
     ctex_operation_record_create
     ctex_operation_record_inspect
     ctex_operation_record_assess_replay
+    ctex_texture_set_change_resolution
+    ctex_texture_set_undo_resolution_change
+    ctex_texture_set_redo_resolution_change
     ctex_project_container_upsert_operation_record
     ctex_project_container_get_operation_record
     ctex_project_container_assess_operation_replay

@@ -99,7 +99,8 @@ typedef enum ctex_diagnostic_code {
     CTEX_DIAGNOSTIC_INVALID_TILE_HISTORY = 60,
     CTEX_DIAGNOSTIC_INVALID_OPERATION_RECORD = 61,
     CTEX_DIAGNOSTIC_INVALID_EDITABLE_AUTHORING = 62,
-    CTEX_DIAGNOSTIC_INVALID_MESH_REPROJECTION = 63
+    CTEX_DIAGNOSTIC_INVALID_MESH_REPROJECTION = 63,
+    CTEX_DIAGNOSTIC_INVALID_RESOLUTION_CHANGE = 64
 } ctex_diagnostic_code;
 
 typedef enum ctex_log_severity {
@@ -4853,6 +4854,96 @@ typedef struct ctex_project_operation_replay_info {
 #define CTEX_PROJECT_OPERATION_REPLAY_INFO_CURRENT_SIZE \
     ((uint32_t)sizeof(ctex_project_operation_replay_info))
 
+typedef enum ctex_resolution_change_policy {
+    CTEX_RESOLUTION_REPLAY_ELIGIBLE = 0,
+    CTEX_RESOLUTION_RESAMPLE_ALL = 1,
+    CTEX_RESOLUTION_CANCEL = 2
+} ctex_resolution_change_policy;
+
+typedef enum ctex_checkpoint_resample_policy {
+    CTEX_CHECKPOINT_RESAMPLE_REFUSE = 0,
+    CTEX_CHECKPOINT_RESAMPLE_NEAREST = 1,
+    CTEX_CHECKPOINT_RESAMPLE_BILINEAR = 2
+} ctex_checkpoint_resample_policy;
+
+typedef struct ctex_resolution_operation_record_descriptor {
+    uint32_t size;
+    const void* canonical_record;
+    size_t canonical_record_size;
+} ctex_resolution_operation_record_descriptor;
+
+#define CTEX_RESOLUTION_OPERATION_RECORD_DESCRIPTOR_V1_SIZE \
+    ((uint32_t)sizeof(ctex_resolution_operation_record_descriptor))
+#define CTEX_RESOLUTION_OPERATION_RECORD_DESCRIPTOR_CURRENT_SIZE \
+    ((uint32_t)sizeof(ctex_resolution_operation_record_descriptor))
+
+typedef struct ctex_resolution_replay_raster_descriptor {
+    uint32_t size;
+    const char* semantic_id;
+    uint32_t udim_tile_number;
+    const void* pixels;
+    size_t pixel_bytes;
+} ctex_resolution_replay_raster_descriptor;
+
+#define CTEX_RESOLUTION_REPLAY_RASTER_DESCRIPTOR_V1_SIZE \
+    ((uint32_t)sizeof(ctex_resolution_replay_raster_descriptor))
+#define CTEX_RESOLUTION_REPLAY_RASTER_DESCRIPTOR_CURRENT_SIZE \
+    ((uint32_t)sizeof(ctex_resolution_replay_raster_descriptor))
+
+typedef struct ctex_texture_set_resolution_change_descriptor {
+    uint32_t size;
+    uint32_t width;
+    uint32_t height;
+    uint32_t policy;
+    uint32_t checkpoint_policy;
+    const ctex_resolution_operation_record_descriptor* operation_records;
+    size_t operation_record_count;
+    const ctex_operation_algorithm_support_descriptor* supported_algorithms;
+    size_t supported_algorithm_count;
+    const ctex_resolution_replay_raster_descriptor* replay_rasters;
+    size_t replay_raster_count;
+    size_t maximum_working_bytes;
+    size_t maximum_history_bytes;
+} ctex_texture_set_resolution_change_descriptor;
+
+#define CTEX_TEXTURE_SET_RESOLUTION_CHANGE_DESCRIPTOR_V1_SIZE \
+    ((uint32_t)sizeof(ctex_texture_set_resolution_change_descriptor))
+#define CTEX_TEXTURE_SET_RESOLUTION_CHANGE_DESCRIPTOR_CURRENT_SIZE \
+    ((uint32_t)sizeof(ctex_texture_set_resolution_change_descriptor))
+
+typedef struct ctex_texture_set_resolution_change_info {
+    uint32_t size;
+    uint32_t committed;
+    uint32_t policy;
+    uint32_t source_width;
+    uint32_t source_height;
+    uint32_t target_width;
+    uint32_t target_height;
+    size_t replayed_source_count;
+    size_t resampled_source_count;
+    size_t procedural_entry_count;
+    size_t raster_count;
+    size_t staged_pixel_bytes;
+    size_t retained_history_bytes;
+} ctex_texture_set_resolution_change_info;
+
+#define CTEX_TEXTURE_SET_RESOLUTION_CHANGE_INFO_V1_SIZE \
+    ((uint32_t)sizeof(ctex_texture_set_resolution_change_info))
+#define CTEX_TEXTURE_SET_RESOLUTION_CHANGE_INFO_CURRENT_SIZE \
+    ((uint32_t)sizeof(ctex_texture_set_resolution_change_info))
+
+typedef struct ctex_texture_set_resolution_restore_info {
+    uint32_t size;
+    uint32_t width;
+    uint32_t height;
+    size_t retained_history_bytes;
+} ctex_texture_set_resolution_restore_info;
+
+#define CTEX_TEXTURE_SET_RESOLUTION_RESTORE_INFO_V1_SIZE \
+    ((uint32_t)sizeof(ctex_texture_set_resolution_restore_info))
+#define CTEX_TEXTURE_SET_RESOLUTION_RESTORE_INFO_CURRENT_SIZE \
+    ((uint32_t)sizeof(ctex_texture_set_resolution_restore_info))
+
 typedef enum ctex_editable_entry_kind {
     CTEX_EDITABLE_ENTRY_DECAL = 0,
     CTEX_EDITABLE_ENTRY_TEXT = 1,
@@ -5941,6 +6032,23 @@ CTEX_API ctex_result ctex_project_container_assess_operation_replay(
     const ctex_project_container_read_limits_descriptor* limits,
     const ctex_operation_replay_assessment_descriptor* descriptor,
     ctex_project_operation_replay_info* out_info, char* report_output, size_t report_output_size);
+
+/*
+ * Changes one texture set's resolution atomically. Replay mode consumes
+ * canonical operation records plus one complete host-evaluated raster for
+ * every enabled base/UDIM channel. Checkpoint-only records require an explicit
+ * nearest or bilinear fallback. Resample-all is performed by the core.
+ */
+CTEX_API ctex_result
+ctex_texture_set_change_resolution(ctex_document* document, const char* texture_set_id,
+                                   const ctex_texture_set_resolution_change_descriptor* descriptor,
+                                   ctex_texture_set_resolution_change_info* out_info);
+CTEX_API ctex_result
+ctex_texture_set_undo_resolution_change(ctex_document* document, const char* texture_set_id,
+                                        ctex_texture_set_resolution_restore_info* out_info);
+CTEX_API ctex_result
+ctex_texture_set_redo_resolution_change(ctex_document* document, const char* texture_set_id,
+                                        ctex_texture_set_resolution_restore_info* out_info);
 
 /* Retains decal, text, and surface-path source data independently of rasterization. */
 CTEX_API ctex_result ctex_texture_set_editable_entry_add(

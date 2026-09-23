@@ -402,6 +402,29 @@ OperationReplayAssessment assess_operation_replay(
     };
 }
 
+doc::ResolutionReplaySource resolution_replay_source(const EditableOperationRecord& record,
+                                                     const OperationReplayAssessment& assessment) {
+    doc::ResolutionReplayDisposition disposition;
+    switch (assessment.disposition) {
+        case OperationReplayDisposition::replay_resolution_independent:
+            disposition = doc::ResolutionReplayDisposition::resolution_independent;
+            break;
+        case OperationReplayDisposition::checkpoint_only:
+            disposition = doc::ResolutionReplayDisposition::checkpoint_only;
+            break;
+        case OperationReplayDisposition::replay_same_resolution:
+        case OperationReplayDisposition::resample_checkpoint:
+            disposition = doc::ResolutionReplayDisposition::resample_required;
+            break;
+        case OperationReplayDisposition::unsupported_algorithm:
+            disposition = doc::ResolutionReplayDisposition::unsupported_algorithm;
+            break;
+    }
+    return {.identifier = record.identifier,
+            .disposition = disposition,
+            .checkpoint_available = assessment.checkpoint_available};
+}
+
 std::vector<ProjectOperationReplayAssessment> assess_project_operation_replay(
     const ProjectContainer& project,
     std::span<const OperationAlgorithmSupport> supported_algorithms, bool target_resolution_changed,

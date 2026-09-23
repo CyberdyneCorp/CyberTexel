@@ -38,6 +38,7 @@
     {"name": "editable-authoring", "kind": "runtime", "requirements": [
       {"requirement": "Versioned operation records", "symbols": ["ctex_operation_record_create", "ctex_operation_record_inspect", "ctex_project_container_upsert_operation_record", "ctex_project_container_get_operation_record"]},
       {"requirement": "Explicit replay eligibility", "symbols": ["ctex_operation_record_assess_replay", "ctex_resource_ledger_admit_operation_recovery", "ctex_paint_apply_clone", "ctex_paint_apply_blur", "ctex_paint_apply_smear"]},
+      {"requirement": "Resolution change policy", "symbols": ["ctex_texture_set_change_resolution", "ctex_texture_set_undo_resolution_change", "ctex_texture_set_redo_resolution_change"]},
       {"requirement": "Persistent editable placement", "symbols": ["ctex_texture_set_editable_entry_add", "ctex_texture_set_editable_entry_edit", "ctex_texture_set_editable_entry_inspect", "ctex_texture_set_editable_entry_plan_rasterization", "ctex_texture_set_editable_entry_undo", "ctex_texture_set_editable_entry_redo", "ctex_texture_set_editable_surface_path_resolve", "ctex_project_container_upsert_editable_authoring", "ctex_project_container_restore_editable_authoring"]},
       {"requirement": "Reprojection has an inspectable mapping", "symbols": ["ctex_mesh_replacement_plan_preflight_reprojection", "ctex_mesh_replacement_plan_commit_reprojection"]}
     ]},
