@@ -1,6 +1,8 @@
 {
   "capabilities": [
+    "build-packaging",
     "c-abi",
+    "examples",
     "language-bindings",
     "project-io"
   ],

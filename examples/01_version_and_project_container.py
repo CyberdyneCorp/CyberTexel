@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Create a canonical project container through the C ABI.
 
-Capabilities: c-abi, language-bindings, project-io.
+Capabilities: build-packaging, c-abi, examples, language-bindings, project-io.
 The script asserts the version/header contract and writes deterministic bytes
 plus a machine-readable summary for the committed-output comparison.
 """
@@ -14,6 +14,15 @@ import json
 from pathlib import Path
 
 import cybertexel
+
+
+CAPABILITIES = (
+    "build-packaging",
+    "c-abi",
+    "examples",
+    "language-bindings",
+    "project-io",
+)
 
 
 def main() -> None:
@@ -47,7 +56,7 @@ def main() -> None:
     arguments.output.mkdir(parents=True, exist_ok=True)
     (arguments.output / "empty.ctex").write_bytes(payload)
     summary = {
-        "capabilities": ["c-abi", "language-bindings", "project-io"],
+        "capabilities": list(CAPABILITIES),
         "container_bytes": len(payload),
         "container_sha256": hashlib.sha256(payload).hexdigest(),
         "executor": arguments.executor,

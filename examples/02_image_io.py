@@ -17,6 +17,7 @@ import numpy as np
 
 
 ROOT = Path(__file__).resolve().parent
+CAPABILITIES = ("image-io", "language-bindings")
 
 
 def main() -> None:
@@ -42,7 +43,7 @@ def main() -> None:
     arguments.output.mkdir(parents=True, exist_ok=True)
     (arguments.output / "checker_preview.png").write_bytes(encoded)
     summary = {
-        "capabilities": ["image-io", "language-bindings"],
+        "capabilities": list(CAPABILITIES),
         "channel_mean": [130.0, 59.0, 62.5],
         "decoded_shape": list(decoded.pixels.shape),
         "preview_shape": list(preview.shape),

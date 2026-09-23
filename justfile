@@ -455,7 +455,8 @@ gate-c-api-coverage:
 
 # Every capability has a numbered example that runs and asserts.
 gate-example-coverage:
-    @just _unimplemented gate-example-coverage 16.5
+    python3 tests/tools/test_check_example_coverage.py
+    python3 tools/check_example_coverage.py
 
 # Every available executor agrees with the CPU reference within the declared
 # tolerance; compiled routes without a device are reported as unmeasured.

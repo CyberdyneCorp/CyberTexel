@@ -1421,7 +1421,9 @@ twice and rejects byte-level nondeterminism before applying the declared output
 tolerance. The first examples exercise versioned C ABI project-container
 creation and public NumPy image decode/encode. Their complete committed outputs
 are linked from a checked documentation gallery; full capability coverage
-remains a separate open task.
+remains a separate open task. The example-coverage gate is live rather than a
+placeholder: it reads literal declarations from every numbered script, compares
+them with the capability index and reports every missing capability by name.
 
 Editable-authoring group 20 is complete. Versioned operation records retain
 algorithm and preset versions, seeds, channel descriptors, mesh identity,

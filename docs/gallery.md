@@ -8,7 +8,8 @@ maximum absolute channel error declared in `examples/output_tolerances.json`.
 ## `01_version_and_project_container`
 
 Creates a canonical empty `.ctex` project through the generated Python C ABI.
-It covers `c-abi`, `language-bindings` and `project-io` and publishes the
+It covers `build-packaging`, `c-abi`, `examples`, `language-bindings` and
+`project-io` and publishes the
 [empty project](../examples/outputs/01_version_and_project_container/empty.ctex)
 and its
 [container summary](../examples/outputs/01_version_and_project_container/summary.json).
