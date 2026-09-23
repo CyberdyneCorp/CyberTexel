@@ -1785,7 +1785,8 @@ threading and per-binding example evidence.
 - [x] 16.8 Host-executed route example with a software stand-in
 - [x] 16.9 Examples runnable against any executor as a parity check
 - [x] 16.10 Published gallery in the documentation
-- [ ] 16.11 `examples` scenarios as tests
+- [x] 16.11 `examples` scenarios as tests
+- [ ] 16.12 Examples exercise the whole public C ABI surface, evidenced by recorded call traces
 
 ## 17. Performance gate
 

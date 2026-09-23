@@ -233,6 +233,10 @@ test-host-transport-scenarios: build
 test-resource-residency-scenarios: build
     ctest --test-dir build/headless --output-on-failure -L '^resource-residency-scenario$'
 
+# `examples` evidence that needs no wheel. `just examples` runs the examples.
+test-examples-scenarios: build
+    ctest --test-dir build/headless --output-on-failure -L '^examples-scenario$'
+
 test-stroke-reconstruction: build
     ctest --test-dir build/headless --output-on-failure -R '^stroke-reconstruction$'
 
@@ -439,7 +443,11 @@ test-shader-emission-scenarios: (_require "spirv-val" "SPIRV-Tools") build
 
 examples: test-python-binding
     python3 tools/check_example_fixtures.py
-    python3 tools/run_python_examples.py compare
+    python3 tools/check_example_readability.py
+    rm -rf build/example-traces
+    CTEX_SYMBOL_TRACE="$PWD/build/example-traces" python3 tools/run_python_examples.py compare
+    python3 tests/tools/test_check_example_features.py
+    python3 tools/check_example_features.py
     python3 tools/check_example_gallery.py
 
 bench:

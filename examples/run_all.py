@@ -132,6 +132,15 @@ def execute_example(script: Path, output: Path, executor: str) -> None:
             "PYTHONHASHSEED": "0",
         }
     )
+    trace = environment.get("CTEX_SYMBOL_TRACE")
+    if trace:
+        # sitecustomize installs the C ABI call recorder before cybertexel loads.
+        recorder = ROOT.parent / "tools" / "example_trace"
+        existing = environment.get("PYTHONPATH")
+        environment["PYTHONPATH"] = (
+            f"{recorder}{os.pathsep}{existing}" if existing else str(recorder)
+        )
+        environment["CTEX_SYMBOL_TRACE_NAME"] = script.stem
     completed = subprocess.run(
         [sys.executable, str(script), "--output", str(output), "--executor", executor],
         cwd=ROOT.parent,

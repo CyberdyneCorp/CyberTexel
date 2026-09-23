@@ -428,6 +428,60 @@ if(BUILD_TESTING)
         device-gate-scenario-matrix
         PROPERTIES LABELS "device-gate-scenario"
     )
+    # `examples` evidence that needs no wheel. Running the examples themselves
+    # stays in `just examples`, which installs the built wheel first.
+    add_test(
+        NAME examples-runner-policy
+        COMMAND "${CTEX_PYTHON3_EXECUTABLE}"
+                "${PROJECT_SOURCE_DIR}/tests/tools/test_example_runner.py"
+    )
+    add_test(
+        NAME examples-capability-coverage
+        COMMAND "${CTEX_PYTHON3_EXECUTABLE}"
+                "${PROJECT_SOURCE_DIR}/tools/check_example_coverage.py"
+    )
+    add_test(
+        NAME examples-feature-coverage-policy
+        COMMAND "${CTEX_PYTHON3_EXECUTABLE}"
+                "${PROJECT_SOURCE_DIR}/tests/tools/test_check_example_features.py"
+    )
+    add_test(
+        NAME examples-readability
+        COMMAND "${CTEX_PYTHON3_EXECUTABLE}"
+                "${PROJECT_SOURCE_DIR}/tools/check_example_readability.py"
+    )
+    add_test(
+        NAME examples-fixture-provenance
+        COMMAND "${CTEX_PYTHON3_EXECUTABLE}"
+                "${PROJECT_SOURCE_DIR}/tools/check_example_fixtures.py"
+    )
+    add_test(
+        NAME examples-gallery
+        COMMAND "${CTEX_PYTHON3_EXECUTABLE}"
+                "${PROJECT_SOURCE_DIR}/tools/check_example_gallery.py"
+    )
+    add_test(
+        NAME examples-scenario-matrix
+        COMMAND "${CTEX_PYTHON3_EXECUTABLE}"
+                "${PROJECT_SOURCE_DIR}/tests/tools/check_examples_scenario_matrix.py"
+    )
+    set_tests_properties(
+        examples-runner-policy
+        examples-capability-coverage
+        examples-feature-coverage-policy
+        examples-readability
+        examples-fixture-provenance
+        examples-gallery
+        examples-scenario-matrix
+        PROPERTIES LABELS "examples-scenario"
+    )
+    set_tests_properties(
+        examples-capability-coverage
+        examples-readability
+        examples-fixture-provenance
+        examples-gallery
+        PROPERTIES WORKING_DIRECTORY "${PROJECT_SOURCE_DIR}"
+    )
     add_executable(ctex_version_test tests/version_test.c)
     target_include_directories(
         ctex_version_test
