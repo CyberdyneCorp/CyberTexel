@@ -141,7 +141,11 @@ while their tiled-image dependencies name raster checkpoints stored in the same
 container. Dedicated C entry points create, inspect, insert, replace, and
 retrieve these records without exposing C++ objects.
 
-The current in-memory `ProjectContainer` is the extensible framing, tiled pixel,
-portable resource, standalone asset, and operation-record foundation. The
-complete document object schema is added by subsequent project-I/O roadmap
-tasks.
+The in-memory `ProjectContainer` is the single framing for sparse tiled pixels,
+portable resources, recovery checkpoints and versioned domain payloads. Domain
+serializers own their payload schemas, while the container preserves their
+identifiers, kinds, versions, dependencies and bytes losslessly. The strict-C
+round-trip fixture covers texture sets, layer structures, masks, groups,
+filters, material graphs, node groups, stroke and export presets, mesh-map
+bindings, channel descriptors, editable entries, replay records and document
+settings in one canonical project.

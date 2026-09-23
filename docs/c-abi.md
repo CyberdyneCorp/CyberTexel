@@ -600,6 +600,13 @@ versions and unsupported sections are reported and retained in the canonical
 output. Both output buffers are validated before either is written, so a short
 buffer never exposes a partial pair.
 
+Document-domain serializers store texture sets, layer structures, graph and
+preset state, bindings, editable entries, replay records and document settings
+as versioned asset payloads inside this same framing. Normalization preserves
+their identifiers, kinds, versions, dependencies and payload bytes exactly;
+resources, sparse tiled pixels and recovery checkpoints remain first-class
+sections in the same canonical output.
+
 `ctex_project_container_save_atomic` applies the same validation and limits,
 then publishes the normalized container through the core sibling-temporary,
 synchronize and atomic-replace path. It does not write a destination until the

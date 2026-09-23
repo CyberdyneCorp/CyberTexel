@@ -105,12 +105,9 @@ class CApiCoverageTests(unittest.TestCase):
         self.assertIn("non-runtime capability has no rationale: non-runtime-one", failures)
         self.assertIn("non-runtime capability has no evidence: non-runtime-one", failures)
 
-    def test_repository_manifest_has_only_the_known_coverage_gap(self) -> None:
+    def test_repository_manifest_has_complete_coverage(self) -> None:
         failures = CHECK.check(CHECK.ROOT, CHECK.MANIFEST)
-        self.assertEqual(
-            failures,
-            ["project-io: requirement lacks C ABI evidence: One lossless container"],
-        )
+        self.assertEqual(failures, [])
 
 
 if __name__ == "__main__":

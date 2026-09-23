@@ -1379,6 +1379,14 @@ publishes metadata, UTF-8 names and pixels only after every caller buffer fits.
 C++ PSD/EXR and strict-C PSD fixtures reduce the exact task-14.8 gap to 1
 runtime requirement.
 
+Task 14.8 is complete. A strict-C project fixture carries every document-domain
+payload named by the project-I/O contract, a portable resource reference and a
+required recovery checkpoint through the one canonical container. Bounded
+normalization reopens and re-encodes the complete inventory byte-identically,
+and atomic save publishes those canonical bytes. The capability manifest now
+maps every runtime requirement and the full-surface coverage gate passes with
+zero gaps.
+
 ## 1. Foundation
 
 - [x] 1.1 CMake project, C++20, warnings as errors, presets for headless, macOS, Linux, Windows, iOS, Android
@@ -1582,7 +1590,7 @@ runtime requirement.
 - [x] 14.5 Threading contract documentation and the two-document concurrency test
 - [x] 14.6 Host log sink and the English-plus-codes diagnostic rule
 - [x] 14.7 Host allocator callbacks
-- [ ] 14.8 Full-surface coverage gate
+- [x] 14.8 Full-surface coverage gate
 - [x] 14.9 Python binding, numpy-native, typed exceptions, wheel packaging
 - [x] 14.10 Swift package with a system target, idiomatic layer, automatic handle lifetime
 - [x] 14.11 Rust `-sys` and safe crates, typed errors, `Send`/`Sync` matching the contract

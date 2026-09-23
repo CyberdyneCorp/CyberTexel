@@ -261,5 +261,9 @@ Named PSD layers and multipart OpenEXR parts now cross the boundary through
 individual output, aggregate bounds, cancellation, and atomic caller-owned
 metadata/name/pixel buffers. Mapping layered sources reduces the exact remaining
 gap to 1 runtime requirement: the lossless project container.
-The gate is not part of the aggregate `just check` until that count reaches zero;
-its unit tests run in the normal tooling suite throughout the migration.
+The strict-C project fixture now carries every document-domain payload named by
+the project-I/O contract together with a resource reference and required recovery
+checkpoint. `ctex_project_container_normalize` reopens and re-encodes that
+inventory byte-identically, while `ctex_project_container_save_atomic` publishes
+the same canonical bytes. The coverage manifest now maps every runtime
+requirement, so the full-surface C ABI gate passes with zero gaps.

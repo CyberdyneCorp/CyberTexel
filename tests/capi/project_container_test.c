@@ -39,6 +39,113 @@ static void write_u64(unsigned char* bytes, uint64_t value) {
     }
 }
 
+typedef struct byte_builder {
+    unsigned char* bytes;
+    size_t capacity;
+    size_t size;
+} byte_builder;
+
+static int append_bytes(byte_builder* builder, const void* source, size_t size) {
+    if (size > builder->capacity - builder->size) {
+        return 0;
+    }
+    memcpy(builder->bytes + builder->size, source, size);
+    builder->size += size;
+    return 1;
+}
+
+static int append_u32(byte_builder* builder, uint32_t value) {
+    unsigned char bytes[4];
+    write_u32(bytes, value);
+    return append_bytes(builder, bytes, sizeof(bytes));
+}
+
+static int append_u64(byte_builder* builder, uint64_t value) {
+    unsigned char bytes[8];
+    write_u64(bytes, value);
+    return append_bytes(builder, bytes, sizeof(bytes));
+}
+
+static int append_string(byte_builder* builder, const char* value) {
+    const size_t size = strlen(value);
+    return size <= UINT32_MAX && append_u32(builder, (uint32_t)size) &&
+           append_bytes(builder, value, size);
+}
+
+static int append_section(byte_builder* container, uint32_t kind, const byte_builder* payload) {
+    return append_u32(container, kind) && append_u32(container, 1) &&
+           append_u64(container, payload->size) &&
+           append_bytes(container, payload->bytes, payload->size);
+}
+
+static int append_asset(byte_builder* payload, const char* identifier, const char* kind) {
+    return append_string(payload, identifier) && append_string(payload, kind) &&
+           append_u32(payload, 1) && append_u32(payload, 0) && append_u32(payload, 0) &&
+           append_u64(payload, strlen(kind)) && append_bytes(payload, kind, strlen(kind));
+}
+
+static unsigned char* create_complete_document_container(size_t* out_size) {
+    static const struct {
+        const char* identifier;
+        const char* kind;
+    } assets[] = {
+        {"document/texture-sets", "texture-sets"},
+        {"document/layers", "layer-stack"},
+        {"document/masks", "masks"},
+        {"document/groups", "groups"},
+        {"document/filters", "filters"},
+        {"document/material-graphs", "material-graphs"},
+        {"document/node-groups", "node-groups"},
+        {"document/stroke-presets", "stroke-presets"},
+        {"document/export-presets", "export-presets"},
+        {"document/mesh-map-bindings", "mesh-map-bindings"},
+        {"document/channel-descriptors", "channel-descriptors"},
+        {"document/editable-entries", "editable-authoring"},
+        {"document/replay-records", "operation-records"},
+        {"document/settings", "document-settings"},
+    };
+    unsigned char tiled_storage[4];
+    unsigned char resource_storage[256];
+    unsigned char asset_storage[4096];
+    unsigned char checkpoint_storage[8];
+    byte_builder tiled = {tiled_storage, sizeof(tiled_storage), 0};
+    byte_builder resources = {resource_storage, sizeof(resource_storage), 0};
+    byte_builder asset_payload = {asset_storage, sizeof(asset_storage), 0};
+    byte_builder checkpoint = {checkpoint_storage, sizeof(checkpoint_storage), 0};
+    unsigned char* encoded = (unsigned char*)malloc(8192);
+    byte_builder container = {encoded, encoded == NULL ? 0 : 8192, 0};
+    size_t index = 0;
+
+    if (encoded == NULL || !append_u32(&tiled, 0) || !append_u32(&resources, 1) ||
+        !append_string(&resources, "resources/reference-image") ||
+        !append_string(&resources, "image") || !append_string(&resources, "images/reference.png") ||
+        !append_u32(&resources, 0) || !append_u64(&resources, 0) ||
+        !append_u32(&asset_payload, (uint32_t)(sizeof(assets) / sizeof(assets[0])))) {
+        free(encoded);
+        return NULL;
+    }
+    for (index = 0; index < sizeof(assets) / sizeof(assets[0]); ++index) {
+        if (!append_asset(&asset_payload, assets[index].identifier, assets[index].kind)) {
+            free(encoded);
+            return NULL;
+        }
+    }
+    if (!append_u64(&checkpoint, 37) || !append_bytes(&container, "CTEXPRJ\0", 8) ||
+        !append_u32(&container, 40) || !append_u32(&container, ctex_get_version().major) ||
+        !append_u32(&container, ctex_get_version().minor) ||
+        !append_u32(&container, ctex_get_version().patch) || !append_u32(&container, 4) ||
+        !append_u32(&container, 0) || !append_u64(&container, 0) ||
+        !append_section(&container, 1, &tiled) || !append_section(&container, 2, &resources) ||
+        !append_section(&container, 3, &asset_payload) ||
+        !append_section(&container, 4, &checkpoint)) {
+        free(encoded);
+        return NULL;
+    }
+    write_u64(encoded + 32, container.size - 40);
+    *out_size = container.size;
+    return encoded;
+}
+
 static unsigned char* create_empty_container(size_t* out_size) {
     unsigned char* encoded = NULL;
     unsigned char* short_buffer = NULL;
@@ -238,6 +345,58 @@ static int future_content_is_reported_and_preserved(const unsigned char* encoded
     return passed;
 }
 
+static int atomic_save_publishes_canonical_bytes(const unsigned char* encoded, size_t encoded_size);
+
+static int complete_document_round_trips_losslessly(void) {
+    unsigned char* encoded = NULL;
+    unsigned char* canonical = NULL;
+    char* report = NULL;
+    size_t encoded_size = 0;
+    ctex_project_container_info info = {.size = CTEX_PROJECT_CONTAINER_INFO_CURRENT_SIZE};
+    int passed = 1;
+
+    encoded = create_complete_document_container(&encoded_size);
+    if (!expect(encoded != NULL, "could not create the complete-document fixture") ||
+        !expect(ctex_project_container_normalize(encoded, encoded_size, NULL, &info, NULL, 0, NULL,
+                                                 0) == CTEX_RESULT_SUCCESS,
+                "complete-document sizing query failed")) {
+        free(encoded);
+        return 0;
+    }
+    canonical = (unsigned char*)malloc(info.canonical_size);
+    report = (char*)malloc(info.report_size);
+    if (!expect(canonical != NULL && report != NULL,
+                "could not allocate complete-document outputs")) {
+        free(encoded);
+        free(canonical);
+        free(report);
+        return 0;
+    }
+    passed =
+        expect(info.asset_count == 14 && info.resource_count == 1,
+               "complete-document inventory counts changed") &&
+        expect(ctex_project_container_normalize(encoded, encoded_size, NULL, &info, canonical,
+                                                info.canonical_size, report,
+                                                info.report_size) == CTEX_RESULT_SUCCESS,
+               "complete-document normalization failed") &&
+        expect(info.canonical_size == encoded_size && memcmp(canonical, encoded, encoded_size) == 0,
+               "complete-document payloads did not round-trip byte-identically") &&
+        expect(strstr(report, "\"id\":\"document/texture-sets\"") != NULL &&
+                   strstr(report, "\"id\":\"document/material-graphs\"") != NULL &&
+                   strstr(report, "\"id\":\"document/editable-entries\"") != NULL &&
+                   strstr(report, "\"id\":\"document/replay-records\"") != NULL &&
+                   strstr(report, "\"id\":\"document/settings\"") != NULL &&
+                   strstr(report, "\"id\":\"resources/reference-image\"") != NULL,
+               "complete-document report omitted preserved domain content");
+    if (passed) {
+        passed = atomic_save_publishes_canonical_bytes(canonical, info.canonical_size);
+    }
+    free(encoded);
+    free(canonical);
+    free(report);
+    return passed;
+}
+
 static int atomic_save_publishes_canonical_bytes(const unsigned char* encoded,
                                                  size_t encoded_size) {
     static const char path[] = "ctex-capi-project-container-test.ctex";
@@ -291,6 +450,7 @@ int main(void) {
     passed = bounded_read_refuses_the_input(encoded, encoded_size) && passed;
     passed = versioned_structures_reject_unknown_layouts(encoded, encoded_size) && passed;
     passed = future_content_is_reported_and_preserved(encoded, encoded_size) && passed;
+    passed = complete_document_round_trips_losslessly() && passed;
     passed = atomic_save_publishes_canonical_bytes(encoded, encoded_size) && passed;
     free(encoded);
     return passed ? 0 : 1;
