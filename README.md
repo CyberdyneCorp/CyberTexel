@@ -334,7 +334,8 @@ The current implementation provides:
   [host-transport](docs/host-transport-scenarios.md),
   [resource-residency](docs/resource-residency-scenarios.md),
   [texture-document](docs/texture-document-scenarios.md),
-  [project-I/O and texture-export](docs/io-scenarios.md), plus combined
+  [project-I/O and texture-export](docs/io-scenarios.md),
+  [mesh and texture sets](docs/mesh-and-texture-sets-scenarios.md), plus combined
   [stroke-model and paint-engine](docs/paint-scenarios.md) scenario suites.
 
 Remaining advanced image IO, mesh/texture-set extensions, paint-tool scenario

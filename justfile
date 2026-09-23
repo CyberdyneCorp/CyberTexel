@@ -275,6 +275,9 @@ test-paint-work: build
 test-paint-engine-scenarios: build
     ctest --test-dir build/headless --output-on-failure -L '^paint-engine-scenario$'
 
+test-mesh-and-texture-set-scenarios: build
+    ctest --test-dir build/headless --output-on-failure -L '^mesh-and-texture-sets-scenario$'
+
 test-editable-authoring-scenarios: build
     ctest --test-dir build/headless --output-on-failure -L '^editable-authoring-scenario$'
 

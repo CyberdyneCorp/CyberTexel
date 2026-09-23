@@ -1245,6 +1245,16 @@ if(BUILD_TESTING)
     ctex_configure_cpp_target(ctex_mesh_uv_diagnostics_test)
     target_link_libraries(ctex_mesh_uv_diagnostics_test PRIVATE ctex_mesh)
     add_test(NAME mesh-uv-diagnostics COMMAND ctex_mesh_uv_diagnostics_test)
+    add_test(
+        NAME mesh-and-texture-sets-scenario-matrix
+        COMMAND
+            "${CTEX_PYTHON3_EXECUTABLE}"
+            tests/tools/check_mesh_texture_scenario_matrix.py
+    )
+    set_tests_properties(
+        mesh-and-texture-sets-scenario-matrix
+        PROPERTIES WORKING_DIRECTORY "${PROJECT_SOURCE_DIR}"
+    )
 
     add_executable(ctex_spatial_index_test tests/pick/spatial_index_test.cpp)
     ctex_configure_cpp_target(ctex_spatial_index_test)
@@ -1736,6 +1746,18 @@ if(BUILD_TESTING)
         c-abi-mesh-ingest
         c-abi-mesh-uv-diagnostics
         PROPERTIES LABELS mesh-and-texture-sets-scenario
+    )
+    set_property(
+        TEST
+        c-abi-resolution-change
+        c-abi-texture-set-udim
+        c-abi-texture-set-atlas
+        texture-document
+        picking-spatial-index
+        paint-surface-cache
+        mesh-maps
+        mesh-and-texture-sets-scenario-matrix
+        APPEND PROPERTY LABELS mesh-and-texture-sets-scenario
     )
     set_tests_properties(
         mesh-ingest PROPERTIES LABELS "mesh-maps-scenario;mesh-and-texture-sets-scenario"

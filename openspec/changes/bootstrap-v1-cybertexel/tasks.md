@@ -1520,7 +1520,7 @@ to the labeled native and strict-C test suite.
 - [x] 4.6 Mesh revision; every derived structure keyed by it
 - [x] 4.7 Mesh replacement: identity matching, UV-change reporting, host-chosen policy
 - [x] 4.8 Declared mesh limits and their named refusals
-- [ ] 4.9 `mesh-and-texture-sets` scenarios as tests
+- [x] 4.9 `mesh-and-texture-sets` scenarios as tests
 
 ## 5. Picking
 
