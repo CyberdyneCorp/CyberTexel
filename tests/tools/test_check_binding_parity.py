@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import importlib.util
 import tempfile
 import unittest
@@ -22,7 +23,10 @@ class BindingParityTests(unittest.TestCase):
             "swift": {"ctex_one", "ctex_two"},
             "rust": {"ctex_one", "ctex_unknown"},
         }
-        with mock.patch.object(CHECK, "binding_operations", return_value=operations):
+        with (
+            mock.patch.object(CHECK, "binding_operations", return_value=operations),
+            mock.patch.object(CHECK, "rust_surface_matches_header", return_value=True),
+        ):
             self.assertEqual(
                 CHECK.check(Path("repo")),
                 [
@@ -70,6 +74,20 @@ pub fn ctex_wrapper() {}
             self.assertTrue(CHECK.swift_imports_complete_c_header(root))
             (target / "shim.h").write_text('#include <ctex/version.h>\n', encoding="utf-8")
             self.assertFalse(CHECK.swift_imports_complete_c_header(root))
+
+    def test_rust_generated_surface_is_pinned_to_the_header(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            header = root / "include" / "ctex" / "capi.h"
+            source = root / "rust" / "cybertexel-sys" / "src" / "lib.rs"
+            header.parent.mkdir(parents=True)
+            source.parent.mkdir(parents=True)
+            header.write_text("void ctex_one(void);\n", encoding="utf-8")
+            digest = hashlib.sha256(header.read_bytes()).hexdigest()
+            source.write_text(f"//! C header SHA-256: {digest}\n", encoding="utf-8")
+            self.assertTrue(CHECK.rust_surface_matches_header(root))
+            header.write_text("void ctex_two(void);\n", encoding="utf-8")
+            self.assertFalse(CHECK.rust_surface_matches_header(root))
 
 
 if __name__ == "__main__":

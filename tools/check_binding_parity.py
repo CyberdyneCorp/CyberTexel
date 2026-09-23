@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import importlib.util
 import re
 import sys
@@ -50,6 +51,13 @@ def swift_imports_complete_c_header(root: Path) -> bool:
     )
 
 
+def rust_surface_matches_header(root: Path) -> bool:
+    header = root / "include" / "ctex" / "capi.h"
+    source = root / "rust" / "cybertexel-sys" / "src" / "lib.rs"
+    digest = hashlib.sha256(header.read_bytes()).hexdigest()
+    return f"//! C header SHA-256: {digest}" in source.read_text(encoding="utf-8")
+
+
 def binding_operations(root: Path) -> dict[str, set[str]]:
     abi = load_abi_checker(root)
     header = (root / "include" / "ctex" / "capi.h").read_text(encoding="utf-8")
@@ -77,6 +85,11 @@ def check(root: Path) -> list[str]:
             failures.append(f"{binding} binding is missing C operation: {name}")
         for name in sorted(operations[binding] - expected):
             failures.append(f"{binding} binding declares unknown C operation: {name}")
+    if not rust_surface_matches_header(root):
+        failures.append(
+            "rust binding was not generated from the current C header: "
+            "run python3 tools/generate_rust_sys.py"
+        )
     return failures
 
 

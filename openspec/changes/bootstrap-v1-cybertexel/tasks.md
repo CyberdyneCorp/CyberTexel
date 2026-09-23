@@ -1396,6 +1396,14 @@ in Python and 312 in Rust; Swift imports the complete raw surface. Task 14.13
 remains open until both missing sets reach zero and all three binding suites
 pass.
 
+The Rust parity continuation generates and commits all 347 `cybertexel-sys`
+operations from the authoritative C header. A recorded SHA-256 digest makes a
+stale generated surface fail the normal parity gate without requiring bindgen
+on consumer or CI machines. The safe wrapper continues to build, pass Clippy,
+contain unsafe code in its boundary module and pass its ownership, threading and
+host-transport tests. Rust now has zero missing operations; Python remains at
+323.
+
 ## 1. Foundation
 
 - [x] 1.1 CMake project, C++20, warnings as errors, presets for headless, macOS, Linux, Windows, iOS, Android

@@ -152,6 +152,9 @@ test-rust-binding: (_require "cargo" "Rust stable") (_require "cmake" "3.24")
     cargo test --manifest-path rust/Cargo.toml --workspace
     python3 tools/check_rust_unsafe.py
 
+generate-rust-sys: (_require "bindgen" "bindgen-cli 0.72.1")
+    python3 tools/generate_rust_sys.py
+
 test-preset-shelf-library: build
     ctest --test-dir build/headless --output-on-failure -R '^preset-shelf-library$'
 
