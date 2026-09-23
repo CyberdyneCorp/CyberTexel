@@ -5,6 +5,7 @@ import unittest
 
 import cybertexel
 import numpy as np
+from cybertexel import _native
 
 GRAY8_PNG = bytes.fromhex(
     "89504e470d0a1a0a0000000d4948445200000002000000010800000000d1492056"
@@ -13,6 +14,13 @@ GRAY8_PNG = bytes.fromhex(
 
 
 class BindingTest(unittest.TestCase):
+    def test_incompatible_native_abi_names_both_versions(self) -> None:
+        incompatible = _native.Version(7, 2, 1, b"7.2.1-test")
+        with self.assertRaisesRegex(
+            ImportError, "expects ABI major 0, but loaded native 7.2.1-test"
+        ):
+            _native._validate_abi(incompatible)
+
     def test_raw_capi_exposes_the_complete_generated_surface(self) -> None:
         version = cybertexel.capi.ctex_get_version()
         required = cybertexel.capi.c_size_t()

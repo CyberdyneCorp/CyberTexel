@@ -3,6 +3,17 @@ import XCTest
 @testable import CyberTexel
 
 final class CyberTexelTests: XCTestCase {
+  func testIncompatibleNativeABINamesBothVersions() {
+    XCTAssertThrowsError(
+      try Native.validateABI(
+        CyberTexelVersion(major: 7, minor: 2, patch: 1, string: "7.2.1-test"))
+    ) { error in
+      XCTAssertEqual(
+        error as? CyberTexelError,
+        .incompatibleABI(expectedMajor: 0, native: "7.2.1-test"))
+    }
+  }
+
   func testVersionAndDocumentRoundTrip() throws {
     XCTAssertEqual(CyberTexelVersion.current.major, 0)
     XCTAssertFalse(CyberTexelVersion.current.string.isEmpty)

@@ -821,11 +821,15 @@ pub(crate) fn version() -> Version {
 
 fn check_abi() -> Result<(), Error> {
     let version = unsafe { convert_version(sys::ctex_get_abi_version()) };
-    if version.major == 0 {
+    validate_abi(version, 0)
+}
+
+fn validate_abi(version: Version, expected_major: u32) -> Result<(), Error> {
+    if version.major == expected_major {
         Ok(())
     } else {
         Err(Error::IncompatibleAbi {
-            expected_major: 0,
+            expected_major,
             native: version.string,
         })
     }
@@ -864,4 +868,30 @@ unsafe fn check(result: sys::ctex_result) -> Result<(), Error> {
 
 fn c_string(value: &str) -> Result<CString, Error> {
     CString::new(value).map_err(|_| Error::InteriorNul)
+}
+
+#[cfg(test)]
+mod abi_tests {
+    use super::*;
+
+    #[test]
+    fn incompatible_native_abi_names_both_versions() {
+        let error = validate_abi(
+            Version {
+                major: 7,
+                minor: 2,
+                patch: 1,
+                string: "7.2.1-test".into(),
+            },
+            0,
+        )
+        .unwrap_err();
+        assert_eq!(
+            error,
+            Error::IncompatibleAbi {
+                expected_major: 0,
+                native: "7.2.1-test".into(),
+            }
+        );
+    }
 }

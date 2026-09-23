@@ -521,7 +521,11 @@ def _load() -> ctypes.CDLL:
         ],
         ctypes.c_uint32,
     )
-    abi = library.ctex_get_abi_version()
+    _validate_abi(library.ctex_get_abi_version())
+    return library
+
+
+def _validate_abi(abi: Version) -> None:
     if abi.major != ABI_MAJOR:
         native = (
             abi.string.decode("utf-8")
@@ -531,7 +535,6 @@ def _load() -> ctypes.CDLL:
         raise ImportError(
             f"CyberTexel Python binding expects ABI major {ABI_MAJOR}, but loaded native {native}"
         )
-    return library
 
 
 LIB = _load()

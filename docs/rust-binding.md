@@ -5,6 +5,8 @@ native shared library and exposes raw C-compatible declarations.
 `cybertexel` is the safe wrapper; its only `unsafe` code is isolated in the
 documented `src/ffi.rs` boundary and a checked repository gate enforces that
 layout.
+The boundary tests inject an incompatible native version and require
+`Error::IncompatibleAbi` to retain both the expected major and native version.
 
 The safe crate checks ABI major version zero before handle creation, represents
 native failures as `Error::Native` with typed result, diagnostic code and text,

@@ -43,12 +43,21 @@ enum Native {
   static let abiMajor: UInt32 = 0
 
   static func checkABI() throws {
-    let version = ctex_get_abi_version()
+    let value = ctex_get_abi_version()
+    let version = CyberTexelVersion(
+      major: value.major,
+      minor: value.minor,
+      patch: value.patch,
+      string: value.string.map(String.init(cString:))
+        ?? "\(value.major).\(value.minor).\(value.patch)"
+    )
+    try validateABI(version)
+  }
+
+  static func validateABI(_ version: CyberTexelVersion) throws {
     guard version.major == abiMajor else {
-      let native =
-        version.string.map(String.init(cString:))
-        ?? "\(version.major).\(version.minor).\(version.patch)"
-      throw CyberTexelError.incompatibleABI(expectedMajor: abiMajor, native: native)
+      throw CyberTexelError.incompatibleABI(
+        expectedMajor: abiMajor, native: version.string)
     }
   }
 

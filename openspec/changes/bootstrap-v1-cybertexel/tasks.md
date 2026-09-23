@@ -1489,6 +1489,13 @@ returns the stable internal-error result and diagnostic instead of unwinding
 into the host. The language-binding scenarios, including their per-binding
 example gate, remain before task 14.14 can be marked complete.
 
+All three idiomatic binding layers now inject an incompatible ABI version in
+their own suites and require a typed failure naming the expected major and the
+complete native version. CI also runs the installed-wheel Python integration
+examples and compares every output with the committed gallery. Per-binding
+examples for the full document, paint, material, mesh-map, smart-material and
+export workflow remain the open language-binding scenario dependency.
+
 ## 1. Foundation
 
 - [x] 1.1 CMake project, C++20, warnings as errors, presets for headless, macOS, Linux, Windows, iOS, Android

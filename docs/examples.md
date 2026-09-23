@@ -23,6 +23,8 @@ publishes `CTEX_EXAMPLE_SEED=1729`; stochastic examples must consume that seed.
 binary artifacts require an exact byte match. PNG previews compare decoded
 pixels at their stated maximum absolute channel error, currently zero. See the
 [published gallery](gallery.md) for the committed visual results.
+CI runs the same `just examples` recipe on a clean installed wheel and compares
+every generated artifact with those committed gallery outputs.
 
 ## Fixtures
 

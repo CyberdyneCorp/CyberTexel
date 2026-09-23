@@ -14,6 +14,8 @@ diagnostic codes and diagnostic text. A document value shares a private
 reference-counted storage owner when copied. That owner calls
 `ctex_document_destroy` exactly once when the last Swift value leaves scope;
 there is no public raw handle and no manual close operation.
+The package tests exercise the incompatible-ABI path directly and require its
+typed error to retain both the expected major and complete native version.
 
 The package also exposes the shared [host-execution and transport
 workflow](binding-host-transport.md). Swift-owned shader artifacts and pass-plan

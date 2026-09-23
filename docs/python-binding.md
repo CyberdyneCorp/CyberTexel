@@ -4,6 +4,9 @@ The `cybertexel` wheel is a typed Python layer over the stable C ABI. It bundles
 the platform shared library, checks ABI major version zero during import, and
 depends only on NumPy at runtime. Native failures raise `CyberTexelError`
 subclasses carrying the stable result, diagnostic code, and diagnostic text.
+The binding suite injects an incompatible ABI version into the load-time
+validator and requires the error to name both the expected major and native
+version.
 
 `decode_image()` returns a C-contiguous NumPy array in the decoded native dtype
 and shape `(height, width, channels)`. The C decoder writes directly into that
