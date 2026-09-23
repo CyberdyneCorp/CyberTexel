@@ -7,7 +7,7 @@ decisions taken and questions still open.
 ## Status
 
 Implementation started. 24 capabilities, 332 requirements, 409 scenarios and
-223 tasks, 212 done. Every capability's runtime work is delivered; what remains
+224 tasks, 214 done. Every capability's runtime work is delivered; what remains
 is the reference hosts, the device measurements they enable, the release
 packages and example breadth. Foundation and the complete headless color-management
 scenario suite are green. Image input now detects and decodes PNG, JPEG, TGA,
@@ -398,8 +398,11 @@ gap to 5 runtime requirements.
 The C ABI coverage gate now passes: every runtime capability has public C ABI
 operation evidence, closing task 14.8's remaining gap.
 Example feature coverage is now decided from recorded C ABI call traces rather
-than declarations. The eleven numbered examples exercise 55 of the 353 manifest
-symbols; the other 298 are named individually against task 16.12.
+than declarations. That measurement showed the idiomatic Python layer wrapped 53
+of 353 operations, so most of the library was reachable only as raw ctypes. The
+layer stack and the sparse UDIM and atlas surfaces are now idiomatic; fourteen
+numbered examples exercise 84 of 353 symbols and the other 269 are named
+individually against task 16.12.
 The first release slice is macOS, Linux and iPad. The shipped macOS universal
 release build is byte-identical across two builds of one commit, so task 18.3
 carries no documented variance.

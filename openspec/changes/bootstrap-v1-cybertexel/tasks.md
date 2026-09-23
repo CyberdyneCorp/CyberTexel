@@ -1566,6 +1566,16 @@ policy suites and all twenty-two scenarios now map to executable evidence. Task
 18.2 itself stays open: the residency-traffic and input-to-visible
 instrumentation it also requires is the unmeasured work in tasks 17.12–17.14.
 
+2026-09-23: Task 16.12 is under way. The idiomatic Python layer wrapped 53 of
+the 353 C ABI operations, which left most of the library reachable only as raw
+ctypes and contradicts language-bindings' rule that a binding may not be a
+convenience subset. The texture-document layer surface and the sparse UDIM and
+atlas surface are now idiomatic — typed entry kinds, source-deletion policy,
+per-entry channel participation, absolute-UV write batches with separate
+allocation and occupancy reporting, and typed atlas region placements — and
+examples 13 and 14 exercise them. Recorded coverage is 84 of 353 symbols; the
+remaining 269 stay named individually in `examples/feature_coverage.json`.
+
 Editable-authoring group 20 is complete. Versioned operation records retain
 algorithm and preset versions, seeds, channel descriptors, mesh identity,
 pinned input bytes and checkpoint identities in canonical project-container
