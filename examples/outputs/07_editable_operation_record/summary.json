@@ -1,0 +1,13 @@
+{
+  "capabilities": [
+    "editable-authoring"
+  ],
+  "checkpoint_count": 0,
+  "operation_bytes": 634,
+  "operation_sha256": "e378d55007e9fd24c3db8e65024c3afa7cb567ffba848842c954d3aed206c675",
+  "pinned_alpha_bytes": 180,
+  "pinned_alpha_identity": "sha256:db3bda59b8ad0b1ffa8b165d26481b1d944931d4ed3d1e5bc2658c817c71eccd",
+  "project_assets": 1,
+  "project_bytes": 797,
+  "seed": 1729
+}

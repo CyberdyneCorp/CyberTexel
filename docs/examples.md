@@ -48,6 +48,8 @@ display-free stand-in and returns a host-resident result without readback.
 quantization policy.
 `06_uv_picking.py` exercises the typed Python UV hit/miss path and publishes the
 resolved positions on the fixture topology.
+`07_editable_operation_record.py` pins a brush asset in a replayable operation
+record and round-trips it through project storage.
 Full capability example coverage remains roadmap work. Every numbered script
 declares a literal `CAPABILITIES` tuple;
 `just gate-example-coverage` compares those declarations with

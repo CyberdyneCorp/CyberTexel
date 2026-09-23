@@ -1435,6 +1435,8 @@ pre-quantization height accumulation and deterministic dithering, raising
 coverage to 15 of 24 capabilities.
 The sixth example adds a typed Python UV picking result, asserts both sides of a
 shared triangle boundary plus a distinct miss and raises coverage to 16 of 24.
+The seventh pins the fixture alpha in a replayable brush operation and requires
+byte-identical extraction from project storage, raising coverage to 17 of 24.
 
 Editable-authoring group 20 is complete. Versioned operation records retain
 algorithm and preset versions, seeds, channel descriptors, mesh identity,

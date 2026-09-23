@@ -73,3 +73,17 @@ outside coordinate is a distinct miss. It covers `picking`.
 
 The [picking summary](../examples/outputs/06_uv_picking/summary.json) records the
 resolved texture-set identity, triangle indices and world positions.
+
+## `07_editable_operation_record`
+
+Creates a resolution-independent brush operation with a deterministic seed,
+pinned brush-alpha bytes and channel metadata, inserts it into a canonical
+project, extracts it and requires byte-identical recovery. It covers
+`editable-authoring`. Checkpoint-bearing records additionally require their
+named tiled image to exist in the project, as enforced by the native API.
+
+The gallery retains the canonical [operation record](../examples/outputs/07_editable_operation_record/stroke.operation),
+[project container](../examples/outputs/07_editable_operation_record/editable.ctex),
+[record inventory](../examples/outputs/07_editable_operation_record/record_report.json),
+[project inventory](../examples/outputs/07_editable_operation_record/project_report.json)
+and [round-trip summary](../examples/outputs/07_editable_operation_record/summary.json).
