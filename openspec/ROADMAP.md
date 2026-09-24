@@ -9,9 +9,11 @@ view and running log of decisions and open questions.
 
 The first-release bootstrap is archived: 24 capabilities and all 225 founding
 tasks are accounted for. Task 18.6 transferred Windows and Android delivery to
-the active `windows-android-release` change. Task 18.2 wired the named device
-runs into CI; a fresh iPad workflow result is pending. Every capability's runtime
-work is delivered and every device budget the project can measure is measured
+the active `windows-android-release` change. Tasks 18.2 and 18.5 are complete:
+named Mac and iPad CI passed on the release commit, and the three validated
+packages were published as [v0.1.0](https://github.com/CyberdyneCorp/CyberTexel/releases/tag/v0.1.0).
+Every capability's runtime work is delivered and every device budget the
+project can measure is measured
 on hardware it owns. Foundation and the complete headless color-management
 scenario suite are green. Image input now detects and decodes PNG, JPEG, TGA,
 BMP, baseline TIFF, flat OpenEXR, Radiance HDR and flattened PSD from caller
@@ -433,8 +435,9 @@ one 64-square four-channel tile per frame until tile history reaches its
 configured 96 MB budget near frame 6000, then holds flat for the remaining
 66,000 frames, which is the eviction behaviour the twenty-minute duration exists
 to expose. Memory-pressure, suspend/resume and device-loss fixtures pass on the
-same device. Tasks 17.12, 17.13 and 17.14 are complete; task 18.2 stays open for
-the CI wiring of those device runs, which is all it still requires.
+same device. Tasks 17.12, 17.13 and 17.14 are complete. Task 18.2 is also
+complete: the named device workflow passed on release commit `c8e83d9` and
+retained its measurements and XCTest result bundle as CI artifacts.
 
 ## Milestones
 
@@ -657,20 +660,15 @@ them rather than drifting.
 1. **Parity tolerances.** `execution-backends` requires them stated per bit depth
    and for filtered values. The numbers do not exist yet; slice-A task 7.5 sets them, and
    setting them too loose makes the gate decorative.
-2. **Reference devices.** ~~Settled 2026-09-24.~~ The desktop is the MacBook Pro
-   M3 Pro the work is done on; the tablet is the iPad Air 13-inch (M3), which is
-   the tablet the project actually owns. Both are named with full configuration
-   in `benchmarks/device_gate.json`. CI ownership of the tablet is still open:
-   nothing runs on it automatically.
-3. **Additional Kong targets.** Tasks 6.8 and 6.11 moved the common compiler and
+2. **Additional Kong targets.** Tasks 6.8 and 6.11 moved the common compiler and
    all four target backends to context-owned state without a process-wide lock.
    Their artifact shapes are now explicit: split WGSL/HLSL text, unified MSL,
    and binary SPIR-V.
-4. **Instance deletion policy.** `texture-document` allows either refusing the
+3. **Instance deletion policy.** `texture-document` allows either refusing the
    deletion of a referenced entry or converting its instances to independent
    copies, and makes it the caller's choice. Whether hosts actually want the
    choice, or whether one behaviour should simply be the rule, is open. Task 3.4.
-5. **UV density normalization.** Absolute texels-per-unit or relative to the
+4. **UV density normalization.** Absolute texels-per-unit or relative to the
    set's mean — CyberRemesherAndUV issue #89 raises the same question on the bake
    side. The two repositories should answer it identically.
 6. **Recovery and backing storage.** Choose checkpoint cadence, compression,

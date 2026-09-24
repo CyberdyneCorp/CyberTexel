@@ -28,6 +28,9 @@ apply them are `just` recipes, and CI invokes the same recipes.
 | Host-executed route stays honest | `build-packaging-reference-hosts` | Both reference hosts parse the plan strictly and must name every structural field it carries; CI builds and runs them, so a plan change fails until they are updated. |
 | Unreachable budget | `device-gate-policy` | A declared floor that no configuration reaches is reported as unreachable by the budget gate, never recorded as passed. |
 | Repeat build | `build-packaging-task-runner` | `just gate-reproducible` builds the shipped preset twice at one path and fails on any artifact difference that `docs/reproducible-builds.md` does not name. |
+| Verified release artifacts | `build-packaging-package-scope` | The `verify-first-release-assets` CI job validated all three archives from the tagged commit; the published assets were downloaded and passed the same archive and manifest gate with matching SHA-256 digests. |
+| CI or device gate fails | `build-packaging-task-runner` | Publication waited for both in-scope CI and the named Mac/iPad device workflow to pass on the tagged commit; failed device attempts were not treated as passes. |
+| Deferred platforms | `build-packaging-package-scope` | The release manifest records Windows and Android as deferred, and the published release has exactly the three in-scope assets. |
 
 ## Platform scope
 

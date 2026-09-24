@@ -29,12 +29,16 @@ rather than declared. The specification lives in
 checkboxes record its completion. The current requirements live in
 [`openspec/specs/`](openspec/specs/).
 
-What is **not** done, stated plainly:
+The [initial `v0.1.0` GitHub release](https://github.com/CyberdyneCorp/CyberTexel/releases/tag/v0.1.0)
+ships validated Linux x64, macOS universal and iOS arm64 packages. Its tag
+points to a commit with green main CI and named Mac/iPad device gates.
+
+Current status and open work:
 
 | | |
 |---|---|
-| **Reference hosts** | [Both hosts](hosts/) execute an emitted pass plan on a real device API and have run on their named hardware. The [reference-device workflow](docs/reference-device-ci.md) now runs them on the self-hosted M3 Pro and connected iPad on pushes to `main`. A fresh workflow result is pending. |
-| **Performance numbers** | Sixteen of thirty budgets are decided on their named devices and fifteen pass. Input-to-visible is 8.49 ms median on the M3 Pro and 20.44 ms on the iPad Air M3, against refresh-derived ceilings of 16 and 32 ms. A twenty-minute sustained tablet workload holds its final-window p95 at 20.62 ms against 33 ms and peaks at 164 MB against 512 MB, with latency drifting 0.06 ms across the run. The position-gradient generator is the one failure, at 2 248 ms against a 100 ms ceiling; removing redundant per-texel work took it down from 4 855 ms, and threading and SIMD would close the rest. `just gate-budgets` reports absent hardware as unmeasured, never as a pass. |
+| **Reference hosts** | [Both hosts](hosts/) execute an emitted pass plan on a real device API. The [reference-device workflow](docs/reference-device-ci.md) passed on the named M3 Pro and physical iPad Air M3 for the release commit. |
+| **Performance numbers** | Sixteen of thirty budgets are decided on their named devices and fifteen pass. The release device gate measured input-to-visible medians of 10.49 ms on the M3 Pro and 20.43 ms on the iPad Air M3, against refresh-derived ceilings of 16 and 32 ms. The twenty-minute tablet workload held its final-window p95 at 20.62 ms against 33 ms and peaked at about 181 MB against 512 MB. The position-gradient generator is the one failure, at 2 248 ms against a 100 ms ceiling; removing redundant per-texel work took it down from 4 855 ms, and threading and SIMD would close the rest. `just gate-budgets` reports absent hardware as unmeasured, never as a pass. |
 | **Platform packages** | macOS, Linux and iPad build, smoke-test and archive (`just gate-packages`). Windows and Android packaging and release validation are tracked in the active [`windows-android-release`](openspec/changes/windows-android-release/) change. |
 
 No claim about mobile responsiveness, memory efficiency or device parity is

@@ -32,6 +32,12 @@ ZIP's integrity, required contents, version, platform and smoke-test manifest,
 and rejects extra platforms. It prints SHA-256 checksums for the release notes.
 The initial release tag is `v0.1.0`, matching `VERSION`.
 
+The [published `v0.1.0` release](https://github.com/CyberdyneCorp/CyberTexel/releases/tag/v0.1.0)
+points to commit `c8e83d9`, which passed the [main CI](https://github.com/CyberdyneCorp/CyberTexel/actions/runs/36018179396)
+and [named reference-device gate](https://github.com/CyberdyneCorp/CyberTexel/actions/runs/36018179428).
+Its three published assets were downloaded and passed `just gate-release-assets`
+with the SHA-256 digests in the release notes.
+
 To publish, confirm that the OpenSpec CI workflow and the named reference-device
 workflow both pass for the same commit. Download the Linux, macOS and iOS
 artifacts from that OpenSpec run into one directory and run
