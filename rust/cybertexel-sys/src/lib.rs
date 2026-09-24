@@ -1,7 +1,7 @@
 //! Raw declarations generated from `include/ctex/capi.h`.
 //! Regenerate with `python3 tools/generate_rust_sys.py`.
 
-//! C header SHA-256: e089804504db69d4d6e7eca9ea4124ac8328cf07c4b1fb2bfd559e9012cbad0c
+//! C header SHA-256: fd344613c5fe2233aa2f786f982c21669adf8b4d2fef30c3809c7ce8f1714683
 
 #![allow(non_camel_case_types, non_snake_case, non_upper_case_globals)]
 

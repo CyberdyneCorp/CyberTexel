@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import importlib.util
+import io
 import tempfile
 import unittest
 from pathlib import Path
@@ -16,6 +17,15 @@ SPEC.loader.exec_module(CHECK)
 
 
 class BindingParityTests(unittest.TestCase):
+    def test_main_reports_stale_generated_header_digest(self) -> None:
+        output = io.StringIO()
+        with (
+            mock.patch.object(CHECK, "check", return_value=["rust binding has a stale header digest"]),
+            mock.patch("sys.stderr", output),
+        ):
+            self.assertEqual(CHECK.main(), 1)
+        self.assertIn("stale header digest", output.getvalue())
+
     def test_check_names_missing_and_unknown_operations_per_binding(self) -> None:
         operations = {
             "c": {"ctex_one", "ctex_two"},

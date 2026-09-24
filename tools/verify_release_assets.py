@@ -21,6 +21,22 @@ REQUIRED = {
 }
 
 
+def manifest_failures(
+    archive: zipfile.ZipFile, contents: set[str], path: Path,
+    version: str, platform: dict[str, str],
+) -> list[str]:
+    name = "cybertexel/share/cybertexel/package.json"
+    if name not in contents:
+        return []
+    manifest = json.loads(archive.read(name))
+    if not isinstance(manifest, dict):
+        return [f"{path.name}: package manifest is not an object"]
+    expected = {"version": version, "platform": platform["preset"],
+                "smoke_test": platform["smoke_test"]}
+    return [f"{path.name}: {key} is {manifest.get(key)!r}, expected {value!r}"
+            for key, value in expected.items() if manifest.get(key) != value]
+
+
 def verify_archive(path: Path, version: str, platform: dict[str, str]) -> list[str]:
     failures: list[str] = []
     try:
@@ -41,17 +57,7 @@ def verify_archive(path: Path, version: str, platform: dict[str, str]) -> list[s
             damaged = archive.testzip()
             if damaged:
                 failures.append(f"{path.name}: corrupt ZIP entry {damaged}")
-            manifest_name = "cybertexel/share/cybertexel/package.json"
-            if manifest_name in contents:
-                manifest = json.loads(archive.read(manifest_name))
-                if not isinstance(manifest, dict):
-                    failures.append(f"{path.name}: package manifest is not an object")
-                    return failures
-                expected = {"version": version, "platform": platform["preset"],
-                            "smoke_test": platform["smoke_test"]}
-                for key, value in expected.items():
-                    if manifest.get(key) != value:
-                        failures.append(f"{path.name}: {key} is {manifest.get(key)!r}, expected {value!r}")
+            failures.extend(manifest_failures(archive, contents, path, version, platform))
     except (OSError, zipfile.BadZipFile, json.JSONDecodeError) as error:
         failures.append(f"{path.name}: {error}")
     return failures

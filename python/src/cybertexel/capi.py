@@ -1,4 +1,4 @@
-# C header SHA-256: e089804504db69d4d6e7eca9ea4124ac8328cf07c4b1fb2bfd559e9012cbad0c
+# C header SHA-256: fd344613c5fe2233aa2f786f982c21669adf8b4d2fef30c3809c7ce8f1714683
 """Generated raw ctypes declarations for the CyberTexel C ABI.
 
 Regenerate with ``just generate-python-capi``.

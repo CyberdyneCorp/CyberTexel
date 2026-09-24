@@ -120,15 +120,9 @@ def check(root: Path) -> list[str]:
 def main() -> int:
     failures = check(ROOT)
     if failures:
-        operations = binding_operations(ROOT)
-        expected = operations["c"]
         print("binding parity check failed:", file=sys.stderr)
-        for binding in ("python", "swift", "rust"):
-            missing = sorted(expected - operations[binding])
-            if missing:
-                print(f"  {binding}: {len(missing)} missing", file=sys.stderr)
-                for name in missing:
-                    print(f"    - {name}", file=sys.stderr)
+        for failure in failures:
+            print(f"  - {failure}", file=sys.stderr)
         return 1
     print(f"ok: all {len(binding_operations(ROOT)['c'])} C operations reach every binding")
     return 0
