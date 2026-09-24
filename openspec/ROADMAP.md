@@ -7,8 +7,8 @@ decisions taken and questions still open.
 ## Status
 
 Implementation started. 24 capabilities, 332 requirements, 409 scenarios and
-224 tasks, 217 done. What remains needs hardware or another operating system:
-the iPad Pro M4, Windows and Android. Every capability's runtime work is delivered; what remains
+224 tasks, 218 done. Every remaining task needs hardware or another operating
+system: the iPad Pro M4, Windows and Android. Every capability's runtime work is delivered; what remains
 is the reference hosts, the device measurements they enable, the release
 packages and example breadth. Foundation and the complete headless color-management
 scenario suite are green. Image input now detects and decodes PNG, JPEG, TGA,

@@ -20,7 +20,9 @@ same engine through its public contract.
 ## Status
 
 All twenty-four capabilities are implemented and reachable through the stable
-C ABI and the Python, Swift and Rust bindings. The specification lives in
+C ABI and the Python, Swift and Rust bindings. Thirty-three numbered Python
+examples exercise all 353 public C ABI operations, proven by recorded call
+traces rather than declared. The specification lives in
 [`openspec/`](openspec/); the founding change is
 [`openspec/changes/bootstrap-v1-cybertexel/`](openspec/changes/bootstrap-v1-cybertexel/)
 — proposal, design, twenty-four capability specs and the task plan, whose
@@ -33,7 +35,6 @@ What is **not** done, stated plainly:
 |---|---|
 | **Reference hosts** | [Both hosts](hosts/) execute an emitted pass plan on a real device API and have been run on the M3 Pro; the desktop host also presents to a window and measures five-stage input-to-visible latency. They are not painting applications: a device run on the iPad remains part of task 18.2. |
 | **Performance numbers** | Seven desktop budgets are measured on the M3 Pro and six pass, including stamp scaling at a 0.999 ratio; the position-gradient generator fails at ~4.3 s against a 100 ms ceiling. Input-to-visible is instrumented and needs one interactive run (`just host-desktop-benchmark`), and every tablet budget needs the iPad Pro M4 (task 17.13). `just gate-budgets` reports absent hardware as unmeasured, never as a pass. |
-| **Example breadth** | The numbered Python examples exercise 322 of the 353 public C ABI symbols. The other 31 are named individually in [`examples/feature_coverage.json`](examples/feature_coverage.json) (task 16.12). |
 | **Platform packages** | macOS, Linux and iPad build, smoke-test and archive (`just gate-packages`). Windows and Android packaging follow in task 18.6; the Windows library, CLI and Python wheel are built and tested in CI today. |
 
 No claim about mobile responsiveness, memory efficiency or device parity is
