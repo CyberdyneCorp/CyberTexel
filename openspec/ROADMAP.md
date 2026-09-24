@@ -7,10 +7,11 @@ decisions taken and questions still open.
 ## Status
 
 Implementation started. 24 capabilities, 332 requirements, 409 scenarios and
-224 tasks, 218 done. Every remaining task needs hardware or another operating
-system: the iPad Pro M4, Windows and Android. Every capability's runtime work is delivered; what remains
-is the reference hosts, the device measurements they enable, the release
-packages and example breadth. Foundation and the complete headless color-management
+225 tasks, 221 done. Every capability's runtime work is delivered and every
+device budget the project can measure is measured on hardware it owns. Four
+tasks remain: one library gap (3.12, a bulk channel write to match the bulk
+channel read), wiring the device runs into CI (18.2), the Windows and Android
+packages (18.6), and archiving this change once the rest land (18.5). Foundation and the complete headless color-management
 scenario suite are green. Image input now detects and decodes PNG, JPEG, TGA,
 BMP, baseline TIFF, flat OpenEXR, Radiance HDR and flattened PSD from caller
 memory, with mismatch reporting, 8/16-bit preservation and hostile-input
@@ -414,10 +415,25 @@ configuration and measures residency traffic: resident paint and undo both move
 zero synchronously read-back bytes, and undo exchanges storage owners with zero
 copied pixel bytes. The first library-side figures are recorded too — delta
 query, tile readback and material emission pass, and the position-gradient
-generator fails at 4273 ms against a 100 ms ceiling, its cost purely per texel.
+generator fails at 2248 ms against a 100 ms ceiling, its cost purely per texel.
 All three in-scope platform packages build, smoke-test and archive. Both were run on the M3 Pro and agree on the rendered
-texel across two device APIs. Task 18.4 is complete; task 18.2 stays open for
-the residency-traffic and input-to-visible instrumentation it also requires.
+texel across two device APIs. Task 18.4 is complete.
+
+Both hosts have since run on their named devices. Input-to-visible is measured
+on each: 8.49 ms median on the M3 Pro and 20.44 ms on the iPad Air M3, with five
+contiguous stage timestamps that sum to the reported latency by construction.
+Of the tablet's 20.44 ms the library accounts for 0.87 ms; the rest is one 60 Hz
+refresh period plus the gap between the frame callback waking and the vsync it
+renders for. A twenty-minute sustained tablet workload of 71,937 authored frames
+holds its final-window p95 at 20.622 ms against 33 ms and peaks at 172,164,912
+bytes against 536,870,912, with the opening minute and the final five minutes
+0.061 ms apart and thermal state nominal throughout. Its footprint climbs about
+one 64-square four-channel tile per frame until tile history reaches its
+configured 96 MB budget near frame 6000, then holds flat for the remaining
+66,000 frames, which is the eviction behaviour the twenty-minute duration exists
+to expose. Memory-pressure, suspend/resume and device-loss fixtures pass on the
+same device. Tasks 17.12, 17.13 and 17.14 are complete; task 18.2 stays open for
+the CI wiring of those device runs, which is all it still requires.
 
 ## Milestones
 
@@ -572,6 +588,40 @@ for every ctypes-based binding, and the C ABI would be safer if success were
 non-zero or if an unset output count were an error. Examples now record what a
 callback saw and assert on that record after the call returns. Task 16.12.
 
+**2026-09-24 — Input-to-visible ceilings are derived from each device's refresh
+rate, not hand-written.** A frame cannot be visible before the next vsync, so a
+ceiling in milliseconds means nothing without the refresh rate it was written
+against. The tablet carried 20 / 33 / 50 ms from when the reference tablet was a
+120 Hz iPad Pro; on the 60 Hz iPad Air the project owns, the 20 ms median sat
+below the hardware floor. The tablet measures 20.44 ms of which the library
+accounts for 0.87 ms, so an infinitely fast library would have measured the same
+19.39 ms and the budget was unreachable by construction rather than missed.
+
+Reference devices now declare `refresh_hz`. The desktop's 16 / 25 / 33 ms on a
+120 Hz panel fix the pipeline depth the project accepts — 1.92, 3.00 and 3.96
+refresh periods — and every other device's ceilings follow from its own panel,
+giving the tablet 32 / 50 / 66 ms. `validate_config` enforces the derivation and
+names the figure a hand-edited ceiling should have been. This tightens
+automatically on a faster panel and cannot be quietly loosened on a slower one,
+which matters because relaxing a ceiling right after failing it is the direction
+that manufactures a pass. `tablet-sustained-final-p95` is deliberately left at
+33 ms, tighter than the derived interactive p95 of 50 ms: it passes at 20.62 ms
+with room to spare, and a budget should not be adjusted on the strength of a
+measurement that already clears it. Tasks 17.12 and 17.13.
+
+**2026-09-24 — A latency harness is measured before the library is blamed.**
+Two probe-host defects each read as library cost. `CADisplayLink.timestamp` on
+iPadOS 27 names a vsync still ~3.8 ms in the future when the callback runs, so
+anchoring a sample there credits the host with time it never had; the run now
+anchors where the callback got the CPU. And encoding on every vsync regardless
+of whether the previous frame had presented let a cold-start backlog sustain
+itself for a whole run — `nextDrawable()` blocked a full frame, presentation
+slipped exactly two vsyncs, and the median read 50 ms. It was bimodal across
+runs of one binary at 16.67, 33.34, 50.01 and 65.87 ms, which is the shape a
+single run would have reported as a library regression. Pacing to at most two
+frames in flight drains it; six consecutive runs then landed between 20.44 and
+20.45 ms. Task 17.12.
+
 **2026-09-24 — The tablet reference device is the iPad Air 13-inch (M3).**
 The manifest named an iPad Pro 13-inch (M4, 1 TB) with 16 GB, written before
 anyone had hardware, and open question 2 recorded that the machines were not
@@ -589,8 +639,13 @@ a budget stricter, so the change cannot manufacture a pass. The latency ceilings
 are unchanged: an M3 is not slower than an M4 by enough to justify relaxing a
 budget nobody has measured.
 
-Nothing has been measured on it yet. Deploying to it is blocked on reading a
-report back off the device, not on the device.
+Since settled, the tablet has been measured: all eleven of its budgets that a
+run can decide are decided, and it carries the input-to-visible and sustained
+results above. Getting a report off the device was the whole difficulty, and the
+cause was not the library — iOS 27 traps an app that does not adopt the scene
+lifecycle, and a scene manifest with an empty `UISceneConfigurations` does not
+count as adoption. An XCTest bundle reporting through the result bundle is the
+right shape, because nothing then depends on reading the app container.
 
 ## Open questions
 

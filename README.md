@@ -34,7 +34,7 @@ What is **not** done, stated plainly:
 | | |
 |---|---|
 | **Reference hosts** | [Both hosts](hosts/) execute an emitted pass plan on a real device API and have now run on their named hardware — the desktop host on the M3 Pro and the iPad probe on the iPad Air M3 — each presenting to a real surface and measuring five-stage input-to-visible latency. They are not painting applications, and wiring those device runs into CI remains task 18.2. |
-| **Performance numbers** | Fourteen of thirty budgets are decided on their named devices and thirteen pass, input-to-visible included: 8.49 ms median on the M3 Pro and 20.44 ms on the iPad Air M3, against refresh-derived ceilings of 16 and 32 ms. The position-gradient generator is the one failure, at 2 248 ms against a 100 ms ceiling; removing redundant per-texel work took it down from 4 855 ms, and threading and SIMD would close the rest. The twenty-minute sustained mobile workload is task 17.13. `just gate-budgets` reports absent hardware as unmeasured, never as a pass. |
+| **Performance numbers** | Sixteen of thirty budgets are decided on their named devices and fifteen pass. Input-to-visible is 8.49 ms median on the M3 Pro and 20.44 ms on the iPad Air M3, against refresh-derived ceilings of 16 and 32 ms. A twenty-minute sustained tablet workload holds its final-window p95 at 20.62 ms against 33 ms and peaks at 164 MB against 512 MB, with latency drifting 0.06 ms across the run. The position-gradient generator is the one failure, at 2 248 ms against a 100 ms ceiling; removing redundant per-texel work took it down from 4 855 ms, and threading and SIMD would close the rest. `just gate-budgets` reports absent hardware as unmeasured, never as a pass. |
 | **Platform packages** | macOS, Linux and iPad build, smoke-test and archive (`just gate-packages`). Windows and Android packaging follow in task 18.6; the Windows library, CLI and Python wheel are built and tested in CI today. |
 
 No claim about mobile responsiveness, memory efficiency or device parity is
@@ -356,8 +356,9 @@ The current implementation provides:
 
 Every item above is reachable through the C ABI and the three bindings, and each
 capability's OpenSpec scenarios are mapped to a labeled, executable suite. What
-remains is listed under [Status](#status): the reference hosts, the device
-measurements they enable, the remaining platform packages and example breadth.
+remains is listed under [Status](#status): a bulk channel write to match the
+bulk channel read, wiring the device runs into CI, and the remaining platform
+packages.
 
 ## Architecture
 
