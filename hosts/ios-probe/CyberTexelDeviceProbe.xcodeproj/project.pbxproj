@@ -1,0 +1,214 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {};
+	objectVersion = 56;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		4778F41E189867C666A77D2D /* main.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2ABF4294149CC237B1A63CC4 /* main.swift */; };
+		DAC7EB90F87B03F74D68FC06 /* libcybertexel_c.a in Frameworks */ = {isa = PBXBuildFile; fileRef = ECA9E17D0DDAE1C7144DC835 /* libcybertexel_c.a */; };
+		EBDB5D2B75817CF0ABB672C2 /* libctex_kong.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 873F80AD72FAE88B34352CAF /* libctex_kong.a */; };
+		43B38EF3FCCC41D556368CFC /* libctex_lodepng.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 4D434C4212C53D7C2A252E1D /* libctex_lodepng.a */; };
+		117AAD619AE147DBE58EE3E5 /* libminiz.a in Frameworks */ = {isa = PBXBuildFile; fileRef = E97D1C9F5D2ACDED4D7A90F8 /* libminiz.a */; };
+		80BD69B5ADBB7A174408372A /* libtinyexr.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 4C8D9E9C458426A2EBFA0141 /* libtinyexr.a */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXFileReference section */
+		38A007151ABE87CC01A5B6E9 /* CyberTexelDeviceProbe.app */ = {isa = PBXFileReference; explicitFileType = "wrapper.application"; includeInIndex = 0; path = CyberTexelDeviceProbe.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		2ABF4294149CC237B1A63CC4 /* main.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = main.swift; sourceTree = "<group>"; };
+		ECA9E17D0DDAE1C7144DC835 /* libcybertexel_c.a */ = {isa = PBXFileReference; lastKnownFileType = "archive.ar"; name = libcybertexel_c.a; path = "../../build/swift-ios-prefix/lib/libcybertexel_c.a"; sourceTree = "<group>"; };
+		873F80AD72FAE88B34352CAF /* libctex_kong.a */ = {isa = PBXFileReference; lastKnownFileType = "archive.ar"; name = libctex_kong.a; path = "../../build/swift-ios-prefix/lib/libctex_kong.a"; sourceTree = "<group>"; };
+		4D434C4212C53D7C2A252E1D /* libctex_lodepng.a */ = {isa = PBXFileReference; lastKnownFileType = "archive.ar"; name = libctex_lodepng.a; path = "../../build/swift-ios-prefix/lib/libctex_lodepng.a"; sourceTree = "<group>"; };
+		E97D1C9F5D2ACDED4D7A90F8 /* libminiz.a */ = {isa = PBXFileReference; lastKnownFileType = "archive.ar"; name = libminiz.a; path = "../../build/swift-ios-prefix/lib/libminiz.a"; sourceTree = "<group>"; };
+		4C8D9E9C458426A2EBFA0141 /* libtinyexr.a */ = {isa = PBXFileReference; lastKnownFileType = "archive.ar"; name = libtinyexr.a; path = "../../build/swift-ios-prefix/lib/libtinyexr.a"; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		7B8633C7EB6F5CB13673C25D = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				DAC7EB90F87B03F74D68FC06 /* libcybertexel_c.a in Frameworks */,
+				EBDB5D2B75817CF0ABB672C2 /* libctex_kong.a in Frameworks */,
+				43B38EF3FCCC41D556368CFC /* libctex_lodepng.a in Frameworks */,
+				117AAD619AE147DBE58EE3E5 /* libminiz.a in Frameworks */,
+				80BD69B5ADBB7A174408372A /* libtinyexr.a in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		BDE88D77EBDC01774960BE71 = {
+			isa = PBXGroup;
+			children = (
+				6CFF25F19F93DA6CB2D8E780 /* Probe */,
+				ECA9E17D0DDAE1C7144DC835 /* libcybertexel_c.a */,
+				873F80AD72FAE88B34352CAF /* libctex_kong.a */,
+				4D434C4212C53D7C2A252E1D /* libctex_lodepng.a */,
+				E97D1C9F5D2ACDED4D7A90F8 /* libminiz.a */,
+				4C8D9E9C458426A2EBFA0141 /* libtinyexr.a */,
+				4FDE57E4B72FFCEE306CEB0F /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		6CFF25F19F93DA6CB2D8E780 /* Probe */ = {
+			isa = PBXGroup;
+			children = (
+				2ABF4294149CC237B1A63CC4 /* main.swift */,
+			);
+			path = Probe;
+			sourceTree = "<group>";
+		};
+		4FDE57E4B72FFCEE306CEB0F /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				38A007151ABE87CC01A5B6E9 /* CyberTexelDeviceProbe.app */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		0E8A3AD980EC179856012B7E /* CyberTexelDeviceProbe */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 59D08FAC3ED334CCC706B8AF;
+			buildPhases = (
+				E4F78730D65EE9F55E2BAC2F,
+				7B8633C7EB6F5CB13673C25D,
+			);
+			buildRules = ();
+			dependencies = ();
+			name = CyberTexelDeviceProbe;
+			productName = CyberTexelDeviceProbe;
+			productReference = 38A007151ABE87CC01A5B6E9 /* CyberTexelDeviceProbe.app */;
+			productType = "com.apple.product-type.application";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		98F54143AB4E86B28C3AFEE0 = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = 1;
+				LastSwiftUpdateCheck = 2700;
+				LastUpgradeCheck = 2700;
+				TargetAttributes = {
+					0E8A3AD980EC179856012B7E = { CreatedOnToolsVersion = 27.0; };
+				};
+			};
+			buildConfigurationList = 945A56F5D4EFEF9EBF2BD4D8;
+			compatibilityVersion = "Xcode 14.0";
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (en, Base);
+			mainGroup = BDE88D77EBDC01774960BE71;
+			productRefGroup = 4FDE57E4B72FFCEE306CEB0F /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				0E8A3AD980EC179856012B7E /* CyberTexelDeviceProbe */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXSourcesBuildPhase section */
+		E4F78730D65EE9F55E2BAC2F = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				4778F41E189867C666A77D2D /* main.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin XCBuildConfiguration section */
+		F942A8A84E6EA57CEDA17E13 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ENABLE_MODULES = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
+				SDKROOT = iphoneos;
+				SWIFT_VERSION = 5.0;
+				ONLY_ACTIVE_ARCH = YES;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				ENABLE_USER_SCRIPT_SANDBOXING = NO;
+			};
+			name = Debug;
+		};
+		698620892CC05B3078DD0931 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ENABLE_MODULES = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
+				SDKROOT = iphoneos;
+				SWIFT_VERSION = 5.0;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				ENABLE_USER_SCRIPT_SANDBOXING = NO;
+			};
+			name = Release;
+		};
+		18DCB30A68F4AFA5DA444758 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				DEVELOPMENT_TEAM = 2C69VJZSNR;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = Probe/Info.plist;
+				HEADER_SEARCH_PATHS = "$(SRCROOT)/../../build/swift-ios-prefix/include";
+				LIBRARY_SEARCH_PATHS = "$(SRCROOT)/../../build/swift-ios-prefix/lib";
+				SWIFT_OBJC_BRIDGING_HEADER = "Probe/Bridging.h";
+				PRODUCT_BUNDLE_IDENTIFIER = com.cyberdyne.cybertexel.deviceprobe;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				TARGETED_DEVICE_FAMILY = "1,2";
+				OTHER_LDFLAGS = "-lc++";
+			};
+			name = Debug;
+		};
+		4E31F9F05639A422599E8F78 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				DEVELOPMENT_TEAM = 2C69VJZSNR;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = Probe/Info.plist;
+				HEADER_SEARCH_PATHS = "$(SRCROOT)/../../build/swift-ios-prefix/include";
+				LIBRARY_SEARCH_PATHS = "$(SRCROOT)/../../build/swift-ios-prefix/lib";
+				SWIFT_OBJC_BRIDGING_HEADER = "Probe/Bridging.h";
+				PRODUCT_BUNDLE_IDENTIFIER = com.cyberdyne.cybertexel.deviceprobe;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				TARGETED_DEVICE_FAMILY = "1,2";
+				OTHER_LDFLAGS = "-lc++";
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		945A56F5D4EFEF9EBF2BD4D8 = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				F942A8A84E6EA57CEDA17E13 /* Debug */,
+				698620892CC05B3078DD0931 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		59D08FAC3ED334CCC706B8AF = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				18DCB30A68F4AFA5DA444758 /* Debug */,
+				4E31F9F05639A422599E8F78 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = 98F54143AB4E86B28C3AFEE0;
+}

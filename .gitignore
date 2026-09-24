@@ -16,3 +16,6 @@ hosts/*/.build/
 
 # Demo output: generated from assets outside the repository.
 /demos/output/
+
+# iOS probe build products.
+/hosts/ios-probe/build/

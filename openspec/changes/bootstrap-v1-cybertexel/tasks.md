@@ -1742,6 +1742,30 @@ input to one operation, not the channel's content.
 command. They are deliberately outside the gated example suite, which requires committed fixtures
 with recorded provenance and no external tooling.
 
+2026-09-24: The tablet reference device is now the iPad Air 13-inch (M3), the tablet the
+project actually owns, verified from the connected device: `iPad15,5`, 8 CPU cores, 9 GPU cores,
+8 GB, iPadOS 27.0 (24A437). The manifest had named an iPad Pro 13-inch M4 with 16 GB, written
+before anyone had hardware, which is what open question 2 recorded as unsettled. The five memory
+ceilings halve with the memory so each stays the same share of the device; halving can only make a
+budget stricter. The latency ceilings are unchanged. `test_device_gate.py` now reads the tablet
+from the manifest instead of pinning its name, because which hardware the project owns is a
+recorded decision that can change.
+
+`hosts/ios-probe/` builds, signs, installs, launches and executes on both an iPhone 16 and the
+iPad. Three fixes were needed and each is recorded in its README: the signing team id is the
+certificate's OU and not the identifier inside its CN; iOS tears down an app that returns without
+a window, so a scene manifest and a `UIWindow` are required; and `@main` on a
+`UIApplicationDelegate` did not register the delegate at all, proved by a `fatalError` as the first
+statement of `didFinishLaunchingWithOptions` that never fired, with `UIApplicationMain` and an
+explicit principal class being what wires it up.
+
+Nothing is measured on the tablet yet. The app writes its report into its Documents directory and
+the container reads back empty on both devices even with `UIFileSharingEnabled`; the crash-log
+domain is readable but a Swift `fatalError` message does not survive into the `.ips` to carry a
+payload. The next approach is an XCTest target run through `xcodebuild test`, which returns an
+`.xcresult` to the host and needs no container access. Tasks 17.12, 17.13, 17.14 and 18.2 stay open
+on that, not on the hardware.
+
 Editable-authoring group 20 is complete. Versioned operation records retain
 algorithm and preset versions, seeds, channel descriptors, mesh identity,
 pinned input bytes and checkpoint identities in canonical project-container

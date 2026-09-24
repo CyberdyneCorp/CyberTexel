@@ -572,6 +572,26 @@ for every ctypes-based binding, and the C ABI would be safer if success were
 non-zero or if an unset output count were an error. Examples now record what a
 callback saw and assert on that record after the call returns. Task 16.12.
 
+**2026-09-24 — The tablet reference device is the iPad Air 13-inch (M3).**
+The manifest named an iPad Pro 13-inch (M4, 1 TB) with 16 GB, written before
+anyone had hardware, and open question 2 recorded that the machines were not
+settled. The tablet this project owns is an iPad Air 13-inch (M3), `iPad15,5`,
+8 CPU cores, 9 GPU cores, 8 GB, iPadOS 27.0 (24A437), verified from the
+connected device rather than from a spec sheet. Measuring forever against a
+device nobody owns is how a budget stays decorative, so the manifest now names
+the real one.
+
+The four working-set ceilings and the sustained ceiling halve with the memory:
+48 MB to 24 MB for a stroke, 192 MB to 96 MB for compositing and smart
+materials, 384 MB to 192 MB for export, and 1 GB to 512 MB sustained. That
+keeps each budget at the same share of device memory, and halving can only make
+a budget stricter, so the change cannot manufacture a pass. The latency ceilings
+are unchanged: an M3 is not slower than an M4 by enough to justify relaxing a
+budget nobody has measured.
+
+Nothing has been measured on it yet. Deploying to it is blocked on reading a
+report back off the device, not on the device.
+
 ## Open questions
 
 These are unresolved and should be answered by the task that first depends on
@@ -580,9 +600,11 @@ them rather than drifting.
 1. **Parity tolerances.** `execution-backends` requires them stated per bit depth
    and for filtered values. The numbers do not exist yet; slice-A task 7.5 sets them, and
    setting them too loose makes the gate decorative.
-2. **Reference devices.** `device-gate` requires at least one desktop and one
-   tablet, named with full configuration. Which machines, and who owns them for
-   CI, is not settled. Resolve in slice A through task 17.1 before recording any performance claim.
+2. **Reference devices.** ~~Settled 2026-09-24.~~ The desktop is the MacBook Pro
+   M3 Pro the work is done on; the tablet is the iPad Air 13-inch (M3), which is
+   the tablet the project actually owns. Both are named with full configuration
+   in `benchmarks/device_gate.json`. CI ownership of the tablet is still open:
+   nothing runs on it automatically.
 3. **Additional Kong targets.** Tasks 6.8 and 6.11 moved the common compiler and
    all four target backends to context-owned state without a process-wide lock.
    Their artifact shapes are now explicit: split WGSL/HLSL text, unified MSL,

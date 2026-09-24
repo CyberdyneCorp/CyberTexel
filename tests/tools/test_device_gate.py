@@ -124,7 +124,11 @@ class DeviceGateTests(unittest.TestCase):
         self.assertTrue(any(item.status == "unmeasured" for item in report.decisions))
 
     def test_unavailable_tablet_is_unmeasured_without_desktop_substitution(self) -> None:
-        device = "ipad-pro-13-m4-16gb"
+        # Read the tablet from the manifest rather than pinning its name: which
+        # hardware the project owns is a recorded decision that can change, and
+        # this test is about substitution, not about a particular device.
+        device = next(entry["id"] for entry in self.config["reference_devices"]
+                      if entry["kind"] == "tablet")
         report = GATE.evaluate_gate(self.config, self.results(device, []))
         self.assertFalse(report.passed)
         self.assertEqual(report.decided, 0)

@@ -14,13 +14,13 @@
       "host": "Swift/Metal reference host"
     },
     {
-      "id": "ipad-pro-13-m4-16gb",
+      "id": "ipad-air-13-m3-8gb",
       "kind": "tablet",
-      "model": "iPad Pro 13-inch (M4, 1 TB)",
-      "cpu": "Apple M4, 10 cores",
-      "gpu": "Apple M4, 10 cores, Metal 4",
-      "memory_bytes": 17179869184,
-      "operating_system": "iPadOS 27.0",
+      "model": "iPad Air 13-inch (M3) (iPad15,5)",
+      "cpu": "Apple M3, 8 cores",
+      "gpu": "Apple M3, 9 cores, Metal 4",
+      "memory_bytes": 8589934592,
+      "operating_system": "iPadOS 27.0 (24A437)",
       "host": "Swift/Metal reference host"
     }
   ],
@@ -43,39 +43,307 @@
     }
   ],
   "budgets": [
-    {"id": "desktop-stamp-median", "operation": "stamp", "metric": "median_ms", "unit": "ms", "ceiling": 4.0, "absolute_floor": 0.01, "device": "macbook-pro-m3-pro-18gpu-36gb", "configuration": "interactive-4k", "target_rate": "120 Hz"},
-    {"id": "desktop-stamp-p95", "operation": "stamp", "metric": "p95_ms", "unit": "ms", "ceiling": 8.0, "absolute_floor": 0.01, "device": "macbook-pro-m3-pro-18gpu-36gb", "configuration": "interactive-4k", "target_rate": "120 Hz"},
-    {"id": "desktop-stroke", "operation": "stroke", "metric": "p95_ms", "unit": "ms", "ceiling": 25.0, "absolute_floor": 0.05, "device": "macbook-pro-m3-pro-18gpu-36gb", "configuration": "interactive-4k"},
-    {"id": "desktop-composite", "operation": "composite", "metric": "p95_ms", "unit": "ms", "ceiling": 20.0, "absolute_floor": 0.05, "device": "macbook-pro-m3-pro-18gpu-36gb", "configuration": "batch-4k"},
-    {"id": "desktop-emission", "operation": "emission", "metric": "p95_ms", "unit": "ms", "ceiling": 50.0, "absolute_floor": 0.01, "device": "macbook-pro-m3-pro-18gpu-36gb", "configuration": "batch-4k"},
-    {"id": "desktop-generator", "operation": "generator", "metric": "p95_ms", "unit": "ms", "ceiling": 100.0, "absolute_floor": 0.05, "device": "macbook-pro-m3-pro-18gpu-36gb", "configuration": "batch-4k"},
-    {"id": "desktop-delta-query", "operation": "delta-query", "metric": "p95_ms", "unit": "ms", "ceiling": 1.0, "absolute_floor": 0.001, "device": "macbook-pro-m3-pro-18gpu-36gb", "configuration": "interactive-4k"},
-    {"id": "desktop-tile-readback", "operation": "tile-readback", "metric": "p95_ms", "unit": "ms", "ceiling": 4.0, "absolute_floor": 0.005, "device": "macbook-pro-m3-pro-18gpu-36gb", "configuration": "interactive-4k"},
-    {"id": "desktop-smart-material", "operation": "smart-material", "metric": "p95_ms", "unit": "ms", "ceiling": 50.0, "absolute_floor": 0.05, "device": "macbook-pro-m3-pro-18gpu-36gb", "configuration": "batch-4k"},
-    {"id": "desktop-export", "operation": "export", "metric": "p95_ms", "unit": "ms", "ceiling": 250.0, "absolute_floor": 0.1, "device": "macbook-pro-m3-pro-18gpu-36gb", "configuration": "batch-4k"},
-
-    {"id": "desktop-stroke-memory", "operation": "stroke", "metric": "peak_working_bytes", "unit": "bytes", "ceiling": 67108864, "absolute_floor": 1, "device": "macbook-pro-m3-pro-18gpu-36gb", "configuration": "interactive-4k"},
-    {"id": "desktop-composite-memory", "operation": "composite", "metric": "peak_working_bytes", "unit": "bytes", "ceiling": 268435456, "absolute_floor": 1, "device": "macbook-pro-m3-pro-18gpu-36gb", "configuration": "batch-4k"},
-    {"id": "desktop-smart-material-memory", "operation": "smart-material", "metric": "peak_working_bytes", "unit": "bytes", "ceiling": 268435456, "absolute_floor": 1, "device": "macbook-pro-m3-pro-18gpu-36gb", "configuration": "batch-4k"},
-    {"id": "desktop-export-memory", "operation": "export", "metric": "peak_working_bytes", "unit": "bytes", "ceiling": 536870912, "absolute_floor": 1, "device": "macbook-pro-m3-pro-18gpu-36gb", "configuration": "batch-4k"},
-
-    {"id": "tablet-stroke-memory", "operation": "stroke", "metric": "peak_working_bytes", "unit": "bytes", "ceiling": 50331648, "absolute_floor": 1, "device": "ipad-pro-13-m4-16gb", "configuration": "interactive-4k"},
-    {"id": "tablet-composite-memory", "operation": "composite", "metric": "peak_working_bytes", "unit": "bytes", "ceiling": 201326592, "absolute_floor": 1, "device": "ipad-pro-13-m4-16gb", "configuration": "batch-4k"},
-    {"id": "tablet-smart-material-memory", "operation": "smart-material", "metric": "peak_working_bytes", "unit": "bytes", "ceiling": 201326592, "absolute_floor": 1, "device": "ipad-pro-13-m4-16gb", "configuration": "batch-4k"},
-    {"id": "tablet-export-memory", "operation": "export", "metric": "peak_working_bytes", "unit": "bytes", "ceiling": 402653184, "absolute_floor": 1, "device": "ipad-pro-13-m4-16gb", "configuration": "batch-4k"},
-
-    {"id": "desktop-visible-median", "operation": "input-to-visible", "metric": "median_ms", "unit": "ms", "ceiling": 16.0, "absolute_floor": 0.1, "device": "macbook-pro-m3-pro-18gpu-36gb", "configuration": "interactive-4k"},
-    {"id": "desktop-visible-p95", "operation": "input-to-visible", "metric": "p95_ms", "unit": "ms", "ceiling": 25.0, "absolute_floor": 0.1, "device": "macbook-pro-m3-pro-18gpu-36gb", "configuration": "interactive-4k"},
-    {"id": "desktop-visible-p99", "operation": "input-to-visible", "metric": "p99_ms", "unit": "ms", "ceiling": 33.0, "absolute_floor": 0.1, "device": "macbook-pro-m3-pro-18gpu-36gb", "configuration": "interactive-4k"},
-    {"id": "tablet-visible-median", "operation": "input-to-visible", "metric": "median_ms", "unit": "ms", "ceiling": 20.0, "absolute_floor": 0.1, "device": "ipad-pro-13-m4-16gb", "configuration": "interactive-4k"},
-    {"id": "tablet-visible-p95", "operation": "input-to-visible", "metric": "p95_ms", "unit": "ms", "ceiling": 33.0, "absolute_floor": 0.1, "device": "ipad-pro-13-m4-16gb", "configuration": "interactive-4k"},
-    {"id": "tablet-visible-p99", "operation": "input-to-visible", "metric": "p99_ms", "unit": "ms", "ceiling": 50.0, "absolute_floor": 0.1, "device": "ipad-pro-13-m4-16gb", "configuration": "interactive-4k"},
-
-    {"id": "tablet-sustained-final-p95", "operation": "sustained-mobile", "metric": "final_five_minute_p95_ms", "unit": "ms", "ceiling": 33.0, "absolute_floor": 0.1, "device": "ipad-pro-13-m4-16gb", "configuration": "sustained-mobile-4k"},
-    {"id": "tablet-sustained-memory", "operation": "sustained-mobile", "metric": "peak_physical_bytes", "unit": "bytes", "ceiling": 1073741824, "absolute_floor": 1, "device": "ipad-pro-13-m4-16gb", "configuration": "sustained-mobile-4k"},
-    {"id": "desktop-paint-sync-readback", "operation": "resident-paint", "metric": "synchronous_readback_bytes", "unit": "bytes", "ceiling": 0, "absolute_floor": 0, "device": "macbook-pro-m3-pro-18gpu-36gb", "configuration": "interactive-4k"},
-    {"id": "desktop-undo-sync-readback", "operation": "resident-undo", "metric": "synchronous_readback_bytes", "unit": "bytes", "ceiling": 0, "absolute_floor": 0, "device": "macbook-pro-m3-pro-18gpu-36gb", "configuration": "interactive-4k"},
-    {"id": "tablet-paint-sync-readback", "operation": "resident-paint", "metric": "synchronous_readback_bytes", "unit": "bytes", "ceiling": 0, "absolute_floor": 0, "device": "ipad-pro-13-m4-16gb", "configuration": "interactive-4k"},
-    {"id": "tablet-undo-sync-readback", "operation": "resident-undo", "metric": "synchronous_readback_bytes", "unit": "bytes", "ceiling": 0, "absolute_floor": 0, "device": "ipad-pro-13-m4-16gb", "configuration": "interactive-4k"}
+    {
+      "id": "desktop-stamp-median",
+      "operation": "stamp",
+      "metric": "median_ms",
+      "unit": "ms",
+      "ceiling": 4.0,
+      "absolute_floor": 0.01,
+      "device": "macbook-pro-m3-pro-18gpu-36gb",
+      "configuration": "interactive-4k",
+      "target_rate": "120 Hz"
+    },
+    {
+      "id": "desktop-stamp-p95",
+      "operation": "stamp",
+      "metric": "p95_ms",
+      "unit": "ms",
+      "ceiling": 8.0,
+      "absolute_floor": 0.01,
+      "device": "macbook-pro-m3-pro-18gpu-36gb",
+      "configuration": "interactive-4k",
+      "target_rate": "120 Hz"
+    },
+    {
+      "id": "desktop-stroke",
+      "operation": "stroke",
+      "metric": "p95_ms",
+      "unit": "ms",
+      "ceiling": 25.0,
+      "absolute_floor": 0.05,
+      "device": "macbook-pro-m3-pro-18gpu-36gb",
+      "configuration": "interactive-4k"
+    },
+    {
+      "id": "desktop-composite",
+      "operation": "composite",
+      "metric": "p95_ms",
+      "unit": "ms",
+      "ceiling": 20.0,
+      "absolute_floor": 0.05,
+      "device": "macbook-pro-m3-pro-18gpu-36gb",
+      "configuration": "batch-4k"
+    },
+    {
+      "id": "desktop-emission",
+      "operation": "emission",
+      "metric": "p95_ms",
+      "unit": "ms",
+      "ceiling": 50.0,
+      "absolute_floor": 0.01,
+      "device": "macbook-pro-m3-pro-18gpu-36gb",
+      "configuration": "batch-4k"
+    },
+    {
+      "id": "desktop-generator",
+      "operation": "generator",
+      "metric": "p95_ms",
+      "unit": "ms",
+      "ceiling": 100.0,
+      "absolute_floor": 0.05,
+      "device": "macbook-pro-m3-pro-18gpu-36gb",
+      "configuration": "batch-4k"
+    },
+    {
+      "id": "desktop-delta-query",
+      "operation": "delta-query",
+      "metric": "p95_ms",
+      "unit": "ms",
+      "ceiling": 1.0,
+      "absolute_floor": 0.001,
+      "device": "macbook-pro-m3-pro-18gpu-36gb",
+      "configuration": "interactive-4k"
+    },
+    {
+      "id": "desktop-tile-readback",
+      "operation": "tile-readback",
+      "metric": "p95_ms",
+      "unit": "ms",
+      "ceiling": 4.0,
+      "absolute_floor": 0.005,
+      "device": "macbook-pro-m3-pro-18gpu-36gb",
+      "configuration": "interactive-4k"
+    },
+    {
+      "id": "desktop-smart-material",
+      "operation": "smart-material",
+      "metric": "p95_ms",
+      "unit": "ms",
+      "ceiling": 50.0,
+      "absolute_floor": 0.05,
+      "device": "macbook-pro-m3-pro-18gpu-36gb",
+      "configuration": "batch-4k"
+    },
+    {
+      "id": "desktop-export",
+      "operation": "export",
+      "metric": "p95_ms",
+      "unit": "ms",
+      "ceiling": 250.0,
+      "absolute_floor": 0.1,
+      "device": "macbook-pro-m3-pro-18gpu-36gb",
+      "configuration": "batch-4k"
+    },
+    {
+      "id": "desktop-stroke-memory",
+      "operation": "stroke",
+      "metric": "peak_working_bytes",
+      "unit": "bytes",
+      "ceiling": 67108864,
+      "absolute_floor": 1,
+      "device": "macbook-pro-m3-pro-18gpu-36gb",
+      "configuration": "interactive-4k"
+    },
+    {
+      "id": "desktop-composite-memory",
+      "operation": "composite",
+      "metric": "peak_working_bytes",
+      "unit": "bytes",
+      "ceiling": 268435456,
+      "absolute_floor": 1,
+      "device": "macbook-pro-m3-pro-18gpu-36gb",
+      "configuration": "batch-4k"
+    },
+    {
+      "id": "desktop-smart-material-memory",
+      "operation": "smart-material",
+      "metric": "peak_working_bytes",
+      "unit": "bytes",
+      "ceiling": 268435456,
+      "absolute_floor": 1,
+      "device": "macbook-pro-m3-pro-18gpu-36gb",
+      "configuration": "batch-4k"
+    },
+    {
+      "id": "desktop-export-memory",
+      "operation": "export",
+      "metric": "peak_working_bytes",
+      "unit": "bytes",
+      "ceiling": 536870912,
+      "absolute_floor": 1,
+      "device": "macbook-pro-m3-pro-18gpu-36gb",
+      "configuration": "batch-4k"
+    },
+    {
+      "id": "tablet-stroke-memory",
+      "operation": "stroke",
+      "metric": "peak_working_bytes",
+      "unit": "bytes",
+      "ceiling": 25165824,
+      "absolute_floor": 1,
+      "device": "ipad-air-13-m3-8gb",
+      "configuration": "interactive-4k"
+    },
+    {
+      "id": "tablet-composite-memory",
+      "operation": "composite",
+      "metric": "peak_working_bytes",
+      "unit": "bytes",
+      "ceiling": 100663296,
+      "absolute_floor": 1,
+      "device": "ipad-air-13-m3-8gb",
+      "configuration": "batch-4k"
+    },
+    {
+      "id": "tablet-smart-material-memory",
+      "operation": "smart-material",
+      "metric": "peak_working_bytes",
+      "unit": "bytes",
+      "ceiling": 100663296,
+      "absolute_floor": 1,
+      "device": "ipad-air-13-m3-8gb",
+      "configuration": "batch-4k"
+    },
+    {
+      "id": "tablet-export-memory",
+      "operation": "export",
+      "metric": "peak_working_bytes",
+      "unit": "bytes",
+      "ceiling": 201326592,
+      "absolute_floor": 1,
+      "device": "ipad-air-13-m3-8gb",
+      "configuration": "batch-4k"
+    },
+    {
+      "id": "desktop-visible-median",
+      "operation": "input-to-visible",
+      "metric": "median_ms",
+      "unit": "ms",
+      "ceiling": 16.0,
+      "absolute_floor": 0.1,
+      "device": "macbook-pro-m3-pro-18gpu-36gb",
+      "configuration": "interactive-4k"
+    },
+    {
+      "id": "desktop-visible-p95",
+      "operation": "input-to-visible",
+      "metric": "p95_ms",
+      "unit": "ms",
+      "ceiling": 25.0,
+      "absolute_floor": 0.1,
+      "device": "macbook-pro-m3-pro-18gpu-36gb",
+      "configuration": "interactive-4k"
+    },
+    {
+      "id": "desktop-visible-p99",
+      "operation": "input-to-visible",
+      "metric": "p99_ms",
+      "unit": "ms",
+      "ceiling": 33.0,
+      "absolute_floor": 0.1,
+      "device": "macbook-pro-m3-pro-18gpu-36gb",
+      "configuration": "interactive-4k"
+    },
+    {
+      "id": "tablet-visible-median",
+      "operation": "input-to-visible",
+      "metric": "median_ms",
+      "unit": "ms",
+      "ceiling": 20.0,
+      "absolute_floor": 0.1,
+      "device": "ipad-air-13-m3-8gb",
+      "configuration": "interactive-4k"
+    },
+    {
+      "id": "tablet-visible-p95",
+      "operation": "input-to-visible",
+      "metric": "p95_ms",
+      "unit": "ms",
+      "ceiling": 33.0,
+      "absolute_floor": 0.1,
+      "device": "ipad-air-13-m3-8gb",
+      "configuration": "interactive-4k"
+    },
+    {
+      "id": "tablet-visible-p99",
+      "operation": "input-to-visible",
+      "metric": "p99_ms",
+      "unit": "ms",
+      "ceiling": 50.0,
+      "absolute_floor": 0.1,
+      "device": "ipad-air-13-m3-8gb",
+      "configuration": "interactive-4k"
+    },
+    {
+      "id": "tablet-sustained-final-p95",
+      "operation": "sustained-mobile",
+      "metric": "final_five_minute_p95_ms",
+      "unit": "ms",
+      "ceiling": 33.0,
+      "absolute_floor": 0.1,
+      "device": "ipad-air-13-m3-8gb",
+      "configuration": "sustained-mobile-4k"
+    },
+    {
+      "id": "tablet-sustained-memory",
+      "operation": "sustained-mobile",
+      "metric": "peak_physical_bytes",
+      "unit": "bytes",
+      "ceiling": 536870912,
+      "absolute_floor": 1,
+      "device": "ipad-air-13-m3-8gb",
+      "configuration": "sustained-mobile-4k"
+    },
+    {
+      "id": "desktop-paint-sync-readback",
+      "operation": "resident-paint",
+      "metric": "synchronous_readback_bytes",
+      "unit": "bytes",
+      "ceiling": 0,
+      "absolute_floor": 0,
+      "device": "macbook-pro-m3-pro-18gpu-36gb",
+      "configuration": "interactive-4k"
+    },
+    {
+      "id": "desktop-undo-sync-readback",
+      "operation": "resident-undo",
+      "metric": "synchronous_readback_bytes",
+      "unit": "bytes",
+      "ceiling": 0,
+      "absolute_floor": 0,
+      "device": "macbook-pro-m3-pro-18gpu-36gb",
+      "configuration": "interactive-4k"
+    },
+    {
+      "id": "tablet-paint-sync-readback",
+      "operation": "resident-paint",
+      "metric": "synchronous_readback_bytes",
+      "unit": "bytes",
+      "ceiling": 0,
+      "absolute_floor": 0,
+      "device": "ipad-air-13-m3-8gb",
+      "configuration": "interactive-4k"
+    },
+    {
+      "id": "tablet-undo-sync-readback",
+      "operation": "resident-undo",
+      "metric": "synchronous_readback_bytes",
+      "unit": "bytes",
+      "ceiling": 0,
+      "absolute_floor": 0,
+      "device": "ipad-air-13-m3-8gb",
+      "configuration": "interactive-4k"
+    }
   ]
 }
