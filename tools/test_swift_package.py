@@ -45,13 +45,16 @@ def sdk_path(environment: dict[str, str]) -> str:
 
 def install_native(preset: str, prefix: Path, environment: dict[str, str]) -> None:
     run("cmake", "--preset", preset, env=environment)
+    targets = ["cybertexel_c"]
+    if preset == "macos-universal":
+        targets.append("cybertexel_cli")
     run(
         "cmake",
         "--build",
         "--preset",
         preset,
         "--target",
-        "cybertexel_c",
+        *targets,
         env=environment,
     )
     run(

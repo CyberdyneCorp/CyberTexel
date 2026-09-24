@@ -792,9 +792,13 @@ with tempfile.TemporaryDirectory(prefix="ctex-cli-apply-") as temporary:
 
     if os.name != "nt":
         interrupt_script = directory / "interrupt.py"
+        interrupt_started = directory / "interrupt-started"
         interrupt_script.write_text(
+            "import signal\n"
             "import time\n"
             "def main(document):\n"
+            "    signal.signal(signal.SIGINT, signal.SIG_IGN)\n"
+            f"    open({str(interrupt_started)!r}, 'w').close()\n"
             "    time.sleep(30)\n",
             encoding="utf-8",
         )
@@ -820,13 +824,13 @@ with tempfile.TemporaryDirectory(prefix="ctex-cli-apply-") as temporary:
         )
         try:
             for _ in range(200):
-                if list(directory.glob(".interrupted.ctex.ctex-run-*")):
+                if interrupt_started.is_file():
                     break
                 if interrupted.poll() is not None:
-                    raise AssertionError("interrupt fixture exited before staging")
-                time.sleep(0.01)
+                    raise AssertionError("interrupt fixture exited before its script started")
+                time.sleep(0.05)
             else:
-                raise AssertionError("interrupt fixture did not reach staging")
+                raise AssertionError("interrupt fixture script did not start")
             interrupted.send_signal(signal.SIGINT)
             interrupt_stdout, interrupt_stderr = interrupted.communicate(timeout=10)
         finally:

@@ -636,6 +636,11 @@ gate-packages preset="": (_require "python3" "3.10")
     python3 tests/tools/test_check_packages.py
     @if [ -n "{{preset}}" ]; then python3 tools/check_packages.py --preset "{{preset}}"; else python3 tools/check_packages.py; fi
 
+# Validate the three ZIPs selected for the initial GitHub release.
+gate-release-assets directory="dist": (_require "python3" "3.10")
+    python3 tests/tools/test_verify_release_assets.py
+    python3 tools/verify_release_assets.py "{{directory}}"
+
 # The same commit built twice produces identical libraries, or the differing
 # input is named in docs/reproducible-builds.md.
 gate-reproducible: (_require "python3" "3.10") (_require "cmake" "3.24") (_require "ninja" "1.10")

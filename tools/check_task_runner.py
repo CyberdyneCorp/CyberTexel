@@ -39,6 +39,7 @@ REQUIRED_RECIPES = (
     "gate-abi-diff",
     "gate-packages",
     "gate-reproducible",
+    "gate-release-assets",
     "test-sanitize",
     "fuzz-project-container",
     "fuzz-image-decoders",
@@ -53,6 +54,7 @@ REQUIRED_IN_CI = (
     "gate-licence",
     "gate-abi-diff",
     "gate-version-consistency",
+    "gate-release-assets",
 )
 
 # Steps that install a toolchain are not project commands and have no recipe.

@@ -1118,7 +1118,9 @@ typedef struct ctex_paint_clone_outputs {
 
 #define CTEX_PAINT_CLONE_OUTPUTS_V1_SIZE ((uint32_t)sizeof(ctex_paint_clone_outputs))
 #define CTEX_PAINT_CLONE_OUTPUTS_CURRENT_SIZE ((uint32_t)sizeof(ctex_paint_clone_outputs))
+// clang-format off
 #define CTEX_PAINT_NO_CLONE_SAMPLE ((size_t)-1)
+// clang-format on
 
 typedef struct ctex_paint_blur_neighborhood_descriptor {
     uint32_t size;
@@ -1310,7 +1312,9 @@ typedef struct ctex_paint_decal_outputs {
 
 #define CTEX_PAINT_DECAL_OUTPUTS_V1_SIZE ((uint32_t)sizeof(ctex_paint_decal_outputs))
 #define CTEX_PAINT_DECAL_OUTPUTS_CURRENT_SIZE ((uint32_t)sizeof(ctex_paint_decal_outputs))
+// clang-format off
 #define CTEX_PAINT_NO_DECAL_SAMPLE ((size_t)-1)
+// clang-format on
 
 typedef enum ctex_paint_projection_mode {
     CTEX_PAINT_PROJECTION_CAMERA = 0,
@@ -1392,7 +1396,9 @@ typedef struct ctex_paint_projection_outputs {
 
 #define CTEX_PAINT_PROJECTION_OUTPUTS_V1_SIZE ((uint32_t)sizeof(ctex_paint_projection_outputs))
 #define CTEX_PAINT_PROJECTION_OUTPUTS_CURRENT_SIZE ((uint32_t)sizeof(ctex_paint_projection_outputs))
+// clang-format off
 #define CTEX_PAINT_NO_PROJECTION_SAMPLE ((size_t)-1)
+// clang-format on
 
 typedef enum ctex_paint_text_alignment {
     CTEX_PAINT_TEXT_ALIGN_LEFT = 0,
@@ -1626,7 +1632,9 @@ typedef struct ctex_paint_particle_outputs {
 
 #define CTEX_PAINT_PARTICLE_OUTPUTS_V1_SIZE ((uint32_t)sizeof(ctex_paint_particle_outputs))
 #define CTEX_PAINT_PARTICLE_OUTPUTS_CURRENT_SIZE ((uint32_t)sizeof(ctex_paint_particle_outputs))
+// clang-format off
 #define CTEX_PAINT_NO_PARTICLE_TEXEL ((size_t)-1)
+// clang-format on
 
 typedef struct ctex_stroke_preset_info {
     uint32_t size;

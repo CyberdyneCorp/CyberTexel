@@ -214,6 +214,28 @@ jobs:
         name: cybertexel-ios
         path: dist/*.zip
 
+  release-assets:
+    name: verify-first-release-assets
+    needs: [desktop-packages, ios-package]
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    - uses: extractions/setup-just@v2
+    - uses: actions/download-artifact@v4
+      with:
+        name: cybertexel-linux
+        path: dist
+    - uses: actions/download-artifact@v4
+      with:
+        name: cybertexel-macos
+        path: dist
+    - uses: actions/download-artifact@v4
+      with:
+        name: cybertexel-ios
+        path: dist
+    - name: Verify release archives
+      run: just gate-release-assets
+
   # Deferred to task 18.6: the first release slice is macOS, Linux and iPad.
   # Kept runnable by name so the recipe cannot rot while it is out of scope.
   android-package:

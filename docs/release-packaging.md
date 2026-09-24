@@ -23,8 +23,22 @@ project against only that install. Desktop consumers are linked and executed;
 mobile consumers are cross-compiled and linked because their binaries require a
 device. The archive records that disposition in
 `share/cybertexel/package.json`. CI runs and retains archives for the three
-first-release platforms; the Windows library, CLI and wheel checks already run
-in CI, while Windows and Android package gates remain deferred.
+first-release platforms. Windows and Android package and validation work remains
+in the active follow-up change.
+
+The `verify-first-release-assets` CI job downloads the three package artifacts
+from the same run and invokes `just gate-release-assets`. That gate checks each
+ZIP's integrity, required contents, version, platform and smoke-test manifest,
+and rejects extra platforms. It prints SHA-256 checksums for the release notes.
+The initial release tag is `v0.1.0`, matching `VERSION`.
+
+To publish, confirm that the OpenSpec CI workflow and the named reference-device
+workflow both pass for the same commit. Download the Linux, macOS and iOS
+artifacts from that OpenSpec run into one directory and run
+`just gate-release-assets <directory>`. Tag that commit as `v0.1.0`, create the
+GitHub release using `docs/releases/v0.1.0.md` as its notes, and upload only
+those three verified ZIPs. Verify the published tag, asset names, sizes and
+SHA-256 digests against the downloaded files.
 
 ZIP entry order, timestamps and permissions are normalized. Repeating the
 archive step over identical installed bytes therefore produces identical ZIP

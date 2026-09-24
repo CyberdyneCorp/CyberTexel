@@ -1666,6 +1666,16 @@ int spawn_python_process(std::vector<std::string>& arguments) {
 #else
 int interrupted_python_process(pid_t child, int& status) {
     static_cast<void>(kill(child, SIGINT));
+    const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(2);
+    while (std::chrono::steady_clock::now() < deadline) {
+        const pid_t waited = waitpid(child, &status, WNOHANG);
+        if (waited == child || (waited < 0 && errno == ECHILD)) return 130;
+        if (waited < 0 && errno != EINTR) {
+            throw CliError(ExitCode::internal_error, "could not wait for Python process");
+        }
+        std::this_thread::sleep_for(std::chrono::milliseconds(25));
+    }
+    static_cast<void>(kill(child, SIGKILL));
     while (waitpid(child, &status, 0) < 0 && errno == EINTR) {
     }
     return 130;

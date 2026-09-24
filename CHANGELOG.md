@@ -6,12 +6,16 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
-Foundation implementation is in progress.
+No changes yet.
+
+## [0.1.0] - 2026-09-24
+
+Initial macOS, Linux and iOS release.
 
 ### Added
 
-- Founding specification `bootstrap-v1-cybertexel`: 24 capabilities, 332
-  requirements, 400 scenarios, 222 tasks.
+- Official specification: 24 capabilities, 333 requirements and 413 scenarios;
+  225 founding tasks accounted for, with Windows and Android delivery deferred.
 - `just` as the single task-runner entry point for building, testing,
   formatting and every gate, specified in `build-packaging` rather than left as
   an undocumented convention. CI invokes the same recipes a contributor runs.

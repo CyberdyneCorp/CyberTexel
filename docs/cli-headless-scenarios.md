@@ -17,6 +17,6 @@ Linux and macOS platforms in CI. Windows is tracked separately.
 | Forcing the reference executor | `cli-headless-skeleton` | `--executor cpu` overrides the environment and the report names CPU with no fallback. |
 | Over budget on a farm node | `cli-headless-skeleton` | Memory and texel preflights return the budget exit code before creating output. |
 | Interrupted export | `cli-headless-skeleton` | A twenty-texture export is interrupted in flight, returns the cancellation code and leaves neither a destination nor staging output. |
-| A pipeline-specific operation | `cli-headless-skeleton` | `run` executes the installed Python binding, modifies the document and publishes the result atomically. |
+| A pipeline-specific operation | `cli-headless-skeleton` | `run` executes the installed Python binding, publishes atomically, and cancels a script that ignores SIGINT without replacing the prior output. |
 | Flag added without documentation | `cli-headless-skeleton` | The help audit compares every implemented global and command option with command help and its default. |
 | Release gate | `just test-cli` | The CI desktop OS matrix invokes the complete CLI recipe on Linux and macOS. |
