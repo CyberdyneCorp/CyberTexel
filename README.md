@@ -20,9 +20,9 @@ same engine through its public contract.
 ## Status
 
 All twenty-four capabilities are implemented and reachable through the stable
-C ABI and the Python, Swift and Rust bindings. Thirty-three numbered Python
-examples exercise all 353 public C ABI operations, proven by recorded call
-traces rather than declared. The specification lives in
+C ABI and the Python, Swift and Rust bindings. Numbered Python examples
+exercise all 353 public C ABI operations, proven by recorded call traces
+rather than declared. The specification lives in
 [`openspec/`](openspec/); the founding change is
 [`openspec/changes/bootstrap-v1-cybertexel/`](openspec/changes/bootstrap-v1-cybertexel/)
 — proposal, design, twenty-four capability specs and the task plan, whose
@@ -33,13 +33,17 @@ What is **not** done, stated plainly:
 
 | | |
 |---|---|
-| **Reference hosts** | [Both hosts](hosts/) execute an emitted pass plan on a real device API and have been run on the M3 Pro; the desktop host also presents to a window and measures five-stage input-to-visible latency. They are not painting applications: a device run on the iPad remains part of task 18.2. |
-| **Performance numbers** | Seven desktop budgets are measured on the M3 Pro and six pass, including stamp scaling at a 0.999 ratio; the position-gradient generator fails at ~4.3 s against a 100 ms ceiling. Input-to-visible is instrumented and needs one interactive run (`just host-desktop-benchmark`), and every tablet budget needs the iPad Pro M4 (task 17.13). `just gate-budgets` reports absent hardware as unmeasured, never as a pass. |
+| **Reference hosts** | [Both hosts](hosts/) execute an emitted pass plan on a real device API and have now run on their named hardware — the desktop host on the M3 Pro and the iPad probe on the iPad Air M3 — each presenting to a real surface and measuring five-stage input-to-visible latency. They are not painting applications, and wiring those device runs into CI remains task 18.2. |
+| **Performance numbers** | Fourteen of thirty budgets are decided on their named devices and thirteen pass, input-to-visible included: 8.49 ms median on the M3 Pro and 20.44 ms on the iPad Air M3, against refresh-derived ceilings of 16 and 32 ms. The position-gradient generator is the one failure, at 2 248 ms against a 100 ms ceiling; removing redundant per-texel work took it down from 4 855 ms, and threading and SIMD would close the rest. The twenty-minute sustained mobile workload is task 17.13. `just gate-budgets` reports absent hardware as unmeasured, never as a pass. |
 | **Platform packages** | macOS, Linux and iPad build, smoke-test and archive (`just gate-packages`). Windows and Android packaging follow in task 18.6; the Windows library, CLI and Python wheel are built and tested in CI today. |
 
 No claim about mobile responsiveness, memory efficiency or device parity is
 satisfied by a headless CPU test, and the gates are written so that one cannot
-stand in for the other. See [the roadmap](openspec/ROADMAP.md).
+stand in for the other. Latency ceilings are derived from each reference
+device's refresh rate rather than hand-written, because a frame cannot be
+visible before the next vsync: the desktop's ceilings fix the accepted pipeline
+depth in refresh periods, and every other device's follow from its own panel.
+See [the roadmap](openspec/ROADMAP.md).
 
 ## Main features
 
