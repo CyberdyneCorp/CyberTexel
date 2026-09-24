@@ -5,14 +5,26 @@
     "desktop-paint-sync-readback": 0.0,
     "desktop-tile-readback": 0.03870902583003044,
     "desktop-undo-sync-readback": 0.0,
-    "desktop-visible-median": 7.856357999999999,
-    "desktop-visible-p95": 11.644129,
-    "desktop-visible-p99": 11.97742,
+    "desktop-visible-median": 9.982055,
+    "desktop-visible-p95": 13.425478,
+    "desktop-visible-p99": 13.6692475,
     "tablet-paint-sync-readback": 0.0,
     "tablet-undo-sync-readback": 0.0
   },
-  "commit": "febc2a329d74a92adb30f6f34ef786a4c77a1e8f",
+  "commit": "783987b16acc6a6927283b7f51d619b9b95acb5f",
   "device_id": "macbook-pro-m3-pro-18gpu-36gb",
-  "note": "Best recorded value per budget on its named reference device. A run more than baseline_regression_fraction above one of these fails. A budget that has never passed is absent rather than set to its failure.",
+  "desktop_visible_calibration": {
+    "commit": "783987b16acc6a6927283b7f51d619b9b95acb5f",
+    "date": "2026-09-24",
+    "device_id": "macbook-pro-m3-pro-18gpu-36gb",
+    "method": "Median of four independent 600-frame runs on the named Mac; two ran through the self-hosted CI runner and two through the local gate.",
+    "runs": [
+      {"source": "CI run 36002558175 attempt 2", "median_ms": 10.697609, "p95_ms": 14.562047, "p99_ms": 14.849642},
+      {"source": "just gate-reference-desktop run 1", "median_ms": 9.712259, "p95_ms": 13.055611, "p99_ms": 13.263146},
+      {"source": "just gate-reference-desktop run 2", "median_ms": 8.418017, "p95_ms": 11.845535, "p99_ms": 12.064651},
+      {"source": "CI run 36002558175 attempt 3", "median_ms": 10.251851, "p95_ms": 13.795345, "p99_ms": 14.075349}
+    ]
+  },
+  "note": "Desktop visible baselines are the median of the named Mac calibration runs above. Other values remain best recorded values from commit febc2a329d74a92adb30f6f34ef786a4c77a1e8f. A run more than baseline_regression_fraction above a baseline fails. A budget that has never passed is absent rather than set to its failure.",
   "schema": 1
 }

@@ -4,6 +4,19 @@ import QuartzCore
 import UIKit
 import XCTest
 
+private final class CompletionLatch {
+    private let lock = NSLock()
+    private var completed = false
+
+    func claim() -> Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        guard !completed else { return false }
+        completed = true
+        return true
+    }
+}
+
 /// Input-to-visible latency on the tablet, measured against a real display.
 ///
 /// The five stages are contiguous timestamps rather than separately sampled
@@ -28,6 +41,12 @@ final class InteractionTests: XCTestCase {
 
     private static let extent: UInt32 = 4096
     private static let tile: Int = 64
+
+    func testCompletionLatchClaimsOnlyOnce() {
+        let latch = CompletionLatch()
+        XCTAssertTrue(latch.claim())
+        XCTAssertFalse(latch.claim())
+    }
 
     private func percentile(_ values: [Double], _ fraction: Double) -> Double {
         let ordered = values.sorted()
@@ -65,6 +84,7 @@ final class InteractionTests: XCTestCase {
         var commitTimes: [Double] = []
         let target = 240
         let done = expectation(description: "frames")
+        let completion = CompletionLatch()
         let driver = FrameDriver(layer: surface.layer, refresh: surface.refresh)
 
         driver.onFrame = { [weak driver] due, vsyncTarget, woke, acquire in
@@ -140,7 +160,10 @@ final class InteractionTests: XCTestCase {
                     wake: woke - due,
                     acquire: acquired - committed,
                     slip: visible - vsyncTarget))
-                if frames.count >= target { driver?.stop(); done.fulfill() }
+                if frames.count >= target && completion.claim() {
+                    driver?.stop()
+                    done.fulfill()
+                }
             }
             buffer.present(drawable)
             buffer.commit()

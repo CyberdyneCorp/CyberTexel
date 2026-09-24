@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from statistics import median
 import sys
 import tempfile
 import unittest
@@ -14,6 +15,25 @@ import run_reference_device_gate as gate  # noqa: E402
 
 
 class ReferenceDeviceGateTest(unittest.TestCase):
+    def test_active_sidecar_display_is_refused(self) -> None:
+        listing = {"SPDisplaysDataType": [{"spdisplays_ndrvs": [
+            {"_name": "Color LCD"}, {"_name": "Sidecar Display"}]}]}
+        with mock.patch.object(gate, "command", return_value=json.dumps(listing)):
+            with self.assertRaisesRegex(RuntimeError, "Sidecar is active"):
+                gate.require_native_ipad_display()
+
+    def test_desktop_visible_baselines_use_calibration_medians(self) -> None:
+        recorded = gate.device_gate.load_json(gate.BASELINES)
+        runs = recorded["desktop_visible_calibration"]["runs"]
+        self.assertGreaterEqual(len(runs), 4)
+        tolerance = gate.device_gate.load_json(gate.CONFIG)["baseline_regression_fraction"]
+        for budget_id, key in (("desktop-visible-median", "median_ms"),
+                               ("desktop-visible-p95", "p95_ms"),
+                               ("desktop-visible-p99", "p99_ms")):
+            baseline = recorded["baselines"][budget_id]
+            self.assertAlmostEqual(baseline, median(run[key] for run in runs))
+            self.assertLessEqual(max(run[key] for run in runs), baseline * (1 + tolerance))
+
     def test_ipad_attachments_require_every_measured_part(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             with mock.patch.object(gate, "OUTPUT", Path(directory)):
@@ -66,6 +86,8 @@ class ReferenceDeviceGateTest(unittest.TestCase):
             with mock.patch.object(gate, "OUTPUT", Path(directory)):
                 def fake_command(*args: str, **_: object) -> str:
                     if args[0] == "system_profiler":
+                        if args[1] == "SPDisplaysDataType":
+                            return json.dumps({"SPDisplaysDataType": []})
                         return json.dumps({"SPHardwareDataType": [
                             {"machine_model": "Mac15,7", "chip_type": "Apple M3 Pro",
                              "physical_memory": "36 GB"}]})

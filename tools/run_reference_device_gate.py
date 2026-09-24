@@ -42,6 +42,15 @@ def command(*args: str, output: Path | None = None, timeout: int = 3600) -> str:
     return ""
 
 
+def require_native_ipad_display() -> None:
+    displays = json.loads(command("system_profiler", "SPDisplaysDataType", "-json"))[
+        "SPDisplaysDataType"]
+    for gpu in displays:
+        if any(display.get("_name") == "Sidecar Display"
+               for display in gpu.get("spdisplays_ndrvs", [])):
+            raise RuntimeError("Sidecar is active; disconnect the iPad display before the gate")
+
+
 def preflight(require_ipad: bool = True) -> str:
     config = device_gate.load_json(CONFIG)
     desktop = next(item for item in config["reference_devices"] if item["kind"] == "desktop")
@@ -54,6 +63,7 @@ def preflight(require_ipad: bool = True) -> str:
             or int(command("sysctl", "-n", "hw.memsize")) != desktop["memory_bytes"]
             or f"macOS {os_version} ({os_build})" != desktop["operating_system"]):
         raise RuntimeError("this runner is not the named MacBook Pro M3 Pro (Mac15,7)")
+    require_native_ipad_display()
     if not require_ipad:
         return ""
     listing = OUTPUT / "devices.json"
@@ -177,7 +187,7 @@ def run_ipad(udid: str) -> None:
             output=OUTPUT / "ipad-test.log", timeout=2700)
     summary = json.loads(command("xcrun", "xcresulttool", "get", "test-results", "summary",
                                  "--path", str(bundle)))
-    if summary.get("failedTests", 0) or summary.get("skippedTests", 0) or summary.get("passedTests") != 7:
+    if summary.get("failedTests", 0) or summary.get("skippedTests", 0) or summary.get("passedTests") != 8:
         raise RuntimeError(f"iPad tests did not all pass: {summary}")
     reports = attachments(bundle)
     if reports["device"]["device"].get("model_identifier") != "iPad15,5":
