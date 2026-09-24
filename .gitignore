@@ -13,3 +13,6 @@ __pycache__/
 .idea/
 hosts/*/target/
 hosts/*/.build/
+
+# Demo output: generated from assets outside the repository.
+/demos/output/

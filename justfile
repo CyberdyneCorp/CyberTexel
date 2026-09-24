@@ -296,6 +296,29 @@ host-ipad: (_require "swift" "Swift 5.9") (_require "cmake" "3.24")
 # Both reference hosts. Task 18.2.
 hosts: host-desktop host-ipad
 
+# Paint a model you own and render the result. Not part of `just check`: it
+# needs Blender and an asset the repository does not carry. See demos/README.md.
+demo-paint model texture="" extent="1024": (_require "uv" "Python wheel builder")
+    #!/usr/bin/env bash
+    set -euo pipefail
+    blender=/Applications/Blender.app/Contents/MacOS/Blender
+    if [[ ! -x "$blender" ]]; then blender="$(command -v blender || true)"; fi
+    if [[ -z "$blender" ]]; then
+        printf 'missing prerequisite: blender (needed to read the model and render it)\n' >&2
+        exit 1
+    fi
+    just test-python-binding
+    mkdir -p demos/output
+    "$blender" --background --factory-startup --python demos/extract_mesh_blender.py -- \
+        "{{model}}" demos/output/mesh.npz
+    wheel="$(ls build/python-dist/cybertexel-*.whl)"
+    if [[ -n "{{texture}}" ]]; then base=(--base-colour "{{texture}}"); else base=(); fi
+    uv run --no-project --with "$wheel" --with numpy -- python demos/paint_fbx_model.py \
+        --mesh demos/output/mesh.npz --output demos/output --extent {{extent}} "${base[@]}"
+    "$blender" --background --factory-startup --python demos/render_blender.py -- \
+        "{{model}}" demos/output/painted_base_color.png demos/output/render_painted.png
+    printf '\nresults:\n  demos/output/painted_base_color.png\n  demos/output/render_painted.png\n  demos/output/summary.json\n'
+
 test-stroke-reconstruction: build
     ctest --test-dir build/headless --output-on-failure -R '^stroke-reconstruction$'
 

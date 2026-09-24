@@ -1725,6 +1725,23 @@ one this repository set to keep an example readable in one sitting, so the fix w
 vendored-backend delivery note into example 33 where it stands on its own, not to raise the limit
 to fit.
 
+2026-09-23: Painting a real model surfaced a gap in the document surface and a new task 3.12.
+A channel can be READ in bulk — `ctex_texture_set_read_channel` publishes the whole thing — but it
+can only be WRITTEN one texel at a time, through `ctex_paint_preview_session_write_pixel` or a
+transaction's per-pixel write. A host loading a material an asset already ships onto a 2048-square
+channel therefore has to make four million calls, each of which also allocates and zeroes a
+whole-canvas coverage buffer. The asymmetry is not stated anywhere; it was found by hitting it.
+
+The demo works around it legitimately, by supplying the existing material as the stroke-start
+snapshot `ctex_paint_apply_brush` already takes, which is what that argument is for. That is the
+right answer for painting over a material and the wrong one for loading it: the snapshot is an
+input to one operation, not the channel's content.
+
+`demos/` now holds scripts that drive the engine against assets the repository does not own, with
+`just demo-paint MODEL=... TEXTURE=...` running mesh extraction, painting and rendering in one
+command. They are deliberately outside the gated example suite, which requires committed fixtures
+with recorded provenance and no external tooling.
+
 Editable-authoring group 20 is complete. Versioned operation records retain
 algorithm and preset versions, seeds, channel descriptors, mesh identity,
 pinned input bytes and checkpoint identities in canonical project-container
@@ -1801,6 +1818,7 @@ threading and per-binding example evidence.
 - [x] 3.9 Tile-scoped history, ownership-exchange restore, declared budget and its refusals
 - [x] 3.10 Transactions: grouping and byte-identical cancellation
 - [x] 3.11 `texture-document` scenarios as tests
+- [ ] 3.12 Bulk channel write: a host can publish a whole channel or a tile range in one operation, as `read_channel` already reads one
 
 ## 4. Geometry input
 
