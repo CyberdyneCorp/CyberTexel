@@ -1,32 +1,32 @@
 {
   "command": "cybertexel-host-desktop --benchmark --frames 600 --report build/reference-hosts/desktop-wgsl-benchmark.json --measurements benchmarks/results/host-desktop-wgsl-latency.json",
-  "commit": "3b13bc2afbcdb45a8010650922dff8e841c4c158",
+  "commit": "66808e8e630d5518c904eef586d6e1e63b4a494c",
   "date": "2026-09-23",
   "device_id": "macbook-pro-m3-pro-18gpu-36gb",
   "interaction": {
     "channels": 4,
-    "consumed_sample_rate_hz": 118.8654169736405,
+    "consumed_sample_rate_hz": 117.53540019334574,
     "input_phase_steps": 8,
     "input_rate_hz": 120.0,
-    "input_to_visible_ms": 7.856357999999999,
+    "input_to_visible_ms": 11.060504,
     "layers": 8,
     "mesh_triangles": 250632,
     "refresh_rate_hz": 120.0,
     "residency": {
-      "declared_write_set_tiles": 2,
-      "history_committed_tiles": 2,
+      "declared_write_set_tiles": 1,
+      "history_committed_tiles": 1,
       "history_retained_bytes": 18444288,
       "synchronous_readback_bytes": 0,
-      "tiles_uploaded": 2,
-      "upload_bytes": 32768
+      "tiles_uploaded": 1,
+      "upload_bytes": 16384
     },
     "sample": "median frame of the recorded run",
     "stages_ms": {
-      "execution": 0.5349579999999999,
-      "input": 0.22031599999999998,
-      "presentation": 6.034333999999999,
-      "queue": 0.054125,
-      "upload": 1.012625
+      "execution": 1.062292,
+      "input": 3.682212,
+      "presentation": 4.594458,
+      "queue": 0.1895,
+      "upload": 1.532042
     }
   },
   "measurements": [
@@ -49,21 +49,21 @@
       "budget_id": "desktop-visible-median",
       "configuration": "interactive-4k",
       "unit": "ms",
-      "value": 7.856357999999999
+      "value": 11.060504
     },
     {
       "batch_size": 1,
       "budget_id": "desktop-visible-p95",
       "configuration": "interactive-4k",
       "unit": "ms",
-      "value": 11.644129
+      "value": 15.003015000000001
     },
     {
       "batch_size": 1,
       "budget_id": "desktop-visible-p99",
       "configuration": "interactive-4k",
       "unit": "ms",
-      "value": 11.97742
+      "value": 15.258217
     }
   ],
   "not_measured": [

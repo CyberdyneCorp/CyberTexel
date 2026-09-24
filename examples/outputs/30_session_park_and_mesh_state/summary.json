@@ -1,0 +1,24 @@
+{
+  "capabilities": [
+    "project-io",
+    "smart-materials",
+    "resource-residency"
+  ],
+  "document_estimated_save_bytes": 4608,
+  "document_resident_bytes": 4096,
+  "durable_revision": 2,
+  "map_resident_bytes": 4096,
+  "mesh_revision": 1,
+  "recovery_bytes": 3832,
+  "restored_corner_samples": [
+    0.0,
+    0.5,
+    1.0
+  ],
+  "saved_asset_count": 3,
+  "saved_image_count": 2,
+  "uncheckpointed_revisions": [
+    3,
+    3
+  ]
+}

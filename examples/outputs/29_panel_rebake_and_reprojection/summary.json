@@ -1,0 +1,26 @@
+{
+  "bake_session": {
+    "invalidated_by_edit": 1,
+    "restored_map_count": 1,
+    "settings_revision": 7
+  },
+  "capabilities": [
+    "mesh-maps",
+    "mesh-and-texture-sets",
+    "texture-document",
+    "editable-authoring"
+  ],
+  "map_kind_names": {
+    "3": "ambient-occlusion",
+    "4": "curvature",
+    "5": "thickness"
+  },
+  "mesh_map_pixel_bytes": 4096,
+  "reprojection": {
+    "channels_staged": 2,
+    "covered_texels": 36,
+    "reprojected_entries": 1,
+    "retained_holes": 0,
+    "unmapped_texels": 0
+  }
+}

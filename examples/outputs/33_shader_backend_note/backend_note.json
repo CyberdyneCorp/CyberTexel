@@ -1,0 +1,14 @@
+{
+  "backend": {
+    "license": "Zlib",
+    "license_file": "thirdparty/licenses/kongruent.txt",
+    "local_changes": "thirdparty/kong/CYBERTEXEL_CHANGES.md",
+    "name": "Kongruent minikong",
+    "revision": "c5ccdf27818a36e67decb691009a3db457d59ab3",
+    "source": "https://github.com/armory3d/armorpaint/tree/c5ccdf27818a36e67decb691009a3db457d59ab3/base/sources/kong",
+    "upstream_revision": "1b0f3b70673122e3b20701cdb434781a065555d7"
+  },
+  "capabilities": [
+    "shader-emission"
+  ]
+}

@@ -1,0 +1,14 @@
+{
+  "blurred_texels": 47,
+  "capabilities": [
+    "paint-tools",
+    "paint-engine"
+  ],
+  "clone_cross_set_diagnostic": "ctex_paint_apply_clone: clone source texture set 'set:trim' differs from destination texture set 'set:rail'",
+  "clone_source_sample_count": 256,
+  "cloned_texels": 82,
+  "scuff_red_after": 0.404618,
+  "scuff_red_before": 0.17184,
+  "smeared_texels": 39,
+  "uncovered_texels": 4
+}

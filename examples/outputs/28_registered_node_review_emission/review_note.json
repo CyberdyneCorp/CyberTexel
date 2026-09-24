@@ -1,0 +1,44 @@
+{
+  "cached": {
+    "cache_hits": [
+      0,
+      1,
+      1,
+      1
+    ],
+    "resources": 2
+  },
+  "capabilities": [
+    "material-graph",
+    "shader-emission"
+  ],
+  "channel_viewer": {
+    "accesses": [
+      "pbr.roughness",
+      "review/viewer"
+    ],
+    "bindings": 2,
+    "undeclared_refusal": "ctex_shader_emit_channel_inspection: inspection channel is unavailable: pbr.emission"
+  },
+  "ids": {
+    "host_node": 3,
+    "instance": 2,
+    "output_node": 1,
+    "unknown_node_refusal": "ctex_material_graph_workspace_set_property_value: graph node does not exist"
+  },
+  "inspectable": {
+    "attribution": {
+      "node_id": 3,
+      "node_path": "wear-tint[2]/ studio.wear.tint[3]",
+      "output_socket": "tint",
+      "type_id": "studio.wear.tint",
+      "variable_name": "ctex_g776561722d74696e74_i2_n3_s74696e74"
+    },
+    "bindings": 2,
+    "passes": 1
+  },
+  "review": {
+    "opaque_type": "studio.wear.tint@1",
+    "unsupported_target": "node type 'studio.wear.tint@1' does not support hlsl"
+  }
+}

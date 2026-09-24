@@ -1,0 +1,24 @@
+{
+  "cancel_checks_before_abort": 2,
+  "capabilities": [
+    "image-io",
+    "color-management",
+    "smart-materials",
+    "project-io"
+  ],
+  "colour_space_names": {
+    "detected": "sRGB (Rec. 709 primaries)",
+    "working": "Linear Rec. 709"
+  },
+  "replay_diagnostic": "algorithm cybertexel.paint.brush version 2 is unavailable and no raster checkpoint is retained",
+  "replay_report_bytes": 235,
+  "shelf_refusals": [
+    "preset shelf requires exactly one metadata entry per asset",
+    "shelf metadata names an absent preset 'presets/absent'",
+    "shelf preset thumbnail is absent: thumbnails/brass",
+    "preset library repeats shelf identity 'studio'"
+  ],
+  "thumbnail_decoded_bytes": 192,
+  "thumbnail_peak_working_bytes": 1061504,
+  "thumbnail_progress_events": 7
+}

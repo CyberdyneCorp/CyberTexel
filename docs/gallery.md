@@ -251,3 +251,47 @@ The gallery retains [`residency_and_upload.json`](../examples/outputs/26_budgete
 Keep authored text and a surface path editable across edits, saves and a resize. Text and surface paths stay first-class source in the document: they carry their own revision, refuse an edit whose report cannot be delivered, undo and redo as a unit, and resolve through the same stroke model the paint engine uses. The project container round-trips them without flattening, a resolution change replays the operation records that can be replayed and resamples the rest, and the replay assessment plus the resource ledger decide whether the recovery bytes that make all of that possible actually fit in the host's budget. It covers `editable-authoring`.
 
 The gallery retains [`editable_authoring.json`](../examples/outputs/27_editable_authoring_round_trip/editable_authoring.json).
+
+## `28_registered_node_review_emission`
+
+Take a studio host node through review and emit the shaders review needs. A studio wraps its edge-wear node in a reusable group, tunes that copy to its own strength, and hands the material to review. Review is registry aware: it holds the node to its shipped parity fixture, names the emission target the node never claimed, and, opened without the studio plug-in, names the type it cannot resolve. What clears that gate is emitted three ways -- with attribution, from the cache, and as the unlit channel viewer -- beside the pinned backend note. It covers `material-graph`, `shader-emission`.
+
+The gallery retains [`hero_armour.fragment.wgsl`](../examples/outputs/28_registered_node_review_emission/hero_armour.fragment.wgsl), [`hero_armour_attribution.json`](../examples/outputs/28_registered_node_review_emission/hero_armour_attribution.json), [`review_note.json`](../examples/outputs/28_registered_node_review_emission/review_note.json).
+
+## `29_panel_rebake_and_reprojection`
+
+Rebake a panel's mesh maps and reproject its paint onto a retopology. A panel arrives with a hand-authored tangent frame, so it is created and re-published with the frame it declares. A host-owned baker produces its occlusion map, which CyberTexel validates, copies and accounts for but never bakes, while an asynchronous session cancels what the artist abandoned, versions a settings change and takes it back. Then the retopology lands: every destination texel and the seam the artist painted are preflighted into an inspectable mapping before the mesh is published. It covers `mesh-maps`, `mesh-and-texture-sets`, `texture-document`, `editable-authoring`.
+
+![Rebake a panel's mesh maps and reproject its paint onto a retopology](../examples/outputs/29_panel_rebake_and_reprojection/baked_occlusion.png)
+
+The gallery retains [`baked_occlusion.png`](../examples/outputs/29_panel_rebake_and_reprojection/baked_occlusion.png), [`summary.json`](../examples/outputs/29_panel_rebake_and_reprojection/summary.json).
+
+## `30_session_park_and_mesh_state`
+
+Park a painting session: persist its mesh bindings, then quiesce for shutdown. An artist stops for the day. The script accounts for what the live document is holding, writes the document's mesh resource and baked occlusion binding into the project container as a versioned companion asset, proves the binding comes back byte-for-byte into a fresh map set, and finally stops the resource ledger, flushes autosave and reports exactly which revisions never reached the disk. It covers `project-io`, `smart-materials`, `resource-residency`.
+
+![Park a painting session: persist its mesh bindings, then quiesce for shutdown](../examples/outputs/30_session_park_and_mesh_state/restored_occlusion.png)
+
+The gallery retains [`restored_occlusion.png`](../examples/outputs/30_session_park_and_mesh_state/restored_occlusion.png), [`summary.json`](../examples/outputs/30_session_park_and_mesh_state/summary.json).
+
+## `31_content_drop_intake`
+
+Vet a vendor content drop before any of it reaches the preset shelf. A vendor ships a thumbnail, shelf metadata and the operation records behind a material. The script decodes the thumbnail under an explicit working-memory ceiling with progress and cancellation, names the colour spaces the decoder resolved, makes the library refuse every malformed shelf by name before it is published, and asks whether this build could still replay the recorded strokes. It covers `image-io`, `color-management`, `smart-materials`, `project-io`.
+
+![Vet a vendor content drop before any of it reaches the preset shelf](../examples/outputs/31_content_drop_intake/vendor_thumbnail.png)
+
+The gallery retains [`summary.json`](../examples/outputs/31_content_drop_intake/summary.json), [`vendor_thumbnail.png`](../examples/outputs/31_content_drop_intake/vendor_thumbnail.png).
+
+## `32_panel_retouch_clone_blur_smear`
+
+Retouch a scuffed UV panel with the clone, blur and smear paint tools. An artist repairs a scratched rail panel that occupies one 32x8 UV tile. Clone copies clean plate from sixteen texels to the left through the aligned mapping, never sampling outside the tile and refusing a cross-set source outright. Blur then softens the patch boundary with explicit surface-aware neighborhoods that cross the tile's horizontal UV seam, and smear drags the far edge back into the untouched plate. Each tool filters only the immutable stroke-start snapshot the previous tool published, every buffer is sized from the count the library itself reported in a NULL query call, and every published raster is checked against an independent NumPy model of the documented mapping. It covers `paint-tools`, `paint-engine`.
+
+![Retouch a scuffed UV panel with the clone, blur and smear paint tools](../examples/outputs/32_panel_retouch_clone_blur_smear/panel_retouch_stages.png)
+
+The gallery retains [`panel_retouch_stages.png`](../examples/outputs/32_panel_retouch_clone_blur_smear/panel_retouch_stages.png), [`summary.json`](../examples/outputs/32_panel_retouch_clone_blur_smear/summary.json).
+
+## `33_shader_backend_note`
+
+Read the delivery note for the shader backend CyberTexel actually ships. The library vendors ArmorPaint's Kongruent-derived compiler. A studio shipping a binary has to be able to state which compiler produced its shaders, under which licence and at which pinned revision, without reading the build tree. The note is published through the same two-call sizing contract as every other report, and its reported size is exact rather than an upper bound. It covers `shader-emission`.
+
+The gallery retains [`backend_note.json`](../examples/outputs/33_shader_backend_note/backend_note.json).

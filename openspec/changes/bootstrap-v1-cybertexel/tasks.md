@@ -1696,6 +1696,35 @@ figures are not committed because they could not be reproduced from a detached s
 refuses to report a run whose window was hidden, since a hidden window is compositor-throttled.
 `just host-desktop-benchmark` runs it from an interactive session.
 
+2026-09-23: Task 16.12 is complete. Thirty-three numbered examples exercise all 353 public
+C ABI symbols, evidenced by recorded call traces, and `examples/feature_coverage.json` now carries
+an empty deferral list. The gate still fails on an unexercised symbol that is not listed and on a
+listed symbol that is exercised, so the empty list is a checked statement rather than a claim.
+
+The last thirty-one symbols were not hard; most had simply never been attempted. The reasons the
+earlier sweep recorded were almost all "no line budget left in my assigned files" rather than
+"unreachable", and about twenty had no reason at all because the symbol lists handed to that sweep
+were transcribed by hand and dropped entries. The final round built its groups programmatically and
+asserted that nothing was unassigned before starting.
+
+Assertions were mutation-tested rather than reviewed by eye. Across the two closing rounds 438 and
+then 52, 59, 119 and 208 mutations were each confirmed to make an example fail. The audits found
+five assertions that could not fail, and all five are now fixed:
+
+- Example 28 registered a host node with a CPU callback, a parity fixture and a determinism claim,
+  and observed none of them: mutating the fixture's expected output to 99.0, breaking the CPU
+  evaluation, or declaring the node non-deterministic all left the example green. It now calls
+  `ctex_material_graph_node_registry_verify_contract`, which runs the fixture through both node
+  paths, and all three mutations fail. Replay eligibility needed the declared dependency pinned by
+  its socket name rather than its image path, which is the contract working as intended.
+- Example 29 asserted `total_resident_bytes >= mesh_map_pixel_bytes`, which holds for a report that
+  double counts or drops a category. It now asserts the total equals the sum of its parts.
+
+Example 28 grew past the four-hundred-line readability ceiling while being fixed. The ceiling is
+one this repository set to keep an example readable in one sitting, so the fix was to split the
+vendored-backend delivery note into example 33 where it stands on its own, not to raise the limit
+to fit.
+
 Editable-authoring group 20 is complete. Versioned operation records retain
 algorithm and preset versions, seeds, channel descriptors, mesh identity,
 pinned input bytes and checkpoint identities in canonical project-container
@@ -1968,7 +1997,7 @@ threading and per-binding example evidence.
 - [x] 16.9 Examples runnable against any executor as a parity check
 - [x] 16.10 Published gallery in the documentation
 - [x] 16.11 `examples` scenarios as tests
-- [ ] 16.12 Examples exercise the whole public C ABI surface, evidenced by recorded call traces
+- [x] 16.12 Examples exercise the whole public C ABI surface, evidenced by recorded call traces
 
 ## 17. Performance gate
 
