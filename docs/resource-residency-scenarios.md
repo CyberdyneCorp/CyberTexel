@@ -13,6 +13,10 @@ resource-residency scenario to executable C++ and strict-C evidence.
 | Mobile suspension interrupts readback | `c-abi-host-transport-snapshot`, `project-autosave`, `c-abi-project-autosave` | A pending host readback is cancellable without publishing bytes; quiesce stops admission, requests cancellation, reports the unsaved range, and resume opens only the atomically published durable revision |
 
 The suite is host-neutral and deterministic. Reference-host memory pressure,
-lifecycle timing and device traffic remain numeric device gates under tasks
-17.12–17.14; those measurements extend this evidence rather than replacing the
-contract tests here.
+lifecycle timing and device traffic are numeric device gates, measured under
+tasks 17.12–17.14 on the named devices: a twenty-minute tablet workload whose
+footprint plateaus once tile history reaches its declared budget, plus
+memory-pressure, suspend/resume and device-loss fixtures on the same hardware.
+Those measurements extend this evidence rather than replacing the contract tests
+here, which stay host-neutral precisely so a device run cannot stand in for
+them.

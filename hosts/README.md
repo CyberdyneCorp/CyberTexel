@@ -48,7 +48,11 @@ binary. That exclusion is deliberate and recorded here rather than implied.
 
 ## Devices
 
-`benchmarks/device_gate.json` names the reference devices. The desktop host has
-been run on the MacBook Pro M3 Pro through the Metal backend. Numeric budgets
-remain tasks 17.5, 17.10 and 17.12–17.14; building and running these hosts does
-not by itself record a performance claim.
+`benchmarks/device_gate.json` names the reference devices. Both hosts have been
+run on theirs: the desktop host on the MacBook Pro M3 Pro through the Metal
+backend, and the iPad probe on the iPad Air 13-inch (M3). Between them they
+record input-to-visible, the synchronous-readback budgets and a twenty-minute
+sustained tablet workload, closing tasks 17.12–17.14. The remaining numeric
+budgets are tasks 17.5 and 17.10, and building or running these hosts does not
+by itself record a performance claim — an absent adapter exits 3 and reports
+unmeasured.

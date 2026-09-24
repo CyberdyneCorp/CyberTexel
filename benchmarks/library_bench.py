@@ -589,8 +589,9 @@ def main() -> int:
             "every peak_working_bytes budget needs per-operation working-set"
             " accounting rather than document residency (task 16.12)",
             "desktop-visible-* and the synchronous readback budgets are host figures"
-            " produced by hosts/ (tasks 17.12, 17.14)",
-            "every tablet budget needs a run on the iPad Pro M4 (task 17.13)",
+            " produced by hosts/ (tasks 17.12, 17.14), already measured on the M3 Pro",
+            "every tablet budget is a figure from hosts/ios-probe on the iPad Air"
+            " 13-inch (M3), not from this process",
         ]
     )
 
