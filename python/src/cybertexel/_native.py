@@ -115,6 +115,29 @@ class ChannelInfo(ctypes.Structure):
     ]
 
 
+class ChannelRegionDescriptor(ctypes.Structure):
+    _fields_ = [
+        ("size", ctypes.c_uint32), ("x", ctypes.c_uint32), ("y", ctypes.c_uint32),
+        ("width", ctypes.c_uint32), ("height", ctypes.c_uint32),
+        ("row_pitch_bytes", ctypes.c_size_t),
+    ]
+
+
+class TileHistoryTargetDescriptor(ctypes.Structure):
+    _fields_ = [
+        ("size", ctypes.c_uint32), ("semantic_id", ctypes.c_char_p),
+        ("tile_x", ctypes.c_uint32), ("tile_y", ctypes.c_uint32),
+    ]
+
+
+class TileHistoryCommitInfo(ctypes.Structure):
+    _fields_ = [
+        ("size", ctypes.c_uint32), ("committed", ctypes.c_uint32),
+        ("tile_count", ctypes.c_size_t), ("retained_bytes", ctypes.c_size_t),
+        ("layer_stack_changed", ctypes.c_uint32),
+    ]
+
+
 
 class ChannelDescriptor(ctypes.Structure):
     _fields_ = [
@@ -713,6 +736,31 @@ def _load() -> ctypes.CDLL:
         ],
         ctypes.c_uint32,
     )
+    _signature(
+        library, "ctex_layer_snapshot_create",
+        [ctypes.c_uint32, ctypes.c_uint32, ctypes.c_void_p, ctypes.c_size_t,
+         ctypes.c_void_p, ctypes.c_size_t, ctypes.POINTER(ctypes.c_void_p)],
+        ctypes.c_uint32,
+    )
+    _signature(library, "ctex_layer_snapshot_destroy", [ctypes.c_void_p], None)
+    _signature(
+        library, "ctex_texture_set_begin_transaction",
+        [ctypes.c_void_p, ctypes.c_char_p, ctypes.c_char_p,
+         ctypes.POINTER(TileHistoryTargetDescriptor), ctypes.c_size_t,
+         ctypes.c_void_p, ctypes.POINTER(ctypes.c_void_p)], ctypes.c_uint32,
+    )
+    _signature(
+        library, "ctex_texture_set_transaction_write_region",
+        [ctypes.c_void_p, ctypes.c_char_p, ctypes.POINTER(ChannelRegionDescriptor),
+         ctypes.c_void_p, ctypes.c_size_t], ctypes.c_uint32,
+    )
+    _signature(
+        library, "ctex_texture_set_transaction_commit",
+        [ctypes.c_void_p, ctypes.POINTER(TileHistoryCommitInfo)], ctypes.c_uint32,
+    )
+    _signature(library, "ctex_texture_set_transaction_destroy", [ctypes.c_void_p], None)
+    _signature(library, "ctex_texture_set_configure_tile_history",
+               [ctypes.c_void_p, ctypes.c_char_p, ctypes.c_size_t], ctypes.c_uint32)
     _signature(
         library,
         "ctex_paint_preview_session_finalize",

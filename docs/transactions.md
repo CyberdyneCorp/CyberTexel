@@ -13,6 +13,14 @@ atomic layer operations against the staged layer stack. The mutable staged
 mode, channel modulation and fill graphs; pixel-transforming operations still
 go through `apply_layer_operation()`.
 
+`write_region()` accepts a row-major rectangle and byte row pitch. It checks
+all intersecting declared tiles and the complete byte layout before staging
+any changes. Whole tiles publish one tile revision; partial tiles preserve
+pixels outside the rectangle. A full channel is a rectangle covering its
+extent. The C ABI uses `ctex_texture_set_transaction_write_region` with a
+size-tagged region descriptor. Like other pixel edits, the write is undoable
+and refused if its declared tile set exceeds the history byte ceiling.
+
 Commit first verifies that history, every live target tile, and the live layer
 revision still match the transaction's opening state. It then publishes all
 changed declared tiles by ownership exchange and publishes the staged layer

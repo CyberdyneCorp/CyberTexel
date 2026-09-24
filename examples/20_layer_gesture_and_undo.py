@@ -292,6 +292,11 @@ def gesture(doc: object, sid: object, snapshot: object, target: object,
     for x in range(3):
         texel = (CAPI.c_ubyte * 3)(*GESTURE_ROW[x * 3 : x * 3 + 3])
         expect(CAPI.ctex_texture_set_transaction_write_pixel(transaction, CHANNEL, x, 0, texel, 3))
+    region = CAPI.ctex_channel_region_descriptor(
+        ctypes.sizeof(CAPI.ctex_channel_region_descriptor), 0, 0, 3, 1, 9)
+    row = (CAPI.c_ubyte * 9)(*GESTURE_ROW)
+    expect(CAPI.ctex_texture_set_transaction_write_region(
+        transaction, CHANNEL, BYREF(region), row, len(row)))
     create = creation(entry(b"gesture-group", CAPI.CTEX_LAYER_ENTRY_GROUP))
     expect(CAPI.ctex_texture_set_transaction_apply_layer_operation(transaction, BYREF(create)))
     expect(CAPI.ctex_texture_set_transaction_set_layer_state(

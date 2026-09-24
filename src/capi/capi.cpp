@@ -19828,6 +19828,33 @@ extern "C" ctex_result ctex_texture_set_transaction_write_pixel(
     });
 }
 
+extern "C" ctex_result ctex_texture_set_transaction_write_region(
+    ctex_texture_set_transaction* transaction, const char* semantic_id,
+    const ctex_channel_region_descriptor* region, const void* pixels, std::size_t pixel_size) {
+    return call_boundary("ctex_texture_set_transaction_write_region", [&] {
+        if (transaction == nullptr || semantic_id == nullptr || region == nullptr ||
+            (pixels == nullptr && pixel_size != 0)) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_NULL_ARGUMENT,
+                           "transaction, semantic_id, region, and declared pixel bytes are required");
+        }
+        validate_structure_size(region->size, CTEX_CHANNEL_REGION_DESCRIPTOR_V1_SIZE,
+                                CTEX_CHANNEL_REGION_DESCRIPTOR_CURRENT_SIZE,
+                                "channel region descriptor size");
+        try {
+            require_transaction(*transaction).write_region(
+                semantic_id, {.x = region->x, .y = region->y, .width = region->width,
+                              .height = region->height},
+                {static_cast<const std::byte*>(pixels), pixel_size}, region->row_pitch_bytes);
+        } catch (const ctex::doc::TextureSetTransactionError& error) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_INVALID_TILE_HISTORY,
+                           error.what());
+        } catch (const std::out_of_range& error) {
+            throw_boundary(CTEX_RESULT_INVALID_ARGUMENT, CTEX_DIAGNOSTIC_INVALID_DESCRIPTOR_VALUE,
+                           error.what());
+        }
+    });
+}
+
 extern "C" ctex_result ctex_texture_set_transaction_apply_layer_operation(
     ctex_texture_set_transaction* transaction, const ctex_layer_operation_descriptor* operation) {
     return call_boundary("ctex_texture_set_transaction_apply_layer_operation", [&] {

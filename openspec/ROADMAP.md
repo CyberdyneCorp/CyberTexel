@@ -7,10 +7,9 @@ decisions taken and questions still open.
 ## Status
 
 Implementation started. 24 capabilities, 332 requirements, 409 scenarios and
-225 tasks, 221 done. Every capability's runtime work is delivered and every
-device budget the project can measure is measured on hardware it owns. Four
-tasks remain: one library gap (3.12, a bulk channel write to match the bulk
-channel read), wiring the device runs into CI (18.2), the Windows and Android
+225 tasks, 222 done. Every capability's runtime work is delivered and every
+device budget the project can measure is measured on hardware it owns. Three
+tasks remain: wiring the device runs into CI (18.2), the Windows and Android
 packages (18.6), and archiving this change once the rest land (18.5). Foundation and the complete headless color-management
 scenario suite are green. Image input now detects and decodes PNG, JPEG, TGA,
 BMP, baseline TIFF, flat OpenEXR, Radiance HDR and flattened PSD from caller

@@ -18,11 +18,14 @@ from ._native import (
     AtlasRegionDescriptor,
     ChannelDescriptor,
     ChannelInfo,
+    ChannelRegionDescriptor,
     LayerChannelDescriptor,
     LayerEntryDescriptor,
     PaintPreviewInfo,
     ProjectContainerInfo,
     TextureSetDescriptor,
+    TileHistoryCommitInfo,
+    TileHistoryTargetDescriptor,
     UdimPixelWriteDescriptor,
     UdimWriteInfo,
     check,
@@ -475,6 +478,72 @@ class Document:
             return pixels
         finally:
             LIB.ctex_paint_preview_session_destroy(session)
+
+    def configure_tile_history(self, texture_set: TextureSet, budget_bytes: int) -> None:
+        """Set the texture set's undo history byte ceiling before pixel edits."""
+        if budget_bytes < 0:
+            raise ValueError("history budget must be nonnegative")
+        check(LIB.ctex_texture_set_configure_tile_history(
+            self._require_open(), texture_set.identifier.encode("utf-8"), budget_bytes))
+
+    def write_channel(
+        self,
+        texture_set: TextureSet,
+        semantic_id: str,
+        pixels: npt.NDArray[np.generic],
+        *,
+        x: int = 0,
+        y: int = 0,
+        step_identifier: str = "write-channel",
+    ) -> None:
+        """Commit a contiguous NumPy channel rectangle as one undoable step."""
+
+        import numpy as np
+
+        if not isinstance(pixels, np.ndarray) or pixels.ndim != 3 or not pixels.flags.c_contiguous:
+            raise ValueError("pixels must be a contiguous (height, width, components) NumPy array")
+        height, width, components = pixels.shape
+        if width == 0 or height == 0 or x < 0 or y < 0 or x + width > texture_set.width or y + height > texture_set.height:
+            raise ValueError("channel region is outside the texture set")
+        semantic = semantic_id.encode("utf-8")
+        identifier = texture_set.identifier.encode("utf-8")
+        channel = ChannelInfo()
+        channel.size = ctypes.sizeof(ChannelInfo)
+        required = ctypes.c_size_t()
+        check(LIB.ctex_texture_set_get_channel_info(
+            self._require_open(), identifier, semantic, ctypes.byref(channel),
+            None, 0, ctypes.byref(required)))
+        if not channel.enabled or components != channel.component_count or pixels.dtype != _dtype(channel.scalar_representation, channel.storage_bit_depth):
+            raise ValueError("array shape or dtype does not match the enabled channel format")
+        tile_size = 64
+        coordinates = [(tx, ty)
+                       for ty in range(y // tile_size, (y + height - 1) // tile_size + 1)
+                       for tx in range(x // tile_size, (x + width - 1) // tile_size + 1)]
+        targets = (TileHistoryTargetDescriptor * len(coordinates))(*[
+            TileHistoryTargetDescriptor(ctypes.sizeof(TileHistoryTargetDescriptor), semantic, tx, ty)
+            for tx, ty in coordinates
+        ])
+        region = ChannelRegionDescriptor(
+            ctypes.sizeof(ChannelRegionDescriptor), x, y, width, height, pixels.strides[0])
+        snapshot = ctypes.c_void_p()
+        transaction = ctypes.c_void_p()
+        check(LIB.ctex_layer_snapshot_create(texture_set.width, texture_set.height,
+                                             None, 0, None, 0, ctypes.byref(snapshot)))
+        try:
+            check(LIB.ctex_texture_set_begin_transaction(
+                self._require_open(), identifier, step_identifier.encode("utf-8"),
+                targets, len(targets), snapshot, ctypes.byref(transaction)))
+            try:
+                check(LIB.ctex_texture_set_transaction_write_region(
+                    transaction, semantic, ctypes.byref(region),
+                    ctypes.c_void_p(pixels.ctypes.data), pixels.nbytes))
+                commit = TileHistoryCommitInfo()
+                commit.size = ctypes.sizeof(TileHistoryCommitInfo)
+                check(LIB.ctex_texture_set_transaction_commit(transaction, ctypes.byref(commit)))
+            finally:
+                LIB.ctex_texture_set_transaction_destroy(transaction)
+        finally:
+            LIB.ctex_layer_snapshot_destroy(snapshot)
 
     def write_channel_pixel(
         self,

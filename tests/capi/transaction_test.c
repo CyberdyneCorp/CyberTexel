@@ -277,6 +277,89 @@ static int non_pixel_edits_retain_zero_bytes(void) {
     return ok;
 }
 
+static int bulk_write_round_trip(void) {
+    fixture value;
+    if (!begin_fixture(&value, NULL, 0, NULL, 0)) {
+        end_fixture(&value);
+        return expect(0, "bulk transaction fixture failed");
+    }
+    ctex_tile_history_target_descriptor targets[2] = {
+        {.size = CTEX_TILE_HISTORY_TARGET_DESCRIPTOR_CURRENT_SIZE,
+         .semantic_id = "pbr.base_color", .tile_x = 0, .tile_y = 0},
+        {.size = CTEX_TILE_HISTORY_TARGET_DESCRIPTOR_CURRENT_SIZE,
+         .semantic_id = "pbr.base_color", .tile_x = 1, .tile_y = 0},
+    };
+    unsigned char source[128 * 64 * 3];
+    unsigned char actual[sizeof(source)];
+    for (size_t index = 0; index < sizeof(source); ++index) {
+        source[index] = (unsigned char)(index % 251);
+    }
+    ctex_channel_region_descriptor region = {
+        .size = CTEX_CHANNEL_REGION_DESCRIPTOR_CURRENT_SIZE,
+        .width = 128, .height = 64, .row_pitch_bytes = 128 * 3,
+    };
+    ctex_texture_set_transaction* transaction = NULL;
+    int ok = expect(ctex_texture_set_begin_transaction(
+                        value.document, value.set_id, "bulk", targets, 2, value.snapshot,
+                        &transaction) == CTEX_RESULT_SUCCESS, "bulk transaction begin failed");
+    if (ok) {
+        ctex_channel_region_descriptor invalid = region;
+        invalid.size = 1;
+        ok = expect(ctex_texture_set_transaction_write_region(
+                        transaction, "pbr.base_color", &invalid, source,
+                        sizeof(source)) == CTEX_RESULT_INVALID_ARGUMENT &&
+                        ctex_get_last_diagnostic_code() == CTEX_DIAGNOSTIC_INVALID_DESCRIPTOR_SIZE,
+                    "bulk write accepted an invalid descriptor size");
+        ok = ok && expect(ctex_texture_set_transaction_write_region(
+                              transaction, "pbr.base_color", &region, source,
+                              sizeof(source) - 1) == CTEX_RESULT_INVALID_ARGUMENT,
+                          "bulk write accepted a short buffer");
+        ok = ok && expect(ctex_texture_set_transaction_write_region(
+                              transaction, "pbr.base_color", &region, source,
+                              sizeof(source)) == CTEX_RESULT_SUCCESS,
+                          "bulk write failed");
+        ctex_tile_history_commit_info commit = {.size = CTEX_TILE_HISTORY_COMMIT_INFO_CURRENT_SIZE};
+        ok = ok && expect(ctex_texture_set_transaction_commit(transaction, &commit) ==
+                              CTEX_RESULT_SUCCESS && commit.tile_count == 2,
+                          "bulk write did not commit both tiles");
+    }
+    ctex_texture_set_transaction_destroy(transaction);
+    ctex_paint_preview_session* preview = NULL;
+    size_t required = 0;
+    ok = ok && expect(ctex_paint_preview_session_create(
+                          value.document, value.set_id, "pbr.base_color", &preview) ==
+                          CTEX_RESULT_SUCCESS &&
+                          ctex_paint_preview_session_get_pixels(preview, actual, sizeof(actual),
+                                                                &required) == CTEX_RESULT_SUCCESS &&
+                          required == sizeof(source) && memcmp(source, actual, sizeof(source)) == 0,
+                      "bulk write did not round-trip through channel read");
+    ctex_paint_preview_session_destroy(preview);
+    ctex_tile_history_restore_info restored = {.size = CTEX_TILE_HISTORY_RESTORE_INFO_CURRENT_SIZE};
+    ok = ok && expect(ctex_texture_set_undo_tiles(value.document, value.set_id, &restored) ==
+                          CTEX_RESULT_SUCCESS && restored.copied_pixel_bytes == 0 &&
+                          restored.exchanged_storage_count == 2,
+                      "bulk undo copied pixels");
+    transaction = NULL;
+    ok = ok && expect(ctex_texture_set_begin_transaction(
+                          value.document, value.set_id, "bounded", targets, 1, value.snapshot,
+                          &transaction) == CTEX_RESULT_SUCCESS,
+                      "bounded bulk transaction begin failed");
+    region.x = 63;
+    region.width = 2;
+    region.height = 1;
+    region.row_pitch_bytes = 6;
+    ok = ok && expect(ctex_texture_set_transaction_write_region(
+                          transaction, "pbr.base_color", &region, source, 6) ==
+                          CTEX_RESULT_INVALID_ARGUMENT &&
+                          ctex_get_last_diagnostic_code() == CTEX_DIAGNOSTIC_INVALID_TILE_HISTORY,
+                      "bulk write accepted an undeclared tile");
+    ctex_texture_set_transaction_destroy(transaction);
+    end_fixture(&value);
+    return ok;
+}
+
 int main(void) {
-    return mixed_commit_cancel_and_history() && non_pixel_edits_retain_zero_bytes() ? 0 : 1;
+    return mixed_commit_cancel_and_history() && non_pixel_edits_retain_zero_bytes() &&
+                   bulk_write_round_trip()
+               ? 0 : 1;
 }

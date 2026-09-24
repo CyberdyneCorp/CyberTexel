@@ -3,6 +3,18 @@ import XCTest
 @testable import CyberTexel
 
 final class CyberTexelTests: XCTestCase {
+  func testBulkChannelWriteCommits() throws {
+    let document = try Document()
+    let textureSet = try document.createTextureSet(
+      displayName: "Bulk", partitionKey: "bulk", width: 70, height: 66)
+    try document.setChannelEnabled("pbr.base_color", in: textureSet)
+    try document.configureTileHistory(1 << 20, in: textureSet)
+    try document.writeChannelRegion(
+      [UInt8](repeating: 23, count: 70 * 66 * 3), x: 0, y: 0,
+      width: 70, height: 66, rowPitchBytes: 70 * 3,
+      semanticID: "pbr.base_color", in: textureSet)
+  }
+
   func testIncompatibleNativeABINamesBothVersions() {
     XCTAssertThrowsError(
       try Native.validateABI(

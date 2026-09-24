@@ -109,6 +109,15 @@ pub struct TextureSet {
     pub height: u32,
 }
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct ChannelRegion {
+    pub x: u32,
+    pub y: u32,
+    pub width: u32,
+    pub height: u32,
+    pub row_pitch_bytes: usize,
+}
+
 /// An owned document handle.
 ///
 /// A document is `Send` but deliberately not `Sync`: it may move between
@@ -275,6 +284,29 @@ impl Document {
         )
     }
 
+    /// Write a packed channel rectangle as one undoable tile-history step.
+    pub fn write_channel_region(
+        &mut self,
+        texture_set: &TextureSet,
+        semantic_id: &str,
+        region: ChannelRegion,
+        pixels: &[u8],
+    ) -> Result<(), Error> {
+        if region.width == 0
+            || region.height == 0
+            || region.x >= texture_set.width
+            || region.y >= texture_set.height
+            || region.width > texture_set.width - region.x
+            || region.height > texture_set.height - region.y
+        {
+            return Err(Error::InvalidNativeState(
+                "channel region is outside the texture set".into(),
+            ));
+        }
+        self.handle
+            .write_channel_region(texture_set, semantic_id, region, pixels)
+    }
+
     pub(crate) fn native_handle(&self) -> &ffi::DocumentHandle {
         &self.handle
     }
@@ -283,6 +315,36 @@ impl Document {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn bulk_channel_write_is_undoable() {
+        let mut document = Document::new().unwrap();
+        let texture_set = document.create_texture_set("Bulk", "bulk", 70, 66).unwrap();
+        document
+            .set_channel_enabled(&texture_set, "pbr.base_color", 0)
+            .unwrap();
+        document
+            .configure_tile_history(&texture_set, 1 << 20)
+            .unwrap();
+        let pixels = vec![23_u8; 70 * 66 * 3];
+        document
+            .write_channel_region(
+                &texture_set,
+                "pbr.base_color",
+                ChannelRegion {
+                    x: 0,
+                    y: 0,
+                    width: 70,
+                    height: 66,
+                    row_pitch_bytes: 70 * 3,
+                },
+                &pixels,
+            )
+            .unwrap();
+        let undo = document.undo_tiles(&texture_set).unwrap();
+        assert_eq!(undo.tile_count, 4);
+        assert_eq!(undo.copied_pixel_bytes, 0);
+    }
 
     #[test]
     fn document_can_move_between_threads() {

@@ -36,15 +36,18 @@ def main() -> None:
             "Body", partition_key="body", width=64, height=64
         )
         document.set_channel_enabled(texture_set, SEMANTIC)
+        document.configure_tile_history(texture_set, 1 << 20)
 
         with cybertexel.SnapshotPool(budget_bytes=4 << 20) as pool:
             # A cursor taken before painting is what the host already holds.
             before = pool.current_cursor(document, texture_set, SEMANTIC)
 
-            # Each write runs one isolated preview session: write, finalize
-            # against its coverage, then commit as the published result.
+            # A shipped material occupies the whole channel; load it in one
+            # undoable transaction and inspect selected authored texels.
+            material = np.zeros((64, 64, 3), dtype=np.uint8)
             for x, y, colour in PIXELS:
-                document.write_channel_pixel(texture_set, SEMANTIC, x, y, colour)
+                material[y, x] = np.frombuffer(colour, np.uint8)
+            document.write_channel(texture_set, SEMANTIC, material)
 
             after = pool.current_cursor(document, texture_set, SEMANTIC)
             assert after.revision > before.revision, (before, after)

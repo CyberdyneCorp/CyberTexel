@@ -1,7 +1,7 @@
 //! Raw declarations generated from `include/ctex/capi.h`.
 //! Regenerate with `python3 tools/generate_rust_sys.py`.
 
-//! C header SHA-256: bc6f29bc5c699cffd9a22dc0dcc8143ec3b74eba458d0d99910ac618b5ba0b74
+//! C header SHA-256: e089804504db69d4d6e7eca9ea4124ac8328cf07c4b1fb2bfd559e9012cbad0c
 
 #![allow(non_camel_case_types, non_snake_case, non_upper_case_globals)]
 
@@ -2797,6 +2797,16 @@ impl Default for ctex_tile_history_target_descriptor {
             s.assume_init()
         }
     }
+}
+#[repr(C)]
+#[derive(Debug, Default, Copy, Clone)]
+pub struct ctex_channel_region_descriptor {
+    pub size: u32,
+    pub x: u32,
+    pub y: u32,
+    pub width: u32,
+    pub height: u32,
+    pub row_pitch_bytes: usize,
 }
 #[repr(C)]
 #[derive(Debug, Default, Copy, Clone)]
@@ -9042,6 +9052,15 @@ unsafe extern "C" {
         x: u32,
         y: u32,
         pixel: *const ::std::os::raw::c_void,
+        pixel_size: usize,
+    ) -> ctex_result;
+}
+unsafe extern "C" {
+    pub fn ctex_texture_set_transaction_write_region(
+        transaction: *mut ctex_texture_set_transaction,
+        semantic_id: *const ::std::os::raw::c_char,
+        region: *const ctex_channel_region_descriptor,
+        pixels: *const ::std::os::raw::c_void,
         pixel_size: usize,
     ) -> ctex_result;
 }

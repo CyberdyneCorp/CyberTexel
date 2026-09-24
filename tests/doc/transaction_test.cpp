@@ -1,8 +1,10 @@
+#include <algorithm>
 #include <array>
 #include <cstddef>
 #include <ctex/doc/document.hpp>
 #include <iostream>
 #include <string_view>
+#include <vector>
 
 namespace {
 
@@ -237,6 +239,61 @@ bool metadata_edits_are_command_history() {
                              "redo did not restore the zero-pixel metadata edit");
 }
 
+bool bulk_region_round_trip_and_refusals() {
+    TextureSet set = texture_set();
+    auto& image = set.channels().pixels("pbr.base_color");
+    std::vector<std::byte> supplied(128 * 64 * 3);
+    for (std::size_t index = 0; index < supplied.size(); ++index) {
+        supplied[index] = static_cast<std::byte>(index % 251);
+    }
+    const std::array targets{target(0), target(1)};
+    auto transaction = set.begin_transaction("import", targets);
+    transaction.write_region("pbr.base_color", {0, 0, 128, 64}, supplied, 128 * 3);
+    const bool isolated = expect(!image.is_tile_allocated({0, 0}),
+                                 "bulk region changed live pixels before commit");
+    const auto committed = transaction.commit();
+    bool identical = committed.committed && committed.tile_count == 2;
+    for (std::uint32_t y = 0; y < 64 && identical; ++y) {
+        for (std::uint32_t x = 0; x < 128 && identical; ++x) {
+            const auto actual = image.read_pixel(x, y);
+            const auto expected = std::span(supplied).subspan((y * 128 + x) * 3, 3);
+            identical = std::ranges::equal(actual, expected);
+        }
+    }
+    auto unchanged = set.begin_transaction("unchanged-import", targets);
+    unchanged.write_region("pbr.base_color", {0, 0, 128, 64}, supplied, 128 * 3);
+    const bool no_change = !unchanged.commit().committed;
+    const auto undone = set.undo_tiles();
+    const bool undo_ok = expect(undone.exchanged_storage_count == 2 &&
+                                    undone.copied_pixel_bytes == 0 &&
+                                    !image.is_tile_allocated({0, 0}) &&
+                                    !image.is_tile_allocated({1, 0}),
+                                "bulk undo copied pixels or failed to restore storage");
+    static_cast<void>(set.redo_tiles());
+    auto partial = set.begin_transaction("partial", std::array{target(0)});
+    const std::array replacement{std::byte{1}, std::byte{2}, std::byte{3}};
+    partial.write_region("pbr.base_color", {63, 63, 1, 1}, replacement, 3);
+    const bool missing_target = expect_error<TextureSetTransactionError>(
+        [&] { partial.write_region("pbr.base_color", {63, 0, 2, 1},
+                                   std::span(supplied).first(6), 6); },
+        "bulk write accepted an undeclared tile");
+    const bool bad_size = expect_error<std::invalid_argument>(
+        [&] { partial.write_region("pbr.base_color", {0, 0, 2, 1}, replacement, 6); },
+        "bulk write accepted a byte-count mismatch");
+    const bool bad_bounds = expect_error<std::out_of_range>(
+        [&] { partial.write_region("pbr.base_color", {128, 0, 1, 1}, replacement, 3); },
+        "bulk write accepted an out-of-bounds rectangle");
+    const auto partial_commit = partial.commit();
+    const bool partial_ok = partial_commit.tile_count == 1 &&
+                            std::ranges::equal(image.read_pixel(63, 63), replacement) &&
+                            std::ranges::equal(image.read_pixel(64, 63),
+                                               std::span(supplied).subspan((63 * 128 + 64) * 3, 3));
+    return isolated && no_change &&
+           expect(identical, "bulk write did not round-trip byte-identically") &&
+           undo_ok && expect(partial_ok, "partial region changed pixels outside its bounds") &&
+           missing_target && bad_size && bad_bounds;
+}
+
 }  // namespace
 
 int main() {
@@ -244,7 +301,7 @@ int main() {
                    cancellation_and_destruction_leave_live_state_exact() &&
                    stale_and_undeclared_transactions_are_refused() &&
                    layer_only_transaction_uses_no_pixel_budget() &&
-                   metadata_edits_are_command_history()
+                   metadata_edits_are_command_history() && bulk_region_round_trip_and_refusals()
                ? 0
                : 1;
 }

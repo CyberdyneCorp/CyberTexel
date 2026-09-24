@@ -12,7 +12,7 @@ use crate::host::{
 };
 use crate::layers::{HistoryBudget, HistoryCommit, HistoryRestore, HistoryTarget, LayerEntry};
 use crate::mesh::MeshData;
-use crate::{Error, ResultCode, TextureSet, Version};
+use crate::{ChannelRegion, Error, ResultCode, TextureSet, Version};
 
 pub(crate) struct DocumentHandle(NonNull<sys::ctex_document>);
 
@@ -186,8 +186,104 @@ impl DocumentHandle {
         }
     }
 
+    pub(crate) fn write_channel_region(
+        &self,
+        texture_set: &TextureSet,
+        semantic_id: &str,
+        region: ChannelRegion,
+        pixels: &[u8],
+    ) -> Result<(), Error> {
+        let texture_set_id = c_string(&texture_set.identifier)?;
+        let semantic_id = c_string(semantic_id)?;
+        let step = c_string("write-channel")?;
+        let mut snapshot = ptr::null_mut();
+        unsafe {
+            check(sys::ctex_layer_snapshot_create(
+                texture_set.width,
+                texture_set.height,
+                ptr::null(),
+                0,
+                ptr::null(),
+                0,
+                &mut snapshot,
+            ))?;
+        }
+        let snapshot = LayerSnapshotHandle(NonNull::new(snapshot).ok_or_else(|| {
+            Error::InvalidNativeState("layer snapshot creation returned no handle".into())
+        })?);
+        let targets = (region.y / 64..=(region.y + region.height - 1) / 64)
+            .flat_map(|ty| {
+                (region.x / 64..=(region.x + region.width - 1) / 64).map(move |tx| (tx, ty))
+            })
+            .map(
+                |(tile_x, tile_y)| sys::ctex_tile_history_target_descriptor {
+                    size: std::mem::size_of::<sys::ctex_tile_history_target_descriptor>() as u32,
+                    semantic_id: semantic_id.as_ptr(),
+                    tile_x,
+                    tile_y,
+                },
+            )
+            .collect::<Vec<_>>();
+        let mut transaction = ptr::null_mut();
+        unsafe {
+            check(sys::ctex_texture_set_begin_transaction(
+                self.0.as_ptr(),
+                texture_set_id.as_ptr(),
+                step.as_ptr(),
+                targets.as_ptr(),
+                targets.len(),
+                snapshot.0.as_ptr(),
+                &mut transaction,
+            ))?;
+        }
+        let transaction = TextureTransactionHandle(NonNull::new(transaction).ok_or_else(|| {
+            Error::InvalidNativeState("transaction creation returned no handle".into())
+        })?);
+        let region = sys::ctex_channel_region_descriptor {
+            size: std::mem::size_of::<sys::ctex_channel_region_descriptor>() as u32,
+            x: region.x,
+            y: region.y,
+            width: region.width,
+            height: region.height,
+            row_pitch_bytes: region.row_pitch_bytes,
+        };
+        let mut commit = sys::ctex_tile_history_commit_info {
+            size: std::mem::size_of::<sys::ctex_tile_history_commit_info>() as u32,
+            ..Default::default()
+        };
+        unsafe {
+            check(sys::ctex_texture_set_transaction_write_region(
+                transaction.0.as_ptr(),
+                semantic_id.as_ptr(),
+                &region,
+                pixels.as_ptr().cast(),
+                pixels.len(),
+            ))?;
+            check(sys::ctex_texture_set_transaction_commit(
+                transaction.0.as_ptr(),
+                &mut commit,
+            ))
+        }
+    }
+
     pub(crate) fn as_ptr(&self) -> *const sys::ctex_document {
         self.0.as_ptr()
+    }
+}
+
+struct LayerSnapshotHandle(NonNull<sys::ctex_layer_snapshot>);
+
+impl Drop for LayerSnapshotHandle {
+    fn drop(&mut self) {
+        unsafe { sys::ctex_layer_snapshot_destroy(self.0.as_ptr()) }
+    }
+}
+
+struct TextureTransactionHandle(NonNull<sys::ctex_texture_set_transaction>);
+
+impl Drop for TextureTransactionHandle {
+    fn drop(&mut self) {
+        unsafe { sys::ctex_texture_set_transaction_destroy(self.0.as_ptr()) }
     }
 }
 

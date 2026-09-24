@@ -2382,6 +2382,18 @@ typedef struct ctex_tile_history_target_descriptor {
 #define CTEX_TILE_HISTORY_TARGET_DESCRIPTOR_CURRENT_SIZE \
     ((uint32_t)sizeof(ctex_tile_history_target_descriptor))
 
+typedef struct ctex_channel_region_descriptor {
+    uint32_t size;
+    uint32_t x;
+    uint32_t y;
+    uint32_t width;
+    uint32_t height;
+    size_t row_pitch_bytes;
+} ctex_channel_region_descriptor;
+
+#define CTEX_CHANNEL_REGION_DESCRIPTOR_V1_SIZE ((uint32_t)sizeof(ctex_channel_region_descriptor))
+#define CTEX_CHANNEL_REGION_DESCRIPTOR_CURRENT_SIZE ((uint32_t)sizeof(ctex_channel_region_descriptor))
+
 typedef struct ctex_tile_history_budget_report {
     uint32_t size;
     size_t budget_bytes;
@@ -7267,6 +7279,9 @@ CTEX_API void ctex_texture_set_transaction_destroy(ctex_texture_set_transaction*
 CTEX_API ctex_result ctex_texture_set_transaction_write_pixel(
     ctex_texture_set_transaction* transaction, const char* semantic_id, uint32_t x, uint32_t y,
     const void* pixel, size_t pixel_size);
+CTEX_API ctex_result ctex_texture_set_transaction_write_region(
+    ctex_texture_set_transaction* transaction, const char* semantic_id,
+    const ctex_channel_region_descriptor* region, const void* pixels, size_t pixel_size);
 CTEX_API ctex_result ctex_texture_set_transaction_apply_layer_operation(
     ctex_texture_set_transaction* transaction, const ctex_layer_operation_descriptor* operation);
 CTEX_API ctex_result ctex_texture_set_transaction_set_layer_state(

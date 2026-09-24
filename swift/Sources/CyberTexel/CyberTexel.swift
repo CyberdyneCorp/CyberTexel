@@ -186,6 +186,16 @@ public struct Document {
     }
   }
 
+  public func configureTileHistory(_ budgetBytes: Int, in textureSet: TextureSet) throws {
+    guard budgetBytes >= 0 else {
+      throw CyberTexelError.invalidNativeState("history budget must be nonnegative")
+    }
+    try textureSet.identifier.withCString { identifier in
+      try Native.check(ctex_texture_set_configure_tile_history(
+        storage.handle, identifier, budgetBytes))
+    }
+  }
+
   public func writeChannelPixel(
     _ pixel: [UInt8],
     x: UInt32,
@@ -228,5 +238,64 @@ public struct Document {
       )
     }
     try Native.check(ctex_paint_preview_session_commit(session, &info))
+  }
+
+  /// Commit a packed channel rectangle as one undoable history step.
+  public func writeChannelRegion(
+    _ pixels: [UInt8], x: UInt32, y: UInt32, width: UInt32, height: UInt32,
+    rowPitchBytes: Int, semanticID: String, in textureSet: TextureSet
+  ) throws {
+    guard width > 0, height > 0, x < textureSet.width, y < textureSet.height,
+      width <= textureSet.width - x, height <= textureSet.height - y else {
+      throw CyberTexelError.invalidNativeState("channel region is outside the texture set")
+    }
+    var snapshot: OpaquePointer?
+    try Native.check(ctex_layer_snapshot_create(
+      textureSet.width, textureSet.height, nil, 0, nil, 0, &snapshot))
+    guard let snapshot else {
+      throw CyberTexelError.invalidNativeState("layer snapshot creation returned no handle")
+    }
+    defer { ctex_layer_snapshot_destroy(snapshot) }
+    try textureSet.identifier.withCString { identifier in
+      try semanticID.withCString { semantic in
+        var targets: [ctex_tile_history_target_descriptor] = []
+        for tileY in y / 64...(y + height - 1) / 64 {
+          for tileX in x / 64...(x + width - 1) / 64 {
+            var target = ctex_tile_history_target_descriptor()
+            target.size = UInt32(MemoryLayout<ctex_tile_history_target_descriptor>.size)
+            target.semantic_id = semantic
+            target.tile_x = tileX
+            target.tile_y = tileY
+            targets.append(target)
+          }
+        }
+        var transaction: OpaquePointer?
+        try "write-channel".withCString { step in
+          try targets.withUnsafeBufferPointer { buffer in
+            try Native.check(ctex_texture_set_begin_transaction(
+              storage.handle, identifier, step, buffer.baseAddress, buffer.count,
+              snapshot, &transaction))
+          }
+        }
+        guard let transaction else {
+          throw CyberTexelError.invalidNativeState("transaction creation returned no handle")
+        }
+        defer { ctex_texture_set_transaction_destroy(transaction) }
+        var region = ctex_channel_region_descriptor()
+        region.size = UInt32(MemoryLayout<ctex_channel_region_descriptor>.size)
+        region.x = x
+        region.y = y
+        region.width = width
+        region.height = height
+        region.row_pitch_bytes = rowPitchBytes
+        try pixels.withUnsafeBytes { bytes in
+          try Native.check(ctex_texture_set_transaction_write_region(
+            transaction, semantic, &region, bytes.baseAddress, bytes.count))
+        }
+        var commit = ctex_tile_history_commit_info()
+        commit.size = UInt32(MemoryLayout<ctex_tile_history_commit_info>.size)
+        try Native.check(ctex_texture_set_transaction_commit(transaction, &commit))
+      }
+    }
   }
 }

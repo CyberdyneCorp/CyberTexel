@@ -314,6 +314,7 @@ EXPORTS
     ctex_texture_set_begin_transaction
     ctex_texture_set_transaction_destroy
     ctex_texture_set_transaction_write_pixel
+    ctex_texture_set_transaction_write_region
     ctex_texture_set_transaction_apply_layer_operation
     ctex_texture_set_transaction_set_layer_state
     ctex_texture_set_transaction_set_layer_layout

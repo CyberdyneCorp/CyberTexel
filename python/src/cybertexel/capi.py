@@ -1,4 +1,4 @@
-# C header SHA-256: bc6f29bc5c699cffd9a22dc0dcc8143ec3b74eba458d0d99910ac618b5ba0b74
+# C header SHA-256: e089804504db69d4d6e7eca9ea4124ac8328cf07c4b1fb2bfd559e9012cbad0c
 """Generated raw ctypes declarations for the CyberTexel C ABI.
 
 Regenerate with ``just generate-python-capi``.
@@ -5002,6 +5002,28 @@ struct_ctex_tile_history_target_descriptor._fields_ = [
 ]
 
 ctex_tile_history_target_descriptor = struct_ctex_tile_history_target_descriptor
+
+class struct_ctex_channel_region_descriptor(Structure):
+    pass
+
+struct_ctex_channel_region_descriptor.__slots__ = [
+    'size',
+    'x',
+    'y',
+    'width',
+    'height',
+    'row_pitch_bytes',
+]
+struct_ctex_channel_region_descriptor._fields_ = [
+    ('size', uint32_t),
+    ('x', uint32_t),
+    ('y', uint32_t),
+    ('width', uint32_t),
+    ('height', uint32_t),
+    ('row_pitch_bytes', c_size_t),
+]
+
+ctex_channel_region_descriptor = struct_ctex_channel_region_descriptor
 
 class struct_ctex_tile_history_budget_report(Structure):
     pass
@@ -12894,6 +12916,15 @@ for _lib in _libs.values():
 
 
 for _lib in _libs.values():
+    if not _lib.has("ctex_texture_set_transaction_write_region", "cdecl"):
+        continue
+    ctex_texture_set_transaction_write_region = _lib.get("ctex_texture_set_transaction_write_region", "cdecl")
+    ctex_texture_set_transaction_write_region.argtypes = [POINTER(ctex_texture_set_transaction), String, POINTER(ctex_channel_region_descriptor), POINTER(None), c_size_t]
+    ctex_texture_set_transaction_write_region.restype = ctex_result
+    break
+
+
+for _lib in _libs.values():
     if not _lib.has("ctex_texture_set_transaction_apply_layer_operation", "cdecl"):
         continue
     ctex_texture_set_transaction_apply_layer_operation = _lib.get("ctex_texture_set_transaction_apply_layer_operation", "cdecl")
@@ -15259,6 +15290,18 @@ except:
 
 try:
     CTEX_TILE_HISTORY_TARGET_DESCRIPTOR_CURRENT_SIZE = (uint32_t (ord_if_char(sizeof(ctex_tile_history_target_descriptor)))).value
+except:
+    pass
+
+
+try:
+    CTEX_CHANNEL_REGION_DESCRIPTOR_V1_SIZE = (uint32_t (ord_if_char(sizeof(ctex_channel_region_descriptor)))).value
+except:
+    pass
+
+
+try:
+    CTEX_CHANNEL_REGION_DESCRIPTOR_CURRENT_SIZE = (uint32_t (ord_if_char(sizeof(ctex_channel_region_descriptor)))).value
 except:
     pass
 
@@ -17822,6 +17865,7 @@ ctex_layer_entry_descriptor = struct_ctex_layer_entry_descriptor
 ctex_layer_mask_sample = struct_ctex_layer_mask_sample
 ctex_layer_participation_info = struct_ctex_layer_participation_info
 ctex_tile_history_target_descriptor = struct_ctex_tile_history_target_descriptor
+ctex_channel_region_descriptor = struct_ctex_channel_region_descriptor
 ctex_tile_history_budget_report = struct_ctex_tile_history_budget_report
 ctex_tile_history_commit_info = struct_ctex_tile_history_commit_info
 ctex_tile_history_restore_info = struct_ctex_tile_history_restore_info

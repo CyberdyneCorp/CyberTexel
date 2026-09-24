@@ -1941,7 +1941,7 @@ threading and per-binding example evidence.
 - [x] 3.9 Tile-scoped history, ownership-exchange restore, declared budget and its refusals
 - [x] 3.10 Transactions: grouping and byte-identical cancellation
 - [x] 3.11 `texture-document` scenarios as tests
-- [ ] 3.12 Bulk channel write: a host can publish a whole channel or a tile range in one operation, as `read_channel` already reads one
+- [x] 3.12 Bulk channel write: a host can publish a whole channel or a tile range in one operation, as `read_channel` already reads one
 
 ## 4. Geometry input
 

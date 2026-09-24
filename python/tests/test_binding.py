@@ -14,6 +14,25 @@ GRAY8_PNG = bytes.fromhex(
 
 
 class BindingTest(unittest.TestCase):
+    def test_bulk_channel_write_round_trips_and_checks_format(self) -> None:
+        with cybertexel.Document() as document:
+            texture_set = document.create_texture_set(
+                "Bulk", partition_key="bulk", width=70, height=66)
+            document.set_channel_enabled(texture_set, "pbr.base_color")
+            document.configure_tile_history(texture_set, 1 << 20)
+            supplied = np.arange(70 * 66 * 3, dtype=np.uint8).reshape(66, 70, 3)
+            document.write_channel(texture_set, "pbr.base_color", supplied)
+            np.testing.assert_array_equal(
+                document.read_channel(texture_set, "pbr.base_color"), supplied)
+            patch = np.full((2, 3, 3), 17, dtype=np.uint8)
+            document.write_channel(texture_set, "pbr.base_color", patch, x=63, y=63)
+            expected = supplied.copy()
+            expected[63:65, 63:66] = patch
+            np.testing.assert_array_equal(
+                document.read_channel(texture_set, "pbr.base_color"), expected)
+            with self.assertRaises(ValueError):
+                document.write_channel(texture_set, "pbr.base_color", supplied.astype(np.uint16))
+
     def test_incompatible_native_abi_names_both_versions(self) -> None:
         incompatible = _native.Version(7, 2, 1, b"7.2.1-test")
         with self.assertRaisesRegex(
@@ -40,7 +59,7 @@ class BindingTest(unittest.TestCase):
         )
         self.assertEqual(result, cybertexel.capi.CTEX_RESULT_SUCCESS)
         self.assertGreater(required.value, 40)
-        self.assertEqual(len(operations), 353)
+        self.assertEqual(len(operations), 354)
         self.assertIn("ctex_image_decode_layered_memory", operations)
 
     def test_version_and_numpy_decode(self) -> None:
