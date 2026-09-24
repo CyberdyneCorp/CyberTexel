@@ -2,10 +2,10 @@
 #include <atomic>
 #include <ctex/exec/cpu_reference.hpp>
 #include <exception>
+#include <future>
 #include <limits>
 #include <mutex>
 #include <stdexcept>
-#include <thread>
 #include <utility>
 #include <vector>
 
@@ -163,10 +163,10 @@ ExecutionOutcome CpuReferenceExecutor::execute_bounded(CpuBoundedOperation& oper
     };
 
     {
-        std::vector<std::jthread> workers;
+        std::vector<std::future<void>> workers;
         workers.reserve(worker_count);
         for (std::size_t worker = 0; worker < worker_count; ++worker) {
-            workers.emplace_back(run_worker, worker);
+            workers.emplace_back(std::async(std::launch::async, run_worker, worker));
         }
     }
     if (failure != nullptr) {

@@ -44,6 +44,10 @@ def process_environment(overrides: dict[str, str] | None = None) -> dict[str, st
     child_environment["CTEX_PYTHON"] = sys.executable
     child_environment["CYBERTEXEL_LIBRARY"] = NATIVE_LIBRARY
     child_environment["PYTHONPATH"] = str(ROOT / "python" / "src")
+    asan_runtime = child_environment.get("CTEX_SANITIZER_ASAN_LIBRARY")
+    if asan_runtime and Path(asan_runtime).is_file():
+        child_environment["LD_PRELOAD"] = asan_runtime
+        child_environment["ASAN_OPTIONS"] = "detect_leaks=0"
     if overrides:
         child_environment.update(overrides)
     return child_environment

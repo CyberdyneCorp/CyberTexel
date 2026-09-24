@@ -105,7 +105,7 @@ test: build
 test-sanitize: (_require "cmake" "3.24") (_require "c++" "C++20") (_require "ninja" "1.10")
     cmake --preset headless-sanitize
     cmake --build --preset headless-sanitize
-    ctest --preset headless-sanitize
+    CTEX_DETERMINISM_BINARY_DIR=build/headless-sanitize CTEX_SANITIZER_ASAN_LIBRARY="$(c++ -print-file-name=libasan.so)" ctest --preset headless-sanitize
 
 _fuzz target runner build_dir:
     #!/usr/bin/env bash

@@ -17,7 +17,6 @@ from pathlib import Path
 
 import cybertexel
 
-
 CAPABILITIES = ("texture-document",)
 
 CAPI = cybertexel.capi
@@ -33,16 +32,13 @@ TILE_BYTES = 64 * 64 * 3  # history is charged per 64x64 storage tile, not per t
 PAINT_COLOUR, FILL_COLOUR, DEFAULT_TEXEL = (0.8, 0.4, 0.2, 1.0), (0.1, 0.2, 0.3, 1.0), (128,) * 3
 GESTURE_ROW = (90, 40, 20, 91, 40, 20, 92, 40, 20)  # the three texels the gesture writes
 
-
 def expect(result: int, wanted: int = OK) -> None:
     assert result == wanted, f"expected C ABI result {wanted}, got {result}"
-
 
 def sized(structure: type) -> object:
     value = structure()  # every info struct declares the layout its caller compiled against
     value.size = ctypes.sizeof(structure)  # the header's CTEX_*_CURRENT_SIZE
     return value
-
 
 def entry(identifier: bytes, kind: int, **fields: object) -> object:
     value = CAPI.ctex_layer_entry_descriptor(
@@ -51,7 +47,6 @@ def entry(identifier: bytes, kind: int, **fields: object) -> object:
     for name, field in fields.items():
         setattr(value, name, field)
     return value
-
 
 def channel(opacity: float) -> object:
     return CAPI.ctex_layer_channel_descriptor(

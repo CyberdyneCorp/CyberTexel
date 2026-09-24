@@ -5,6 +5,7 @@ import json
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 
 SCRIPT = Path(__file__).resolve().parents[2] / "tools" / "check_determinism.py"
@@ -15,6 +16,20 @@ SPEC.loader.exec_module(CHECK_DETERMINISM)
 
 
 class DeterminismGateTests(unittest.TestCase):
+    def test_sanitized_binary_directory_is_used(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            binary = root / "build" / "headless-sanitize" / "example"
+            binary.parent.mkdir(parents=True)
+            binary.write_text("#!/bin/sh\nprintf result > \"$CTEX_DETERMINISM_OUTPUT_DIR/result.bin\"\n")
+            binary.chmod(0o755)
+            output = root / "output"
+            output.mkdir()
+            with mock.patch.dict("os.environ", {"CTEX_DETERMINISM_BINARY_DIR": str(binary.parent)}):
+                self.assertIsNone(CHECK_DETERMINISM.run_once(
+                    root, ["build/headless/example"], output))
+            self.assertEqual((output / "result.bin").read_bytes(), b"result")
+
     def test_changed_output_is_named(self) -> None:
         with tempfile.TemporaryDirectory() as temporary_directory:
             root = Path(temporary_directory)

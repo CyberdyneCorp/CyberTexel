@@ -249,8 +249,8 @@ bool bulk_region_round_trip_and_refusals() {
     const std::array targets{target(0), target(1)};
     auto transaction = set.begin_transaction("import", targets);
     transaction.write_region("pbr.base_color", {0, 0, 128, 64}, supplied, 128 * 3);
-    const bool isolated = expect(!image.is_tile_allocated({0, 0}),
-                                 "bulk region changed live pixels before commit");
+    const bool isolated =
+        expect(!image.is_tile_allocated({0, 0}), "bulk region changed live pixels before commit");
     const auto committed = transaction.commit();
     bool identical = committed.committed && committed.tile_count == 2;
     for (std::uint32_t y = 0; y < 64 && identical; ++y) {
@@ -264,18 +264,18 @@ bool bulk_region_round_trip_and_refusals() {
     unchanged.write_region("pbr.base_color", {0, 0, 128, 64}, supplied, 128 * 3);
     const bool no_change = !unchanged.commit().committed;
     const auto undone = set.undo_tiles();
-    const bool undo_ok = expect(undone.exchanged_storage_count == 2 &&
-                                    undone.copied_pixel_bytes == 0 &&
-                                    !image.is_tile_allocated({0, 0}) &&
-                                    !image.is_tile_allocated({1, 0}),
-                                "bulk undo copied pixels or failed to restore storage");
+    const bool undo_ok =
+        expect(undone.exchanged_storage_count == 2 && undone.copied_pixel_bytes == 0 &&
+                   !image.is_tile_allocated({0, 0}) && !image.is_tile_allocated({1, 0}),
+               "bulk undo copied pixels or failed to restore storage");
     static_cast<void>(set.redo_tiles());
     auto partial = set.begin_transaction("partial", std::array{target(0)});
     const std::array replacement{std::byte{1}, std::byte{2}, std::byte{3}};
     partial.write_region("pbr.base_color", {63, 63, 1, 1}, replacement, 3);
     const bool missing_target = expect_error<TextureSetTransactionError>(
-        [&] { partial.write_region("pbr.base_color", {63, 0, 2, 1},
-                                   std::span(supplied).first(6), 6); },
+        [&] {
+            partial.write_region("pbr.base_color", {63, 0, 2, 1}, std::span(supplied).first(6), 6);
+        },
         "bulk write accepted an undeclared tile");
     const bool bad_size = expect_error<std::invalid_argument>(
         [&] { partial.write_region("pbr.base_color", {0, 0, 2, 1}, replacement, 6); },
@@ -289,8 +289,8 @@ bool bulk_region_round_trip_and_refusals() {
                             std::ranges::equal(image.read_pixel(64, 63),
                                                std::span(supplied).subspan((63 * 128 + 64) * 3, 3));
     return isolated && no_change &&
-           expect(identical, "bulk write did not round-trip byte-identically") &&
-           undo_ok && expect(partial_ok, "partial region changed pixels outside its bounds") &&
+           expect(identical, "bulk write did not round-trip byte-identically") && undo_ok &&
+           expect(partial_ok, "partial region changed pixels outside its bounds") &&
            missing_target && bad_size && bad_bounds;
 }
 

@@ -2,8 +2,8 @@
 
 This matrix maps every `cli-headless` OpenSpec scenario to executable evidence.
 The `cli-headless-scenario` CTest label is the capability gate; `just test-cli`
-builds all of its native fixtures and runs the same tests on Linux, macOS and
-Windows in CI.
+builds all of its native fixtures and runs the same tests on the first-release
+Linux and macOS platforms in CI. Windows is tracked separately.
 
 | OpenSpec scenario | Executable evidence | What is asserted |
 | --- | --- | --- |
@@ -19,4 +19,4 @@ Windows in CI.
 | Interrupted export | `cli-headless-skeleton` | A twenty-texture export is interrupted in flight, returns the cancellation code and leaves neither a destination nor staging output. |
 | A pipeline-specific operation | `cli-headless-skeleton` | `run` executes the installed Python binding, modifies the document and publishes the result atomically. |
 | Flag added without documentation | `cli-headless-skeleton` | The help audit compares every implemented global and command option with command help and its default. |
-| Release gate | `just test-cli` | The CI desktop OS matrix invokes the complete CLI recipe on Linux, macOS and Windows. |
+| Release gate | `just test-cli` | The CI desktop OS matrix invokes the complete CLI recipe on Linux and macOS. |

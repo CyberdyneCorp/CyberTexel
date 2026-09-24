@@ -49,8 +49,8 @@ public:
     [[nodiscard]] const LayerStack& layer_stack() const;
     void write_pixel(std::string_view semantic_id, std::uint32_t x, std::uint32_t y,
                      std::span<const std::byte> pixel);
-    void write_region(std::string_view semantic_id, Rect region,
-                      std::span<const std::byte> pixels, std::size_t row_pitch);
+    void write_region(std::string_view semantic_id, Rect region, std::span<const std::byte> pixels,
+                      std::size_t row_pitch);
     [[nodiscard]] LayerOperationResult apply_layer_operation(LayerOperationRequest request);
     [[nodiscard]] TileHistoryCommitResult commit();
     void cancel() noexcept;

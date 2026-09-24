@@ -2392,7 +2392,8 @@ typedef struct ctex_channel_region_descriptor {
 } ctex_channel_region_descriptor;
 
 #define CTEX_CHANNEL_REGION_DESCRIPTOR_V1_SIZE ((uint32_t)sizeof(ctex_channel_region_descriptor))
-#define CTEX_CHANNEL_REGION_DESCRIPTOR_CURRENT_SIZE ((uint32_t)sizeof(ctex_channel_region_descriptor))
+#define CTEX_CHANNEL_REGION_DESCRIPTOR_CURRENT_SIZE \
+    ((uint32_t)sizeof(ctex_channel_region_descriptor))
 
 typedef struct ctex_tile_history_budget_report {
     uint32_t size;

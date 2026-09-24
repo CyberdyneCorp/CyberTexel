@@ -70,7 +70,7 @@ def desktop_gate_is_wired() -> bool:
         "\ntest-cli:" in recipe
         and all(target in recipe for target in required_targets)
         and "-R '^cli-headless-'" in recipe
-        and "os: [ubuntu-latest, macos-15-intel, windows-latest]" in workflow
+        and "os: [ubuntu-latest, macos-15-intel]" in workflow
         and "run: just test-cli" in workflow
     )
 

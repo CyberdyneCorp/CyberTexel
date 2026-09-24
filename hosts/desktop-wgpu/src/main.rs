@@ -443,7 +443,7 @@ fn run() -> Result<serde_json::Value, String> {
         return Err("device produced the wrong number of bytes".to_string());
     }
     let first = &pixels[0..4];
-    if pixels.chunks_exact(4).any(|texel| texel != first) {
+    if pixels.as_chunks::<4>().0.iter().any(|texel| *texel != first) {
         return Err("the constant material did not render a constant image".to_string());
     }
 

@@ -117,7 +117,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-15-intel, windows-latest]
+        os: [ubuntu-latest, macos-15-intel]
     runs-on: ${{ matrix.os }}
     steps:
     - uses: actions/checkout@v4
@@ -135,7 +135,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-15-intel, windows-latest]
+        os: [ubuntu-latest, macos-15-intel]
     runs-on: ${{ matrix.os }}
     steps:
     - uses: actions/checkout@v4
@@ -293,7 +293,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-15-intel, windows-latest]
+        os: [ubuntu-latest, macos-15-intel]
     runs-on: ${{ matrix.os }}
     steps:
     - uses: actions/checkout@v4

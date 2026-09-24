@@ -33,6 +33,9 @@ def compare_outputs(
 def run_once(root: Path, command: list[str], output_directory: Path) -> str | None:
     environment = os.environ.copy()
     environment["CTEX_DETERMINISM_OUTPUT_DIR"] = str(output_directory)
+    binary_directory = environment.get("CTEX_DETERMINISM_BINARY_DIR")
+    if binary_directory and command[0].startswith("build/headless/"):
+        command = [str(Path(binary_directory) / Path(command[0]).name), *command[1:]]
     result = subprocess.run(
         command,
         cwd=root,

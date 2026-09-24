@@ -92,8 +92,8 @@ void TextureSetTransaction::write_pixel(std::string_view semantic_id, std::uint3
 
 namespace {
 
-void validate_region(const image::TiledImage& image, Rect region,
-                     std::span<const std::byte> pixels, std::size_t row_pitch) {
+void validate_region(const image::TiledImage& image, Rect region, std::span<const std::byte> pixels,
+                     std::size_t row_pitch) {
     if (region.width == 0 || region.height == 0 || region.x >= image.width() ||
         region.y >= image.height() || region.width > image.width() - region.x ||
         region.height > image.height() - region.y) {
@@ -167,8 +167,7 @@ void write_region_tile(image::TiledImage& image, image::TileCoordinate tile, Rec
 }  // namespace
 
 void TextureSetTransaction::write_region(std::string_view semantic_id, Rect region,
-                                         std::span<const std::byte> pixels,
-                                         std::size_t row_pitch) {
+                                         std::span<const std::byte> pixels, std::size_t row_pitch) {
     State& state = require_active();
     image::TiledImage& image = state.staged.channels().pixels(semantic_id);
     validate_region(image, region, pixels, row_pitch);
