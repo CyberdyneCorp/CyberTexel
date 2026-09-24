@@ -77,7 +77,7 @@ def surface_map(mesh_ptr: object, extent: int) -> dict[str, np.ndarray]:
 
 
 def paint_strokes(surface: dict[str, np.ndarray], extent: int,
-                  existing: np.ndarray | None = None) -> np.ndarray:
+                  existing: np.ndarray | None = None, axis: int = 2) -> np.ndarray:
     """Deposit paint through the canonical pipeline and shade it over the base.
 
     The deposition stage decides coverage per texel; `ctex_paint_apply_brush`
@@ -88,20 +88,32 @@ def paint_strokes(surface: dict[str, np.ndarray], extent: int,
     covered = surface["covered"]
     position, normal = surface["position"], surface["normal"]
 
-    # The model's up axis is whichever one the surface normals actually spread
-    # along most; picking it from the data keeps the demo honest about assets
-    # authored Y-up or Z-up.
-    axis = int(np.argmax(normal[covered].std(axis=0))) if covered.any() else 1
+    # The up axis is a property of the asset, not something the geometry
+    # reveals. Guessing it from normal variance picked X on a two-trunk tree —
+    # the axis the trunks are spread along — and every mask then sliced the
+    # model sideways, so moss landed on the side of a trunk rather than its
+    # base. Blender writes Z-up, which is what the extraction script produces.
     up = normal[:, axis]
     height = position[:, axis]
     span = (np.percentile(height[covered], 5), np.percentile(height[covered], 95)) \
         if covered.any() else (0.0, 1.0)
     level = np.clip((height - span[0]) / max(span[1] - span[0], 1e-6), 0.0, 1.0)
 
-    # Moss climbs the lower third and only on upward-facing surface.
-    moss = covered & (up > 0.45) & (level < 0.34)
-    # Lichen catches the bright side higher up, on faces turned away from moss.
-    lichen = covered & (up < -0.35) & (level > 0.55)
+    def fade(value: np.ndarray, start: float, stop: float) -> np.ndarray:
+        """Smooth 1..0 ramp, so a mask fades out instead of ending on a line."""
+        t = np.clip((value - start) / (stop - start), 0.0, 1.0)
+        return t * t * (3.0 - 2.0 * t)
+
+    # Deposition strength is per texel, so a mask can be a gradient rather than
+    # a switch. Moss is heaviest at the base and thins going up the trunk.
+    moss = covered & (level < 0.34)
+    moss_strength = 0.95 * fade(level, 0.34, 0.04)
+
+    # This asset is stylised: only 7% of its surface faces up at all, so a
+    # "collects on upward faces" mask finds almost nothing. Sun bleach instead
+    # follows how much each texel faces up, wherever it is in the canopy.
+    bleach = covered & (up > 0.05) & (level > 0.45)
+    bleach_strength = 0.7 * np.clip(up, 0.0, 1.0) * fade(level, 0.45, 0.95)
 
     # The stroke-start snapshot is caller supplied by design, so a host paints
     # on top of the material the asset already ships rather than replacing it.
@@ -110,16 +122,17 @@ def paint_strokes(surface: dict[str, np.ndarray], extent: int,
     else:
         base = np.zeros((texels, 4), dtype=np.float64)
         base[covered] = [0.34, 0.24, 0.17, 1.0]
-    out = np.zeros((texels, 4), dtype=np.float64)
+    out = base
 
-    for mask, colour, strength in ((moss, (0.19, 0.38, 0.13), 0.9),
-                                   (lichen, (0.62, 0.66, 0.48), 0.6)):
-        if not mask.any():
+    for mask, colour, strengths in ((moss, (0.17, 0.33, 0.11), moss_strength),
+                                    (bleach, (0.76, 0.78, 0.60), bleach_strength)):
+        active = mask & (strengths > 0.01)
+        if not active.any():
             continue
         deposition = (CAPI.ctex_paint_deposition_sample * texels)()
-        for index in np.flatnonzero(mask):
+        for index in np.flatnonzero(active):
             deposition[int(index)].write = 1
-            deposition[int(index)].strength = strength
+            deposition[int(index)].strength = float(strengths[index])
         snapshot = (CAPI.ctex_vec4f * texels)(*[CAPI.ctex_vec4f(*row) for row in base])
         material = (CAPI.ctex_vec4f * texels)(*[CAPI.ctex_vec4f(*colour, 1.0)] * texels)
         output = (CAPI.ctex_vec4f * texels)()
@@ -151,6 +164,8 @@ def main() -> None:
     parser.add_argument("--extent", type=int, default=1024)
     parser.add_argument("--base-colour", type=Path,
                         help="the material the asset already ships, painted over")
+    parser.add_argument("--up-axis", choices=("x", "y", "z"), default="z",
+                        help="the asset's up axis; Blender writes Z-up")
     arguments = parser.parse_args()
 
     data = np.load(arguments.mesh, allow_pickle=True)
@@ -174,7 +189,8 @@ def main() -> None:
         pixels = pixels[:arguments.extent, :arguments.extent]
         existing = np.concatenate(
             [pixels, np.ones((*pixels.shape[:2], 1))], axis=-1)
-    painted = paint_strokes(surface, arguments.extent, existing)
+    painted = paint_strokes(surface, arguments.extent, existing,
+                            axis="xyz".index(arguments.up_axis))
 
     rgba = np.clip(painted.reshape(arguments.extent, arguments.extent, 4), 0.0, 1.0)
     image = np.rint(rgba[:, :, :3] * 255.0).astype(np.uint8)

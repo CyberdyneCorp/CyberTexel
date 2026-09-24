@@ -52,9 +52,26 @@ case for a texture painter and it is what the snapshot argument is for.
 
 ## Honest limits
 
-The masks are a blunt heuristic over surface normals and height: moss on
-upward-facing surface low down, lichen on downward-facing surface higher up. On a
-model whose canopy and trunk share one UV layout the lichen follows island seams
-and reads as an artifact rather than weathering. Masking by material ID or
-painting by hand both produce better results and the engine supports both; the
-heuristic is here to keep the demo short, not because it is good art direction.
+The masks are a blunt heuristic over surface height and normals, and on a coarse
+mesh that heuristic snaps to triangles. Measured on the tree this demo was
+written against — 9,997 triangles — a height threshold leaves **95% of triangles
+wholly inside or wholly outside the mask**, and only 4.9% straddling it. The
+gradient therefore has almost nowhere to show, and the paint reads as flat
+polygonal patches rather than weathering.
+
+That is not a defect in the engine. Deposition strength is per texel and the
+engine honours it; the mask simply has no per-texel variation to give it, because
+one triangle covers a large area of a stylised model and spans a narrow height
+range. Two approaches do better and both are supported:
+
+- **A mesh-map generator.** Curvature or ambient occlusion varies per texel, so
+  moss settles into crevices instead of onto whole triangles. This is what
+  `examples/03` and `examples/24` demonstrate.
+- **Actual strokes.** `stroke-model` resolves timestamped 3D samples into swept
+  coverage, which is per texel by construction. That is what the engine is for;
+  a height threshold is not painting.
+
+The up axis is also declared (`--up-axis`, default Z as Blender writes), not
+inferred. An earlier version guessed it from normal variance, picked X on a
+two-trunk tree because that is the axis the trunks are spread along, and every
+mask then sliced the model sideways.
