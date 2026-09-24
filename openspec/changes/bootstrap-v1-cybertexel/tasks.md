@@ -1766,6 +1766,43 @@ payload. The next approach is an XCTest target run through `xcodebuild test`, wh
 `.xcresult` to the host and needs no container access. Tasks 17.12, 17.13, 17.14 and 18.2 stay open
 on that, not on the hardware.
 
+2026-09-24: Task 17.13 is complete. The iPad Air M3 ran 71,937 authored frames over 20.0005
+minutes at 60 Hz, one paced and one skipped, and both final-window budgets pass:
+`tablet-sustained-final-p95` at 20.622 ms against 33 ms, and `tablet-sustained-memory` at
+172,164,912 bytes against 536,870,912.
+
+Latency does not drift. The opening minute's p95 is 20.561 ms and the final five minutes' is
+20.622 ms -- 0.061 ms apart after twenty minutes of continuous authoring, and both within
+0.2 ms of the 20.44 ms the four-second interactive run reports. Thermal state stayed nominal
+throughout.
+
+The memory result is the plateau rather than the peak. The footprint is not flat from the start:
+it climbs about 12 KB per frame, which is roughly one 64-square four-channel tile, until tile
+history reaches the 96 MB budget the texture set is configured with near frame 6000. It then
+holds flat for the remaining 66,000 frames. A run short enough to stay under that cap would have
+shown unbounded linear growth and proved nothing; the twenty-minute duration is what makes the
+eviction visible.
+
+The three recovery fixtures pass on the same device. Memory pressure admits an operation against
+limits too tight to hold four megabytes of resident cache and the ledger sheds four allocations
+to fit, with the eviction callback firing once per shed allocation and CPU residency falling from
+4 MB to 2 MB. Suspend/resume quiesces through a real autosave session, and admission is granted
+before, refused while quiesced and granted again after resume. Device loss restores the session
+at its revision with no submissions left in flight.
+
+Two harness defects were found and fixed, both of which had masqueraded as hangs. `stop()` on the
+frame driver is asynchronous, so frames kept arriving after the deadline and fulfilled the
+expectation repeatedly, which is an XCTest API violation rather than a failure. And `xcodebuild`
+forwards only `TEST_RUNNER_`-prefixed variables to a test runner on a device, so the unprefixed
+duration knob was silently ignored and every run billed as one minute was really the full twenty.
+The fixtures now also run standalone as `testRecoveryFixtures`, because five successive descriptor
+validation errors each cost a twenty-minute round trip to discover.
+
+One inconsistency is recorded rather than changed. `tablet-sustained-final-p95` is 33 ms while the
+refresh-derived interactive `tablet-visible-p95` is now 50 ms, so the twenty-minute thermally
+loaded run is held to a tighter bound than the four-second cold one. It passes at 20.622 ms with
+room to spare, so nothing is adjusted on the strength of a measurement that already clears it.
+
 2026-09-24: Task 17.12 is complete on both reference hosts. The M3 Pro reports a median of
 8.493 ms, p95 11.937 ms and p99 12.138 ms over 600 frames against ceilings of 16, 25 and 33 ms.
 The iPad Air M3 reports 20.44, 20.52 and 20.54 ms over 240 recorded frames. Both runs carry five
@@ -2117,7 +2154,7 @@ threading and per-binding example evidence.
 - [x] 17.10 Regression detection against the recorded baseline
 - [x] 17.11 `device-gate` scenarios as tests
 - [x] 17.12 End-to-end input-to-visible median/p95/p99 budgets and pipeline-stage measurements on both reference hosts
-- [ ] 17.13 Twenty-minute mobile benchmark, final-five-minute budgets and pressure/suspend/device-loss fixtures
+- [x] 17.13 Twenty-minute mobile benchmark, final-five-minute budgets and pressure/suspend/device-loss fixtures
 - [x] 17.14 Transfer-byte and synchronous-wait instrumentation; ordinary resident paint/undo has zero synchronous pixel readbacks
 
 ## 18. Release

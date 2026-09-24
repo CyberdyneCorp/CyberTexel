@@ -1,0 +1,72 @@
+{
+  "command": "xcodebuild test -only-testing:ProbeTests/SustainedTests/testTwentyMinuteMobileWorkload -destination id=00008122-000410410A6B801C",
+  "commit": "7445544d00599c96cc5281df876229df3de8e8fe",
+  "date": "2026-09-24",
+  "device_id": "ipad-air-13-m3-8gb",
+  "measurements": [
+    {
+      "batch_size": 1,
+      "budget_id": "tablet-sustained-final-p95",
+      "configuration": "sustained-mobile-4k",
+      "unit": "ms",
+      "value": 20.621833275072277
+    },
+    {
+      "batch_size": 1,
+      "budget_id": "tablet-sustained-memory",
+      "configuration": "sustained-mobile-4k",
+      "unit": "bytes",
+      "value": 172164912
+    }
+  ],
+  "notes": [
+    "71,937 frames over 20.0005 minutes at 60 Hz, one paced and one skipped. Budgets apply to the final five minutes.",
+    "Latency does not drift. The opening minute's p95 is 20.561 ms and the final five minutes' is 20.622 ms, a change of 0.061 ms over twenty minutes of continuous authoring, against the 20.44 ms the four-second interactive run measures.",
+    "Peak physical footprint is 172,164,912 bytes against a 536,870,912 byte ceiling. It is not flat from the start: it climbs about 12 KB per frame -- roughly one 64-square four-channel tile -- until tile history reaches the 96 MB budget the texture set is configured with near frame 6000, then holds flat for the remaining 66,000 frames. That plateau, not the peak, is the result: eviction keeps a twenty-minute session bounded.",
+    "Thermal state stayed nominal for the whole run."
+  ],
+  "schema": 1,
+  "sustained_mobile": {
+    "device_loss_passed": true,
+    "duration_minutes": 20.000525109027514,
+    "final_latency_ms": 20.621833275072277,
+    "final_window_minutes": 5,
+    "fixtures": {
+      "device_loss": {
+        "active_after_recovery": 0,
+        "cancelled_submissions": 0,
+        "recovered_revision": 7,
+        "released_resources": 0,
+        "restored": 1,
+        "revision_after_recovery": 7
+      },
+      "memory_pressure": {
+        "admission_status": 0,
+        "cpu_resident_after": 2097152,
+        "cpu_resident_before": 4194304,
+        "evicted_allocations": 4,
+        "eviction_callbacks": 4,
+        "limit_bytes": 4194304
+      },
+      "suspend_resume": {
+        "active_operations": 0,
+        "admissions_stopped": 1,
+        "admitted_before_suspend": true,
+        "quiesce_status": 1,
+        "readmitted_after_resume": true,
+        "refused_while_quiesced": true,
+        "work_drained": 1
+      }
+    },
+    "frames": 71937,
+    "initial_latency_ms": 20.56116657331586,
+    "input_rate_hz": 60,
+    "memory_pressure_passed": true,
+    "paced": 1,
+    "peak_physical_bytes": 172164912,
+    "refresh_rate_hz": 60,
+    "skipped": 1,
+    "suspend_resume_passed": true,
+    "thermal_state": "nominal"
+  }
+}
