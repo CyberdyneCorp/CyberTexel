@@ -7,7 +7,9 @@
     "desktop-undo-sync-readback": 0.0,
     "desktop-visible-median": 7.856357999999999,
     "desktop-visible-p95": 11.644129,
-    "desktop-visible-p99": 11.97742
+    "desktop-visible-p99": 11.97742,
+    "tablet-paint-sync-readback": 0.0,
+    "tablet-undo-sync-readback": 0.0
   },
   "commit": "febc2a329d74a92adb30f6f34ef786a4c77a1e8f",
   "device_id": "macbook-pro-m3-pro-18gpu-36gb",

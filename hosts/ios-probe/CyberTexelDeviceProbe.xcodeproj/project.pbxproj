@@ -6,157 +6,134 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		4778F41E189867C666A77D2D /* main.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2ABF4294149CC237B1A63CC4 /* main.swift */; };
-		DAC7EB90F87B03F74D68FC06 /* libcybertexel_c.a in Frameworks */ = {isa = PBXBuildFile; fileRef = ECA9E17D0DDAE1C7144DC835 /* libcybertexel_c.a */; };
-		EBDB5D2B75817CF0ABB672C2 /* libctex_kong.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 873F80AD72FAE88B34352CAF /* libctex_kong.a */; };
-		43B38EF3FCCC41D556368CFC /* libctex_lodepng.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 4D434C4212C53D7C2A252E1D /* libctex_lodepng.a */; };
-		117AAD619AE147DBE58EE3E5 /* libminiz.a in Frameworks */ = {isa = PBXBuildFile; fileRef = E97D1C9F5D2ACDED4D7A90F8 /* libminiz.a */; };
-		80BD69B5ADBB7A174408372A /* libtinyexr.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 4C8D9E9C458426A2EBFA0141 /* libtinyexr.a */; };
+		D36EDC977D52E5BBCCF41F51 = {isa = PBXBuildFile; fileRef = 5CDF267DED3BB36A9E3B2F96; };
+		3F7CFED31CA7FD0EEF143F50 = {isa = PBXBuildFile; fileRef = ECABC6F01A742C98BF39E433; };
+		AA8AF9D108812795C91EB25B = {isa = PBXBuildFile; fileRef = 1ED00EFAC791EE8D0CCE4B25; };
+		9281614BE30E8BB295176F88 = {isa = PBXBuildFile; fileRef = 1ED00EFAC791EE8D0CCE4B25; };
+		B1530A11869AB2FE05300338 = {isa = PBXBuildFile; fileRef = 9832488CB17E9CAE15C129A7; };
+		14AC270CE67EC96C83B00922 = {isa = PBXBuildFile; fileRef = 9832488CB17E9CAE15C129A7; };
+		E4EA0903925EAD86E5E40641 = {isa = PBXBuildFile; fileRef = 1C9ADE5AF316B1DC39B452A9; };
+		6E796A7DDFB20A76CDC4B839 = {isa = PBXBuildFile; fileRef = 1C9ADE5AF316B1DC39B452A9; };
+		93CD1D8A5457A57AC8228EDF = {isa = PBXBuildFile; fileRef = CEDBE443820751453DE51180; };
+		9DB5BEFE82167DC72C296833 = {isa = PBXBuildFile; fileRef = CEDBE443820751453DE51180; };
+		400A13E4800835FFB06F6F4A = {isa = PBXBuildFile; fileRef = 327BCF5630EFC0BF573A3BD0; };
+		01E26B06C03DD6CBFFD3FA6E = {isa = PBXBuildFile; fileRef = 327BCF5630EFC0BF573A3BD0; };
 /* End PBXBuildFile section */
 
+/* Begin PBXContainerItemProxy section */
+		D799BAE6088A90139B415FCC = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 98F54143AB4E86B28C3AFEE0;
+			proxyType = 1;
+			remoteGlobalIDString = 7D1043473D55BFA90E8530D3;
+			remoteInfo = CyberTexelDeviceProbe;
+		};
+/* End PBXContainerItemProxy section */
+
 /* Begin PBXFileReference section */
-		38A007151ABE87CC01A5B6E9 /* CyberTexelDeviceProbe.app */ = {isa = PBXFileReference; explicitFileType = "wrapper.application"; includeInIndex = 0; path = CyberTexelDeviceProbe.app; sourceTree = BUILT_PRODUCTS_DIR; };
-		2ABF4294149CC237B1A63CC4 /* main.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = main.swift; sourceTree = "<group>"; };
-		ECA9E17D0DDAE1C7144DC835 /* libcybertexel_c.a */ = {isa = PBXFileReference; lastKnownFileType = "archive.ar"; name = libcybertexel_c.a; path = "../../build/swift-ios-prefix/lib/libcybertexel_c.a"; sourceTree = "<group>"; };
-		873F80AD72FAE88B34352CAF /* libctex_kong.a */ = {isa = PBXFileReference; lastKnownFileType = "archive.ar"; name = libctex_kong.a; path = "../../build/swift-ios-prefix/lib/libctex_kong.a"; sourceTree = "<group>"; };
-		4D434C4212C53D7C2A252E1D /* libctex_lodepng.a */ = {isa = PBXFileReference; lastKnownFileType = "archive.ar"; name = libctex_lodepng.a; path = "../../build/swift-ios-prefix/lib/libctex_lodepng.a"; sourceTree = "<group>"; };
-		E97D1C9F5D2ACDED4D7A90F8 /* libminiz.a */ = {isa = PBXFileReference; lastKnownFileType = "archive.ar"; name = libminiz.a; path = "../../build/swift-ios-prefix/lib/libminiz.a"; sourceTree = "<group>"; };
-		4C8D9E9C458426A2EBFA0141 /* libtinyexr.a */ = {isa = PBXFileReference; lastKnownFileType = "archive.ar"; name = libtinyexr.a; path = "../../build/swift-ios-prefix/lib/libtinyexr.a"; sourceTree = "<group>"; };
+		55043B8174A904EA4A265082 = {isa = PBXFileReference; explicitFileType = "wrapper.application"; includeInIndex = 0; path = CyberTexelDeviceProbe.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		AC928DD43EEF1AB05DF60B99 = {isa = PBXFileReference; explicitFileType = "wrapper.cfbundle"; includeInIndex = 0; path = ProbeTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		5CDF267DED3BB36A9E3B2F96 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = main.swift; sourceTree = "<group>"; };
+		ECABC6F01A742C98BF39E433 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeviceBudgetTests.swift; sourceTree = "<group>"; };
+		1ED00EFAC791EE8D0CCE4B25 = {isa = PBXFileReference; lastKnownFileType = "archive.ar"; name = libcybertexel_c.a; path = "../../build/swift-ios-prefix/lib/libcybertexel_c.a"; sourceTree = "<group>"; };
+		9832488CB17E9CAE15C129A7 = {isa = PBXFileReference; lastKnownFileType = "archive.ar"; name = libctex_kong.a; path = "../../build/swift-ios-prefix/lib/libctex_kong.a"; sourceTree = "<group>"; };
+		1C9ADE5AF316B1DC39B452A9 = {isa = PBXFileReference; lastKnownFileType = "archive.ar"; name = libctex_lodepng.a; path = "../../build/swift-ios-prefix/lib/libctex_lodepng.a"; sourceTree = "<group>"; };
+		CEDBE443820751453DE51180 = {isa = PBXFileReference; lastKnownFileType = "archive.ar"; name = libminiz.a; path = "../../build/swift-ios-prefix/lib/libminiz.a"; sourceTree = "<group>"; };
+		327BCF5630EFC0BF573A3BD0 = {isa = PBXFileReference; lastKnownFileType = "archive.ar"; name = libtinyexr.a; path = "../../build/swift-ios-prefix/lib/libtinyexr.a"; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
-		7B8633C7EB6F5CB13673C25D = {
-			isa = PBXFrameworksBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-				DAC7EB90F87B03F74D68FC06 /* libcybertexel_c.a in Frameworks */,
-				EBDB5D2B75817CF0ABB672C2 /* libctex_kong.a in Frameworks */,
-				43B38EF3FCCC41D556368CFC /* libctex_lodepng.a in Frameworks */,
-				117AAD619AE147DBE58EE3E5 /* libminiz.a in Frameworks */,
-				80BD69B5ADBB7A174408372A /* libtinyexr.a in Frameworks */,
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
+		95EA17FAAF8A9E27F53D87D8 = { isa = PBXFrameworksBuildPhase; buildActionMask = 2147483647; files = (
+				AA8AF9D108812795C91EB25B,
+				B1530A11869AB2FE05300338,
+				E4EA0903925EAD86E5E40641,
+				93CD1D8A5457A57AC8228EDF,
+				400A13E4800835FFB06F6F4A,
+			); runOnlyForDeploymentPostprocessing = 0; };
+		4ABD96AB39EF1F7A663DF955 = { isa = PBXFrameworksBuildPhase; buildActionMask = 2147483647; files = (
+				9281614BE30E8BB295176F88,
+				14AC270CE67EC96C83B00922,
+				6E796A7DDFB20A76CDC4B839,
+				9DB5BEFE82167DC72C296833,
+				01E26B06C03DD6CBFFD3FA6E,
+			); runOnlyForDeploymentPostprocessing = 0; };
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
-		BDE88D77EBDC01774960BE71 = {
-			isa = PBXGroup;
-			children = (
-				6CFF25F19F93DA6CB2D8E780 /* Probe */,
-				ECA9E17D0DDAE1C7144DC835 /* libcybertexel_c.a */,
-				873F80AD72FAE88B34352CAF /* libctex_kong.a */,
-				4D434C4212C53D7C2A252E1D /* libctex_lodepng.a */,
-				E97D1C9F5D2ACDED4D7A90F8 /* libminiz.a */,
-				4C8D9E9C458426A2EBFA0141 /* libtinyexr.a */,
-				4FDE57E4B72FFCEE306CEB0F /* Products */,
-			);
-			sourceTree = "<group>";
-		};
-		6CFF25F19F93DA6CB2D8E780 /* Probe */ = {
-			isa = PBXGroup;
-			children = (
-				2ABF4294149CC237B1A63CC4 /* main.swift */,
-			);
-			path = Probe;
-			sourceTree = "<group>";
-		};
-		4FDE57E4B72FFCEE306CEB0F /* Products */ = {
-			isa = PBXGroup;
-			children = (
-				38A007151ABE87CC01A5B6E9 /* CyberTexelDeviceProbe.app */,
-			);
-			name = Products;
-			sourceTree = "<group>";
-		};
+		0D1B996A25F75CEEA2B46F58 = { isa = PBXGroup; children = (
+				62FFE6E3F149813DEA963F32,
+				7433A443A4F77D052C22518F,
+				1ED00EFAC791EE8D0CCE4B25,
+				9832488CB17E9CAE15C129A7,
+				1C9ADE5AF316B1DC39B452A9,
+				CEDBE443820751453DE51180,
+				327BCF5630EFC0BF573A3BD0,
+				64C498176831CA56748B302F,
+			); sourceTree = "<group>"; };
+		62FFE6E3F149813DEA963F32 = { isa = PBXGroup; children = (5CDF267DED3BB36A9E3B2F96, ); path = Probe; sourceTree = "<group>"; };
+		7433A443A4F77D052C22518F = { isa = PBXGroup; children = (ECABC6F01A742C98BF39E433, ); path = ProbeTests; sourceTree = "<group>"; };
+		64C498176831CA56748B302F = { isa = PBXGroup; children = (55043B8174A904EA4A265082, AC928DD43EEF1AB05DF60B99, ); name = Products; sourceTree = "<group>"; };
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
-		0E8A3AD980EC179856012B7E /* CyberTexelDeviceProbe */ = {
+		7D1043473D55BFA90E8530D3 = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = 59D08FAC3ED334CCC706B8AF;
-			buildPhases = (
-				E4F78730D65EE9F55E2BAC2F,
-				7B8633C7EB6F5CB13673C25D,
-			);
-			buildRules = ();
-			dependencies = ();
-			name = CyberTexelDeviceProbe;
-			productName = CyberTexelDeviceProbe;
-			productReference = 38A007151ABE87CC01A5B6E9 /* CyberTexelDeviceProbe.app */;
+			buildConfigurationList = 7FF9E9FFFC5257B58665EDE9;
+			buildPhases = (46EFD68E1985ED5B5709ED7E, 95EA17FAAF8A9E27F53D87D8, );
+			buildRules = (); dependencies = ();
+			name = CyberTexelDeviceProbe; productName = CyberTexelDeviceProbe;
+			productReference = 55043B8174A904EA4A265082;
 			productType = "com.apple.product-type.application";
+		};
+		04D13FD0AA6F0197CF2C9990 = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 017921776E38CA1C2A03BC88;
+			buildPhases = (A8700A7306F464F680F05CF3, 4ABD96AB39EF1F7A663DF955, );
+			buildRules = (); dependencies = (E9FAD0C6CD43534327C0AF90, );
+			name = ProbeTests; productName = ProbeTests;
+			productReference = AC928DD43EEF1AB05DF60B99;
+			productType = "com.apple.product-type.bundle.unit-test";
 		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
 		98F54143AB4E86B28C3AFEE0 = {
 			isa = PBXProject;
-			attributes = {
-				BuildIndependentTargetsInParallel = 1;
-				LastSwiftUpdateCheck = 2700;
-				LastUpgradeCheck = 2700;
-				TargetAttributes = {
-					0E8A3AD980EC179856012B7E = { CreatedOnToolsVersion = 27.0; };
-				};
-			};
-			buildConfigurationList = 945A56F5D4EFEF9EBF2BD4D8;
-			compatibilityVersion = "Xcode 14.0";
-			developmentRegion = en;
-			hasScannedForEncodings = 0;
-			knownRegions = (en, Base);
-			mainGroup = BDE88D77EBDC01774960BE71;
-			productRefGroup = 4FDE57E4B72FFCEE306CEB0F /* Products */;
-			projectDirPath = "";
-			projectRoot = "";
-			targets = (
-				0E8A3AD980EC179856012B7E /* CyberTexelDeviceProbe */,
-			);
+			attributes = { BuildIndependentTargetsInParallel = 1; LastUpgradeCheck = 2700;
+				TargetAttributes = { 7D1043473D55BFA90E8530D3 = { CreatedOnToolsVersion = 27.0; };
+					04D13FD0AA6F0197CF2C9990 = { CreatedOnToolsVersion = 27.0; TestTargetID = 7D1043473D55BFA90E8530D3; }; }; };
+			buildConfigurationList = FB9E4E686C2872EF716F18BC;
+			compatibilityVersion = "Xcode 14.0"; developmentRegion = en;
+			hasScannedForEncodings = 0; knownRegions = (en, Base);
+			mainGroup = 0D1B996A25F75CEEA2B46F58; productRefGroup = 64C498176831CA56748B302F;
+			projectDirPath = ""; projectRoot = "";
+			targets = (7D1043473D55BFA90E8530D3, 04D13FD0AA6F0197CF2C9990, );
 		};
 /* End PBXProject section */
 
 /* Begin PBXSourcesBuildPhase section */
-		E4F78730D65EE9F55E2BAC2F = {
-			isa = PBXSourcesBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-				4778F41E189867C666A77D2D /* main.swift in Sources */,
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
+		46EFD68E1985ED5B5709ED7E = { isa = PBXSourcesBuildPhase; buildActionMask = 2147483647; files = (D36EDC977D52E5BBCCF41F51, ); runOnlyForDeploymentPostprocessing = 0; };
+		A8700A7306F464F680F05CF3 = { isa = PBXSourcesBuildPhase; buildActionMask = 2147483647; files = (3F7CFED31CA7FD0EEF143F50, ); runOnlyForDeploymentPostprocessing = 0; };
 /* End PBXSourcesBuildPhase section */
 
+/* Begin PBXTargetDependency section */
+		E9FAD0C6CD43534327C0AF90 = { isa = PBXTargetDependency; target = 7D1043473D55BFA90E8530D3; targetProxy = D799BAE6088A90139B415FCC; };
+/* End PBXTargetDependency section */
+
 /* Begin XCBuildConfiguration section */
-		F942A8A84E6EA57CEDA17E13 /* Debug */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				ALWAYS_SEARCH_USER_PATHS = NO;
+		6F21D4EB03616C1FCC649373 = { isa = XCBuildConfiguration; buildSettings = { ALWAYS_SEARCH_USER_PATHS = NO;
 				CLANG_ENABLE_MODULES = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
 				SDKROOT = iphoneos;
 				SWIFT_VERSION = 5.0;
-				ONLY_ACTIVE_ARCH = YES;
-				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
-				ENABLE_USER_SCRIPT_SANDBOXING = NO;
-			};
-			name = Debug;
-		};
-		698620892CC05B3078DD0931 /* Release */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				ALWAYS_SEARCH_USER_PATHS = NO;
+				ENABLE_USER_SCRIPT_SANDBOXING = NO; ONLY_ACTIVE_ARCH = YES; SWIFT_OPTIMIZATION_LEVEL = "-Onone"; }; name = Debug; };
+		49604004A31CA6EF9FFD128B = { isa = XCBuildConfiguration; buildSettings = { ALWAYS_SEARCH_USER_PATHS = NO;
 				CLANG_ENABLE_MODULES = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
 				SDKROOT = iphoneos;
 				SWIFT_VERSION = 5.0;
-				SWIFT_OPTIMIZATION_LEVEL = "-O";
-				ENABLE_USER_SCRIPT_SANDBOXING = NO;
-			};
-			name = Release;
-		};
-		18DCB30A68F4AFA5DA444758 /* Debug */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				CODE_SIGN_STYLE = Automatic;
+				ENABLE_USER_SCRIPT_SANDBOXING = NO; SWIFT_OPTIMIZATION_LEVEL = "-O"; }; name = Release; };
+		7EFB69D7924C09BABC70613B = { isa = XCBuildConfiguration; buildSettings = { CODE_SIGN_STYLE = Automatic;
 				DEVELOPMENT_TEAM = 2C69VJZSNR;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = Probe/Info.plist;
@@ -166,14 +143,8 @@
 				PRODUCT_BUNDLE_IDENTIFIER = com.cyberdyne.cybertexel.deviceprobe;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				TARGETED_DEVICE_FAMILY = "1,2";
-				OTHER_LDFLAGS = "-lc++";
-			};
-			name = Debug;
-		};
-		4E31F9F05639A422599E8F78 /* Release */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				CODE_SIGN_STYLE = Automatic;
+				OTHER_LDFLAGS = "-lc++"; }; name = Debug; };
+		E21A375D26730792ADC51121 = { isa = XCBuildConfiguration; buildSettings = { CODE_SIGN_STYLE = Automatic;
 				DEVELOPMENT_TEAM = 2C69VJZSNR;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = Probe/Info.plist;
@@ -183,31 +154,41 @@
 				PRODUCT_BUNDLE_IDENTIFIER = com.cyberdyne.cybertexel.deviceprobe;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				TARGETED_DEVICE_FAMILY = "1,2";
+				OTHER_LDFLAGS = "-lc++"; }; name = Release; };
+		016E50F76D542EBFF6D1DBBD = { isa = XCBuildConfiguration; buildSettings = { CODE_SIGN_STYLE = Automatic;
+				DEVELOPMENT_TEAM = 2C69VJZSNR;
+				GENERATE_INFOPLIST_FILE = YES;
+				HEADER_SEARCH_PATHS = "$(SRCROOT)/../../build/swift-ios-prefix/include";
+				LIBRARY_SEARCH_PATHS = "$(SRCROOT)/../../build/swift-ios-prefix/lib";
+				SWIFT_OBJC_BRIDGING_HEADER = "Probe/Bridging.h";
+				PRODUCT_BUNDLE_IDENTIFIER = com.cyberdyne.cybertexel.deviceprobe.tests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				TARGETED_DEVICE_FAMILY = "1,2";
 				OTHER_LDFLAGS = "-lc++";
-			};
-			name = Release;
-		};
+				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks @loader_path/Frameworks";
+				ENABLE_TESTING_SEARCH_PATHS = YES;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/CyberTexelDeviceProbe.app/CyberTexelDeviceProbe";
+				BUNDLE_LOADER = "$(TEST_HOST)"; }; name = Debug; };
+		25601BCF51B09C19A4F7D6F9 = { isa = XCBuildConfiguration; buildSettings = { CODE_SIGN_STYLE = Automatic;
+				DEVELOPMENT_TEAM = 2C69VJZSNR;
+				GENERATE_INFOPLIST_FILE = YES;
+				HEADER_SEARCH_PATHS = "$(SRCROOT)/../../build/swift-ios-prefix/include";
+				LIBRARY_SEARCH_PATHS = "$(SRCROOT)/../../build/swift-ios-prefix/lib";
+				SWIFT_OBJC_BRIDGING_HEADER = "Probe/Bridging.h";
+				PRODUCT_BUNDLE_IDENTIFIER = com.cyberdyne.cybertexel.deviceprobe.tests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				TARGETED_DEVICE_FAMILY = "1,2";
+				OTHER_LDFLAGS = "-lc++";
+				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks @loader_path/Frameworks";
+				ENABLE_TESTING_SEARCH_PATHS = YES;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/CyberTexelDeviceProbe.app/CyberTexelDeviceProbe";
+				BUNDLE_LOADER = "$(TEST_HOST)"; }; name = Release; };
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
-		945A56F5D4EFEF9EBF2BD4D8 = {
-			isa = XCConfigurationList;
-			buildConfigurations = (
-				F942A8A84E6EA57CEDA17E13 /* Debug */,
-				698620892CC05B3078DD0931 /* Release */,
-			);
-			defaultConfigurationIsVisible = 0;
-			defaultConfigurationName = Release;
-		};
-		59D08FAC3ED334CCC706B8AF = {
-			isa = XCConfigurationList;
-			buildConfigurations = (
-				18DCB30A68F4AFA5DA444758 /* Debug */,
-				4E31F9F05639A422599E8F78 /* Release */,
-			);
-			defaultConfigurationIsVisible = 0;
-			defaultConfigurationName = Release;
-		};
+		FB9E4E686C2872EF716F18BC = { isa = XCConfigurationList; buildConfigurations = (6F21D4EB03616C1FCC649373, 49604004A31CA6EF9FFD128B, ); defaultConfigurationIsVisible = 0; defaultConfigurationName = Release; };
+		7FF9E9FFFC5257B58665EDE9 = { isa = XCConfigurationList; buildConfigurations = (7EFB69D7924C09BABC70613B, E21A375D26730792ADC51121, ); defaultConfigurationIsVisible = 0; defaultConfigurationName = Release; };
+		017921776E38CA1C2A03BC88 = { isa = XCConfigurationList; buildConfigurations = (016E50F76D542EBFF6D1DBBD, 25601BCF51B09C19A4F7D6F9, ); defaultConfigurationIsVisible = 0; defaultConfigurationName = Release; };
 /* End XCConfigurationList section */
 	};
 	rootObject = 98F54143AB4E86B28C3AFEE0;

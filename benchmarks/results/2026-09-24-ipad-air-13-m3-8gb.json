@@ -1,0 +1,45 @@
+{
+  "command": "xcodebuild test -project hosts/ios-probe/CyberTexelDeviceProbe.xcodeproj -scheme CyberTexelDeviceProbe -destination id=<ipad>",
+  "commit": "63bba9cf7033a8cbbabc8429a3393e8f6a06aa7c",
+  "date": "2026-09-24",
+  "device_id": "ipad-air-13-m3-8gb",
+  "device_reported": {
+    "metal": {
+      "name": "Apple M3 GPU",
+      "recommended_working_set_bytes": 5726633984,
+      "supports_apple9": true,
+      "unified_memory": true
+    },
+    "model_identifier": "iPad15,5",
+    "physical_memory_bytes": 7993540608,
+    "processor_count": 8,
+    "system_version": "Version 27.0 (Build 24A437)"
+  },
+  "measurements": [
+    {
+      "batch_size": 1,
+      "budget_id": "tablet-paint-sync-readback",
+      "configuration": "interactive-4k",
+      "unit": "bytes",
+      "value": 0
+    },
+    {
+      "batch_size": 1,
+      "budget_id": "tablet-undo-sync-readback",
+      "configuration": "interactive-4k",
+      "unit": "bytes",
+      "value": 0
+    }
+  ],
+  "not_measured": [
+    "tablet-visible-* needs a presenting surface driven at 120 Hz; the test bundle has no frame loop",
+    "the four peak_working_bytes budgets need per-operation working-set accounting, not the tile-history retained bytes this run reports",
+    "tablet-sustained-* needs the twenty-minute workload of task 17.13",
+    "the authored edit uses the preview-session convenience, which zeroes a whole-canvas coverage buffer, so its 16.5 ms is not a paint-latency figure"
+  ],
+  "notes": [
+    "Measured on the named tablet reference device. Resident paint and undo both moved zero synchronously read-back bytes at the declared 1024-square extent, and undo exchanged one tile's storage owner with zero copied pixel bytes in 0.0019 ms.",
+    "The device reports 7,993,540,608 bytes of physical memory, which is the 8 GB the manifest records."
+  ],
+  "schema": 1
+}

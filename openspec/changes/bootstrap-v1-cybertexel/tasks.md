@@ -1766,6 +1766,33 @@ payload. The next approach is an XCTest target run through `xcodebuild test`, wh
 `.xcresult` to the host and needs no container access. Tasks 17.12, 17.13, 17.14 and 18.2 stay open
 on that, not on the hardware.
 
+2026-09-24: Task 17.14 is complete. Both its halves are now measured on their named devices:
+`desktop-paint-sync-readback` and `desktop-undo-sync-readback` on the M3 Pro through the wgpu host,
+and `tablet-paint-sync-readback` and `tablet-undo-sync-readback` on the iPad Air M3 through an
+on-device XCTest bundle. All four are zero. The tablet run also shows undo exchanging one tile's
+storage owner with zero copied pixel bytes in 0.0019 ms at the declared 1024-square extent, and the
+device reporting 7,993,540,608 bytes of physical memory, which is the 8 GB the manifest records.
+
+Getting anything off the device was the whole difficulty, and the cause was not the library. iOS 27
+traps an app that does not adopt the scene lifecycle, inside
+`__UIApplicationEvaluateRuntimeIssueForNoSceneLifecycleAdoption`, and a scene manifest whose
+`UISceneConfigurations` is an empty dictionary does not count as adoption: it needs a real
+configuration naming a scene delegate class. That one trap explains every earlier failure on both
+devices. It was found by reading the crash backtrace out of `--domain-type systemCrashLogs`, which
+is readable even though the app data container reads back empty.
+
+Two further iOS facts cost time and are recorded in `hosts/ios-probe/README.md`: the signing team
+id is the certificate's OU and not the identifier inside its CN, and `@main` on a
+`UIApplicationDelegate` did not register the delegate at all where `UIApplicationMain` with an
+explicit principal class does.
+
+An XCTest bundle is the right shape for this. It reports through the result bundle, so nothing
+depends on reading the app container, which is what defeated the earlier probe. The nine remaining
+tablet budgets stay unmeasured and are named in the run's `not_measured`: the latency budgets need
+a presenting surface driven at 120 Hz, the four working-set budgets need per-operation accounting
+rather than tile-history retained bytes, and the sustained pair is task 17.13's twenty-minute
+workload.
+
 Editable-authoring group 20 is complete. Versioned operation records retain
 algorithm and preset versions, seeds, channel descriptors, mesh identity,
 pinned input bytes and checkpoint identities in canonical project-container
@@ -2056,7 +2083,7 @@ threading and per-binding example evidence.
 - [x] 17.11 `device-gate` scenarios as tests
 - [ ] 17.12 End-to-end input-to-visible median/p95/p99 budgets and pipeline-stage measurements on both reference hosts
 - [ ] 17.13 Twenty-minute mobile benchmark, final-five-minute budgets and pressure/suspend/device-loss fixtures
-- [ ] 17.14 Transfer-byte and synchronous-wait instrumentation; ordinary resident paint/undo has zero synchronous pixel readbacks
+- [x] 17.14 Transfer-byte and synchronous-wait instrumentation; ordinary resident paint/undo has zero synchronous pixel readbacks
 
 ## 18. Release
 
