@@ -45,3 +45,7 @@ executable evidence cannot drift silently.
 | Mixed transaction is one step | `texture-document-transactions` | Staged pixels and layer operations remain isolated until one commit and share one undo/redo step |
 | Transaction becomes stale | `texture-document-transactions` | Live tile, layer or history changes reject commit without partial publication |
 | Mixed precision and an added channel | `document-channels`, `project-container`, `texture-export-execution` | Custom coat weight, 8-bit base colour and 16-bit height remain independently described through document, storage and export paths |
+| Full-channel write | `texture-document-transactions`, `c-abi-transaction` | Bulk row bytes round-trip and undo restores prior tile owners |
+| Partial-tile region | `texture-document-transactions` | Edge tile writes preserve pixels outside the region |
+| Write outside declared targets | `texture-document-transactions`, `c-abi-transaction` | Missing tile declaration is refused before staged mutation |
+| Size or format mismatch | `texture-document-transactions`, `c-abi-transaction` | Invalid row pitch and byte count are refused before staged mutation |

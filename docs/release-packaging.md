@@ -1,7 +1,8 @@
 # Release packaging
 
-CyberTexel produces versioned ZIP archives for Linux x86-64, macOS universal,
-Windows x86-64, iOS arm64 and Android arm64-v8a. Every archive has one
+The first release gates versioned ZIP archives for Linux x86-64, macOS
+universal and iOS arm64. Windows x86-64 and Android arm64-v8a are tracked in
+the active `windows-android-release` OpenSpec change. Every archive has one
 `cybertexel/` root and contains:
 
 - `include/ctex/capi.h` and the generated `version.h`;
@@ -21,8 +22,9 @@ libraries, licence or attribution. It then configures a standalone consumer
 project against only that install. Desktop consumers are linked and executed;
 mobile consumers are cross-compiled and linked because their binaries require a
 device. The archive records that disposition in
-`share/cybertexel/package.json`. CI runs every platform recipe and retains the
-resulting archives as workflow artifacts.
+`share/cybertexel/package.json`. CI runs and retains archives for the three
+first-release platforms; the Windows library, CLI and wheel checks already run
+in CI, while Windows and Android package gates remain deferred.
 
 ZIP entry order, timestamps and permissions are normalized. Repeating the
 archive step over identical installed bytes therefore produces identical ZIP

@@ -11,8 +11,6 @@ MATRIX = ROOT / "docs" / "image-io-scenarios.md"
 SPEC = (
     ROOT
     / "openspec"
-    / "changes"
-    / "bootstrap-v1-cybertexel"
     / "specs"
     / "image-io"
     / "spec.md"

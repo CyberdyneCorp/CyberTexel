@@ -38,10 +38,10 @@ gate-paint-parameter-audit: (_require "python3" "3.10")
 
 # Counts, for the README and for sanity.
 spec-stats:
-    @printf 'capabilities: %s\n' "$(ls openspec/changes/bootstrap-v1-cybertexel/specs | wc -l | tr -d ' ')"
-    @printf 'requirements: %s\n' "$(cat openspec/changes/bootstrap-v1-cybertexel/specs/*/spec.md | grep -c '^### Requirement:')"
-    @printf 'scenarios:    %s\n' "$(cat openspec/changes/bootstrap-v1-cybertexel/specs/*/spec.md | grep -c '^#### Scenario:')"
-    @printf 'tasks:        %s\n' "$(grep -c '^- \[ \]' openspec/changes/bootstrap-v1-cybertexel/tasks.md)"
+    @printf 'capabilities: %s\n' "$(ls openspec/specs | wc -l | tr -d ' ')"
+    @printf 'requirements: %s\n' "$(cat openspec/specs/*/spec.md | grep -c '^### Requirement:')"
+    @printf 'scenarios:    %s\n' "$(cat openspec/specs/*/spec.md | grep -c '^#### Scenario:')"
+    @printf 'completed tasks: %s\n' "$(grep -c '^- \[x\]' openspec/changes/archive/2026-09-24-bootstrap-v1-cybertexel/tasks.md)"
 
 # --- build and test ----------------------------------------------------------
 
@@ -295,6 +295,17 @@ host-ipad: (_require "swift" "Swift 5.9") (_require "cmake" "3.24")
 
 # Both reference hosts. Task 18.2.
 hosts: host-desktop host-ipad
+
+# Run the measured release gate on the named Mac with its connected iPad.
+# The desktop benchmark needs the runner's visible Aqua login session.
+gate-reference-devices: (_require "python3" "3.10") (_require "cargo" "Rust stable") (_require "xcodebuild" "Xcode 27")
+    python3 tools/run_reference_device_gate.py all
+
+gate-reference-desktop: (_require "python3" "3.10") (_require "cargo" "Rust stable")
+    python3 tools/run_reference_device_gate.py desktop
+
+gate-reference-ipad: (_require "python3" "3.10") (_require "xcodebuild" "Xcode 27")
+    python3 tools/run_reference_device_gate.py ipad
 
 # Paint a model you own and render the result. Not part of `just check`: it
 # needs Blender and an asset the repository does not carry. See demos/README.md.
@@ -558,14 +569,14 @@ clean:
 
 # --- gates -------------------------------------------------------------------
 #
-# Named by openspec/changes/bootstrap-v1-cybertexel/tasks.md and required by
+# Named by openspec/changes/archive/2026-09-24-bootstrap-v1-cybertexel/tasks.md and required by
 # build-packaging. A gate whose implementing task is not done exits non-zero
 # and names that task: a gate that passes before it exists is exactly the
 # failure device-gate is written to prevent.
 
 _unimplemented name task:
     @printf 'gate "%s" is not implemented yet.\n' {{name}} >&2
-    @printf 'It is delivered by task %s in openspec/changes/bootstrap-v1-cybertexel/tasks.md.\n' {{task}} >&2
+    @printf 'It is delivered by task %s in openspec/changes/archive/2026-09-24-bootstrap-v1-cybertexel/tasks.md.\n' {{task}} >&2
     @exit 1
 
 # Module dependency rule: no cycles, nothing depends on exec, no backend leaks.
@@ -612,6 +623,7 @@ gate-example-coverage:
 # plan carries, and CI invokes them. Task 18.2.
 gate-reference-hosts: (_require "python3" "3.10")
     python3 tools/check_reference_hosts.py
+    python3 tests/tools/test_reference_device_gate.py
 
 # The justfile is the single definition of every routine command, every named
 # gate is reachable, and CI invokes recipes rather than repeating them.

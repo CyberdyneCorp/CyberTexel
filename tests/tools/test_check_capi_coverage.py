@@ -19,7 +19,7 @@ class CApiCoverageTests(unittest.TestCase):
         temporary = tempfile.TemporaryDirectory()
         root = Path(temporary.name)
         for capability in ("runtime-one", "non-runtime-one"):
-            spec = root / "openspec" / "changes" / "bootstrap-v1-cybertexel" / "specs" / capability
+            spec = root / "openspec" / "specs" / capability
             spec.mkdir(parents=True, exist_ok=True)
             content = (
                 "# fixture\n\n### Requirement: Runtime operation\n"

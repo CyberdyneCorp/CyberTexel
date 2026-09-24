@@ -40,6 +40,23 @@ graphics API. The specification requires them to be distinct.
 Code 3 exists because `device-gate` forbids substituting an absent measurement.
 A CI runner without a usable adapter reports unmeasured; it does not pass.
 
+## Named-device CI gate
+
+`.github/workflows/reference-device-gate.yml` runs on the dedicated
+`ctex-m3-pro-ipad-air` self-hosted runner after pushes to `main` and by manual
+dispatch. The runner must run in the MacBook Pro M3 Pro's logged-in Aqua
+session with its iPad Air M3 connected, unlocked and in Developer Mode. The
+workflow never runs pull-request code on that personal machine.
+
+`just gate-reference-devices` checks both hardware identities, runs the visible
+desktop WGSL benchmark, then runs the iPad XCTest suite including the full
+twenty-minute workload. It extracts the XCTest attachments, compares latency,
+memory and zero-byte synchronous readback results with the declared budgets,
+and uploads the logs, result bundle and schema-1 measurements. Missing devices,
+hidden windows, skipped tests and missing attachments fail the job. Use
+`just gate-reference-desktop` or `just gate-reference-ipad` to rerun one half
+locally; the complete recipe is the release gate.
+
 ## Dependency audit
 
 These hosts are not shipped artifacts, so their graphics dependencies are

@@ -11,8 +11,6 @@ MATRIX = ROOT / "docs" / "device-gate-scenarios.md"
 SPEC = (
     ROOT
     / "openspec"
-    / "changes"
-    / "bootstrap-v1-cybertexel"
     / "specs"
     / "device-gate"
     / "spec.md"

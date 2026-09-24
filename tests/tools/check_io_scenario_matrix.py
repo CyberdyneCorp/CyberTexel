@@ -11,15 +11,11 @@ MATRIX = ROOT / "docs" / "io-scenarios.md"
 CAPABILITIES = {
     "Project I/O": ROOT
     / "openspec"
-    / "changes"
-    / "bootstrap-v1-cybertexel"
     / "specs"
     / "project-io"
     / "spec.md",
     "Texture export": ROOT
     / "openspec"
-    / "changes"
-    / "bootstrap-v1-cybertexel"
     / "specs"
     / "texture-export"
     / "spec.md",

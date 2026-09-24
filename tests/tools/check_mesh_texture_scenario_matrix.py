@@ -11,8 +11,6 @@ MATRIX = ROOT / "docs" / "mesh-and-texture-sets-scenarios.md"
 SPEC = (
     ROOT
     / "openspec"
-    / "changes"
-    / "bootstrap-v1-cybertexel"
     / "specs"
     / "mesh-and-texture-sets"
     / "spec.md"

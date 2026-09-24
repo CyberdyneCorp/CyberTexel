@@ -8,9 +8,8 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 MATRIX = ROOT / "docs" / "build-packaging-scenarios.md"
-CHANGE = ROOT / "openspec" / "changes" / "bootstrap-v1-cybertexel"
-SPEC = CHANGE / "specs" / "build-packaging" / "spec.md"
-TASKS = CHANGE / "tasks.md"
+SPEC = ROOT / "openspec" / "specs" / "build-packaging" / "spec.md"
+TASKS = ROOT / "openspec" / "changes" / "archive" / "2026-09-24-bootstrap-v1-cybertexel" / "tasks.md"
 LABEL = "build-packaging-scenario"
 
 

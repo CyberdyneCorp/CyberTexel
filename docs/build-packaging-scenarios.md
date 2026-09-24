@@ -34,9 +34,9 @@ apply them are `just` recipes, and CI invokes the same recipes.
 [`release/platforms.json`](../release/platforms.json) declares the platforms this
 release slice decides — `linux-x64`, `macos-universal` and `ios-arm64` — and the
 platforms deliberately deferred with the decision that deferred them.
-`build-packaging` requires five platforms, so task 18.1 stays open until task
-18.6 delivers `windows-x64` and `android-arm64`; the gate reports them by name
-rather than leaving them absent.
+The first release gates macOS, Linux and iOS. The active
+`windows-android-release` OpenSpec change carries `windows-x64` and
+`android-arm64`; the platform manifest reports them as deferred by name.
 
 ## Reference hosts
 

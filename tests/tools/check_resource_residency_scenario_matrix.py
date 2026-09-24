@@ -11,8 +11,6 @@ MATRIX = ROOT / "docs" / "resource-residency-scenarios.md"
 SPEC = (
     ROOT
     / "openspec"
-    / "changes"
-    / "bootstrap-v1-cybertexel"
     / "specs"
     / "resource-residency"
     / "spec.md"

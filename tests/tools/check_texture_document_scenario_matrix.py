@@ -11,8 +11,6 @@ MATRIX = ROOT / "docs" / "texture-document-scenarios.md"
 SPEC = (
     ROOT
     / "openspec"
-    / "changes"
-    / "bootstrap-v1-cybertexel"
     / "specs"
     / "texture-document"
     / "spec.md"

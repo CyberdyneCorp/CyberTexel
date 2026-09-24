@@ -1,0 +1,31 @@
+name: Reference device gate
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: reference-device-gate
+  cancel-in-progress: false
+
+jobs:
+  named-mac-and-ipad:
+    name: MacBook Pro M3 Pro and iPad Air M3
+    runs-on: [self-hosted, macOS, ARM64, ctex-m3-pro-ipad-air]
+    timeout-minutes: 55
+    steps:
+    - uses: actions/checkout@v4
+    - uses: extractions/setup-just@v2
+    - name: Run named reference devices
+      run: just gate-reference-devices
+    - name: Upload measurements and XCTest evidence
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: reference-device-evidence
+        path: build/reference-hosts/device-ci
+        if-no-files-found: warn

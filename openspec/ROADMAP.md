@@ -1,16 +1,18 @@
 # Roadmap
 
-The authority on what is done is `openspec/changes/bootstrap-v1-cybertexel/tasks.md`
-and its checkboxes. This file is the milestone view and the running log of
-decisions taken and questions still open.
+The completed first-release task plan is
+`openspec/changes/archive/2026-09-24-bootstrap-v1-cybertexel/tasks.md`.
+Current requirements live in `openspec/specs/`. This file is the milestone
+view and running log of decisions and open questions.
 
 ## Status
 
-Implementation started. 24 capabilities, 332 requirements, 409 scenarios and
-225 tasks, 222 done. Every capability's runtime work is delivered and every
-device budget the project can measure is measured on hardware it owns. Three
-tasks remain: wiring the device runs into CI (18.2), the Windows and Android
-packages (18.6), and archiving this change once the rest land (18.5). Foundation and the complete headless color-management
+The first-release bootstrap is archived: 24 capabilities and all 225 founding
+tasks are accounted for. Task 18.6 transferred Windows and Android delivery to
+the active `windows-android-release` change. Task 18.2 wired the named device
+runs into CI; a fresh iPad workflow result is pending. Every capability's runtime
+work is delivered and every device budget the project can measure is measured
+on hardware it owns. Foundation and the complete headless color-management
 scenario suite are green. Image input now detects and decodes PNG, JPEG, TGA,
 BMP, baseline TIFF, flat OpenEXR, Radiance HDR and flattened PSD from caller
 memory, with mismatch reporting, 8/16-bit preservation and hostile-input
@@ -535,13 +537,14 @@ fixed sky/ground fallback, while channel inspection remains entirely unlit.
 Task 6.15 and capability `shader-emission`.
 
 **2026-09-23 — The first release slice is macOS, Linux and iPad; Windows and
-Android follow.** `build-packaging` requires five platform packages. Narrowing
+Android follow.** The full platform roadmap requires five packages. Narrowing
 the slice concentrates the reference-host and device work on one Metal mobile
 target and two desktops rather than five packaging matrices at once.
 `release/platforms.json` declares the three in scope and records the deferral of
 `windows-x64` and `android-arm64` by name, so the gate reports them rather than
-omitting them; task 18.1 stays open until the three land and task 18.6 carries
-the other two. The Windows library, CLI and wheel jobs stay in CI — only
+omitting them; task 18.1 covers the three shipped platforms and the active
+`windows-android-release` change carries the other two. The Windows library,
+CLI and wheel jobs stay in CI — only
 packaging and the reference hosts are deferred. Open question 8 is unchanged:
 an iPad result still cannot stand in for Android runtime validation, and that
 validation is now explicitly task 18.6.

@@ -71,9 +71,9 @@ licence text into the repository, update `THIRD_PARTY_NOTICES.md`, and run
 
 ## The specification comes first
 
-This repository is spec-first. `openspec/changes/bootstrap-v1-cybertexel/` holds
-the founding change; `tasks.md` and its checkboxes are the authority on what is
-done.
+This repository is spec-first. `openspec/specs/` holds the current requirements.
+The founding task history is archived at
+`openspec/changes/archive/2026-09-24-bootstrap-v1-cybertexel/tasks.md`.
 
 Before writing code for a task:
 

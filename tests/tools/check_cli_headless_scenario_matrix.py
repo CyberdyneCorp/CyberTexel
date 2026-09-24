@@ -11,8 +11,6 @@ MATRIX = ROOT / "docs" / "cli-headless-scenarios.md"
 SPEC = (
     ROOT
     / "openspec"
-    / "changes"
-    / "bootstrap-v1-cybertexel"
     / "specs"
     / "cli-headless"
     / "spec.md"

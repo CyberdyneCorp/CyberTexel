@@ -15,7 +15,7 @@ MANIFEST = ROOT / "abi" / "capi-capabilities.json"
 
 
 def spec_capabilities(root: Path) -> set[str]:
-    specs = root / "openspec" / "changes" / "bootstrap-v1-cybertexel" / "specs"
+    specs = root / "openspec" / "specs"
     return {path.parent.name for path in specs.glob("*/spec.md")}
 
 
@@ -23,8 +23,6 @@ def spec_requirements(root: Path, capability: str) -> set[str]:
     path = (
         root
         / "openspec"
-        / "changes"
-        / "bootstrap-v1-cybertexel"
         / "specs"
         / capability
         / "spec.md"

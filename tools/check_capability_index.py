@@ -13,7 +13,8 @@ import re
 import sys
 from pathlib import Path
 
-CHANGE = Path("openspec/changes/bootstrap-v1-cybertexel")
+CHANGE = Path("openspec/changes/archive/2026-09-24-bootstrap-v1-cybertexel")
+SPECS = Path("openspec/specs")
 
 
 def declared_in_proposal() -> set[str]:
@@ -43,7 +44,7 @@ def mentioned_in_tasks() -> set[str]:
 
 
 def spec_has_content(name: str) -> tuple[int, int]:
-    text = (CHANGE / "specs" / name / "spec.md").read_text(encoding="utf-8")
+    text = (SPECS / name / "spec.md").read_text(encoding="utf-8")
     return (
         len(re.findall(r"^### Requirement:", text, re.MULTILINE)),
         len(re.findall(r"^#### Scenario:", text, re.MULTILINE)),
@@ -66,8 +67,13 @@ def main() -> int:
         failures.append(f"specs/{name}/spec.md exists but is not declared in proposal.md")
     for name in sorted(specs - tasks):
         failures.append(f"specs/{name}/spec.md has no task group turning its scenarios into tests")
+    for name in sorted(specs):
+        if not (SPECS / name / "spec.md").is_file():
+            failures.append(f"founding spec {name} is missing from official specs")
 
     for name in sorted(specs):
+        if not (SPECS / name / "spec.md").is_file():
+            continue
         requirements, scenarios = spec_has_content(name)
         if requirements == 0:
             failures.append(f"specs/{name}/spec.md declares no requirements")

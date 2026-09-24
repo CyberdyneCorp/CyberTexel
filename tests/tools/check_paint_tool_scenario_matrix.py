@@ -11,8 +11,6 @@ MATRIX = ROOT / "docs" / "paint-tool-scenarios.md"
 SPEC = (
     ROOT
     / "openspec"
-    / "changes"
-    / "bootstrap-v1-cybertexel"
     / "specs"
     / "paint-tools"
     / "spec.md"

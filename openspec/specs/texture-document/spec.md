@@ -1,0 +1,266 @@
+# texture-document Specification
+
+## Purpose
+Own layered channel content, transactions and tile-scoped undo history.
+
+## Requirements
+
+### Requirement: Document and texture sets
+A document SHALL own one or more texture sets, where a texture set is the pair of a mesh partition and a UV set, and SHALL carry its own resolution, bit depth, layer stack and mesh map bindings. A layer SHALL belong to exactly one texture set and SHALL require no further mesh binding of its own.
+
+#### Scenario: One material per partition
+- **WHEN** a mesh whose faces carry two distinct material assignments is opened
+- **THEN** two texture sets SHALL be created, each with an independent layer stack, and painting in one SHALL NOT alter the other
+
+#### Scenario: A layer needs no object mask
+- **WHEN** a layer is created inside a texture set
+- **THEN** it SHALL apply to every face of that set's partition without the caller supplying an object binding
+
+### Requirement: Channel set
+A texture set SHALL support registered channel descriptors. The built-in metallic/roughness preset SHALL declare base colour, opacity, roughness, metallic, normal, height, occlusion, emission and subsurface channels. A host SHALL be able to enable a subset, and a disabled channel SHALL allocate no storage.
+
+#### Scenario: Non-PBR project
+- **WHEN** a host enables only base colour and opacity
+- **THEN** no roughness, metallic, normal, height, occlusion, emission or subsurface storage SHALL be allocated, and the memory report SHALL reflect that
+
+#### Scenario: Enabling a channel later
+- **WHEN** a channel is enabled on a set that already has painted layers
+- **THEN** it SHALL be allocated at the set's resolution and initialised to the channel's documented default without disturbing existing channels
+
+### Requirement: Entry kinds
+The stack SHALL support paint layers, fill layers, groups, masks, filters, instances and editable decal, text and surface-path entries as defined by editable-authoring. A kind SHALL be an explicit field on the entry rather than inferred from which storage happens to be allocated.
+
+#### Scenario: Kind is explicit
+- **WHEN** an entry is queried
+- **THEN** its kind SHALL be reported directly, and a mask with no allocated storage yet SHALL still report as a mask
+
+#### Scenario: Fill layer is procedural
+- **WHEN** a fill layer's material graph changes
+- **THEN** the layer's content SHALL be re-derived rather than retaining previously rasterized pixels
+
+### Requirement: Instances
+An instance SHALL reference another entry's content rather than copying it. Editing the referenced entry SHALL update every instance of it. An instance SHALL carry its own opacity, blend mode, channel enablement and masks, and SHALL NOT be directly paintable. An instance SHALL reference only an entry that precedes it in evaluation order, and a reference that would form a cycle SHALL be refused.
+
+#### Scenario: Editing the source
+- **WHEN** a layer referenced by two instances is painted
+- **THEN** both instances SHALL reflect the change
+
+#### Scenario: Instances carry their own modulation
+- **WHEN** an instance's opacity is changed
+- **THEN** only that instance SHALL change, and the referenced entry SHALL be unaffected
+
+#### Scenario: Painting an instance is refused
+- **WHEN** a paint operation targets an instance
+- **THEN** it SHALL be refused with a diagnostic naming the referenced entry
+
+#### Scenario: Deleting a referenced entry
+- **WHEN** an entry with live instances is deleted
+- **THEN** the deletion SHALL be refused naming the instances, or SHALL convert them to independent copies, and which of the two SHALL be the caller's choice
+
+### Requirement: Nesting rules
+Groups SHALL nest to a documented maximum depth of at least 8. A mask SHALL attach to exactly one layer or group. A filter SHALL attach to exactly one layer or group and SHALL read that target's composited output. An operation that would violate a nesting rule SHALL be rejected with a diagnostic naming the rule, and SHALL leave the stack unchanged.
+
+#### Scenario: Illegal reparent is rejected
+- **WHEN** a group is dragged inside itself
+- **THEN** the move SHALL be refused, the diagnostic SHALL name the rule, and the stack order SHALL be byte-identical to before
+
+#### Scenario: Group masks apply to contents
+- **WHEN** a mask is attached to a group
+- **THEN** it SHALL modulate the composited result of every entry inside that group
+
+### Requirement: Blend modes
+The system SHALL provide the blend modes Normal, Darken, Multiply, Color Burn, Lighten, Screen, Color Dodge, Add, Overlay, Soft Light, Linear Light, Difference, Exclusion, Subtract, Divide, Hue, Saturation, Color, Value and Pass Through, and SHALL define each by a formula in the specification rather than by reference to another product. Pass Through SHALL be valid only on a group.
+
+For the table below, `C` is one linear working-space base component, `L` is the corresponding layer component and `B(C,L)` is the unweighted mode result. The component formulas through Divide are evaluated independently; the four HSV modes operate on RGB triples. Results are clamped to `[0,1]`. With finite opacity `t`, the final RGB is `clamp(C + (B(C,L)-C) * clamp(t,0,1), 0, 1)` and alpha is `clamp(Ca + (La-Ca) * clamp(t,0,1), 0, 1)`.
+
+| Mode | `B(C,L)` or RGB definition |
+|---|---|
+| Normal | `L` |
+| Darken | `min(C,L)` |
+| Multiply | `C*L` |
+| Color Burn | `L <= 0 ? 0 : 1-min(1,(1-C)/L)` |
+| Lighten | `max(C,L)` |
+| Screen | `1-(1-C)*(1-L)` |
+| Color Dodge | `L >= 1 ? 1 : min(1,C/(1-L))` |
+| Add | `min(1,C+L)` |
+| Overlay | `C <= 0.5 ? 2*C*L : 1-2*(1-C)*(1-L)` |
+| Soft Light | `L <= 0.5 ? C-(1-2*L)*C*(1-C) : C+(2*L-1)*(D(C)-C)`, where `D(C)=((16*C-12)*C+4)*C` for `C <= 0.25`, otherwise `sqrt(C)` |
+| Linear Light | `clamp(C+2*L-1,0,1)` |
+| Difference | `abs(C-L)` |
+| Exclusion | `C+L-2*C*L` |
+| Subtract | `max(0,C-L)` |
+| Divide | `L <= 0 ? 1 : min(1,C/L)` |
+| Hue | `HSV(Hl,Sc,Vc)` |
+| Saturation | `HSV(Hc,Sl,Vc)` |
+| Color | `HSV(Hl,Sl,Vc)` |
+| Value | `HSV(Hc,Sc,Vl)` |
+| Pass Through | `L`; a group evaluates its children directly against the enclosing accumulator rather than first isolating a group result |
+
+For the four HSV modes, RGB-to-HSV uses `V=max(R,G,B)`, `m=min(R,G,B)`, `d=V-m`, `S=(V == 0 ? 0 : d/V)` and `H=0` when `d==0`; otherwise the maximum-component sector is `(G-B)/d`, `(B-R)/d+2`, or `(R-G)/d+4`, divided by six and wrapped to `[0,1)`. HSV-to-RGB uses `k=floor(6H) mod 6`, `f=6H-floor(6H)`, `p=V*(1-S)`, `q=V*(1-f*S)` and `u=V*(1-(1-f)*S)`, selecting `(V,u,p)`, `(q,V,p)`, `(p,V,u)`, `(p,q,V)`, `(u,p,V)` or `(V,p,q)` for sectors zero through five.
+
+#### Scenario: Formula is authoritative
+- **WHEN** a blend mode is applied by the CPU reference executor and by a GPU executor
+- **THEN** both SHALL implement the specified formula and agree within the parity tolerance
+
+#### Scenario: Pass Through on a layer is rejected
+- **WHEN** Pass Through is set on a paint layer
+- **THEN** the call SHALL fail with a diagnostic and the layer's blend mode SHALL be unchanged
+
+### Requirement: Per-channel participation
+Each layer SHALL carry an independent enable flag and an independent opacity per channel, and SHALL contribute a channel only when that channel is enabled on both the layer and the texture set. A layer with no record for a channel SHALL treat that channel as disabled. Disabling the layer or any enclosing group SHALL disable its participation in every channel.
+
+#### Scenario: Roughness-only layer
+- **WHEN** a layer enables roughness alone
+- **THEN** compositing SHALL alter roughness and leave every other channel of the accumulated result unchanged
+
+### Requirement: Effective opacity
+Effective opacity for a participating channel SHALL be the entry opacity multiplied by that channel's opacity, the opacity of every enclosing group and every enabled mask that applies directly to the entry or to an enclosing group, evaluated per texel. This flattened participation factor SHALL NOT erase group scope: an ordinary group applies its factor once to its isolated result, while a Pass Through group propagates it to its children. Disabled masks SHALL be omitted from the chain. The mask factors supplied for a texel SHALL cover every active applicable mask exactly once, be finite and lie within `[0,1]`; incomplete, duplicate, unknown or invalid factors SHALL be refused rather than producing a partial result.
+
+#### Scenario: Nested opacity
+- **WHEN** a layer at opacity 0.5 sits in a group at opacity 0.5
+- **THEN** its contribution SHALL be scaled by 0.25 before blending
+
+### Requirement: Compositing order and determinism
+Compositing SHALL proceed from the bottom of the stack upward, and SHALL be deterministic: the same document composited twice on the same executor SHALL produce bit-identical output. The device-free CPU reference SHALL composite every enabled texture-set channel from explicit normalized content, coverage and mask rasters. A paint, fill or editable entry SHALL use its resolved content raster; an instance SHALL use its source's resolved content with only the instance's modulation; and an enabled filter SHALL consume its target's isolated result and supply a resolved filter-output raster before the target enters its parent accumulator.
+
+An ordinary group SHALL composite its children into an isolated transparent accumulator and blend that result once with the group's mode, opacity and masks. A Pass Through group without an enabled filter SHALL instead evaluate its children directly against the enclosing accumulator while propagating its opacity and masks. A filter attached to a Pass Through group SHALL require an isolated group result so the filter has the specified input, after which the filtered result SHALL use Normal group composition.
+
+Colour channels SHALL use the selected blend formula. Scalar channels SHALL apply the component formula independently. Additive channels SHALL use clamped addition, and normal-vector channels SHALL apply the selected RGB blend then decode, normalize and re-encode the resulting vector. Source coverage and effective opacity SHALL be combined by deterministic straight-alpha source-over; final texture-set defaults are opaque while isolated groups begin transparent. Missing, duplicate, unknown, dimension-mismatched, non-finite or unevaluable inputs SHALL be refused before a result is returned.
+
+#### Scenario: Repeat composite
+- **WHEN** an unchanged document is composited twice
+- **THEN** the two results SHALL be bit-identical
+
+### Requirement: Layer operations
+The system SHALL provide create, duplicate, delete, reorder, reparent, clear, invert, merge down, merge group, flatten, convert between paint and fill, and apply mask. Every operation SHALL build and validate a complete candidate stack and resolved-content snapshot before publishing either part, and SHALL either complete or leave the document and caller-owned input snapshot unchanged. The operation SHALL enforce a caller-declared output-byte ceiling before publication and distinguish invalid structure, invalid content, allocation-limit, and appearance-mismatch errors.
+
+Duplicate and structural movement SHALL operate on an ownership subtree consisting of the selected entry, nested children, and masks and filters attached anywhere in that subtree. Duplicate SHALL assign deterministic new stable identities and retarget internal parent, attachment, and instance references. Delete SHALL apply the explicit live-instance refusal or make-independent policy, and SHALL refuse independent conversion when resolved source content required to preserve an instance is unavailable. Reorder SHALL remain in the current sibling scope; reparent SHALL select a root or group scope; both SHALL preserve the moved ownership subtree and refuse invalid evaluation order or cycles.
+
+Clear SHALL make selected channel content transparent. Invert SHALL map each active data component to `1-value` without changing independent coverage. A destructive edit of resolved procedural content SHALL rasterize it to authored paint content and advance its content revision. Convert SHALL support paint-to-fill only with a supplied graph and fill-to-paint only without one.
+
+Merge down SHALL replace a layer and its lower sibling with baked paint content under the lower identity. Merge group SHALL replace the group ownership subtree under the group identity. Flatten SHALL replace the stack with one root paint layer. Apply mask SHALL bake the identified mask into its target and remove the attachment, rasterizing a group target with its subtree. Merge, merge-group, flatten, convert, and apply-mask SHALL re-composite the complete candidate and refuse publication unless every enabled output component matches the pre-operation result within the finite non-negative declared tolerance.
+
+#### Scenario: Merge preserves appearance
+- **WHEN** two layers are merged down
+- **THEN** the composited result of the texture set SHALL be unchanged within the parity tolerance
+
+#### Scenario: Failed operation is atomic
+- **WHEN** a merge fails because the target resolution cannot be allocated
+- **THEN** both source layers SHALL remain and the document SHALL be unchanged
+
+#### Scenario: Duplicate group ownership
+- **WHEN** a group with nested children and attached masks is duplicated
+- **THEN** the complete ownership subtree SHALL be cloned with deterministic new identities and retargeted internal relationships
+
+#### Scenario: Invalid baked result
+- **WHEN** a supplied merge, flatten, conversion or applied-mask raster changes the composited appearance beyond tolerance
+- **THEN** the operation SHALL report an appearance mismatch and publish neither the candidate stack nor raster snapshot
+
+#### Scenario: Destructive procedural edit
+- **WHEN** resolved procedural content is cleared or inverted
+- **THEN** it SHALL become authored paint content with a new content revision so later procedural evaluation cannot discard the edit
+
+#### Scenario: Bounded operation output
+- **WHEN** the candidate resolved snapshot exceeds the caller-declared byte ceiling
+- **THEN** the operation SHALL report an allocation-limit error and leave the document unchanged
+
+### Requirement: Tiled storage
+Channel storage SHALL be tiled, with a documented tile size, and the system SHALL track which tiles of which channels a given operation dirtied.
+
+#### Scenario: Bounded dirty set
+- **WHEN** a stroke covers 2% of a texture set's UV area
+- **THEN** the reported dirty tile set SHALL cover that area and SHALL NOT be the whole set
+
+### Requirement: Undo history is tile-scoped
+Before an undoable pixel operation, the host SHALL declare the unique channel and tile targets it can dirty. Commit SHALL retain only declared targets whose generation changed. Restoring SHALL exchange the exact retained and live storage owners rather than copying pixels back, so undo and redo cost the same. A target whose layout, revision history or generation changed outside the expected operation SHALL be refused as stale before any target is restored.
+
+#### Scenario: Undo then redo
+- **WHEN** a stroke is undone and then redone
+- **THEN** the texture set SHALL return to the post-stroke state and no additional full-channel copy SHALL be performed
+
+#### Scenario: Large canvas keeps its history
+- **WHEN** a 16384 by 16384 texture set receives a small stroke
+- **THEN** the snapshot SHALL be proportional to the dirtied tiles, not to the canvas
+
+#### Scenario: Declared tile remains unchanged
+- **WHEN** an operation declares two target tiles but changes only one
+- **THEN** the committed step SHALL retain and charge only the changed tile
+
+#### Scenario: Stale tile is not overwritten
+- **WHEN** a committed target changes outside history before it is undone
+- **THEN** undo SHALL report stale state and SHALL NOT restore any target in the step
+
+### Requirement: Declared history budget
+A host SHALL set a byte ceiling for history. Before editing, the system SHALL refuse a declared target set larger than the complete ceiling. The system SHALL report the ceiling, retained and available bytes, undo and redo counts, and how many additional steps fit for a proposed byte size. On commit it SHALL discard the oldest undo steps rather than exceed the ceiling. It SHALL NOT silently reduce a configured step count.
+
+#### Scenario: Ceiling reached
+- **WHEN** a new step would exceed the ceiling
+- **THEN** the oldest step SHALL be discarded, the retained count SHALL be reported, and the operation SHALL succeed
+
+#### Scenario: A step cannot fit at all
+- **WHEN** a single operation's snapshot exceeds the whole ceiling
+- **THEN** the operation SHALL be refused with a diagnostic naming the requested size and the ceiling, and the document SHALL be unchanged
+
+#### Scenario: Empty history operation
+- **WHEN** undo or redo has no available step
+- **THEN** it SHALL return a distinct no-undo or no-redo error without changing the document
+
+### Requirement: Non-pixel edits are cheap
+Renaming, reordering, reparenting, opacity, blend mode, channel enablement and graph edits SHALL be recorded as command records, not as pixel snapshots.
+
+#### Scenario: Renaming costs nothing
+- **WHEN** a layer is renamed
+- **THEN** the history memory report SHALL not increase measurably
+
+### Requirement: Redo invalidation
+Recording a new step while redo steps are pending SHALL discard those redo steps and release their storage.
+
+#### Scenario: Edit after undo
+- **WHEN** a new stroke is made after two undos
+- **THEN** redo SHALL report zero available steps and their tiles SHALL be released
+
+### Requirement: Composite grouping
+A host SHALL be able to open an isolated texture-set transaction over a declared pixel write set. Pixel writes and atomic layer operations SHALL mutate only staged state until commit. Commit SHALL publish all changed declared tiles and the layer stack as one undo step, or publish nothing if the live texture set or history changed after open. Cancellation or destruction without commit SHALL discard the staged state, leaving live pixels, layer structure, revisions and history byte-identical to their state at open.
+
+#### Scenario: A gesture is one step
+- **WHEN** a drag produces forty operations inside one transaction
+- **THEN** a single undo SHALL reverse all forty
+
+#### Scenario: Cancel is exact
+- **WHEN** a transaction is cancelled
+- **THEN** the document SHALL be byte-identical to its state when the transaction opened
+
+#### Scenario: Mixed transaction is one step
+- **WHEN** one transaction changes declared channel tiles and applies several layer operations
+- **THEN** the live texture set SHALL change only at commit and one undo SHALL restore both pixels and layer structure
+
+#### Scenario: Transaction becomes stale
+- **WHEN** the live texture set or its history changes after a transaction opens
+- **THEN** commit SHALL report stale state and SHALL publish none of the staged pixel or layer changes
+
+### Requirement: Extensible channel descriptors
+A channel descriptor SHALL carry a stable semantic identifier, component count, scalar representation and bit depth, default value, colour/data classification, blending policy and export mapping. Per-set bit depth SHALL be a default overridable per channel. The built-in preset SHALL NOT restrict the document or ABI to nine channel slots. Unsupported channel semantics SHALL be preserved on load and reported as unevaluable rather than discarded or approximated.
+
+#### Scenario: Mixed precision and an added channel
+- **WHEN** a host registers a scalar coat-weight channel and selects 8-bit base colour with 16-bit height
+- **THEN** the document SHALL paint, save and export those descriptors without changing the C ABI or promoting every channel to 16 bits
+
+### Requirement: Bulk channel write
+The system SHALL let a host write a rectangular region, including a whole channel, in one undoable texture-set transaction. It SHALL validate the region, byte layout and every intersecting declared channel tile before modifying staged pixels. Commit SHALL retain only changed tiles under the declared history budget; undo and redo SHALL exchange tile storage owners.
+
+#### Scenario: Full-channel write
+- **WHEN** a host writes a rectangle covering the channel extent and commits
+- **THEN** reading the channel SHALL return the supplied pixel bytes in row order
+- **AND** undo SHALL restore the prior channel bytes
+
+#### Scenario: Partial-tile region
+- **WHEN** a region intersects only part of a tile
+- **THEN** only pixels inside the region SHALL change
+
+#### Scenario: Write outside declared targets
+- **WHEN** any tile intersecting a region was not declared at transaction start
+- **THEN** the write SHALL be refused before changing staged pixels
+
+#### Scenario: Size or format mismatch
+- **WHEN** the supplied byte count or row pitch does not match the channel format and region
+- **THEN** the write SHALL be refused before changing staged pixels

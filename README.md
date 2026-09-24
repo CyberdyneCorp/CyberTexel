@@ -21,21 +21,21 @@ same engine through its public contract.
 
 All twenty-four capabilities are implemented and reachable through the stable
 C ABI and the Python, Swift and Rust bindings. Numbered Python examples
-exercise all 353 public C ABI operations, proven by recorded call traces
+exercise all 354 public C ABI operations, proven by recorded call traces
 rather than declared. The specification lives in
 [`openspec/`](openspec/); the founding change is
-[`openspec/changes/bootstrap-v1-cybertexel/`](openspec/changes/bootstrap-v1-cybertexel/)
+[`openspec/changes/archive/2026-09-24-bootstrap-v1-cybertexel/`](openspec/changes/archive/2026-09-24-bootstrap-v1-cybertexel/)
 — proposal, design, twenty-four capability specs and the task plan, whose
-checkboxes are the authority on what is done. `openspec/specs/` fills when that
-change is archived.
+checkboxes record its completion. The current requirements live in
+[`openspec/specs/`](openspec/specs/).
 
 What is **not** done, stated plainly:
 
 | | |
 |---|---|
-| **Reference hosts** | [Both hosts](hosts/) execute an emitted pass plan on a real device API and have now run on their named hardware — the desktop host on the M3 Pro and the iPad probe on the iPad Air M3 — each presenting to a real surface and measuring five-stage input-to-visible latency. They are not painting applications, and wiring those device runs into CI remains task 18.2. |
+| **Reference hosts** | [Both hosts](hosts/) execute an emitted pass plan on a real device API and have run on their named hardware. The [reference-device workflow](docs/reference-device-ci.md) now runs them on the self-hosted M3 Pro and connected iPad on pushes to `main`. A fresh workflow result is pending. |
 | **Performance numbers** | Sixteen of thirty budgets are decided on their named devices and fifteen pass. Input-to-visible is 8.49 ms median on the M3 Pro and 20.44 ms on the iPad Air M3, against refresh-derived ceilings of 16 and 32 ms. A twenty-minute sustained tablet workload holds its final-window p95 at 20.62 ms against 33 ms and peaks at 164 MB against 512 MB, with latency drifting 0.06 ms across the run. The position-gradient generator is the one failure, at 2 248 ms against a 100 ms ceiling; removing redundant per-texel work took it down from 4 855 ms, and threading and SIMD would close the rest. `just gate-budgets` reports absent hardware as unmeasured, never as a pass. |
-| **Platform packages** | macOS, Linux and iPad build, smoke-test and archive (`just gate-packages`). Windows and Android packaging follow in task 18.6; the Windows library, CLI and Python wheel are built and tested in CI today. |
+| **Platform packages** | macOS, Linux and iPad build, smoke-test and archive (`just gate-packages`). Windows and Android packaging are tracked in the active [`windows-android-release`](openspec/changes/windows-android-release/) change; the Windows library, CLI and Python wheel are built and tested in CI today. |
 
 No claim about mobile responsiveness, memory efficiency or device parity is
 satisfied by a headless CPU test, and the gates are written so that one cannot

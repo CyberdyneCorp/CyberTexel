@@ -11,8 +11,6 @@ MATRIX = ROOT / "docs" / "editable-authoring-scenarios.md"
 SPEC = (
     ROOT
     / "openspec"
-    / "changes"
-    / "bootstrap-v1-cybertexel"
     / "specs"
     / "editable-authoring"
     / "spec.md"

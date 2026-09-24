@@ -11,8 +11,6 @@ MATRIX = ROOT / "docs" / "smart-material-scenarios.md"
 SPEC = (
     ROOT
     / "openspec"
-    / "changes"
-    / "bootstrap-v1-cybertexel"
     / "specs"
     / "smart-materials"
     / "spec.md"
