@@ -19,6 +19,7 @@
 		400A13E4800835FFB06F6F4A = {isa = PBXBuildFile; fileRef = 327BCF5630EFC0BF573A3BD0; };
 		01E26B06C03DD6CBFFD3FA6E = {isa = PBXBuildFile; fileRef = 327BCF5630EFC0BF573A3BD0; };
 		F1D96961A7C6581E1AC14B9D = {isa = PBXBuildFile; fileRef = BF52539BC47FA5A84E252727; };
+		A1C0DE5057A1A1NED000002 = {isa = PBXBuildFile; fileRef = A1C0DE5057A1A1NED000001; };
 		4122A9B27D6B453062610F6D = {isa = PBXBuildFile; fileRef = 8150357B10E5A212AEC6CF48; };
 /* End PBXBuildFile section */
 
@@ -43,6 +44,7 @@
 		CEDBE443820751453DE51180 = {isa = PBXFileReference; lastKnownFileType = "archive.ar"; name = libminiz.a; path = "../../build/swift-ios-prefix/lib/libminiz.a"; sourceTree = "<group>"; };
 		327BCF5630EFC0BF573A3BD0 = {isa = PBXFileReference; lastKnownFileType = "archive.ar"; name = libtinyexr.a; path = "../../build/swift-ios-prefix/lib/libtinyexr.a"; sourceTree = "<group>"; };
 		BF52539BC47FA5A84E252727 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Authoring.swift; sourceTree = "<group>"; };
+		A1C0DE5057A1A1NED000001 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SustainedTests.swift; sourceTree = "<group>"; };
 		8150357B10E5A212AEC6CF48 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InteractionTests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
@@ -75,7 +77,7 @@
 				64C498176831CA56748B302F,
 			); sourceTree = "<group>"; };
 		62FFE6E3F149813DEA963F32 = { isa = PBXGroup; children = (5CDF267DED3BB36A9E3B2F96, ); path = Probe; sourceTree = "<group>"; };
-		7433A443A4F77D052C22518F = { isa = PBXGroup; children = (ECABC6F01A742C98BF39E433, BF52539BC47FA5A84E252727, 8150357B10E5A212AEC6CF48, ); path = ProbeTests; sourceTree = "<group>"; };
+		7433A443A4F77D052C22518F = { isa = PBXGroup; children = (ECABC6F01A742C98BF39E433, BF52539BC47FA5A84E252727, 8150357B10E5A212AEC6CF48, A1C0DE5057A1A1NED000001, ); path = ProbeTests; sourceTree = "<group>"; };
 		64C498176831CA56748B302F = { isa = PBXGroup; children = (55043B8174A904EA4A265082, AC928DD43EEF1AB05DF60B99, ); name = Products; sourceTree = "<group>"; };
 /* End PBXGroup section */
 
@@ -117,7 +119,7 @@
 
 /* Begin PBXSourcesBuildPhase section */
 		46EFD68E1985ED5B5709ED7E = { isa = PBXSourcesBuildPhase; buildActionMask = 2147483647; files = (D36EDC977D52E5BBCCF41F51, ); runOnlyForDeploymentPostprocessing = 0; };
-		A8700A7306F464F680F05CF3 = { isa = PBXSourcesBuildPhase; buildActionMask = 2147483647; files = (3F7CFED31CA7FD0EEF143F50, F1D96961A7C6581E1AC14B9D, 4122A9B27D6B453062610F6D, ); runOnlyForDeploymentPostprocessing = 0; };
+		A8700A7306F464F680F05CF3 = { isa = PBXSourcesBuildPhase; buildActionMask = 2147483647; files = (3F7CFED31CA7FD0EEF143F50, F1D96961A7C6581E1AC14B9D, 4122A9B27D6B453062610F6D, A1C0DE5057A1A1NED000002, ); runOnlyForDeploymentPostprocessing = 0; };
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXTargetDependency section */
