@@ -15,6 +15,39 @@ import run_reference_device_gate as gate  # noqa: E402
 
 
 class ReferenceDeviceGateTest(unittest.TestCase):
+    def desktop_sample(self, p99: float) -> dict[str, object]:
+        return {
+            "schema": 1, "device_id": "macbook-pro-m3-pro-18gpu-36gb",
+            "date": "2026-09-24", "commit": "same-commit", "command": "desktop benchmark",
+            "interaction": {
+                "stages_ms": {"input": 2.0, "upload": 2.0, "queue": 1.0,
+                              "execution": 1.0, "presentation": 4.0},
+                "input_to_visible_ms": 10.0, "input_rate_hz": 120,
+                "refresh_rate_hz": 120, "mesh_triangles": 250632,
+                "layers": 8, "channels": 4, "residency": {},
+            },
+            "measurements": [
+                gate.measurement("desktop-visible-median", 10.0),
+                gate.measurement("desktop-visible-p95", 14.0),
+                gate.measurement("desktop-visible-p99", p99),
+                gate.measurement("desktop-paint-sync-readback", 0),
+                gate.measurement("desktop-undo-sync-readback", 0),
+            ],
+        }
+
+    def test_desktop_gate_selects_median_p99_run(self) -> None:
+        samples = [self.desktop_sample(value) for value in (14.0, 19.2, 13.0)]
+        for sample in samples:
+            gate.check_desktop_sample(sample)
+        index, selected = gate.select_desktop_sample(samples)
+        self.assertEqual(index, 0)
+        self.assertEqual(selected["measurements"][2]["value"], 14.0)
+        self.assertIsNot(selected, samples[0])
+
+    def test_desktop_sample_over_absolute_ceiling_is_refused(self) -> None:
+        with self.assertRaisesRegex(RuntimeError, "desktop-visible-p99"):
+            gate.check_desktop_sample(self.desktop_sample(34.0))
+
     def test_active_sidecar_display_is_refused(self) -> None:
         listing = {"SPDisplaysDataType": [{"spdisplays_ndrvs": [
             {"_name": "Color LCD"}, {"_name": "Sidecar Display"}]}]}

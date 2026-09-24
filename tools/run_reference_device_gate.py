@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import copy
 from datetime import datetime, timezone
 import json
 from pathlib import Path
@@ -123,15 +124,59 @@ def check_budgets(results: dict[str, object], required: tuple[str, ...]) -> None
 
 def run_desktop() -> None:
     command("just", "host-desktop-build", output=OUTPUT / "desktop-build.log", timeout=1800)
-    report = OUTPUT / "desktop-wgsl.json"
-    result = OUTPUT / "desktop-measurements.json"
     environment = ["env", f"CTEX_RUN_DATE={datetime.now(timezone.utc).date().isoformat()}",
                    f"CTEX_RUN_COMMIT={command('git', 'rev-parse', 'HEAD').strip()}"]
-    command(*environment, "cargo", "run", "--manifest-path", "hosts/desktop-wgpu/Cargo.toml",
-            "--release", "--", "--benchmark", "--frames", "600", "--report", str(report),
-            "--measurements", str(result), output=OUTPUT / "desktop-run.log", timeout=600)
-    measured = device_gate.load_json(result)
-    check_budgets(measured, DESKTOP_BUDGETS)
+    samples: list[dict[str, object]] = []
+    for attempt in range(1, 4):
+        report = OUTPUT / f"desktop-wgsl-{attempt}.json"
+        result = OUTPUT / f"desktop-measurements-{attempt}.json"
+        command(*environment, "cargo", "run", "--manifest-path", "hosts/desktop-wgpu/Cargo.toml",
+                "--release", "--", "--benchmark", "--frames", "600", "--report", str(report),
+                "--measurements", str(result), output=OUTPUT / f"desktop-run-{attempt}.log",
+                timeout=600)
+        measured = device_gate.load_json(result)
+        check_desktop_sample(measured)
+        samples.append(measured)
+    selected_index, selected = select_desktop_sample(samples)
+    selected["selection"] = {"method": "median p99 of three independent 600-frame runs",
+                             "selected_run": selected_index + 1,
+                             "measurement_files": [f"desktop-measurements-{i}.json"
+                                                   for i in range(1, 4)]}
+    (OUTPUT / "desktop-measurements.json").write_text(
+        json.dumps(selected, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    shutil.copyfile(OUTPUT / f"desktop-wgsl-{selected_index + 1}.json",
+                    OUTPUT / "desktop-wgsl.json")
+    shutil.copyfile(OUTPUT / f"desktop-run-{selected_index + 1}.log",
+                    OUTPUT / "desktop-run.log")
+    check_budgets(selected, DESKTOP_BUDGETS)
+
+
+def check_desktop_sample(results: dict[str, object]) -> None:
+    problems = device_gate.validate_run_metadata(results)
+    problems.extend(device_gate.validate_interaction_trace(results["interaction"]))
+    budgets = {item["id"]: item for item in device_gate.load_json(CONFIG)["budgets"]}
+    observed = {item["budget_id"]: item for item in results["measurements"]}
+    for identity in DESKTOP_BUDGETS:
+        decision = device_gate.decide_budget(budgets[identity], observed.get(identity),
+                                             results["device_id"], None, 0.0)
+        if decision.status != "passed":
+            problems.append(f"{identity}: {decision.status}: {decision.detail}")
+    if problems:
+        raise RuntimeError("desktop sample failed absolute gate: " + "; ".join(problems))
+
+
+def select_desktop_sample(samples: list[dict[str, object]]) -> tuple[int, dict[str, object]]:
+    if len(samples) != 3:
+        raise ValueError("desktop gate requires three independent runs")
+    commits = {sample["commit"] for sample in samples}
+    devices = {sample["device_id"] for sample in samples}
+    if len(commits) != 1 or len(devices) != 1:
+        raise ValueError("desktop runs must use the same commit and device")
+    ranked = sorted(enumerate(samples), key=lambda pair: next(
+        item["value"] for item in pair[1]["measurements"]
+        if item["budget_id"] == "desktop-visible-p99"))
+    index, selected = ranked[1]
+    return index, copy.deepcopy(selected)
 
 
 def attachment_payload(path: Path) -> dict[str, object] | None:
@@ -229,6 +274,8 @@ def main() -> int:
         if target in ("desktop", "all"):
             run_desktop()
         if target in ("ipad", "all"):
+            if target == "all" and preflight() != udid:
+                raise RuntimeError("the named iPad changed during the desktop gate")
             run_ipad(udid)
         print(f"reference-device gate passed: {target}")
         return 0
