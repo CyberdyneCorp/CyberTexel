@@ -1,5 +1,6 @@
 import Foundation
 import Metal
+import UIKit
 import XCTest
 
 /// Runs CyberTexel's route on the device and returns what it found.
@@ -150,5 +151,40 @@ final class DeviceBudgetTests: XCTestCase {
                 XCTAssertGreaterThan(restore.tile_count, 0, "undo restored no tile")
             }
         }
+    }
+}
+
+/// What the display can actually do, which decides whether a latency figure can
+/// claim the declared configuration at all.
+final class DisplayCapabilityTests: XCTestCase {
+    func testReportsRefreshRate() throws {
+        let expectation = expectation(description: "screen")
+        var found: [String: Any] = [:]
+        DispatchQueue.main.async {
+            let scene = UIApplication.shared.connectedScenes
+                .compactMap { $0 as? UIWindowScene }.first
+            let screen = scene?.screen ?? UIScreen.main
+            found = [
+                "maximum_frames_per_second": Int(screen.maximumFramesPerSecond),
+                "bounds": ["width": Double(screen.bounds.width),
+                           "height": Double(screen.bounds.height)],
+                "scale": Double(screen.scale),
+                "has_window_scene": scene != nil,
+            ]
+            expectation.fulfill()
+        }
+        wait(for: [expectation], timeout: 10)
+        let attachment = XCTAttachment(data: try JSONSerialization.data(
+            withJSONObject: found, options: [.prettyPrinted, .sortedKeys]),
+            uniformTypeIdentifier: "public.json")
+        attachment.name = "display.json"
+        attachment.lifetime = .keepAlways
+        add(attachment)
+        print("CTEX-DISPLAY-BEGIN")
+        print(String(data: try JSONSerialization.data(withJSONObject: found,
+                                                      options: [.sortedKeys]),
+                     encoding: .utf8) ?? "{}")
+        print("CTEX-DISPLAY-END")
+        XCTAssertGreaterThan(found["maximum_frames_per_second"] as? Int ?? 0, 0)
     }
 }

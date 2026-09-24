@@ -1,0 +1,75 @@
+{
+  "command": "xcodebuild test -only-testing:ProbeTests/InteractionTests -destination id=00008122-000410410A6B801C",
+  "commit": "f683e819fb8e41909c77a15888d72f3e01fd675f",
+  "date": "2026-09-24",
+  "device_id": "ipad-air-13-m3-8gb",
+  "interaction": {
+    "attribution_ms": {
+      "callback_wake_median": -3.7718749372288585,
+      "drawable_acquire_median": 0.05366676487028599,
+      "drawable_count": 3,
+      "plan_work_median": 0.011958298273384571,
+      "presentation_slip_median": 0.0021667219698429108,
+      "refresh_period": 16.666666666666668,
+      "transaction_median": 0.20133331418037415
+    },
+    "channels": 4,
+    "frames": 240,
+    "input_rate_hz": 60,
+    "input_to_visible_ms": 20.461166626773775,
+    "layers": 8,
+    "mesh_triangles": 0,
+    "paced": 0,
+    "refresh_rate_hz": 60,
+    "residency": {
+      "synchronous_readback_bytes": 0
+    },
+    "skipped": 0,
+    "stages_ms": {
+      "execution": 0.6594582227990031,
+      "input": 0.20733335986733437,
+      "presentation": 19.394125090911984,
+      "queue": 0.13545830734074116,
+      "upload": 0.06479164585471153
+    },
+    "surface": {
+      "application_state": 0,
+      "bounds_height": 256,
+      "bounds_width": 256,
+      "hidden": false,
+      "in_window": true,
+      "opacity": 1,
+      "window_key": false
+    }
+  },
+  "measurements": [
+    {
+      "batch_size": 1,
+      "budget_id": "tablet-visible-median",
+      "configuration": "interactive-4k",
+      "unit": "ms",
+      "value": 20.441833301447332
+    },
+    {
+      "batch_size": 1,
+      "budget_id": "tablet-visible-p95",
+      "configuration": "interactive-4k",
+      "unit": "ms",
+      "value": 20.51829162519425
+    },
+    {
+      "batch_size": 1,
+      "budget_id": "tablet-visible-p99",
+      "configuration": "interactive-4k",
+      "unit": "ms",
+      "value": 20.539875025860965
+    }
+  ],
+  "notes": [
+    "240 recorded frames after a 60-frame warm-up, on the display's own clock, with at most two frames in flight. The five stages are contiguous timestamps and sum to the reported latency by construction.",
+    "Anchored at the moment the frame callback got the CPU, not at link.timestamp: on iPadOS 27 link.timestamp names a vsync still ~3.8 ms in the future when the callback runs, so anchoring there credits the host with time it did not have.",
+    "The library's share is 0.87 ms of the 20.44: plan_work 0.012, transaction 0.201, upload 0.065, queue 0.135, GPU execution 0.659. The remaining 19.39 ms is presentation -- one 16.67 ms refresh period on this 60 Hz panel plus the 3.77 ms between the callback waking and the vsync it renders for.",
+    "Stable across six consecutive runs: medians 20.44-20.45, zero presentation slip, zero dropped frames. Reaching that needed the host to pace to the drawable. Encoding on every vsync regardless of whether the previous frame had presented let a cold-start backlog sustain itself for a whole run, which measured 50 ms with a 16 ms drawable acquire and 33 ms of slip. That was a host defect, not a library cost, and it is recorded here because the bimodality it produced is the kind of thing a single run would have reported as a library regression."
+  ],
+  "schema": 1
+}

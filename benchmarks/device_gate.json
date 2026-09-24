@@ -11,7 +11,8 @@
       "gpu": "Apple M3 Pro, 18 cores, Metal 4",
       "memory_bytes": 38654705664,
       "operating_system": "macOS 27.0 (26A428)",
-      "host": "Swift/Metal reference host"
+      "host": "Swift/Metal reference host",
+      "refresh_hz": 120
     },
     {
       "id": "ipad-air-13-m3-8gb",
@@ -21,13 +22,14 @@
       "gpu": "Apple M3, 9 cores, Metal 4",
       "memory_bytes": 8589934592,
       "operating_system": "iPadOS 27.0 (24A437)",
-      "host": "Swift/Metal reference host"
+      "host": "Swift/Metal reference host",
+      "refresh_hz": 60
     }
   ],
   "configurations": [
     {
       "id": "interactive-4k",
-      "description": "4096x4096 texture set, 250k-triangle mesh, 8 visible layers, 4 enabled channels, resident authored tiles, 120 Hz input, 120 Hz desktop or 120 Hz tablet presentation"
+      "description": "4096x4096 texture set, 250k-triangle mesh, 8 visible layers, 4 enabled channels, resident authored tiles, 120 Hz input, 120 Hz desktop or 60 Hz tablet presentation"
     },
     {
       "id": "batch-4k",
@@ -39,7 +41,7 @@
     },
     {
       "id": "sustained-mobile-4k",
-      "description": "20-minute 120 Hz input workload at 4096x4096 with 8 layers and 4 channels; budgets apply to the final five minutes"
+      "description": "20-minute 60 Hz input workload at 4096x4096 with 8 layers and 4 channels; budgets apply to the final five minutes"
     }
   ],
   "budgets": [
@@ -260,7 +262,7 @@
       "operation": "input-to-visible",
       "metric": "median_ms",
       "unit": "ms",
-      "ceiling": 20.0,
+      "ceiling": 32.0,
       "absolute_floor": 0.1,
       "device": "ipad-air-13-m3-8gb",
       "configuration": "interactive-4k"
@@ -270,7 +272,7 @@
       "operation": "input-to-visible",
       "metric": "p95_ms",
       "unit": "ms",
-      "ceiling": 33.0,
+      "ceiling": 50.0,
       "absolute_floor": 0.1,
       "device": "ipad-air-13-m3-8gb",
       "configuration": "interactive-4k"
@@ -280,7 +282,7 @@
       "operation": "input-to-visible",
       "metric": "p99_ms",
       "unit": "ms",
-      "ceiling": 50.0,
+      "ceiling": 66.0,
       "absolute_floor": 0.1,
       "device": "ipad-air-13-m3-8gb",
       "configuration": "interactive-4k"

@@ -72,9 +72,9 @@ def _validate_devices(devices: list[Any], failures: list[str]) -> list[str]:
     for device in devices:
         if not isinstance(device, dict) or any(
             not device.get(field)
-            for field in ("id", "kind", "model", "cpu", "gpu", "memory_bytes", "operating_system", "host")
+            for field in ("id", "kind", "model", "cpu", "gpu", "memory_bytes", "operating_system", "host", "refresh_hz")
         ):
-            failures.append("every reference device requires full model, CPU, GPU, memory, OS and host")
+            failures.append("every reference device requires full model, CPU, GPU, memory, OS, host and refresh rate")
     return device_ids
 
 
@@ -127,6 +127,45 @@ def _validate_budget_coverage(
         }
         if metrics != {"median_ms", "p95_ms", "p99_ms"}:
             failures.append(f"{kind} input-to-visible budgets require median, p95 and p99")
+    _validate_refresh_derived_latency(devices, budgets, failures)
+
+
+def _validate_refresh_derived_latency(
+    devices: list[dict[str, Any]], budgets: list[dict[str, Any]], failures: list[str]
+) -> None:
+    """Hold the two panels to the same pipeline depth.
+
+    A frame cannot be visible before the next vsync, so an input-to-visible
+    ceiling in milliseconds means nothing without the refresh rate it was written
+    against: 20 ms is generous on a 120 Hz panel and below the hardware floor on a
+    60 Hz one. The budget that actually transfers between devices is how many
+    refresh periods the pipeline may take, so the desktop's ceilings fix those
+    counts and every other device's follow from its own panel.
+    """
+    periods: dict[str, float] = {}
+    by_id = {device.get("id"): device for device in devices}
+    desktop = next((item for item in devices if item.get("kind") == "desktop"), None)
+    if desktop is None or not desktop.get("refresh_hz"):
+        return
+    for budget in budgets:
+        if budget.get("operation") == "input-to-visible" and budget.get("device") == desktop["id"]:
+            periods[str(budget.get("metric"))] = (
+                float(budget["ceiling"]) * float(desktop["refresh_hz"]) / 1000.0
+            )
+    for budget in budgets:
+        if budget.get("operation") != "input-to-visible" or budget.get("device") == desktop["id"]:
+            continue
+        device = by_id.get(budget.get("device"))
+        expected = periods.get(str(budget.get("metric")))
+        if device is None or expected is None or not device.get("refresh_hz"):
+            continue
+        derived = round(expected * 1000.0 / float(device["refresh_hz"]), 1)
+        if abs(float(budget["ceiling"]) - derived) > 0.05:
+            failures.append(
+                f"budget {budget.get('id')!r} ceiling {budget['ceiling']} ms does not match the "
+                f"{derived} ms derived from {device['refresh_hz']} Hz and the desktop's "
+                f"{expected:.2f} refresh periods"
+            )
 
 
 def validate_config(config: dict[str, Any]) -> list[str]:

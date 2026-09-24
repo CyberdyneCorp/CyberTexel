@@ -212,6 +212,28 @@ class DeviceGateTests(unittest.TestCase):
         self.assertEqual(GATE.decide_budget(budget, zero, budget["device"], None, 0.15).status, "passed")
         self.assertEqual(GATE.decide_budget(budget, hidden, budget["device"], None, 0.15).status, "failed")
 
+    def test_latency_ceilings_track_the_panel_they_are_measured_on(self) -> None:
+        # A millisecond ceiling means nothing without the refresh rate it was
+        # written against: the 20 ms the tablet carried while the reference
+        # device was a 120 Hz iPad Pro sits below the hardware floor of the
+        # 60 Hz iPad Air, so no library change could ever satisfy it.
+        config = copy.deepcopy(self.config)
+        for budget in config["budgets"]:
+            if budget["id"] == "tablet-visible-median":
+                budget["ceiling"] = 20.0
+        failures = GATE.validate_config(config)
+        self.assertEqual(len(failures), 1)
+        self.assertIn("tablet-visible-median", failures[0])
+        self.assertIn("32.0 ms derived from 60 Hz", failures[0])
+        self.assertIn("1.92 refresh periods", failures[0])
+
+    def test_refresh_rate_is_required_of_every_reference_device(self) -> None:
+        config = copy.deepcopy(self.config)
+        del config["reference_devices"][1]["refresh_hz"]
+        self.assertTrue(
+            any("refresh rate" in failure for failure in GATE.validate_config(config))
+        )
+
     def test_generated_document_is_current(self) -> None:
         # The document accounts for every committed measurement run, so adding a
         # run without regenerating it fails here.

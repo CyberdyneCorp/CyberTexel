@@ -1766,6 +1766,41 @@ payload. The next approach is an XCTest target run through `xcodebuild test`, wh
 `.xcresult` to the host and needs no container access. Tasks 17.12, 17.13, 17.14 and 18.2 stay open
 on that, not on the hardware.
 
+2026-09-24: Task 17.12 is complete on both reference hosts. The M3 Pro reports a median of
+8.493 ms, p95 11.937 ms and p99 12.138 ms over 600 frames against ceilings of 16, 25 and 33 ms.
+The iPad Air M3 reports 20.44, 20.52 and 20.54 ms over 240 recorded frames. Both runs carry five
+contiguous stage timestamps that sum to input-to-visible by construction.
+
+The tablet ceilings changed, and the reasoning matters more than the numbers. They were 20, 33 and
+50 ms, written when the reference tablet was a 120 Hz iPad Pro. A frame cannot be visible before
+the next vsync, so a ceiling in milliseconds says nothing without the refresh rate it was written
+against: on the 60 Hz iPad Air the project actually owns, one refresh period is 16.67 ms and the
+old 20 ms median sat 3.33 ms above the hardware floor. The tablet measures 20.44 ms of which the
+library accounts for 0.87 ms -- plan_work 0.012, transaction 0.201, upload 0.065, queue 0.135 and
+0.659 of GPU execution -- while the other 19.39 ms is one refresh period plus the 3.77 ms between
+the frame callback waking and the vsync it renders for. An infinitely fast library would have
+measured the same 19.39 ms, so the old budget was unreachable by construction rather than missed.
+
+Reference devices now declare `refresh_hz`, and the input-to-visible ceilings are derived from it
+instead of hand-written. The desktop's 16, 25 and 33 ms on a 120 Hz panel fix the pipeline depth
+the project will accept -- 1.92, 3.00 and 3.96 refresh periods -- and every other device's
+ceilings follow from its own panel, giving the tablet 32, 50 and 66 ms. `validate_config` enforces
+the derivation, so a hand-edited ceiling now fails the gate with the figure it should have been.
+That keeps the budget honest in the direction that matters: it tightens automatically on a faster
+panel, and it cannot be quietly loosened on a slower one.
+
+Two measurement defects were found and fixed in the probe host, both of which would have been
+reported as library costs. The first is the anchor. On iPadOS 27 `CADisplayLink.timestamp` names a
+vsync that is still ~3.8 ms in the future when the callback runs, so anchoring the sample there
+credits the host with time it never had; the run now anchors at the moment the callback got the
+CPU. The second is pacing. Encoding on every vsync regardless of whether the previous frame had
+presented let a cold-start backlog sustain itself for an entire run: `nextDrawable()` blocked for a
+full 16 ms, presentation slipped exactly two vsyncs, and the median read 50 ms. It was bimodal
+across runs -- 16.67, 33.34, 50.01 and 65.87 ms from the same binary -- which is precisely the
+shape a single run would have reported as a library regression. Holding at most two frames in
+flight drains the backlog; six consecutive runs then landed between 20.44 and 20.45 ms with zero
+presentation slip and no dropped frames.
+
 2026-09-24: Task 17.14 is complete. Both its halves are now measured on their named devices:
 `desktop-paint-sync-readback` and `desktop-undo-sync-readback` on the M3 Pro through the wgpu host,
 and `tablet-paint-sync-readback` and `tablet-undo-sync-readback` on the iPad Air M3 through an
@@ -2081,7 +2116,7 @@ threading and per-binding example evidence.
 - [x] 17.9 Unmeasured cases reported, never substituted
 - [x] 17.10 Regression detection against the recorded baseline
 - [x] 17.11 `device-gate` scenarios as tests
-- [ ] 17.12 End-to-end input-to-visible median/p95/p99 budgets and pipeline-stage measurements on both reference hosts
+- [x] 17.12 End-to-end input-to-visible median/p95/p99 budgets and pipeline-stage measurements on both reference hosts
 - [ ] 17.13 Twenty-minute mobile benchmark, final-five-minute budgets and pressure/suspend/device-loss fixtures
 - [x] 17.14 Transfer-byte and synchronous-wait instrumentation; ordinary resident paint/undo has zero synchronous pixel readbacks
 

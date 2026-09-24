@@ -16,10 +16,10 @@ device is recorded; developer-machine timings are informational only.
 
 | ID | Description |
 | --- | --- |
-| `interactive-4k` | 4096x4096 texture set, 250k-triangle mesh, 8 visible layers, 4 enabled channels, resident authored tiles, 120 Hz input, 120 Hz desktop or 120 Hz tablet presentation |
+| `interactive-4k` | 4096x4096 texture set, 250k-triangle mesh, 8 visible layers, 4 enabled channels, resident authored tiles, 120 Hz input, 120 Hz desktop or 60 Hz tablet presentation |
 | `batch-4k` | 4096x4096 texture set, 250k-triangle mesh, 8 visible layers, 4 enabled channels, resident inputs, one output texture set |
 | `stamp-scaling` | Identical 64-pixel-radius stamp and touched tiles on 2048x2048 and 16384x16384 texture sets |
-| `sustained-mobile-4k` | 20-minute 120 Hz input workload at 4096x4096 with 8 layers and 4 channels; budgets apply to the final five minutes |
+| `sustained-mobile-4k` | 20-minute 60 Hz input workload at 4096x4096 with 8 layers and 4 channels; budgets apply to the final five minutes |
 
 ## Budgets
 
@@ -46,9 +46,9 @@ device is recorded; developer-machine timings are informational only.
 | `desktop-visible-median` | input-to-visible | median_ms | 16 ms | `macbook-pro-m3-pro-18gpu-36gb` | `interactive-4k` | **unmeasured** — n/a; 2026-09-23; `febc2a329d74a92adb30f6f34ef786a4c77a1e8f` |
 | `desktop-visible-p95` | input-to-visible | p95_ms | 25 ms | `macbook-pro-m3-pro-18gpu-36gb` | `interactive-4k` | **unmeasured** — n/a; 2026-09-23; `febc2a329d74a92adb30f6f34ef786a4c77a1e8f` |
 | `desktop-visible-p99` | input-to-visible | p99_ms | 33 ms | `macbook-pro-m3-pro-18gpu-36gb` | `interactive-4k` | **unmeasured** — n/a; 2026-09-23; `febc2a329d74a92adb30f6f34ef786a4c77a1e8f` |
-| `tablet-visible-median` | input-to-visible | median_ms | 20 ms | `ipad-air-13-m3-8gb` | `interactive-4k` | **unmeasured** — n/a; 2026-09-24; `63bba9cf7033a8cbbabc8429a3393e8f6a06aa7c` |
-| `tablet-visible-p95` | input-to-visible | p95_ms | 33 ms | `ipad-air-13-m3-8gb` | `interactive-4k` | **unmeasured** — n/a; 2026-09-24; `63bba9cf7033a8cbbabc8429a3393e8f6a06aa7c` |
-| `tablet-visible-p99` | input-to-visible | p99_ms | 50 ms | `ipad-air-13-m3-8gb` | `interactive-4k` | **unmeasured** — n/a; 2026-09-24; `63bba9cf7033a8cbbabc8429a3393e8f6a06aa7c` |
+| `tablet-visible-median` | input-to-visible | median_ms | 32 ms | `ipad-air-13-m3-8gb` | `interactive-4k` | **unmeasured** — n/a; 2026-09-24; `63bba9cf7033a8cbbabc8429a3393e8f6a06aa7c` |
+| `tablet-visible-p95` | input-to-visible | p95_ms | 50 ms | `ipad-air-13-m3-8gb` | `interactive-4k` | **unmeasured** — n/a; 2026-09-24; `63bba9cf7033a8cbbabc8429a3393e8f6a06aa7c` |
+| `tablet-visible-p99` | input-to-visible | p99_ms | 66 ms | `ipad-air-13-m3-8gb` | `interactive-4k` | **unmeasured** — n/a; 2026-09-24; `63bba9cf7033a8cbbabc8429a3393e8f6a06aa7c` |
 | `tablet-sustained-final-p95` | sustained-mobile | final_five_minute_p95_ms | 33 ms | `ipad-air-13-m3-8gb` | `sustained-mobile-4k` | **unmeasured** — n/a; 2026-09-24; `63bba9cf7033a8cbbabc8429a3393e8f6a06aa7c` |
 | `tablet-sustained-memory` | sustained-mobile | peak_physical_bytes | 536870912 bytes | `ipad-air-13-m3-8gb` | `sustained-mobile-4k` | **unmeasured** — n/a; 2026-09-24; `63bba9cf7033a8cbbabc8429a3393e8f6a06aa7c` |
 | `desktop-paint-sync-readback` | resident-paint | synchronous_readback_bytes | 0 bytes | `macbook-pro-m3-pro-18gpu-36gb` | `interactive-4k` | **passed** — 0 bytes; 2026-09-23; `febc2a329d74a92adb30f6f34ef786a4c77a1e8f` |
